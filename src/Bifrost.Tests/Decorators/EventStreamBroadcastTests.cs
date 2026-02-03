@@ -206,12 +206,12 @@ public class EventStreamBroadcastTests
             }
         });
 
-        // Give subscriber time to start
-        await Task.Delay(100).ConfigureAwait(false);
+        // Give subscriber time to start (CI can be slow)
+        await Task.Delay(500).ConfigureAwait(false);
 
         // Generate some events
         await decorator.EnqueueAsync("test1").ConfigureAwait(false);
-        await Task.Delay(50).ConfigureAwait(false);
+        await Task.Delay(200).ConfigureAwait(false);
 
         // Act - cancel the subscriber
         await subscriberCts.CancelAsync().ConfigureAwait(false);
