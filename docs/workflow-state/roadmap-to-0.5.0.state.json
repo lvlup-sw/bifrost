@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "featureId": "roadmap-to-0.5.0",
+  "createdAt": "2026-02-03T07:44:35Z",
+  "updatedAt": "2026-02-03T07:44:38Z",
+  "phase": "plan",
+  "artifacts": {
+    "design": "docs/designs/2026-02-02-roadmap-to-0.5.0.md",
+    "plan": null,
+    "pr": null
+  },
+  "tasks": [],
+  "worktrees": {},
+  "julesSessions": {},
+  "reviews": {},
+  "synthesis": {
+    "integrationBranch": null,
+    "mergeOrder": [],
+    "mergedBranches": [],
+    "prUrl": null,
+    "prFeedback": []
+  }
+}
