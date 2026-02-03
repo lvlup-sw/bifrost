@@ -1,19 +1,19 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Levelup.Channels.Core", "Levelup.Channels.Core\Levelup.Channels.Core.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bifrost.Core", "Bifrost.Core\Bifrost.Core.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Levelup.Channels.Tests", "Levelup.Channels.Tests\Levelup.Channels.Tests.csproj", "{B2C3D4E5-F6A7-8901-BCDE-F12345678901}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bifrost.Tests", "Bifrost.Tests\Bifrost.Tests.csproj", "{B2C3D4E5-F6A7-8901-BCDE-F12345678901}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Levelup.Channels", "Levelup.Channels\Levelup.Channels.csproj", "{C3D4E5F6-A7B8-9012-CDEF-234567890123}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bifrost", "Bifrost\Bifrost.csproj", "{C3D4E5F6-A7B8-9012-CDEF-234567890123}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Levelup.Channels.HealthChecks", "Levelup.Channels.HealthChecks\Levelup.Channels.HealthChecks.csproj", "{C3ABE0E8-0FD9-4110-A21E-9F0E066A81D6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bifrost.HealthChecks", "Bifrost.HealthChecks\Bifrost.HealthChecks.csproj", "{C3ABE0E8-0FD9-4110-A21E-9F0E066A81D6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Levelup.Channels.Resilience", "Levelup.Channels.Resilience\Levelup.Channels.Resilience.csproj", "{D4E5F6A7-B8C9-0123-DEF0-345678901234}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bifrost.Resilience", "Bifrost.Resilience\Bifrost.Resilience.csproj", "{D4E5F6A7-B8C9-0123-DEF0-345678901234}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Levelup.Channels.OpenTelemetry", "Levelup.Channels.OpenTelemetry\Levelup.Channels.OpenTelemetry.csproj", "{D805A1AB-CB07-4EA7-8186-8CE0504B3A76}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bifrost.OpenTelemetry", "Bifrost.OpenTelemetry\Bifrost.OpenTelemetry.csproj", "{D805A1AB-CB07-4EA7-8186-8CE0504B3A76}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
