@@ -19,21 +19,21 @@ A high-performance, production-ready Channel-based work orchestration library fo
 
 | Package | Description | NuGet |
 |---------|-------------|-------|
-| `Bifrost.Core` | Core abstractions with zero dependencies | - |
-| `Bifrost` | Main implementation with Channel-based orchestration | - |
-| `Bifrost.HealthChecks` | ASP.NET Core health check integration | - |
-| `Bifrost.OpenTelemetry` | OpenTelemetry metrics support | - |
-| `Bifrost.Resilience` | Polly resilience integration | - |
+| `LevelUp.Bifrost.Core` | Core abstractions with zero dependencies | - |
+| `LevelUp.Bifrost` | Main implementation with Channel-based orchestration | - |
+| `LevelUp.Bifrost.HealthChecks` | ASP.NET Core health check integration | - |
+| `LevelUp.Bifrost.OpenTelemetry` | OpenTelemetry metrics support | - |
+| `LevelUp.Bifrost.Resilience` | Polly resilience integration | - |
 
 ## Quick Start
 
 ### Installation
 
 ```bash
-dotnet add package Bifrost
-dotnet add package Bifrost.HealthChecks  # optional
-dotnet add package Bifrost.OpenTelemetry  # optional
-dotnet add package Bifrost.Resilience  # optional
+dotnet add package LevelUp.Bifrost
+dotnet add package LevelUp.Bifrost.HealthChecks  # optional
+dotnet add package LevelUp.Bifrost.OpenTelemetry  # optional
+dotnet add package LevelUp.Bifrost.Resilience  # optional
 ```
 
 ### Basic Usage

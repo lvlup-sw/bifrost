@@ -11,29 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Bifrost.Core** - Core primitives and contracts for channel-based work orchestration
+- **LevelUp.Bifrost.Core** - Core primitives and contracts for channel-based work orchestration
   - `Result<T>` and `Error` types for functional error handling
   - `IProcessExecutor<T>` contract for process execution
   - `ProcessConfiguration` and `AutoscalingOptions` for configuration
   - Event types for streaming (`EventMessage`, `EventData`, `ProgressEventData`)
 
-- **Bifrost** - Main library with work orchestration infrastructure
+- **LevelUp.Bifrost** - Main library with work orchestration infrastructure
   - `TaskOrchestrator` - Background task scheduling with resilience
   - `AutoscalingEngine` - Dynamic worker scaling based on queue utilization
   - `ResiliencyPolicyGenerator` - Polly policy factory for retry/timeout/circuit breaker
   - `WorkerRegistry` - Tracks active workers for autoscaling
 
-- **Bifrost.Resilience** - Polly integration for resilient operations
+- **LevelUp.Bifrost.Resilience** - Polly integration for resilient operations
   - Pre-configured resilience policies
   - Circuit breaker patterns
   - Retry with exponential backoff
 
-- **Bifrost.HealthChecks** - Health check implementations
+- **LevelUp.Bifrost.HealthChecks** - Health check implementations
   - Autoscaling health checks
   - Event streaming health checks
   - Worker registry health checks
 
-- **Bifrost.OpenTelemetry** - Observability integration
+- **LevelUp.Bifrost.OpenTelemetry** - Observability integration
   - Metrics for work orchestration
   - Tracing support
   - Diagnostic listeners
