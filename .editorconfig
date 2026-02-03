@@ -16,6 +16,143 @@ insert_final_newline = true
 [*.cs]
 indent_size = 4
 
+# StyleCop rules - set to suggestion/none to avoid treating as errors
+# These rules are stylistic preferences, not correctness issues
+
+# Ordering rules
+dotnet_diagnostic.SA1200.severity = suggestion
+dotnet_diagnostic.SA1201.severity = suggestion
+dotnet_diagnostic.SA1202.severity = suggestion
+dotnet_diagnostic.SA1203.severity = suggestion
+dotnet_diagnostic.SA1204.severity = suggestion
+
+# Naming rules
+dotnet_diagnostic.SA1309.severity = none
+dotnet_diagnostic.SA1310.severity = suggestion
+dotnet_diagnostic.SA1311.severity = suggestion
+
+# Maintainability rules
+dotnet_diagnostic.SA1402.severity = suggestion
+dotnet_diagnostic.SA1413.severity = suggestion
+dotnet_diagnostic.SA1124.severity = suggestion
+
+# Layout rules
+dotnet_diagnostic.SA1500.severity = suggestion
+dotnet_diagnostic.SA1501.severity = suggestion
+dotnet_diagnostic.SA1502.severity = suggestion
+dotnet_diagnostic.SA1503.severity = suggestion
+dotnet_diagnostic.SA1504.severity = suggestion
+dotnet_diagnostic.SA1505.severity = suggestion
+dotnet_diagnostic.SA1506.severity = suggestion
+dotnet_diagnostic.SA1507.severity = suggestion
+dotnet_diagnostic.SA1508.severity = suggestion
+dotnet_diagnostic.SA1509.severity = suggestion
+dotnet_diagnostic.SA1510.severity = suggestion
+dotnet_diagnostic.SA1511.severity = suggestion
+dotnet_diagnostic.SA1512.severity = suggestion
+dotnet_diagnostic.SA1513.severity = suggestion
+dotnet_diagnostic.SA1514.severity = suggestion
+dotnet_diagnostic.SA1515.severity = suggestion
+dotnet_diagnostic.SA1516.severity = suggestion
+dotnet_diagnostic.SA1517.severity = suggestion
+dotnet_diagnostic.SA1518.severity = none
+dotnet_diagnostic.SA1519.severity = suggestion
+dotnet_diagnostic.SA1520.severity = suggestion
+
+# Readability rules
+dotnet_diagnostic.SA1101.severity = none
+dotnet_diagnostic.SA1116.severity = suggestion
+dotnet_diagnostic.SA1117.severity = suggestion
+dotnet_diagnostic.SA1118.severity = suggestion
+dotnet_diagnostic.SA1127.severity = suggestion
+dotnet_diagnostic.SA1128.severity = suggestion
+dotnet_diagnostic.SA1129.severity = suggestion
+dotnet_diagnostic.SA1130.severity = suggestion
+dotnet_diagnostic.SA1131.severity = suggestion
+dotnet_diagnostic.SA1132.severity = suggestion
+dotnet_diagnostic.SA1133.severity = suggestion
+dotnet_diagnostic.SA1134.severity = suggestion
+dotnet_diagnostic.SA1312.severity = none
+
+# Documentation rules
+dotnet_diagnostic.SA1600.severity = suggestion
+dotnet_diagnostic.SA1601.severity = suggestion
+dotnet_diagnostic.SA1602.severity = suggestion
+dotnet_diagnostic.SA1603.severity = suggestion
+dotnet_diagnostic.SA1604.severity = suggestion
+dotnet_diagnostic.SA1605.severity = suggestion
+dotnet_diagnostic.SA1606.severity = suggestion
+dotnet_diagnostic.SA1607.severity = suggestion
+dotnet_diagnostic.SA1608.severity = suggestion
+dotnet_diagnostic.SA1609.severity = suggestion
+dotnet_diagnostic.SA1610.severity = suggestion
+dotnet_diagnostic.SA1611.severity = suggestion
+dotnet_diagnostic.SA1612.severity = suggestion
+dotnet_diagnostic.SA1613.severity = suggestion
+dotnet_diagnostic.SA1614.severity = suggestion
+dotnet_diagnostic.SA1615.severity = suggestion
+dotnet_diagnostic.SA1616.severity = suggestion
+dotnet_diagnostic.SA1617.severity = suggestion
+dotnet_diagnostic.SA1618.severity = suggestion
+dotnet_diagnostic.SA1619.severity = suggestion
+dotnet_diagnostic.SA1620.severity = suggestion
+dotnet_diagnostic.SA1621.severity = suggestion
+dotnet_diagnostic.SA1622.severity = suggestion
+dotnet_diagnostic.SA1623.severity = suggestion
+dotnet_diagnostic.SA1624.severity = suggestion
+dotnet_diagnostic.SA1625.severity = suggestion
+dotnet_diagnostic.SA1626.severity = suggestion
+dotnet_diagnostic.SA1627.severity = suggestion
+dotnet_diagnostic.SA1629.severity = suggestion
+dotnet_diagnostic.SA1633.severity = none
+dotnet_diagnostic.SA1634.severity = none
+dotnet_diagnostic.SA1635.severity = none
+dotnet_diagnostic.SA1636.severity = none
+dotnet_diagnostic.SA1637.severity = none
+dotnet_diagnostic.SA1638.severity = none
+dotnet_diagnostic.SA1639.severity = none
+dotnet_diagnostic.SA1640.severity = none
+dotnet_diagnostic.SA1641.severity = none
+dotnet_diagnostic.SA1642.severity = suggestion
+dotnet_diagnostic.SA1643.severity = suggestion
+dotnet_diagnostic.SA1648.severity = suggestion
+dotnet_diagnostic.SA1649.severity = suggestion
+dotnet_diagnostic.SA1651.severity = suggestion
+
+# Spacing rules
+dotnet_diagnostic.SA1000.severity = suggestion
+dotnet_diagnostic.SA1001.severity = suggestion
+dotnet_diagnostic.SA1002.severity = suggestion
+dotnet_diagnostic.SA1003.severity = suggestion
+dotnet_diagnostic.SA1004.severity = suggestion
+dotnet_diagnostic.SA1005.severity = suggestion
+dotnet_diagnostic.SA1006.severity = suggestion
+dotnet_diagnostic.SA1007.severity = suggestion
+dotnet_diagnostic.SA1008.severity = suggestion
+dotnet_diagnostic.SA1009.severity = suggestion
+dotnet_diagnostic.SA1010.severity = suggestion
+dotnet_diagnostic.SA1011.severity = suggestion
+dotnet_diagnostic.SA1012.severity = suggestion
+dotnet_diagnostic.SA1013.severity = suggestion
+dotnet_diagnostic.SA1014.severity = suggestion
+dotnet_diagnostic.SA1015.severity = suggestion
+dotnet_diagnostic.SA1016.severity = suggestion
+dotnet_diagnostic.SA1017.severity = suggestion
+dotnet_diagnostic.SA1018.severity = suggestion
+dotnet_diagnostic.SA1019.severity = suggestion
+dotnet_diagnostic.SA1020.severity = suggestion
+dotnet_diagnostic.SA1021.severity = suggestion
+dotnet_diagnostic.SA1022.severity = suggestion
+dotnet_diagnostic.SA1023.severity = suggestion
+dotnet_diagnostic.SA1024.severity = suggestion
+dotnet_diagnostic.SA1025.severity = suggestion
+dotnet_diagnostic.SA1026.severity = suggestion
+dotnet_diagnostic.SA1027.severity = suggestion
+dotnet_diagnostic.SA1028.severity = suggestion
+
+# Threading analyzers - set to suggestion
+dotnet_diagnostic.VSTHRD200.severity = suggestion
+
 # New line preferences
 csharp_new_line_before_open_brace = all
 csharp_new_line_before_else = true

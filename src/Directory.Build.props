@@ -1,12 +1,14 @@
 <Project>
+  <!-- Project Defaults -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <EnableNETAnalyzers>true</EnableNETAnalyzers>
-    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- MinVer: recognize v-prefixed tags like v1.0.0 -->
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <!-- Use our own stylecop.json, not Lvlup.Build's default -->
+    <LvlupIncludeStyleCopConfig>false</LvlupIncludeStyleCopConfig>
     <!-- NativeAOT compatibility -->
     <IsAotCompatible>true</IsAotCompatible>
     <!-- Generate documentation -->
@@ -19,18 +21,28 @@
     <Company>Levelup Software</Company>
     <Copyright>Copyright (c) 2025-2026 Levelup Software</Copyright>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/levelup-software/levelup-channels</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/levelup-software/levelup-channels</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/lvlup-sw/bifrost</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/lvlup-sw/bifrost</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>channels;work-orchestrator;autoscaling;background-tasks;dotnet</PackageTags>
+    <PackageTags>bifrost;channels;work-orchestrator;autoscaling;background-tasks;resilience;dotnet</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Channel-based work orchestration library with autoscaling, resilience, health checks, and OpenTelemetry support.</Description>
   </PropertyGroup>
 
   <!-- Pack README into NuGet packages -->
   <ItemGroup Condition="'$(IsTestProject)' != 'true'">
-    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
+
+  <!-- Source Link & Deterministic Builds -->
+  <PropertyGroup>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <Deterministic>true</Deterministic>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
 
   <!-- Coverage Configuration -->
   <PropertyGroup>
@@ -50,7 +62,19 @@
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
     <IsPackable>false</IsPackable>
     <IsPublishable>false</IsPublishable>
-    <!-- Enable new dotnet test experience for .NET 10+ -->
+    <!-- Enable new Microsoft Testing Platform integration for .NET 10+ -->
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
   </PropertyGroup>
+
+  <!-- Build Infrastructure Packages -->
+  <ItemGroup>
+    <PackageReference Include="Lvlup.Build" PrivateAssets="all" />
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- StyleCop Configuration -->
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" />
+  </ItemGroup>
 </Project>
