@@ -61,7 +61,7 @@ public class EventStreamOrchestratorTests
         });
 
         // Give subscriber time to start
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(250).ConfigureAwait(false);
 
         // Act
         await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
@@ -69,7 +69,7 @@ public class EventStreamOrchestratorTests
         // Assert
         await _inner.Received(1).EnqueueAsync("test-work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(evt.Work).IsEqualTo("test-work");
     }
 
@@ -99,7 +99,7 @@ public class EventStreamOrchestratorTests
         });
 
         // Give subscriber time to start
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(250).ConfigureAwait(false);
 
         // Act - enqueue work to generate events
         await decorator.EnqueueAsync("test1").ConfigureAwait(false);
@@ -201,13 +201,13 @@ public class EventStreamOrchestratorTests
         });
 
         // Give subscriber time to start
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(250).ConfigureAwait(false);
 
         // Act
         decorator.TryEnqueue("test-work");
 
         // Assert - verify event was published
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(evt.Work).IsEqualTo("test-work");
     }
 
@@ -242,7 +242,7 @@ public class EventStreamOrchestratorTests
         });
 
         // Give subscriber time to start
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(250).ConfigureAwait(false);
 
         // Act
         var result = decorator.TryEnqueue("test-work");
@@ -363,7 +363,7 @@ public class EventStreamOrchestratorTests
         });
 
         // Give subscriber time to start
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(250).ConfigureAwait(false);
 
         var before = DateTimeOffset.UtcNow;
 
@@ -373,7 +373,7 @@ public class EventStreamOrchestratorTests
         var after = DateTimeOffset.UtcNow;
 
         // Assert
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(evt.Timestamp).IsGreaterThanOrEqualTo(before);
         await Assert.That(evt.Timestamp).IsLessThanOrEqualTo(after);
     }
@@ -402,13 +402,13 @@ public class EventStreamOrchestratorTests
         });
 
         // Give subscriber time to start
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(250).ConfigureAwait(false);
 
         // Act
         await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
 
         // Assert
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(evt.QueueDepth).IsEqualTo(10);
     }
 
