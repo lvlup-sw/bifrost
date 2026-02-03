@@ -1,9 +1,10 @@
-# Levelup.Channels
+# Bifrost
 
-A high-performance, production-ready Channel-based work orchestration library for .NET 10. Provides bounded work queues, worker pool management, autoscaling, resilience, and comprehensive observability.
-
+[![Build](https://github.com/lvlup-sw/bifrost/actions/workflows/ci.yml/badge.svg)](https://github.com/lvlup-sw/bifrost/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
+
+A high-performance, production-ready Channel-based work orchestration library for .NET 10. Provides bounded work queues, worker pool management, autoscaling, resilience, and comprehensive observability.
 
 ## Features
 
@@ -18,21 +19,21 @@ A high-performance, production-ready Channel-based work orchestration library fo
 
 | Package | Description | NuGet |
 |---------|-------------|-------|
-| `Levelup.Channels.Core` | Core abstractions with zero dependencies | - |
-| `Levelup.Channels` | Main implementation with Channel-based orchestration | - |
-| `Levelup.Channels.HealthChecks` | ASP.NET Core health check integration | - |
-| `Levelup.Channels.OpenTelemetry` | OpenTelemetry metrics support | - |
-| `Levelup.Channels.Resilience` | Polly resilience integration | - |
+| `Bifrost.Core` | Core abstractions with zero dependencies | - |
+| `Bifrost` | Main implementation with Channel-based orchestration | - |
+| `Bifrost.HealthChecks` | ASP.NET Core health check integration | - |
+| `Bifrost.OpenTelemetry` | OpenTelemetry metrics support | - |
+| `Bifrost.Resilience` | Polly resilience integration | - |
 
 ## Quick Start
 
 ### Installation
 
 ```bash
-dotnet add package Levelup.Channels
-dotnet add package Levelup.Channels.HealthChecks  # optional
-dotnet add package Levelup.Channels.OpenTelemetry  # optional
-dotnet add package Levelup.Channels.Resilience  # optional
+dotnet add package Bifrost
+dotnet add package Bifrost.HealthChecks  # optional
+dotnet add package Bifrost.OpenTelemetry  # optional
+dotnet add package Bifrost.Resilience  # optional
 ```
 
 ### Basic Usage
@@ -191,8 +192,8 @@ await foreach (var evt in eventOrchestrator.GetEventStreamAsync<WorkCompletedEve
 
 ```bash
 # Clone the repository
-git clone https://github.com/levelup-software/levelup-channels.git
-cd levelup-channels
+git clone https://github.com/lvlup-sw/bifrost.git
+cd bifrost
 
 # Build
 dotnet build

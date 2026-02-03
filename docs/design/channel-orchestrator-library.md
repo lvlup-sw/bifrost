@@ -91,8 +91,8 @@ public interface IWorkHandler<TWork>
 ### Package Structure
 
 ```
-Levelup.Channels/
-├── Levelup.Channels.Core/           # Core abstractions, zero dependencies
+Bifrost/
+├── Bifrost.Core/                    # Core abstractions, zero dependencies
 │   ├── IWorkOrchestrator.cs
 │   ├── IWorkHandler.cs
 │   ├── WorkOrchestratorOptions.cs
@@ -100,7 +100,7 @@ Levelup.Channels/
 │       ├── IOrchestratorEvent.cs
 │       └── Built-in event types
 │
-├── Levelup.Channels/                # Main package, depends on Core
+├── Bifrost/                         # Main package, depends on Core
 │   ├── WorkOrchestrator.cs          # Channel-based implementation
 │   ├── WorkerPool.cs                # Worker lifecycle management
 │   ├── Decorators/
@@ -116,17 +116,17 @@ Levelup.Channels/
 │       ├── WorkOrchestratorBuilder.cs
 │       └── ServiceCollectionExtensions.cs
 │
-├── Levelup.Channels.Resilience/     # Polly integration (optional)
+├── Bifrost.Resilience/              # Polly integration (optional)
 │   ├── ResilientOrchestrator.cs
 │   └── ResilienceExtensions.cs
 │
-├── Levelup.Channels.HealthChecks/   # Health check integration (optional)
+├── Bifrost.HealthChecks/            # Health check integration (optional)
 │   └── HealthCheckExtensions.cs
 │
-├── Levelup.Channels.OpenTelemetry/  # Telemetry integration (optional)
+├── Bifrost.OpenTelemetry/           # Telemetry integration (optional)
 │   └── TelemetryExtensions.cs
 │
-└── Levelup.Channels.Tests/          # TUnit tests
+└── Bifrost.Tests/                   # TUnit tests
 ```
 
 ### Decorator Chain Architecture
@@ -135,24 +135,24 @@ Levelup.Channels/
 User requests IWorkOrchestrator<TWork>
                     │
                     ▼
-┌─────────────────────────────────────────────────────┐
-│        Decorator Chain (built by extensions)        │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  ┌───────────────────────────────────────────────┐  │
-│  │     ResilientOrchestrator<TWork>              │  │  ← WithResilience()
-│  │  ┌─────────────────────────────────────────┐  │  │
-│  │  │   AutoscalingOrchestrator<TWork>        │  │  │  ← WithAutoscaling()
-│  │  │  ┌───────────────────────────────────┐  │  │  │
-│  │  │  │   EventStreamOrchestrator<TWork>  │  │  │  │  ← WithEventStream()
-│  │  │  │  ┌─────────────────────────────┐  │  │  │  │
-│  │  │  │  │   WorkOrchestrator<TWork>   │  │  │  │  │  ← Core (always present)
-│  │  │  │  └─────────────────────────────┘  │  │  │  │
-│  │  │  └───────────────────────────────────┘  │  │  │
-│  │  └─────────────────────────────────────────┘  │  │
-│  └───────────────────────────────────────────────┘  │
-│                                                     │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│        Decorator Chain (built by extensions)                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │     ResilientOrchestrator<TWork>                          │  │  ← WithResilience()
+│  │  ┌─────────────────────────────────────────────────────┐  │  │
+│  │  │   AutoscalingOrchestrator<TWork>                    │  │  │  ← WithAutoscaling()
+│  │  │  ┌───────────────────────────────────────────────┐  │  │  │
+│  │  │  │   EventStreamOrchestrator<TWork>              │  │  │  │  ← WithEventStream()
+│  │  │  │  ┌─────────────────────────────────────────┐  │  │  │  │
+│  │  │  │  │   WorkOrchestrator<TWork>               │  │  │  │  │  ← Core (always present)
+│  │  │  │  └─────────────────────────────────────────┘  │  │  │  │
+│  │  │  └───────────────────────────────────────────────┘  │  │  │
+│  │  └─────────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Builder Implementation
@@ -448,7 +448,7 @@ public class EnqueueBenchmarks
 
 ## Open Questions
 
-1. **Naming**: `Levelup.Channels` vs `Levelup.WorkOrchestrator` vs other?
+1. **Naming**: `Bifrost` vs `Bifrost.WorkOrchestrator` vs other?
 
 2. **Generic event filtering**: Should `GetEventStreamAsync<TEvent>()` filter by type, or should we use a different pattern?
 

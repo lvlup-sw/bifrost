@@ -1,0 +1,94 @@
+# GitHub Labels - Bifrost
+#
+# Extends the base labels from lvlup-sw/.github/labels-base.yml
+# with domain-specific scope labels for channel-based work orchestration.
+#
+# Sync labels: gh label sync --force
+
+# =============================================================================
+# Type Labels - What kind of work is this?
+# =============================================================================
+
+- name: "type:bug"
+  color: "d73a4a"
+  description: "Something isn't working"
+
+- name: "type:feature"
+  color: "a2eeef"
+  description: "New feature or enhancement"
+
+- name: "type:docs"
+  color: "0075ca"
+  description: "Documentation improvements"
+
+- name: "type:chore"
+  color: "fef2c0"
+  description: "Maintenance, dependencies, CI"
+
+- name: "type:question"
+  color: "d876e3"
+  description: "Question or discussion"
+
+# =============================================================================
+# Status Labels - What's the current state?
+# =============================================================================
+
+- name: "status:triage"
+  color: "ededed"
+  description: "Needs initial review"
+
+- name: "status:blocked"
+  color: "b60205"
+  description: "Blocked by external factor"
+
+- name: "status:stale"
+  color: "ffffff"
+  description: "No activity, will auto-close"
+
+# =============================================================================
+# Priority Labels - How urgent is this?
+# =============================================================================
+
+- name: "priority:high"
+  color: "d93f0b"
+  description: "Address soon"
+
+- name: "priority:low"
+  color: "0e8a16"
+  description: "Nice to have"
+
+# =============================================================================
+# Source Labels - Where did this issue come from?
+# =============================================================================
+
+- name: "source:jules"
+  color: "7C3AED"
+  description: "Automated finding from Jules scan"
+
+# =============================================================================
+# Domain-Specific Scope Labels - Bifrost Channel Infrastructure
+# =============================================================================
+
+- name: "scope:core"
+  color: "0366d6"
+  description: "Core channel infrastructure and work orchestration"
+
+- name: "scope:autoscaling"
+  color: "1d76db"
+  description: "Dynamic worker scaling and pool management"
+
+- name: "scope:resilience"
+  color: "5319e7"
+  description: "Polly integration, retry patterns, circuit breakers"
+
+- name: "scope:health-checks"
+  color: "006b75"
+  description: "Health check implementations"
+
+- name: "scope:opentelemetry"
+  color: "e99695"
+  description: "Metrics, tracing, and observability"
+
+- name: "scope:performance"
+  color: "fbca04"
+  description: "Performance, memory, allocations"
