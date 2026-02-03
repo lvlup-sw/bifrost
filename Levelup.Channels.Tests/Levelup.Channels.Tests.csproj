@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Levelup.Channels.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Tests don't need to be AOT compatible -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Polly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Levelup.Channels.Core\Levelup.Channels.Core.csproj" />
+    <ProjectReference Include="..\Levelup.Channels.HealthChecks\Levelup.Channels.HealthChecks.csproj" />
+    <ProjectReference Include="..\Levelup.Channels.OpenTelemetry\Levelup.Channels.OpenTelemetry.csproj" />
+    <ProjectReference Include="..\Levelup.Channels.Resilience\Levelup.Channels.Resilience.csproj" />
+    <ProjectReference Include="..\Levelup.Channels\Levelup.Channels.csproj" />
+  </ItemGroup>
+
+</Project>

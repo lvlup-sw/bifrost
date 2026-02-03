@@ -1,0 +1,262 @@
+// =============================================================================
+// <copyright file="EventStreamOrchestrator.cs" company="Levelup Software">
+// Copyright (c) Levelup Software. All rights reserved.
+// </copyright>
+// =============================================================================
+
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
+using System.Threading.Channels;
+using Levelup.Channels.Core;
+using Levelup.Channels.Core.Events;
+using Microsoft.Extensions.Logging;
+
+namespace Levelup.Channels.Decorators;
+
+/// <summary>
+/// Decorator that publishes events for work lifecycle operations.
+/// </summary>
+/// <typeparam name="TWork">The type of work item to process.</typeparam>
+/// <remarks>
+/// <para>
+/// This decorator wraps an <see cref="IWorkOrchestrator{TWork}"/> and publishes
+/// events for key lifecycle operations like enqueue and completion. Events are
+/// published to multiple subscriber channels via the broadcast pattern.
+/// </para>
+/// <para>
+/// Each subscriber gets their own bounded channel using <see cref="BoundedChannelFullMode.DropOldest"/>
+/// to prevent slow subscribers from blocking others or causing memory issues.
+/// Subscribers are automatically cleaned up when their enumeration is cancelled or disposed.
+/// </para>
+/// </remarks>
+public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TWork>
+{
+    private readonly IWorkOrchestrator<TWork> _inner;
+    private readonly ILogger<EventStreamOrchestrator<TWork>> _logger;
+    private readonly ConcurrentDictionary<Guid, Channel<IOrchestratorEvent>> _eventSubscribers = new();
+    private volatile bool _disposed;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EventStreamOrchestrator{TWork}"/> class.
+    /// </summary>
+    /// <param name="inner">The inner orchestrator to wrap.</param>
+    /// <param name="logger">The logger instance.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="inner"/> or <paramref name="logger"/> is null.</exception>
+    public EventStreamOrchestrator(
+        IWorkOrchestrator<TWork> inner,
+        ILogger<EventStreamOrchestrator<TWork>> logger)
+    {
+        ArgumentNullException.ThrowIfNull(inner);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _inner = inner;
+        _logger = logger;
+    }
+
+    /// <inheritdoc/>
+    public int PendingCount => _inner.PendingCount;
+
+    /// <inheritdoc/>
+    public int ActiveWorkers => _inner.ActiveWorkers;
+
+    /// <inheritdoc/>
+    public int Capacity => _inner.Capacity;
+
+    /// <inheritdoc/>
+    public ChannelWriter<TWork> Writer => _inner.Writer;
+
+    /// <inheritdoc/>
+    public async ValueTask EnqueueAsync(TWork work, CancellationToken ct = default)
+    {
+        await _inner.EnqueueAsync(work, ct).ConfigureAwait(false);
+
+        var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
+        PublishToSubscribers(evt);
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask EnqueueAsync(TWork work, string? correlationId, CancellationToken ct = default)
+    {
+        await _inner.EnqueueAsync(work, ct).ConfigureAwait(false);
+
+        var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount, correlationId);
+        PublishToSubscribers(evt);
+    }
+
+    /// <inheritdoc/>
+    public bool TryEnqueue(TWork work)
+    {
+        var result = _inner.TryEnqueue(work);
+
+        if (result)
+        {
+            var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
+            PublishToSubscribers(evt);
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public bool TryEnqueue(TWork work, string? correlationId)
+    {
+        var result = _inner.TryEnqueue(work);
+
+        if (result)
+        {
+            var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount, correlationId);
+            PublishToSubscribers(evt);
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public void Run(TWork work)
+    {
+        _inner.Run(work);
+
+        var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
+        PublishToSubscribers(evt);
+    }
+
+    /// <inheritdoc/>
+    public bool TryRun(TWork work)
+    {
+        var result = _inner.TryRun(work);
+
+        if (result)
+        {
+            var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
+            PublishToSubscribers(evt);
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public Func<string, CancellationToken, Task> CreateWorkerFunction()
+        => _inner.CreateWorkerFunction();
+
+    /// <inheritdoc/>
+    public Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback)
+        => _inner.CreateWorkerFunction(stateCallback);
+
+    /// <inheritdoc/>
+    public Task RequestScaleUpAsync(int count, CancellationToken cancellationToken = default)
+        => _inner.RequestScaleUpAsync(count, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task RequestScaleDownAsync(int count, CancellationToken cancellationToken = default)
+        => _inner.RequestScaleDownAsync(count, cancellationToken);
+
+    /// <inheritdoc/>
+    public CancellationToken GetShutdownToken()
+        => _inner.GetShutdownToken();
+
+    /// <inheritdoc/>
+    public Task StopAsync(CancellationToken ct = default)
+    {
+        return _inner.StopAsync(ct);
+    }
+
+    /// <inheritdoc/>
+    public ValueTask DisposeAsync()
+    {
+        _disposed = true;
+
+        // Complete all subscriber channels
+        foreach (var subscriber in _eventSubscribers.Values)
+        {
+            subscriber.Writer.TryComplete();
+        }
+
+        _eventSubscribers.Clear();
+
+        return _inner.DisposeAsync();
+    }
+
+    /// <inheritdoc/>
+    /// <exception cref="ObjectDisposedException">Thrown when the orchestrator has been disposed.</exception>
+    public IAsyncEnumerable<TEvent> GetEventStreamAsync<TEvent>(
+        string? correlationId = null,
+        CancellationToken cancellationToken = default)
+        where TEvent : IOrchestratorEvent
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var subscriberId = Guid.NewGuid();
+        var subscriberChannel = Channel.CreateBounded<IOrchestratorEvent>(
+            new BoundedChannelOptions(1000)
+            {
+                FullMode = BoundedChannelFullMode.DropOldest,
+                SingleReader = true,
+                SingleWriter = false,
+            });
+
+        _eventSubscribers.TryAdd(subscriberId, subscriberChannel);
+
+        return ReadWithCleanup<TEvent>(subscriberId, subscriberChannel.Reader, correlationId, cancellationToken);
+    }
+
+    private async IAsyncEnumerable<TEvent> ReadWithCleanup<TEvent>(
+        Guid subscriberId,
+        ChannelReader<IOrchestratorEvent> reader,
+        string? correlationId,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+        where TEvent : IOrchestratorEvent
+    {
+        try
+        {
+            await foreach (var evt in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            {
+                // Type filtering
+                if (evt is not TEvent typedEvent)
+                {
+                    continue;
+                }
+
+                // Correlation ID filtering (only when correlationId is specified)
+                if (correlationId is not null)
+                {
+                    if (evt is ICorrelatedEvent correlated)
+                    {
+                        if (!string.Equals(correlated.CorrelationId, correlationId, StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        // Event doesn't implement ICorrelatedEvent, skip when filtering by correlationId
+                        continue;
+                    }
+                }
+
+                yield return typedEvent;
+            }
+        }
+        finally
+        {
+            // Cleanup subscriber on completion or cancellation
+            if (_eventSubscribers.TryRemove(subscriberId, out var channel))
+            {
+                channel.Writer.TryComplete();
+            }
+        }
+    }
+
+    private void PublishToSubscribers(IOrchestratorEvent evt)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        foreach (var subscriber in _eventSubscribers.Values)
+        {
+            // Non-blocking write - DropOldest ensures we don't block
+            subscriber.Writer.TryWrite(evt);
+        }
+    }
+}

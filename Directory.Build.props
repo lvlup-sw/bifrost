@@ -1,0 +1,56 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- NativeAOT compatibility -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- Generate documentation -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- NuGet Package Metadata -->
+  <PropertyGroup>
+    <Authors>Levelup Software</Authors>
+    <Company>Levelup Software</Company>
+    <Copyright>Copyright (c) 2025-2026 Levelup Software</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/levelup-software/levelup-channels</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/levelup-software/levelup-channels</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>channels;work-orchestrator;autoscaling;background-tasks;dotnet</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Description>Channel-based work orchestration library with autoscaling, resilience, health checks, and OpenTelemetry support.</Description>
+  </PropertyGroup>
+
+  <!-- Pack README into NuGet packages -->
+  <ItemGroup Condition="'$(IsTestProject)' != 'true'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
+  <!-- Coverage Configuration -->
+  <PropertyGroup>
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>cobertura,json,lcov</CoverletOutputFormat>
+    <CoverletOutput>$(MSBuildProjectDirectory)/coverage/</CoverletOutput>
+    <Threshold>80</Threshold>
+    <ThresholdType>line,branch,method</ThresholdType>
+    <ThresholdStat>total</ThresholdStat>
+    <ExcludeByFile>**/*Designer.cs,**/*.g.cs,**/*.g.i.cs</ExcludeByFile>
+    <ExcludeByAttribute>ExcludeFromCodeCoverage,CompilerGenerated,GeneratedCode</ExcludeByAttribute>
+    <IncludeTestAssembly>false</IncludeTestAssembly>
+    <SkipAutoProps>true</SkipAutoProps>
+  </PropertyGroup>
+
+  <!-- Test-specific properties -->
+  <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+    <!-- Enable new dotnet test experience for .NET 10+ -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+</Project>
