@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>Levelup.Channels.Resilience</RootNamespace>
+    <RootNamespace>Bifrost.Resilience</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- NativeAOT compatibility -->
@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Levelup.Channels.Tests" />
+    <InternalsVisibleTo Include="Bifrost.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,8 +23,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Levelup.Channels.Core\Levelup.Channels.Core.csproj" />
-    <ProjectReference Include="..\Levelup.Channels\Levelup.Channels.csproj" />
+    <ProjectReference Include="..\Bifrost.Core\Bifrost.Core.csproj" />
+    <ProjectReference Include="..\Bifrost\Bifrost.csproj" />
   </ItemGroup>
 
 </Project>

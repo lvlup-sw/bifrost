@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "featureId": "refactor-channels-repo-structure",
+  "workflowType": "refactor",
+  "createdAt": "2026-02-03T01:55:42Z",
+  "updatedAt": "2026-02-03T02:15:11Z",
+  "track": "overhaul",
+  "phase": "delegate",
+  "explore": {
+    "startedAt": "2026-02-03T02:02:12Z",
+    "scopeAssessment": {
+      "filesAffected": [
+        "Directory.Build.props",
+        "Directory.Packages.props",
+        "*.csproj (all projects)",
+        "All *.cs files (namespace rename)",
+        ".github/workflows/ci.yml",
+        ".github/labels.yml",
+        ".github/cliff.toml",
+        ".github/PULL_REQUEST_TEMPLATE.md",
+        ".github/workflows/project-automation.yml",
+        "scripts/ci/coverage-gate.sh",
+        "CHANGELOG.md",
+        "README.md",
+        "Solution file rename"
+      ],
+      "modulesAffected": [
+        "Bifrost.Core (was Levelup.Channels.Core)",
+        "Bifrost (was Levelup.Channels)",
+        "Bifrost.Resilience",
+        "Bifrost.HealthChecks",
+        "Bifrost.OpenTelemetry",
+        "Bifrost.Tests",
+        "build-infrastructure",
+        "ci-cd",
+        "github-integration"
+      ],
+      "testCoverage": "good",
+      "recommendedTrack": "overhaul"
+    },
+    "completedAt": "2026-02-03T02:05:35Z"
+  },
+  "brief": {
+    "problem": "Levelup.Channels library needs to be renamed to Bifrost per naming decision, set up with proper lvlup-sw conventions (Lvlup.Build, CI/CD from .github org), and published as a private repo with NuGet publishing to nuget.org.",
+    "goals": [
+      "Rename all projects and namespaces from Levelup.Channels.* to Bifrost.*",
+      "Restructure to src/ layout (move projects into src/ folder)",
+      "Add Lvlup.Build reference and build infrastructure (MinVer, SourceLink)",
+      "Set up GitHub repo as lvlup-sw/bifrost (private)",
+      "Add CI/CD workflow (ci.yml, coverage-gate.sh)",
+      "Add GitHub integration (labels, PR template, project automation)",
+      "Configure NuGet publishing to nuget.org",
+      "Add CHANGELOG.md",
+      "Add scripts/ci/ directory"
+    ],
+    "approach": "1) Rename projects/namespaces first, 2) Update build infrastructure, 3) Create GitHub repo and push, 4) Add CI/CD workflows, 5) Configure NuGet publishing",
+    "affectedAreas": [
+      "All .csproj files (rename + move)",
+      "All .cs files (namespace changes)",
+      "Solution file (rename + update paths)",
+      "Directory.Build.props (move to src/)",
+      "Directory.Packages.props (move to src/)",
+      "README.md",
+      ".github/ (new directory)",
+      "scripts/ci/ (new directory)",
+      "Root restructure (create src/ folder)"
+    ],
+    "outOfScope": [
+      "Functional changes to the library",
+      "Adding new features",
+      "Breaking API changes"
+    ],
+    "successCriteria": [
+      "All tests pass with new namespace",
+      "dotnet build succeeds",
+      "GitHub repo created and accessible",
+      "CI workflow runs successfully",
+      "NuGet package can be published"
+    ],
+    "docsToUpdate": [
+      "README.md (update package names, badges)",
+      "docs/design/channel-orchestrator-library.md (if namespace references exist)"
+    ]
+  },
+  "artifacts": {
+    "plan": "docs/plans/2026-02-02-bifrost-refactor.md",
+    "pr": null,
+    "updatedDocs": []
+  },
+  "validation": {
+    "testsPass": null,
+    "briefImplemented": null,
+    "scopeExpanded": null,
+    "filesChangedCount": 0,
+    "goalsVerified": [],
+    "docsUpdated": null
+  },
+  "tasks": [],
+  "worktrees": {},
+  "reviews": {},
+  "synthesis": {
+    "integrationBranch": null,
+    "mergeOrder": [],
+    "mergedBranches": [],
+    "prUrl": null,
+    "prFeedback": []
+  }
+}

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>Levelup.Channels.Tests</RootNamespace>
+    <RootNamespace>Bifrost.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <!-- Tests don't need to be AOT compatible -->
@@ -22,11 +22,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Levelup.Channels.Core\Levelup.Channels.Core.csproj" />
-    <ProjectReference Include="..\Levelup.Channels.HealthChecks\Levelup.Channels.HealthChecks.csproj" />
-    <ProjectReference Include="..\Levelup.Channels.OpenTelemetry\Levelup.Channels.OpenTelemetry.csproj" />
-    <ProjectReference Include="..\Levelup.Channels.Resilience\Levelup.Channels.Resilience.csproj" />
-    <ProjectReference Include="..\Levelup.Channels\Levelup.Channels.csproj" />
+    <ProjectReference Include="..\Bifrost.Core\Bifrost.Core.csproj" />
+    <ProjectReference Include="..\Bifrost.HealthChecks\Bifrost.HealthChecks.csproj" />
+    <ProjectReference Include="..\Bifrost.OpenTelemetry\Bifrost.OpenTelemetry.csproj" />
+    <ProjectReference Include="..\Bifrost.Resilience\Bifrost.Resilience.csproj" />
+    <ProjectReference Include="..\Bifrost\Bifrost.csproj" />
   </ItemGroup>
 
 </Project>

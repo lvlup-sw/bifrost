@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>Levelup.Channels</RootNamespace>
+    <RootNamespace>Bifrost</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- NativeAOT compatibility -->
@@ -12,10 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Levelup.Channels.HealthChecks" />
-    <InternalsVisibleTo Include="Levelup.Channels.OpenTelemetry" />
-    <InternalsVisibleTo Include="Levelup.Channels.Resilience" />
-    <InternalsVisibleTo Include="Levelup.Channels.Tests" />
+    <InternalsVisibleTo Include="Bifrost.HealthChecks" />
+    <InternalsVisibleTo Include="Bifrost.OpenTelemetry" />
+    <InternalsVisibleTo Include="Bifrost.Resilience" />
+    <InternalsVisibleTo Include="Bifrost.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Levelup.Channels.Core\Levelup.Channels.Core.csproj" />
+    <ProjectReference Include="..\Bifrost.Core\Bifrost.Core.csproj" />
   </ItemGroup>
 
 </Project>
