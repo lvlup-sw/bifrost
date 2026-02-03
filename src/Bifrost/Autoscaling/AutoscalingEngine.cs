@@ -119,7 +119,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
             return Task.CompletedTask;
         }
 
-        _evaluationTimer.Change(_options.CheckInterval, _options.CheckInterval);
+        _evaluationTimer.Change(TimeSpan.Zero, _options.CheckInterval);
         _isRunning = true;
 
         _logger.LogInformation(
