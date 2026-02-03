@@ -4,12 +4,12 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
-using Levelup.Channels.DependencyInjection;
+using Bifrost.Core;
+using Bifrost.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 
-namespace Levelup.Channels.Tests.DependencyInjection;
+namespace Bifrost.Tests.DependencyInjection;
 
 /// <summary>
 /// Tests for <see cref="WorkOrchestratorBuilder{TWork}"/>.

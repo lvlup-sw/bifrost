@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Levelup.Channels.Autoscaling;
+namespace Bifrost.Autoscaling;
 
 /// <summary>
 /// Contains information about a registered worker.

@@ -6,13 +6,13 @@
 
 using System.Data.Common;
 using System.Net.Sockets;
-using Levelup.Channels.Resilience;
+using Bifrost.Resilience;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly.Timeout;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Resilience;
+namespace Bifrost.Tests.Resilience;
 
 /// <summary>
 /// Tests for <see cref="ResiliencyPolicyGenerator"/> utility.

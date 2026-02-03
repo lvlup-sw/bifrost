@@ -6,10 +6,10 @@
 
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
-using Levelup.Channels.Autoscaling;
+using Bifrost.Autoscaling;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Autoscaling;
+namespace Bifrost.Tests.Autoscaling;
 
 /// <summary>
 /// Tests for <see cref="AutoscalingOptions"/> configuration.

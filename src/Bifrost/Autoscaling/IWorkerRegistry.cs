@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Levelup.Channels.Autoscaling;
+namespace Bifrost.Autoscaling;
 
 /// <summary>
 /// Manages the dynamic registration and lifecycle of worker instances.

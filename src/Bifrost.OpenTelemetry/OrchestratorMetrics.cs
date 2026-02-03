@@ -5,9 +5,9 @@
 // =============================================================================
 
 using System.Diagnostics.Metrics;
-using Levelup.Channels.Core;
+using Bifrost.Core;
 
-namespace Levelup.Channels.OpenTelemetry;
+namespace Bifrost.OpenTelemetry;
 
 /// <summary>
 /// OpenTelemetry metrics for <see cref="IWorkOrchestrator{TWork}"/>.
@@ -81,7 +81,7 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
         ArgumentNullException.ThrowIfNull(orchestratorProvider);
 
         var workTypeName = typeof(TWork).Name;
-        _meter = new Meter($"Levelup.Channels.{workTypeName}", "1.0.0");
+        _meter = new Meter($"Bifrost.{workTypeName}", "1.0.0");
 
         ItemsEnqueued = _meter.CreateCounter<long>(
             "orchestrator.items.enqueued",

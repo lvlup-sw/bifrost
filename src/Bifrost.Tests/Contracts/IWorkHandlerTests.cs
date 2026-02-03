@@ -5,10 +5,10 @@
 // =============================================================================
 
 using System.Reflection;
-using Levelup.Channels.Core;
+using Bifrost.Core;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Contracts;
+namespace Bifrost.Tests.Contracts;
 
 /// <summary>
 /// Tests for <see cref="IWorkHandler{TWork}"/> interface definition.

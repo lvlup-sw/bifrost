@@ -4,10 +4,10 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling;
+using Bifrost.Autoscaling;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Autoscaling;
+namespace Bifrost.Tests.Autoscaling;
 
 /// <summary>
 /// Tests for <see cref="WorkerRegistrySnapshot"/> and <see cref="WorkerRegistry.GetSnapshot"/>.

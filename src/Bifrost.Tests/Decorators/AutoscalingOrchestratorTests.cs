@@ -5,13 +5,13 @@
 // =============================================================================
 
 using System.Threading.Channels;
-using Levelup.Channels.Autoscaling;
-using Levelup.Channels.Core;
-using Levelup.Channels.Decorators;
+using Bifrost.Autoscaling;
+using Bifrost.Core;
+using Bifrost.Decorators;
 using NSubstitute;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Decorators;
+namespace Bifrost.Tests.Decorators;
 
 /// <summary>
 /// Tests for <see cref="AutoscalingOrchestrator{TWork}"/> decorator.

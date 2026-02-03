@@ -6,7 +6,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-namespace Levelup.Channels.Autoscaling;
+namespace Bifrost.Autoscaling;
 
 /// <summary>
 /// Configuration options for the autoscaling engine.

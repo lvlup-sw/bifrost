@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Levelup.Channels.Core.Events;
+namespace Bifrost.Core.Events;
 
 /// <summary>
 /// Event raised when work is enqueued to the orchestrator.

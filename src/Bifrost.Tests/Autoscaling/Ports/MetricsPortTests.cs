@@ -4,10 +4,10 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling.Ports;
+using Bifrost.Autoscaling.Ports;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Autoscaling.Ports;
+namespace Bifrost.Tests.Autoscaling.Ports;
 
 /// <summary>
 /// Tests for <see cref="IAutoscalingMetricsPort"/> interface contract.

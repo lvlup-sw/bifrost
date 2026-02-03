@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Levelup.Channels.Autoscaling;
+namespace Bifrost.Autoscaling;
 
 /// <summary>
 /// Represents the type of scaling action to perform.

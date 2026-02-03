@@ -6,7 +6,7 @@
 
 using System.Threading.Channels;
 
-namespace Levelup.Channels.Core;
+namespace Bifrost.Core;
 
 /// <summary>
 /// Orchestrates work processing through a bounded channel with configurable workers.

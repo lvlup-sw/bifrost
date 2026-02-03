@@ -4,12 +4,12 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
+using Bifrost.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Levelup.Channels.DependencyInjection;
+namespace Bifrost.DependencyInjection;
 
 /// <summary>
 /// Builder for configuring <see cref="IWorkOrchestrator{TWork}"/> with optional decorators.

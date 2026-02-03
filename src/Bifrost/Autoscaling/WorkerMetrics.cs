@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Levelup.Channels.Autoscaling;
+namespace Bifrost.Autoscaling;
 
 /// <summary>
 /// Thread-safe implementation of <see cref="IWorkerMetrics"/> for tracking work orchestrator utilization.

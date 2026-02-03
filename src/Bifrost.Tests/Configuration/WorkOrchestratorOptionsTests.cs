@@ -6,10 +6,10 @@
 
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
-using Levelup.Channels.Core;
+using Bifrost.Core;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Configuration;
+namespace Bifrost.Tests.Configuration;
 
 /// <summary>
 /// Tests for <see cref="WorkOrchestratorOptions"/> configuration.

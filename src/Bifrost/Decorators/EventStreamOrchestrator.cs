@@ -7,11 +7,11 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using Levelup.Channels.Core;
-using Levelup.Channels.Core.Events;
+using Bifrost.Core;
+using Bifrost.Core.Events;
 using Microsoft.Extensions.Logging;
 
-namespace Levelup.Channels.Decorators;
+namespace Bifrost.Decorators;
 
 /// <summary>
 /// Decorator that publishes events for work lifecycle operations.

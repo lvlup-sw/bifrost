@@ -11,7 +11,7 @@ using Polly;
 using Polly.Timeout;
 using Polly.Wrap;
 
-namespace Levelup.Channels.Resilience;
+namespace Bifrost.Resilience;
 
 /// <summary>
 /// Provides utility methods to generate resiliency policies for asynchronous operations using Polly.

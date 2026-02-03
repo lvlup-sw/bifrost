@@ -4,11 +4,11 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
+using Bifrost.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Levelup.Channels.Hosting;
+namespace Bifrost.Hosting;
 
 /// <summary>
 /// Hosted service that manages the lifecycle of a work orchestrator.

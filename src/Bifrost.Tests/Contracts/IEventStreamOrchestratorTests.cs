@@ -4,10 +4,10 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
-using Levelup.Channels.Core.Events;
+using Bifrost.Core;
+using Bifrost.Core.Events;
 
-namespace Levelup.Channels.Tests.Contracts;
+namespace Bifrost.Tests.Contracts;
 
 /// <summary>
 /// Tests for <see cref="IEventStreamOrchestrator{TWork}"/> interface contract.

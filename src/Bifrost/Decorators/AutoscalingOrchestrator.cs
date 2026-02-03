@@ -5,11 +5,11 @@
 // =============================================================================
 
 using System.Threading.Channels;
-using Levelup.Channels.Autoscaling;
-using Levelup.Channels.Core;
+using Bifrost.Autoscaling;
+using Bifrost.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Levelup.Channels.Decorators;
+namespace Bifrost.Decorators;
 
 /// <summary>
 /// Decorator that adds autoscaling capabilities to a work orchestrator.

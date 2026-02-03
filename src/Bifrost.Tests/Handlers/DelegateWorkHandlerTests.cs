@@ -4,9 +4,9 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Handlers;
+using Bifrost.Handlers;
 
-namespace Levelup.Channels.Tests.Handlers;
+namespace Bifrost.Tests.Handlers;
 
 /// <summary>
 /// Unit tests for the <see cref="DelegateWorkHandler"/> and <see cref="CancellableDelegateWorkHandler"/> classes.

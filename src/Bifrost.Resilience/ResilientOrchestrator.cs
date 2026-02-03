@@ -5,13 +5,13 @@
 // =============================================================================
 
 using System.Threading.Channels;
-using Levelup.Channels.Core;
+using Bifrost.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Wrap;
 
-namespace Levelup.Channels.Resilience;
+namespace Bifrost.Resilience;
 
 /// <summary>
 /// Decorator that adds Polly resilience policies to a work orchestrator.

@@ -4,12 +4,12 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.DependencyInjection;
+using Bifrost.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Levelup.Channels.Resilience;
+namespace Bifrost.Resilience;
 
 /// <summary>
 /// Extension methods for adding resilience support to the work orchestrator.

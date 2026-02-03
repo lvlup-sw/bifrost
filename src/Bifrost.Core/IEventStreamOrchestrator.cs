@@ -5,9 +5,9 @@
 // =============================================================================
 
 using System.Runtime.CompilerServices;
-using Levelup.Channels.Core.Events;
+using Bifrost.Core.Events;
 
-namespace Levelup.Channels.Core;
+namespace Bifrost.Core;
 
 /// <summary>
 /// Extended interface for orchestrators that support event streaming.

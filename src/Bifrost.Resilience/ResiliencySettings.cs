@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Levelup.Channels.Resilience;
+namespace Bifrost.Resilience;
 
 /// <summary>
 /// Resiliency settings for resiliency policy generation.

@@ -6,15 +6,15 @@
 
 using System.Reflection;
 
-namespace Levelup.Channels.Tests;
+namespace Bifrost.Tests;
 
 /// <summary>
-/// Tests verifying the Levelup.Channels package references and structure.
+/// Tests verifying the Bifrost package references and structure.
 /// </summary>
 public class PackageReferenceTests
 {
     /// <summary>
-    /// Verifies that the main Levelup.Channels assembly references Core.
+    /// Verifies that the main Bifrost assembly references Core.
     /// </summary>
     [Test]
     public async Task MainPackage_ReferencesCore()
@@ -25,7 +25,7 @@ public class PackageReferenceTests
 
         // Act
         var coreReference = referencedAssemblies.FirstOrDefault(a =>
-            a.Name == "Levelup.Channels.Core");
+            a.Name == "Bifrost.Core");
 
         // Assert
         await Assert.That(coreReference).IsNotNull();

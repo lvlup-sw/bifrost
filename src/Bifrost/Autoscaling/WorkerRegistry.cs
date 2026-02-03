@@ -6,7 +6,7 @@
 
 using System.Collections.Concurrent;
 
-namespace Levelup.Channels.Autoscaling;
+namespace Bifrost.Autoscaling;
 
 /// <summary>
 /// Thread-safe implementation of <see cref="IWorkerRegistry"/> for managing worker instances.

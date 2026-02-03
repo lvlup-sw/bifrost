@@ -4,12 +4,12 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
-using Levelup.Channels.DependencyInjection;
+using Bifrost.Core;
+using Bifrost.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace Levelup.Channels.OpenTelemetry;
+namespace Bifrost.OpenTelemetry;
 
 /// <summary>
 /// Extension methods for adding OpenTelemetry instrumentation to <see cref="IWorkOrchestrator{TWork}"/>.
@@ -38,7 +38,7 @@ public static class OpenTelemetryExtensions
     /// </list>
     /// </para>
     /// <para>
-    /// The meter name follows the pattern <c>Levelup.Channels.{TWorkTypeName}</c>.
+    /// The meter name follows the pattern <c>Bifrost.{TWorkTypeName}</c>.
     /// </para>
     /// <para>
     /// <strong>Important:</strong> The counters and histograms are NOT automatically recorded by the

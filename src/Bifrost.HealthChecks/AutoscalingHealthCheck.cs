@@ -4,11 +4,11 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling;
+using Bifrost.Autoscaling;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
-namespace Levelup.Channels.HealthChecks;
+namespace Bifrost.HealthChecks;
 
 /// <summary>
 /// Health check for monitoring autoscaling state and capacity.

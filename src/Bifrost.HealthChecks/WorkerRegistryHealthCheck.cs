@@ -4,10 +4,10 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling;
+using Bifrost.Autoscaling;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace Levelup.Channels.HealthChecks;
+namespace Bifrost.HealthChecks;
 
 /// <summary>
 /// Health check for monitoring <see cref="IWorkerRegistry"/> status.

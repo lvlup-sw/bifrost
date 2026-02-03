@@ -4,15 +4,15 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling;
-using Levelup.Channels.Core;
-using Levelup.Channels.DependencyInjection;
-using Levelup.Channels.HealthChecks;
+using Bifrost.Autoscaling;
+using Bifrost.Core;
+using Bifrost.DependencyInjection;
+using Bifrost.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NSubstitute;
 
-namespace Levelup.Channels.Tests.HealthChecks;
+namespace Bifrost.Tests.HealthChecks;
 
 /// <summary>
 /// Tests for <see cref="HealthCheckExtensions"/>.

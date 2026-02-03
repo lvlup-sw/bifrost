@@ -6,10 +6,10 @@
 
 using System.Reflection;
 using System.Threading.Channels;
-using Levelup.Channels.Core;
+using Bifrost.Core;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Contracts;
+namespace Bifrost.Tests.Contracts;
 
 /// <summary>
 /// Tests for <see cref="IWorkOrchestrator{TWork}"/> interface definition.

@@ -4,9 +4,9 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling.Ports;
+using Bifrost.Autoscaling.Ports;
 
-namespace Levelup.Channels.Autoscaling;
+namespace Bifrost.Autoscaling;
 
 /// <summary>
 /// Coordinates between autoscaling components and the orchestrator.

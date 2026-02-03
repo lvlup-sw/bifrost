@@ -4,12 +4,12 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
+using Bifrost.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 
-namespace Levelup.Channels.Tests;
+namespace Bifrost.Tests;
 
 /// <summary>
 /// Tests for scaling request methods on <see cref="WorkOrchestrator{TWork}"/>.

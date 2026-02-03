@@ -6,7 +6,7 @@
 
 using Microsoft.Extensions.Hosting;
 
-namespace Levelup.Channels.Autoscaling;
+namespace Bifrost.Autoscaling;
 
 /// <summary>
 /// A hosted service that manages the lifecycle of the autoscaling engine.

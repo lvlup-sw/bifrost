@@ -4,13 +4,13 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling;
+using Bifrost.Autoscaling;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Autoscaling;
+namespace Bifrost.Tests.Autoscaling;
 
 /// <summary>
 /// Tests for <see cref="AutoscalingEngine"/> ScalingDecisionMade event.

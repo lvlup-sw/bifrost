@@ -4,9 +4,9 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core.Events;
+using Bifrost.Core.Events;
 
-namespace Levelup.Channels.Autoscaling.Ports;
+namespace Bifrost.Autoscaling.Ports;
 
 /// <summary>
 /// Provides event publishing capabilities for autoscaling operations.

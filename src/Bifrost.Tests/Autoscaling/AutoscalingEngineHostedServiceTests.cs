@@ -4,12 +4,12 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling;
+using Bifrost.Autoscaling;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Autoscaling;
+namespace Bifrost.Tests.Autoscaling;
 
 /// <summary>
 /// Tests for <see cref="AutoscalingEngineHostedService"/> implementation.

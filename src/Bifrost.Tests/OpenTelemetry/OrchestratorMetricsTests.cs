@@ -4,12 +4,12 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
-using Levelup.Channels.OpenTelemetry;
+using Bifrost.Core;
+using Bifrost.OpenTelemetry;
 using NSubstitute;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.OpenTelemetry;
+namespace Bifrost.Tests.OpenTelemetry;
 
 /// <summary>
 /// Tests for <see cref="OrchestratorMetrics{TWork}"/>.

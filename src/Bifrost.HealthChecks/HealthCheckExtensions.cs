@@ -4,14 +4,14 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling;
-using Levelup.Channels.Core;
-using Levelup.Channels.DependencyInjection;
+using Bifrost.Autoscaling;
+using Bifrost.Core;
+using Bifrost.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
-namespace Levelup.Channels.HealthChecks;
+namespace Bifrost.HealthChecks;
 
 /// <summary>
 /// Extension methods for adding health checks to the work orchestrator.

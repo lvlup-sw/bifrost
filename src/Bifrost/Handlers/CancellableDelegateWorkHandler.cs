@@ -4,9 +4,9 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
+using Bifrost.Core;
 
-namespace Levelup.Channels.Handlers;
+namespace Bifrost.Handlers;
 
 /// <summary>
 /// Work handler that executes delegate work items with cancellation support.

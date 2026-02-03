@@ -5,11 +5,11 @@
 // =============================================================================
 
 using System.Threading.Channels;
-using Levelup.Channels.Core;
+using Bifrost.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Levelup.Channels;
+namespace Bifrost;
 
 /// <summary>
 /// Orchestrates work processing through a bounded channel with configurable workers.

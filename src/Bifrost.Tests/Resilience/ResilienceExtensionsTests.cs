@@ -4,9 +4,9 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
-using Levelup.Channels.DependencyInjection;
-using Levelup.Channels.Resilience;
+using Bifrost.Core;
+using Bifrost.DependencyInjection;
+using Bifrost.Resilience;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,7 +14,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Resilience;
+namespace Bifrost.Tests.Resilience;
 
 /// <summary>
 /// Tests for <see cref="ResilienceExtensions"/> extension methods.

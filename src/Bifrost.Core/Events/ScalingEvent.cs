@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Levelup.Channels.Core.Events;
+namespace Bifrost.Core.Events;
 
 /// <summary>
 /// The type of scaling action taken.

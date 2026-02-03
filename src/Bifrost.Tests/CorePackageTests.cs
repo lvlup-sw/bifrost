@@ -5,10 +5,10 @@
 // =============================================================================
 
 using System.Reflection;
-using Levelup.Channels.Core;
+using Bifrost.Core;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests;
+namespace Bifrost.Tests;
 
 /// <summary>
 /// Tests for the Core package structure and type availability.

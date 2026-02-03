@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Levelup.Channels.Core.Events;
+namespace Bifrost.Core.Events;
 
 /// <summary>
 /// Interface for events that support correlation ID filtering.

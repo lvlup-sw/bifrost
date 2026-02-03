@@ -4,10 +4,10 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core.Events;
+using Bifrost.Core.Events;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Events;
+namespace Bifrost.Tests.Events;
 
 /// <summary>
 /// Unit tests for the <see cref="ScalingEvent"/> struct and <see cref="ScalingAction"/> enum.

@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Levelup.Channels.Autoscaling.Ports;
+namespace Bifrost.Autoscaling.Ports;
 
 /// <summary>
 /// Provides metrics from the orchestrator for autoscaling decisions.

@@ -6,7 +6,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-namespace Levelup.Channels.Core;
+namespace Bifrost.Core;
 
 /// <summary>
 /// Configuration options for the work orchestrator.

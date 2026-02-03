@@ -4,10 +4,10 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Resilience;
+using Bifrost.Resilience;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Resilience;
+namespace Bifrost.Tests.Resilience;
 
 /// <summary>
 /// Tests for <see cref="ResiliencySettings"/> configuration.

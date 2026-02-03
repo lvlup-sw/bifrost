@@ -4,15 +4,15 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
-using Levelup.Channels.DependencyInjection;
-using Levelup.Channels.OpenTelemetry;
+using Bifrost.Core;
+using Bifrost.DependencyInjection;
+using Bifrost.OpenTelemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.OpenTelemetry;
+namespace Bifrost.Tests.OpenTelemetry;
 
 /// <summary>
 /// Tests for <see cref="OpenTelemetryExtensions"/>.

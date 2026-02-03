@@ -4,12 +4,12 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
-using Levelup.Channels.HealthChecks;
+using Bifrost.Core;
+using Bifrost.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NSubstitute;
 
-namespace Levelup.Channels.Tests.HealthChecks;
+namespace Bifrost.Tests.HealthChecks;
 
 /// <summary>
 /// Tests for <see cref="WorkOrchestratorHealthCheck{TWork}"/>.

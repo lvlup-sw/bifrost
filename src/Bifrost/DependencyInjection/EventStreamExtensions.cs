@@ -4,11 +4,11 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Decorators;
+using Bifrost.Decorators;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Levelup.Channels.DependencyInjection;
+namespace Bifrost.DependencyInjection;
 
 /// <summary>
 /// Extension methods for adding event streaming capability to the orchestrator.

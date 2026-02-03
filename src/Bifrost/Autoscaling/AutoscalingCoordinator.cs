@@ -4,11 +4,11 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling.Ports;
-using Levelup.Channels.Core;
-using Levelup.Channels.Core.Events;
+using Bifrost.Autoscaling.Ports;
+using Bifrost.Core;
+using Bifrost.Core.Events;
 
-namespace Levelup.Channels.Autoscaling;
+namespace Bifrost.Autoscaling;
 
 /// <summary>
 /// Stateless mediator that delegates all operations to the underlying work orchestrator.

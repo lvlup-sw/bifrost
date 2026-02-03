@@ -5,13 +5,13 @@
 // =============================================================================
 
 using System.Diagnostics.CodeAnalysis;
-using Levelup.Channels.Autoscaling;
-using Levelup.Channels.Decorators;
+using Bifrost.Autoscaling;
+using Bifrost.Decorators;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-namespace Levelup.Channels.DependencyInjection;
+namespace Bifrost.DependencyInjection;
 
 /// <summary>
 /// Extension methods for adding autoscaling support to the work orchestrator.

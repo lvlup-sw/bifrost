@@ -4,14 +4,14 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling;
-using Levelup.Channels.Autoscaling.Ports;
-using Levelup.Channels.Core;
-using Levelup.Channels.Core.Events;
+using Bifrost.Autoscaling;
+using Bifrost.Autoscaling.Ports;
+using Bifrost.Core;
+using Bifrost.Core.Events;
 using NSubstitute;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Autoscaling;
+namespace Bifrost.Tests.Autoscaling;
 
 /// <summary>
 /// Tests for <see cref="AutoscalingCoordinator{TWork}"/> implementation.

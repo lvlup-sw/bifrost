@@ -4,13 +4,13 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Core;
-using Levelup.Channels.Hosting;
+using Bifrost.Core;
+using Bifrost.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 
-namespace Levelup.Channels.Tests.Hosting;
+namespace Bifrost.Tests.Hosting;
 
 /// <summary>
 /// Tests for <see cref="HostingExtensions"/>.

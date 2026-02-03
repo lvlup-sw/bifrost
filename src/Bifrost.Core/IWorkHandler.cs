@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Levelup.Channels.Core;
+namespace Bifrost.Core;
 
 /// <summary>
 /// Handles processing of work items from the orchestrator.

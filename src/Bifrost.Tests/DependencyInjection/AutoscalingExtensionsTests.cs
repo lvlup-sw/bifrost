@@ -4,15 +4,15 @@
 // </copyright>
 // =============================================================================
 
-using Levelup.Channels.Autoscaling;
-using Levelup.Channels.Core;
-using Levelup.Channels.Decorators;
-using Levelup.Channels.DependencyInjection;
+using Bifrost.Autoscaling;
+using Bifrost.Core;
+using Bifrost.Decorators;
+using Bifrost.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.DependencyInjection;
+namespace Bifrost.Tests.DependencyInjection;
 
 /// <summary>
 /// Tests for <see cref="AutoscalingExtensions"/> builder extensions.

@@ -5,13 +5,13 @@
 // =============================================================================
 
 using System.Threading.Channels;
-using Levelup.Channels.Core;
-using Levelup.Channels.Core.Events;
-using Levelup.Channels.Decorators;
+using Bifrost.Core;
+using Bifrost.Core.Events;
+using Bifrost.Decorators;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 
-namespace Levelup.Channels.Tests.Decorators;
+namespace Bifrost.Tests.Decorators;
 
 /// <summary>
 /// Tests for <see cref="EventStreamOrchestrator{TWork}"/> decorator.

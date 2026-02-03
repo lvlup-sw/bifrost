@@ -6,7 +6,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Levelup.Channels.Hosting;
+namespace Bifrost.Hosting;
 
 /// <summary>
 /// Extension methods for integrating <see cref="WorkOrchestratorHostedService{TWork}"/>

@@ -5,15 +5,15 @@
 // =============================================================================
 
 using System.Threading.Channels;
-using Levelup.Channels.Core;
-using Levelup.Channels.Resilience;
+using Bifrost.Core;
+using Bifrost.Resilience;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Resilience;
+namespace Bifrost.Tests.Resilience;
 
 /// <summary>
 /// Tests for <see cref="ResilientOrchestrator{TWork}"/> decorator.

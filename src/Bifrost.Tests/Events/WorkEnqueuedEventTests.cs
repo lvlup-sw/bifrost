@@ -5,10 +5,10 @@
 // =============================================================================
 
 using System.Reflection;
-using Levelup.Channels.Core.Events;
+using Bifrost.Core.Events;
 using TUnit.Core;
 
-namespace Levelup.Channels.Tests.Events;
+namespace Bifrost.Tests.Events;
 
 /// <summary>
 /// Tests for <see cref="WorkEnqueuedEvent{TWork}"/> struct.

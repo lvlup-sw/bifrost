@@ -5,10 +5,10 @@
 // =============================================================================
 
 using System.Diagnostics.CodeAnalysis;
-using Levelup.Channels.Core;
+using Bifrost.Core;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Levelup.Channels.DependencyInjection;
+namespace Bifrost.DependencyInjection;
 
 /// <summary>
 /// Extension methods for registering <see cref="IWorkOrchestrator{TWork}"/> with dependency injection.
