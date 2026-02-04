@@ -8,6 +8,7 @@ using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Running;
 using Bifrost.Benchmarks.Allocation;
 using Bifrost.Benchmarks.Core;
+using Bifrost.Benchmarks.Decorators;
 
 // Use BenchmarkSwitcher for flexible benchmark selection
 // Run with --filter to select specific benchmarks, e.g.:
@@ -31,6 +32,9 @@ var switcher = new BenchmarkSwitcher(
     typeof(EnqueueAllocationBenchmarks),
     typeof(WorkerLoopAllocationBenchmarks),
     typeof(EventStreamAllocationBenchmarks),
+    typeof(DecoratorOverheadBenchmarks),
+    typeof(AutoscalingOverheadBenchmarks),
+    typeof(ResilienceOverheadBenchmarks),
 ]);
 
 switcher.Run(args, config);
