@@ -16,6 +16,7 @@
     <InternalsVisibleTo Include="Bifrost.HealthChecks" />
     <InternalsVisibleTo Include="Bifrost.OpenTelemetry" />
     <InternalsVisibleTo Include="Bifrost.Resilience" />
+    <InternalsVisibleTo Include="Bifrost.Benchmarks" />
     <InternalsVisibleTo Include="Bifrost.Tests" />
   </ItemGroup>
 
