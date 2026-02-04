@@ -6,6 +6,7 @@
 
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Running;
+using Bifrost.Benchmarks.Autoscaling;
 
 // Use BenchmarkSwitcher for flexible benchmark selection
 // Run with --filter to select specific benchmarks, e.g.:
@@ -22,6 +23,10 @@ var config = ManualConfig
     .Create(DefaultConfig.Instance)
     .WithOptions(ConfigOptions.DisableOptimizationsValidator);
 
-var switcher = new BenchmarkSwitcher(Array.Empty<Type>());
+var switcher = new BenchmarkSwitcher(
+[
+    typeof(ScalingDecisionBenchmarks),
+    typeof(MetricsCollectionBenchmarks),
+]);
 
 switcher.Run(args, config);
