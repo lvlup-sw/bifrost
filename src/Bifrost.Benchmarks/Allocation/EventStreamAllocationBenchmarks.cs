@@ -41,7 +41,7 @@ public class EventStreamAllocationBenchmarks
     /// and registers a subscriber to ensure the broadcast path is exercised.
     /// </summary>
     [GlobalSetup]
-    public void GlobalSetup()
+    public async Task GlobalSetup()
     {
         var handler = new NoOpWorkHandler();
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 10000, WorkerCount = 1 });
@@ -65,8 +65,10 @@ public class EventStreamAllocationBenchmarks
             },
             _subscriberCts.Token);
 
-        // Allow subscriber registration to complete
-        Thread.Sleep(50);
+        // Allow subscriber channel registration to complete. This is an async operation
+        // that is near-instant, but Thread.Sleep blocks the setup thread unnecessarily.
+        // Using async Task.Delay allows BenchmarkDotNet to handle the wait properly.
+        await Task.Delay(100).ConfigureAwait(false);
     }
 
     /// <summary>

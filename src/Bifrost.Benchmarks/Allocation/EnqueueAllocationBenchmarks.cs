@@ -32,21 +32,30 @@ public class EnqueueAllocationBenchmarks
     [GlobalSetup]
     public async Task GlobalSetup()
     {
-        var handler = new NoOpWorkHandler();
+        const int warmupCount = 100;
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 10000, WorkerCount = 1 });
         var logger = NullLogger<WorkOrchestrator<int>>.Instance;
 
-        _orchestrator = new WorkOrchestrator<int>(handler, options, logger);
-
-        // Warmup: run 100 enqueue cycles to stabilize JIT and allocations.
-        // Workers drain items instantly with no-op handler.
-        for (var i = 0; i < 100; i++)
+        // Warmup: use a countdown handler to reliably confirm all items are processed,
+        // stabilizing JIT and async state machines before the real benchmark begins.
+        using var countdown = new CountdownEvent(warmupCount);
+        var warmupHandler = new CountdownWorkHandler(countdown);
+        await using (var warmup = new WorkOrchestrator<int>(warmupHandler, options, logger))
         {
-            _orchestrator.TryEnqueue(i);
+            for (var i = 0; i < warmupCount; i++)
+            {
+                warmup.TryEnqueue(i);
+            }
+
+            if (!countdown.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("Warmup items were not drained within the timeout.");
+            }
         }
 
-        // Allow workers to drain warmup items
-        await Task.Delay(50).ConfigureAwait(false);
+        // Create the benchmark orchestrator with the no-op handler for allocation measurement.
+        var handler = new NoOpWorkHandler();
+        _orchestrator = new WorkOrchestrator<int>(handler, options, logger);
     }
 
     /// <summary>
