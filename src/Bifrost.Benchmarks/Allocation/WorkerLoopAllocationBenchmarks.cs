@@ -48,7 +48,10 @@ public class WorkerLoopAllocationBenchmarks
             _orchestrator.TryEnqueue(i);
         }
 
-        _countdown.Wait(TimeSpan.FromSeconds(10));
+        if (!_countdown.Wait(TimeSpan.FromSeconds(10)))
+        {
+            throw new TimeoutException("Workers did not drain all items within the timeout.");
+        }
     }
 
     /// <summary>
@@ -72,7 +75,10 @@ public class WorkerLoopAllocationBenchmarks
             _orchestrator!.TryEnqueue(i);
         }
 
-        _countdown!.Wait(TimeSpan.FromSeconds(10));
+        if (!_countdown!.Wait(TimeSpan.FromSeconds(10)))
+        {
+            throw new TimeoutException("Workers did not drain all items within the timeout.");
+        }
     }
 
     /// <summary>
