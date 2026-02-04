@@ -366,3 +366,4 @@ FodyWeavers.xsd
 *.user
 *.userosscache
 *.sln.docstates
+.worktrees/
