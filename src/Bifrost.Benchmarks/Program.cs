@@ -7,6 +7,7 @@
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Running;
 using Bifrost.Benchmarks.Allocation;
+using Bifrost.Benchmarks.Autoscaling;
 using Bifrost.Benchmarks.Core;
 using Bifrost.Benchmarks.Decorators;
 
@@ -35,6 +36,8 @@ var switcher = new BenchmarkSwitcher(
     typeof(DecoratorOverheadBenchmarks),
     typeof(AutoscalingOverheadBenchmarks),
     typeof(ResilienceOverheadBenchmarks),
+    typeof(ScalingDecisionBenchmarks),
+    typeof(MetricsCollectionBenchmarks),
 ]);
 
 switcher.Run(args, config);

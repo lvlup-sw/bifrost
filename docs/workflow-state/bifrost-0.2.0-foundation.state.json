@@ -2,7 +2,7 @@
   "version": "1.0",
   "featureId": "bifrost-0.2.0-foundation",
   "createdAt": "2026-02-04T06:26:34Z",
-  "updatedAt": "2026-02-04T06:52:59Z",
+  "updatedAt": "2026-02-04T06:53:23Z",
   "phase": "integrate",
   "artifacts": {
     "design": "docs/designs/2026-02-03-benchmark-suite.md",
@@ -75,7 +75,8 @@
     "mergedBranches": [
       "feature/001-benchmark-scaffold",
       "feature/002-core-benchmarks",
-      "feature/003-allocation-benchmarks"
+      "feature/003-allocation-benchmarks",
+      "feature/004-decorator-benchmarks"
     ]
   }
 }
