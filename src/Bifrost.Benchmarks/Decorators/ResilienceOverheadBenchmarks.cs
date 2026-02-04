@@ -28,7 +28,7 @@ public class ResilienceOverheadBenchmarks
     /// Creates bare and resilience-wrapped orchestrator variants.
     /// </summary>
     [GlobalSetup]
-    public void Setup()
+    public void GlobalSetup()
     {
         var options = new OptionsWrapper<WorkOrchestratorOptions>(
             new WorkOrchestratorOptions { Capacity = 10000, WorkerCount = 1 });
@@ -68,7 +68,7 @@ public class ResilienceOverheadBenchmarks
     /// </summary>
     /// <returns>A task representing the asynchronous cleanup.</returns>
     [GlobalCleanup]
-    public async Task Cleanup()
+    public async Task GlobalCleanup()
     {
         if (_withResilience is not null)
         {

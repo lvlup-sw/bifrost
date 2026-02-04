@@ -28,7 +28,7 @@ public class ScalingDecisionBenchmarks
     /// Creates the autoscaling engine with zero cooldown for consistent benchmarking.
     /// </summary>
     [GlobalSetup]
-    public void Setup()
+    public void GlobalSetup()
     {
         var options = new AutoscalingOptions
         {
@@ -52,7 +52,7 @@ public class ScalingDecisionBenchmarks
     /// Disposes the autoscaling engine.
     /// </summary>
     [GlobalCleanup]
-    public void Cleanup()
+    public void GlobalCleanup()
     {
         _engine?.Dispose();
     }

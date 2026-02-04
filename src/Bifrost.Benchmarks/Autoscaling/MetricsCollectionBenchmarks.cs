@@ -22,7 +22,7 @@ public class MetricsCollectionBenchmarks
     /// Creates a WorkerMetrics instance and pre-seeds it with enqueue calls.
     /// </summary>
     [GlobalSetup]
-    public void Setup()
+    public void GlobalSetup()
     {
         _metrics = new WorkerMetrics();
 

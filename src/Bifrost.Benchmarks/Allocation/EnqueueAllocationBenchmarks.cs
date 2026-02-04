@@ -53,7 +53,7 @@ public class EnqueueAllocationBenchmarks
     /// Validates that <c>TryEnqueue</c> allocates 0 bytes on the hot path.
     /// </summary>
     /// <returns><c>true</c> if the item was enqueued successfully.</returns>
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public bool TryEnqueue_ZeroAlloc()
     {
         return _orchestrator!.TryEnqueue(42);

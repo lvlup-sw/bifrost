@@ -34,7 +34,7 @@ public class AutoscalingOverheadBenchmarks
     /// Creates two autoscaling orchestrator variants: metrics enabled and disabled.
     /// </summary>
     [GlobalSetup]
-    public void Setup()
+    public void GlobalSetup()
     {
         var options = new OptionsWrapper<WorkOrchestratorOptions>(
             new WorkOrchestratorOptions { Capacity = Capacity, WorkerCount = 1 });
@@ -71,7 +71,7 @@ public class AutoscalingOverheadBenchmarks
     /// Autoscaling decorator with metrics collection disabled.
     /// </summary>
     /// <returns>Whether the enqueue succeeded.</returns>
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public bool TryEnqueue_MetricsDisabled() => _metricsDisabled!.TryEnqueue(42);
 
     /// <summary>
@@ -79,7 +79,7 @@ public class AutoscalingOverheadBenchmarks
     /// </summary>
     /// <returns>A task representing the asynchronous cleanup.</returns>
     [GlobalCleanup]
-    public async Task Cleanup()
+    public async Task GlobalCleanup()
     {
         if (_metricsEnabled is not null)
         {
