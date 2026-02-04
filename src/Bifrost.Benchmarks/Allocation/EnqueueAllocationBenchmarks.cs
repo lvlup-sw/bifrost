@@ -5,6 +5,7 @@
 // =============================================================================
 
 using BenchmarkDotNet.Attributes;
+using Bifrost.Benchmarks.Helpers;
 using Bifrost.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -31,7 +32,7 @@ public class EnqueueAllocationBenchmarks
     [GlobalSetup]
     public async Task GlobalSetup()
     {
-        var handler = new NoOpHandler();
+        var handler = new NoOpWorkHandler();
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 10000, WorkerCount = 1 });
         var logger = NullLogger<WorkOrchestrator<int>>.Instance;
 
@@ -79,10 +80,5 @@ public class EnqueueAllocationBenchmarks
         {
             await _orchestrator.DisposeAsync().ConfigureAwait(false);
         }
-    }
-
-    private sealed class NoOpHandler : IWorkHandler<int>
-    {
-        public ValueTask HandleAsync(int work, CancellationToken ct) => ValueTask.CompletedTask;
     }
 }

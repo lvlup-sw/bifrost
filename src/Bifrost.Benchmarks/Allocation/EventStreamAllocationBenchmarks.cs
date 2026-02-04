@@ -5,6 +5,7 @@
 // =============================================================================
 
 using BenchmarkDotNet.Attributes;
+using Bifrost.Benchmarks.Helpers;
 using Bifrost.Core;
 using Bifrost.Core.Events;
 using Bifrost.Decorators;
@@ -42,7 +43,7 @@ public class EventStreamAllocationBenchmarks
     [GlobalSetup]
     public void GlobalSetup()
     {
-        var handler = new NoOpHandler();
+        var handler = new NoOpWorkHandler();
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 10000, WorkerCount = 1 });
         var innerLogger = NullLogger<WorkOrchestrator<int>>.Instance;
         var eventLogger = NullLogger<EventStreamOrchestrator<int>>.Instance;
@@ -96,10 +97,5 @@ public class EventStreamAllocationBenchmarks
         {
             await _eventStreamOrchestrator.DisposeAsync().ConfigureAwait(false);
         }
-    }
-
-    private sealed class NoOpHandler : IWorkHandler<int>
-    {
-        public ValueTask HandleAsync(int work, CancellationToken ct) => ValueTask.CompletedTask;
     }
 }

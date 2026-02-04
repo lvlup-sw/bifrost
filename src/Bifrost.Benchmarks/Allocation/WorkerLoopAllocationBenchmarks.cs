@@ -5,6 +5,7 @@
 // =============================================================================
 
 using BenchmarkDotNet.Attributes;
+using Bifrost.Benchmarks.Helpers;
 using Bifrost.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -35,7 +36,7 @@ public class WorkerLoopAllocationBenchmarks
     public void GlobalSetup()
     {
         _countdown = new CountdownEvent(ItemCount);
-        var handler = new CountdownHandler(_countdown);
+        var handler = new CountdownWorkHandler(_countdown);
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 10000, WorkerCount = 1 });
         var logger = NullLogger<WorkOrchestrator<int>>.Instance;
 
@@ -93,14 +94,5 @@ public class WorkerLoopAllocationBenchmarks
         }
 
         _countdown?.Dispose();
-    }
-
-    private sealed class CountdownHandler(CountdownEvent countdown) : IWorkHandler<int>
-    {
-        public ValueTask HandleAsync(int work, CancellationToken ct)
-        {
-            countdown.Signal();
-            return ValueTask.CompletedTask;
-        }
     }
 }

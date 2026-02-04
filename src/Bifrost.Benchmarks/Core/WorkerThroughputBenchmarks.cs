@@ -5,6 +5,7 @@
 // =============================================================================
 
 using BenchmarkDotNet.Attributes;
+using Bifrost.Benchmarks.Helpers;
 using Bifrost.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -84,14 +85,5 @@ public class WorkerThroughputBenchmarks
         }
 
         _countdown?.Dispose();
-    }
-
-    private sealed class CountdownWorkHandler(CountdownEvent countdown) : IWorkHandler<int>
-    {
-        public ValueTask HandleAsync(int work, CancellationToken ct)
-        {
-            countdown.Signal();
-            return ValueTask.CompletedTask;
-        }
     }
 }

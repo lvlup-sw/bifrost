@@ -5,6 +5,7 @@
 // =============================================================================
 
 using BenchmarkDotNet.Attributes;
+using Bifrost.Benchmarks.Helpers;
 using Bifrost.Core;
 using Bifrost.Resilience;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -31,7 +32,7 @@ public class ResilienceOverheadBenchmarks
     {
         var options = new OptionsWrapper<WorkOrchestratorOptions>(
             new WorkOrchestratorOptions { Capacity = 10000, WorkerCount = 1 });
-        var handler = new NoOpHandler();
+        var handler = new NoOpWorkHandler();
 
         _bare = new WorkOrchestrator<int>(
             handler,
@@ -78,11 +79,5 @@ public class ResilienceOverheadBenchmarks
         {
             await _bare.DisposeAsync().ConfigureAwait(false);
         }
-    }
-
-    private sealed class NoOpHandler : IWorkHandler<int>
-    {
-        public ValueTask HandleAsync(int work, CancellationToken ct)
-            => default;
     }
 }

@@ -6,6 +6,7 @@
 
 using BenchmarkDotNet.Attributes;
 using Bifrost.Autoscaling;
+using Bifrost.Benchmarks.Helpers;
 using Bifrost.Core;
 using Bifrost.Decorators;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,7 +38,7 @@ public class AutoscalingOverheadBenchmarks
     {
         var options = new OptionsWrapper<WorkOrchestratorOptions>(
             new WorkOrchestratorOptions { Capacity = Capacity, WorkerCount = 1 });
-        var handler = new NoOpHandler();
+        var handler = new NoOpWorkHandler();
 
         var baseForEnabled = new WorkOrchestrator<int>(
             handler,
@@ -89,11 +90,5 @@ public class AutoscalingOverheadBenchmarks
         {
             await _metricsDisabled.DisposeAsync().ConfigureAwait(false);
         }
-    }
-
-    private sealed class NoOpHandler : IWorkHandler<int>
-    {
-        public ValueTask HandleAsync(int work, CancellationToken ct)
-            => default;
     }
 }

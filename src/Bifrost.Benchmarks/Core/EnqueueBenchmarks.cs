@@ -5,6 +5,7 @@
 // =============================================================================
 
 using BenchmarkDotNet.Attributes;
+using Bifrost.Benchmarks.Helpers;
 using Bifrost.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -89,13 +90,5 @@ public class EnqueueBenchmarks
     public ValueTask GlobalCleanup()
     {
         return _orchestrator?.DisposeAsync() ?? ValueTask.CompletedTask;
-    }
-
-    private sealed class NoOpWorkHandler : IWorkHandler<int>
-    {
-        public ValueTask HandleAsync(int work, CancellationToken ct)
-        {
-            return ValueTask.CompletedTask;
-        }
     }
 }
