@@ -2,7 +2,7 @@
   "version": "1.0",
   "featureId": "bifrost-0.2.0-foundation",
   "createdAt": "2026-02-04T06:26:34Z",
-  "updatedAt": "2026-02-04T07:12:10Z",
+  "updatedAt": "2026-02-06T22:20:00Z",
   "phase": "synthesize",
   "artifacts": {
     "design": "docs/designs/2026-02-03-benchmark-suite.md",
@@ -83,7 +83,34 @@
     "mergeOrder": [],
     "mergedBranches": [],
     "prUrl": "https://github.com/lvlup-sw/bifrost/pull/1",
-    "prFeedback": []
+    "prFeedback": [
+      {
+        "round": 1,
+        "source": "coderabbit",
+        "status": "fixed",
+        "fixes": [
+          "Cap WorkerThroughputBenchmarks capacity to Range max",
+          "Add 30s timeout to countdown Wait()",
+          "Change DecoratorOverheadBenchmarks to IterationSetup/Cleanup",
+          "Capture subscriber task in EventStreamAllocationBenchmarks",
+          "Fix markdown lint MD040 in design doc",
+          "Clean up stale worktree entry in state file"
+        ],
+        "commit": "2579b53"
+      },
+      {
+        "round": 2,
+        "source": "benchmark-results",
+        "status": "complete",
+        "fixes": [
+          "Fix IterationCleanup return type (void not Task)",
+          "Run full benchmark suite",
+          "Create 2026-02-06-full-suite-results.md",
+          "Update BENCHMARKS.md baseline section"
+        ],
+        "commit": "794a134"
+      }
+    ]
   },
   "integration": {
     "status": "passed",
