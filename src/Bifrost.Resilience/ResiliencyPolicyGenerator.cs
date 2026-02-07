@@ -6,7 +6,9 @@
 
 using System.Data.Common;
 using System.Net.Sockets;
+
 using Microsoft.Extensions.Logging;
+
 using Polly;
 using Polly.Timeout;
 using Polly.Wrap;

@@ -5,6 +5,7 @@
 // =============================================================================
 
 using System.Runtime.CompilerServices;
+
 using Bifrost.Core.Events;
 
 namespace Bifrost.Core;

@@ -6,6 +6,7 @@
 
 using Bifrost.Core;
 using Bifrost.DependencyInjection;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

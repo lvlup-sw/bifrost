@@ -5,10 +5,12 @@
 // =============================================================================
 
 using BenchmarkDotNet.Attributes;
+
 using Bifrost.Benchmarks.Helpers;
 using Bifrost.Core;
 using Bifrost.Core.Events;
 using Bifrost.Decorators;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 

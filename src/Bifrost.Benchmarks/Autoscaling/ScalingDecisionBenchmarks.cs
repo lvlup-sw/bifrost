@@ -5,7 +5,9 @@
 // =============================================================================
 
 using BenchmarkDotNet.Attributes;
+
 using Bifrost.Autoscaling;
+
 using Microsoft.Extensions.Options;
 
 namespace Bifrost.Benchmarks.Autoscaling;

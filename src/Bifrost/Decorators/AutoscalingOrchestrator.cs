@@ -5,8 +5,10 @@
 // =============================================================================
 
 using System.Threading.Channels;
+
 using Bifrost.Autoscaling;
 using Bifrost.Core;
+
 using Microsoft.Extensions.Logging;
 
 namespace Bifrost.Decorators;

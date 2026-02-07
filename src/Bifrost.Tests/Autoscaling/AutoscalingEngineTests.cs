@@ -5,7 +5,9 @@
 // =============================================================================
 
 using Bifrost.Autoscaling;
+
 using Microsoft.Extensions.Options;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Autoscaling;

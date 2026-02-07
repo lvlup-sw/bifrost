@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Bifrost.Autoscaling;
+
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Bifrost.HealthChecks;

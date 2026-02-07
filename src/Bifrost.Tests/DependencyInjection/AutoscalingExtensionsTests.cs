@@ -8,8 +8,11 @@ using Bifrost.Autoscaling;
 using Bifrost.Core;
 using Bifrost.Decorators;
 using Bifrost.DependencyInjection;
+
 using Microsoft.Extensions.DependencyInjection;
+
 using NSubstitute;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.DependencyInjection;

@@ -8,7 +8,9 @@ using Bifrost.Core;
 using Bifrost.Core.Events;
 using Bifrost.Decorators;
 using Bifrost.DependencyInjection;
+
 using Microsoft.Extensions.DependencyInjection;
+
 using NSubstitute;
 
 namespace Bifrost.Tests.DependencyInjection;

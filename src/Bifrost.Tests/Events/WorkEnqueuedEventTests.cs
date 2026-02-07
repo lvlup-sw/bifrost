@@ -5,7 +5,9 @@
 // =============================================================================
 
 using System.Reflection;
+
 using Bifrost.Core.Events;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Events;

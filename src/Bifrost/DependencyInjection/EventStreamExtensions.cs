@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Bifrost.Decorators;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

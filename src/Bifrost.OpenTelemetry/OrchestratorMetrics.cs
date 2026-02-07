@@ -5,6 +5,7 @@
 // =============================================================================
 
 using System.Diagnostics.Metrics;
+
 using Bifrost.Core;
 
 namespace Bifrost.OpenTelemetry;

@@ -5,9 +5,12 @@
 // =============================================================================
 
 using System.Threading.Channels;
+
 using Bifrost.Core;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using NSubstitute;
 
 namespace Bifrost.Tests;

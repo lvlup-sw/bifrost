@@ -6,7 +6,9 @@
 
 using Bifrost.Core;
 using Bifrost.HealthChecks;
+
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+
 using NSubstitute;
 
 namespace Bifrost.Tests.HealthChecks;

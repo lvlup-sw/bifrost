@@ -6,10 +6,13 @@
 
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+
 using Bifrost.Core;
 using Bifrost.Core.Events;
 using Bifrost.Decorators;
+
 using Microsoft.Extensions.Logging;
+
 using NSubstitute;
 
 namespace Bifrost.Tests.Decorators;

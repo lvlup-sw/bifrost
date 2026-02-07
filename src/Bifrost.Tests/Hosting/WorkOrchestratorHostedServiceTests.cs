@@ -6,7 +6,9 @@
 
 using Bifrost.Core;
 using Bifrost.Hosting;
+
 using Microsoft.Extensions.Logging;
+
 using NSubstitute;
 
 namespace Bifrost.Tests.Hosting;

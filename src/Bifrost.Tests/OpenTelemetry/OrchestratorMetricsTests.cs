@@ -6,7 +6,9 @@
 
 using Bifrost.Core;
 using Bifrost.OpenTelemetry;
+
 using NSubstitute;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.OpenTelemetry;

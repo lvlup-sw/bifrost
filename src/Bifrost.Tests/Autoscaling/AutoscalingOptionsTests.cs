@@ -6,7 +6,9 @@
 
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
+
 using Bifrost.Autoscaling;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Autoscaling;

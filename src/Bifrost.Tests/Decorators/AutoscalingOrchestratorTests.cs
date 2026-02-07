@@ -5,10 +5,13 @@
 // =============================================================================
 
 using System.Threading.Channels;
+
 using Bifrost.Autoscaling;
 using Bifrost.Core;
 using Bifrost.Decorators;
+
 using NSubstitute;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Decorators;
