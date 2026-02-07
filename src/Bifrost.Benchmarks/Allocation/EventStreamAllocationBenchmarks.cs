@@ -17,18 +17,18 @@ using Microsoft.Extensions.Options;
 namespace Bifrost.Benchmarks.Allocation;
 
 /// <summary>
-/// Quantifies event struct boxing cost when published through the event stream.
+/// Quantifies event object allocation cost when published through the event stream.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The <see cref="EventStreamOrchestrator{TWork}"/> publishes <see cref="WorkEnqueuedEvent{TWork}"/>
-/// (a readonly record struct) to subscriber channels of type <c>Channel&lt;IOrchestratorEvent&gt;</c>.
-/// The <c>TryWrite(evt)</c> call boxes the struct since it is cast to the <c>IOrchestratorEvent</c>
-/// interface.
+/// (a sealed record class) to subscriber channels of type <c>Channel&lt;IOrchestratorEvent&gt;</c>.
+/// Because events are reference types, no boxing occurs at the <c>TryWrite(evt)</c> call site.
 /// </para>
 /// <para>
-/// This benchmark intentionally reveals that boxing cost. The result quantifies the allocation
-/// price of event streaming compared to the zero-allocation base orchestrator path.
+/// This benchmark measures the allocation cost of creating the event record instance itself.
+/// The result quantifies the allocation price of event streaming compared to the zero-allocation
+/// base orchestrator path.
 /// </para>
 /// </remarks>
 [MemoryDiagnoser]
@@ -76,8 +76,8 @@ public class EventStreamAllocationBenchmarks
 
     /// <summary>
     /// Enqueues an item through the event stream orchestrator, which creates a
-    /// <see cref="WorkEnqueuedEvent{TWork}"/> struct and publishes it to the subscriber channel.
-    /// The boxing occurs at <c>TryWrite(evt)</c> because the channel is <c>Channel&lt;IOrchestratorEvent&gt;</c>.
+    /// <see cref="WorkEnqueuedEvent{TWork}"/> record instance and publishes it to the subscriber channel.
+    /// Allocation comes from creating the event object; no boxing occurs since events are reference types.
     /// </summary>
     /// <returns><c>true</c> if the item was enqueued successfully.</returns>
     [Benchmark]
