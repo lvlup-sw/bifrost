@@ -17,7 +17,7 @@ namespace Bifrost.Core.Events;
 /// This event is useful for monitoring work processing metrics
 /// and tracking success/failure rates.
 /// </remarks>
-public readonly record struct WorkCompletedEvent<TWork>(
+public sealed record WorkCompletedEvent<TWork>(
     TWork Work,
     TimeSpan Duration,
     bool Success) : IOrchestratorEvent;

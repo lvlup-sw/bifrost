@@ -38,7 +38,7 @@ public enum ScalingAction
 /// This event is useful for monitoring autoscaling behavior and
 /// tuning scaling thresholds.
 /// </remarks>
-public readonly record struct ScalingEvent(
+public sealed record ScalingEvent(
     ScalingAction Action,
     int PreviousWorkers,
     int CurrentWorkers,

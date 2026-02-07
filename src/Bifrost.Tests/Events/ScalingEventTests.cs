@@ -11,7 +11,7 @@ using TUnit.Core;
 namespace Bifrost.Tests.Events;
 
 /// <summary>
-/// Unit tests for the <see cref="ScalingEvent"/> struct and <see cref="ScalingAction"/> enum.
+/// Unit tests for the <see cref="ScalingEvent"/> sealed record class and <see cref="ScalingAction"/> enum.
 /// </summary>
 /// <remarks>
 /// Tests cover type characteristics, property definitions, interface implementation,
@@ -21,21 +21,21 @@ namespace Bifrost.Tests.Events;
 public class ScalingEventTests
 {
     /// <summary>
-    /// Verifies that ScalingEvent is a readonly record struct.
+    /// Verifies that ScalingEvent is a sealed record class.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
     /// <remarks>
-    /// Arranges the type via reflection, asserts it is a value type implementing IEquatable.
-    /// Record structs provide value equality semantics and immutability.
+    /// Arranges the type via reflection, asserts it is a reference type implementing IEquatable.
+    /// Record classes provide value equality semantics and immutability.
     /// </remarks>
     [Test]
-    public async Task ScalingEvent_IsReadonlyRecordStruct()
+    public async Task ScalingEvent_IsSealedRecordClass()
     {
         // Arrange
         var type = typeof(ScalingEvent);
 
-        // Assert - check it's a value type (struct)
-        await Assert.That(type.IsValueType).IsTrue();
+        // Assert - check it's a reference type (class), not a value type (struct)
+        await Assert.That(type.IsValueType).IsFalse();
 
         // Check it's a record (implements IEquatable<T>)
         var interfaces = type.GetInterfaces();
@@ -45,7 +45,7 @@ public class ScalingEventTests
     }
 
     /// <summary>
-    /// Verifies the ScalingEvent struct has all expected properties with correct types.
+    /// Verifies the ScalingEvent record class has all expected properties with correct types.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
     /// <remarks>
@@ -76,7 +76,7 @@ public class ScalingEventTests
     }
 
     /// <summary>
-    /// Verifies the ScalingEvent struct implements the IOrchestratorEvent interface.
+    /// Verifies the ScalingEvent record class implements the IOrchestratorEvent interface.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
     /// <remarks>

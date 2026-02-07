@@ -13,22 +13,22 @@ using TUnit.Core;
 namespace Bifrost.Tests.Events;
 
 /// <summary>
-/// Tests for <see cref="WorkEnqueuedEvent{TWork}"/> struct.
+/// Tests for <see cref="WorkEnqueuedEvent{TWork}"/> sealed record class.
 /// </summary>
 [Property("Category", "Unit")]
 public class WorkEnqueuedEventTests
 {
     /// <summary>
-    /// Verifies that WorkEnqueuedEvent is a readonly record struct.
+    /// Verifies that WorkEnqueuedEvent is a sealed record class.
     /// </summary>
     [Test]
-    public async Task WorkEnqueuedEvent_IsReadonlyRecordStruct()
+    public async Task WorkEnqueuedEvent_IsSealedRecordClass()
     {
         // Arrange
         var type = typeof(WorkEnqueuedEvent<>);
 
-        // Assert - check it's a value type (struct)
-        await Assert.That(type.IsValueType).IsTrue();
+        // Assert - check it's a reference type (class), not a value type (struct)
+        await Assert.That(type.IsValueType).IsFalse();
 
         // Check it's a record (has EqualityContract property or similar record patterns)
         // Records implement IEquatable<T>
@@ -39,7 +39,7 @@ public class WorkEnqueuedEventTests
     }
 
     /// <summary>
-    /// Verifies the struct has correct properties.
+    /// Verifies the record class has correct properties.
     /// </summary>
     [Test]
     public async Task WorkEnqueuedEvent_HasCorrectProperties()
@@ -61,7 +61,7 @@ public class WorkEnqueuedEventTests
     }
 
     /// <summary>
-    /// Verifies the struct implements IOrchestratorEvent.
+    /// Verifies the record class implements IOrchestratorEvent.
     /// </summary>
     [Test]
     public async Task WorkEnqueuedEvent_ImplementsIOrchestratorEvent()
