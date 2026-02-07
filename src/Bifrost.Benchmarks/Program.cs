@@ -6,6 +6,7 @@
 
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Running;
+
 using Bifrost.Benchmarks.Allocation;
 using Bifrost.Benchmarks.Autoscaling;
 using Bifrost.Benchmarks.Core;

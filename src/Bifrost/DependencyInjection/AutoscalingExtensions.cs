@@ -5,8 +5,10 @@
 // =============================================================================
 
 using System.Diagnostics.CodeAnalysis;
+
 using Bifrost.Autoscaling;
 using Bifrost.Decorators;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;

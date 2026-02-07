@@ -6,8 +6,10 @@
 
 using Bifrost.Autoscaling;
 using Bifrost.HealthChecks;
+
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+
 using NSubstitute;
 
 namespace Bifrost.Tests.HealthChecks;

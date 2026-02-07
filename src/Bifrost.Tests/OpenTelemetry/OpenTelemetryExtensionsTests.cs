@@ -7,9 +7,12 @@
 using Bifrost.Core;
 using Bifrost.DependencyInjection;
 using Bifrost.OpenTelemetry;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+
 using NSubstitute;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.OpenTelemetry;

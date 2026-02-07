@@ -8,8 +8,10 @@ using Bifrost.Autoscaling;
 using Bifrost.Core;
 using Bifrost.DependencyInjection;
 using Bifrost.HealthChecks;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+
 using NSubstitute;
 
 namespace Bifrost.Tests.HealthChecks;

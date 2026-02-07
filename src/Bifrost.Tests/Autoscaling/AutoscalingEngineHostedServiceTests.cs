@@ -5,8 +5,11 @@
 // =============================================================================
 
 using Bifrost.Autoscaling;
+
 using Microsoft.Extensions.Hosting;
+
 using NSubstitute;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Autoscaling;

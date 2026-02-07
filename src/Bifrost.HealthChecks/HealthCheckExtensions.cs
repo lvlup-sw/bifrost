@@ -7,6 +7,7 @@
 using Bifrost.Autoscaling;
 using Bifrost.Core;
 using Bifrost.DependencyInjection;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;

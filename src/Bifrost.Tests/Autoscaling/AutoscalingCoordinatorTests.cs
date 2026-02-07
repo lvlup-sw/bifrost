@@ -8,7 +8,9 @@ using Bifrost.Autoscaling;
 using Bifrost.Autoscaling.Ports;
 using Bifrost.Core;
 using Bifrost.Core.Events;
+
 using NSubstitute;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Autoscaling;

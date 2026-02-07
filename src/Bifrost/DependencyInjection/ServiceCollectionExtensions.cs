@@ -5,7 +5,9 @@
 // =============================================================================
 
 using System.Diagnostics.CodeAnalysis;
+
 using Bifrost.Core;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bifrost.DependencyInjection;

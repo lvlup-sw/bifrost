@@ -6,7 +6,9 @@
 
 using Bifrost.Core;
 using Bifrost.DependencyInjection;
+
 using Microsoft.Extensions.DependencyInjection;
+
 using NSubstitute;
 
 namespace Bifrost.Tests.DependencyInjection;

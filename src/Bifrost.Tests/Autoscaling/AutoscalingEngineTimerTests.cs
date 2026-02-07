@@ -5,9 +5,12 @@
 // =============================================================================
 
 using Bifrost.Autoscaling;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+
 using NSubstitute;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Autoscaling;

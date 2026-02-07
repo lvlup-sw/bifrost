@@ -6,8 +6,10 @@
 
 using Bifrost.Core;
 using Bifrost.Hosting;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+
 using NSubstitute;
 
 namespace Bifrost.Tests.Hosting;

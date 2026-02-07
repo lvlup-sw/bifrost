@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Bifrost.Resilience;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Resilience;

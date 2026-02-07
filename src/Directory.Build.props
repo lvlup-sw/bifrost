@@ -7,8 +7,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- MinVer: recognize v-prefixed tags like v1.0.0 -->
     <MinVerTagPrefix>v</MinVerTagPrefix>
-    <!-- Use our own stylecop.json, not Lvlup.Build's default -->
-    <LvlupIncludeStyleCopConfig>false</LvlupIncludeStyleCopConfig>
     <!-- NativeAOT compatibility -->
     <IsAotCompatible>true</IsAotCompatible>
     <!-- Generate documentation -->
@@ -71,10 +69,5 @@
     <PackageReference Include="Lvlup.Build" PrivateAssets="all" />
     <PackageReference Include="MinVer" PrivateAssets="all" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
-  </ItemGroup>
-
-  <!-- StyleCop Configuration -->
-  <ItemGroup>
-    <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" />
   </ItemGroup>
 </Project>

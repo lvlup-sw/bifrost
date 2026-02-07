@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Bifrost.Autoscaling.Ports;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Autoscaling.Ports;
