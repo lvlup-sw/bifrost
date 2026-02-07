@@ -62,9 +62,7 @@
     },
     "qualityReview": {
       "status": "approved",
-      "highPriority": [
-        "Unchecked Wait() timeout in WorkerLoopAllocationBenchmarks"
-      ],
+      "highPriority": [],
       "mediumPriority": [
         "DRY: 6x NoOpHandler duplicated",
         "DRY: 2x CountdownHandler duplicated",
@@ -109,6 +107,20 @@
           "Update BENCHMARKS.md baseline section"
         ],
         "commit": "794a134"
+      },
+      {
+        "round": 3,
+        "source": "coderabbit",
+        "status": "fixed",
+        "fixes": [
+          "Qualify zero-allocation claims for EnqueueAsync (Capacity=128 shows 1 B)",
+          "Note EnqueueAsync latency mean slightly above 100ns target",
+          "Fix fenced code block language in design doc",
+          "Update outdated BenchmarkDotNet version reference",
+          "Clear resolved high-priority quality review item",
+          "Gate optimizations validator to Dry/CI runs"
+        ],
+        "commit": "7668ab2"
       }
     ]
   },

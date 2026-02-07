@@ -22,9 +22,12 @@ using Bifrost.Benchmarks.Decorators;
 // CI smoke test (minimal run):
 //   dotnet run -c Release -- --job Dry --filter "*"
 
-var config = ManualConfig
-    .Create(DefaultConfig.Instance)
-    .WithOptions(ConfigOptions.DisableOptimizationsValidator);
+var config = ManualConfig.Create(DefaultConfig.Instance);
+
+if (Array.Exists(args, a => a.Equals("Dry", StringComparison.OrdinalIgnoreCase)))
+{
+    config = config.WithOptions(ConfigOptions.DisableOptimizationsValidator);
+}
 
 var switcher = new BenchmarkSwitcher(
 [

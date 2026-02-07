@@ -381,7 +381,7 @@ The `--job Dry` flag runs each benchmark once with minimal warmup — enough to 
 
 ### Benchmark Results Documentation
 
-```
+```text
 docs/benchmarks/
 ├── BENCHMARKS.md          # Success criteria, run instructions, results table
 └── baseline-YYYY-MM-DD/   # Timestamped BenchmarkDotNet artifacts (gitignored)
@@ -415,4 +415,4 @@ The existing 80% coverage gate is unaffected — benchmark projects are excluded
 
 2. **Event boxing** — The event stream uses `Channel<IOrchestratorEvent>` which boxes value-type events. The allocation benchmark will quantify this. If boxing is significant, should it be addressed before baselining (changing the channel to generic) or accepted as a known cost?
 
-3. **BenchmarkDotNet version** — Latest stable is 0.14.x. Should we pin a specific version in `Directory.Packages.props`?
+3. **BenchmarkDotNet version** — Version is pinned in `Directory.Packages.props`. Update this pin when upgrading.
