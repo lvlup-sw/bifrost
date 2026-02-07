@@ -15,7 +15,7 @@ using Microsoft.Extensions.Options;
 namespace Bifrost.Benchmarks.Core;
 
 /// <summary>
-/// Benchmarks measuring latency of all four enqueue paths on <see cref="WorkOrchestrator{TWork}"/>.
+/// Benchmarks measuring latency of async enqueue paths on <see cref="WorkOrchestrator{TWork}"/>.
 /// </summary>
 [MemoryDiagnoser]
 public class EnqueueBenchmarks
@@ -59,29 +59,23 @@ public class EnqueueBenchmarks
     /// Benchmarks the async enqueue path.
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> representing the enqueue operation.</returns>
+    /// <remarks>
+    /// <para>
+    /// At <c>Capacity=128</c>, <see cref="System.Threading.Channels.ChannelWriter{T}.WriteAsync"/>
+    /// may complete asynchronously under sustained load, causing the <see cref="ValueTask"/> to allocate
+    /// (observed as ~1 B per call). This is .NET <c>Channel&lt;T&gt;</c> runtime behavior when the bounded
+    /// channel is near capacity, not a Bifrost issue.
+    /// </para>
+    /// <para>
+    /// At <c>Capacity=1024</c>, the channel rarely experiences backpressure and <c>WriteAsync</c> completes
+    /// synchronously with zero allocation. For allocation-free async enqueue in hot paths, use
+    /// <c>Capacity &gt;= 1024</c>.
+    /// </para>
+    /// </remarks>
     [Benchmark]
     public ValueTask EnqueueAsync()
     {
         return _orchestrator!.EnqueueAsync(42);
-    }
-
-    /// <summary>
-    /// Benchmarks the synchronous Run enqueue path.
-    /// </summary>
-    [Benchmark]
-    public void Run_Sync()
-    {
-        _orchestrator!.Run(42);
-    }
-
-    /// <summary>
-    /// Benchmarks the synchronous TryRun enqueue path.
-    /// </summary>
-    /// <returns><see langword="true"/> if the item was enqueued.</returns>
-    [Benchmark]
-    public bool TryRun_Sync()
-    {
-        return _orchestrator!.TryRun(42);
     }
 
     /// <summary>
