@@ -18,6 +18,8 @@ jobs:
   format-check:
     if: github.event_name != 'pull_request_review'
     uses: lvlup-sw/.github/.github/workflows/format-check.yml@main
+    permissions:
+      contents: write
     with:
       solution-path: 'src/Bifrost.sln'
       dotnet-version: '10.0.x'
