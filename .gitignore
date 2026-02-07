@@ -35,6 +35,7 @@ dlldata.c
 
 # Benchmark Results
 BenchmarkDotNet.Artifacts/
+docs/benchmarks/baseline-*/
 
 # .NET Core
 project.lock.json
@@ -366,3 +367,4 @@ FodyWeavers.xsd
 *.user
 *.userosscache
 *.sln.docstates
+.worktrees/

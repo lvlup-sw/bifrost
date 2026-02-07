@@ -58,6 +58,10 @@ jobs:
           done
           exit $failed
 
+      - name: Benchmark smoke test
+        continue-on-error: true
+        run: dotnet run --project src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj -c Release -- --job Dry --filter "*"
+
       - name: Merge coverage reports
         if: always()
         run: |
