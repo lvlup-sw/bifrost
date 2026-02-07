@@ -37,6 +37,9 @@ dlldata.c
 BenchmarkDotNet.Artifacts/
 docs/benchmarks/baseline-*/
 
+# Workflow State
+docs/workflow-state/
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json
