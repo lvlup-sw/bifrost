@@ -33,6 +33,7 @@ if (Array.Exists(args, a => a.Equals("Dry", StringComparison.OrdinalIgnoreCase))
 var switcher = new BenchmarkSwitcher(
 [
     typeof(EnqueueBenchmarks),
+    typeof(SyncEnqueueBenchmarks),
     typeof(WorkerThroughputBenchmarks),
     typeof(EnqueueAllocationBenchmarks),
     typeof(WorkerLoopAllocationBenchmarks),
