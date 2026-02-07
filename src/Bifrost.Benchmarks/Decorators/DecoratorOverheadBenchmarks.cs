@@ -100,28 +100,14 @@ public class DecoratorOverheadBenchmarks
     /// <summary>
     /// Disposes orchestrator instances after each iteration.
     /// </summary>
-    /// <returns>A task representing the asynchronous cleanup.</returns>
     [IterationCleanup]
-    public async Task IterationCleanup()
+    public void IterationCleanup()
     {
-        if (_fullStack is not null)
-        {
-            await _fullStack.DisposeAsync().ConfigureAwait(false);
-        }
-
-        if (_withEventStream is not null)
-        {
-            await _withEventStream.DisposeAsync().ConfigureAwait(false);
-        }
-
-        if (_withAutoscaling is not null)
-        {
-            await _withAutoscaling.DisposeAsync().ConfigureAwait(false);
-        }
-
-        if (_bare is not null)
-        {
-            await _bare.DisposeAsync().ConfigureAwait(false);
-        }
+#pragma warning disable VSTHRD002 // BenchmarkDotNet IterationCleanup must be synchronous
+        _fullStack?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _withEventStream?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _withAutoscaling?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _bare?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
     }
 }

@@ -101,18 +101,31 @@ dotnet run --project src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj -c Release
 
 ## Hardware Specification
 
-When recording baseline results, document the test hardware:
-
-```
-CPU:       [Model, clock speed, core count]
-RAM:       [Size, speed]
-OS:        [Name, version]
-.NET:      [SDK version]
-Runtime:   [.NET version]
-```
+| Spec | Value |
+|------|-------|
+| CPU | 13th Gen Intel Core i9-13900K |
+| Cores | 24 physical, 32 logical |
+| RAM | 62 GB |
+| OS | Pop!_OS 24.04 LTS |
+| .NET SDK | 10.0.101 |
+| .NET Runtime | 10.0.1 (X64 RyuJIT AVX2) |
+| BenchmarkDotNet | 0.14.0 |
 
 ## Baseline Results
 
 Baseline results are captured after each release on consistent hardware. Raw BenchmarkDotNet artifacts are stored in `baseline-YYYY-MM-DD/` directories (gitignored). Summarized results are recorded below.
 
-*No baseline results yet. Run benchmarks on consistent hardware and update this section.*
+### v0.2.0 Baseline (2026-02-06)
+
+| Metric | Target | Actual | Status |
+|--------|--------|--------|--------|
+| `TryEnqueue` latency | < 50ns | 33-43 ns | **PASS** |
+| `EnqueueAsync` latency | < 100ns | 83-102 ns (median) | **PASS** |
+| `EnqueueAsync` allocations | 0 B | 0 B | **PASS** |
+| `TryEnqueue` allocations | 0 B | 0 B | **PASS** |
+| Worker throughput (single) | > 1M items/sec | ~8M items/sec | **PASS** |
+| Event struct allocations | Quantified | 298 B (boxing) | **INFO** |
+| Autoscaling overhead | < 20ns per layer | 5-11 ns | **PASS** |
+| WorkerMetrics overhead | < 10ns | 4-7 ns | **PASS** |
+
+Full results: [2026-02-06-full-suite-results.md](2026-02-06-full-suite-results.md)
