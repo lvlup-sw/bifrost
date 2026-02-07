@@ -11,22 +11,22 @@ using TUnit.Core;
 namespace Bifrost.Tests.Events;
 
 /// <summary>
-/// Tests for <see cref="WorkCompletedEvent{TWork}"/> struct.
+/// Tests for <see cref="WorkCompletedEvent{TWork}"/> sealed record class.
 /// </summary>
 [Property("Category", "Unit")]
 public class WorkCompletedEventTests
 {
     /// <summary>
-    /// Verifies that WorkCompletedEvent is a readonly record struct.
+    /// Verifies that WorkCompletedEvent is a sealed record class.
     /// </summary>
     [Test]
-    public async Task WorkCompletedEvent_IsReadonlyRecordStruct()
+    public async Task WorkCompletedEvent_IsSealedRecordClass()
     {
         // Arrange
         var type = typeof(WorkCompletedEvent<>);
 
-        // Assert - check it's a value type (struct)
-        await Assert.That(type.IsValueType).IsTrue();
+        // Assert - check it's a reference type (class), not a value type (struct)
+        await Assert.That(type.IsValueType).IsFalse();
 
         // Check it's a record (implements IEquatable<T>)
         var interfaces = type.GetInterfaces();
@@ -36,7 +36,7 @@ public class WorkCompletedEventTests
     }
 
     /// <summary>
-    /// Verifies the struct has correct properties.
+    /// Verifies the record class has correct properties.
     /// </summary>
     [Test]
     public async Task WorkCompletedEvent_HasCorrectProperties()
@@ -58,7 +58,7 @@ public class WorkCompletedEventTests
     }
 
     /// <summary>
-    /// Verifies the struct implements IOrchestratorEvent.
+    /// Verifies the record class implements IOrchestratorEvent.
     /// </summary>
     [Test]
     public async Task WorkCompletedEvent_ImplementsIOrchestratorEvent()

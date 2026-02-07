@@ -18,7 +18,7 @@ namespace Bifrost.Core.Events;
 /// This event is useful for monitoring queue behavior and
 /// implementing custom backpressure strategies.
 /// </remarks>
-public readonly record struct WorkEnqueuedEvent<TWork>(
+public sealed record WorkEnqueuedEvent<TWork>(
     TWork Work,
     DateTimeOffset Timestamp,
     int QueueDepth,
