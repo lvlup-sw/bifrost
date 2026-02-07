@@ -40,7 +40,7 @@ public class WorkerThroughputBenchmarks
         var handler = new CountdownWorkHandler(_countdown);
         var options = Options.Create(new WorkOrchestratorOptions
         {
-            Capacity = ItemCount,
+            Capacity = Math.Min(ItemCount, 10_000),
             WorkerCount = WorkerCount,
         });
         var logger = NullLogger<WorkOrchestrator<int>>.Instance;
@@ -69,7 +69,10 @@ public class WorkerThroughputBenchmarks
             await _orchestrator!.EnqueueAsync(i).ConfigureAwait(false);
         }
 
-        _countdown!.Wait();
+        if (!_countdown!.Wait(TimeSpan.FromSeconds(30)))
+        {
+            throw new TimeoutException("Workers did not process all items within timeout.");
+        }
     }
 
     /// <summary>

@@ -27,10 +27,10 @@ public class DecoratorOverheadBenchmarks
     private IWorkOrchestrator<int>? _fullStack;
 
     /// <summary>
-    /// Creates four orchestrator variants for benchmarking.
+    /// Creates fresh orchestrator variants for each benchmark iteration.
     /// </summary>
-    [GlobalSetup]
-    public void GlobalSetup()
+    [IterationSetup]
+    public void IterationSetup()
     {
         var options = new OptionsWrapper<WorkOrchestratorOptions>(
             new WorkOrchestratorOptions { Capacity = 10000, WorkerCount = 1 });
@@ -98,11 +98,11 @@ public class DecoratorOverheadBenchmarks
     public bool TryEnqueue_FullStack() => _fullStack!.TryEnqueue(42);
 
     /// <summary>
-    /// Disposes all orchestrator instances.
+    /// Disposes orchestrator instances after each iteration.
     /// </summary>
     /// <returns>A task representing the asynchronous cleanup.</returns>
-    [GlobalCleanup]
-    public async Task GlobalCleanup()
+    [IterationCleanup]
+    public async Task IterationCleanup()
     {
         if (_fullStack is not null)
         {

@@ -35,6 +35,7 @@ public class EventStreamAllocationBenchmarks
     private WorkOrchestrator<int>? _innerOrchestrator;
     private EventStreamOrchestrator<int>? _eventStreamOrchestrator;
     private CancellationTokenSource? _subscriberCts;
+    private Task? _subscriberTask;
 
     /// <summary>
     /// Creates the base orchestrator, wraps it with the event stream decorator,
@@ -54,7 +55,7 @@ public class EventStreamAllocationBenchmarks
         // Start a background subscriber to register a subscriber channel.
         // This ensures PublishToSubscribers iterates at least one subscriber.
         _subscriberCts = new CancellationTokenSource();
-        _ = Task.Run(
+        _subscriberTask = Task.Run(
             async () =>
             {
                 await foreach (var evt in _eventStreamOrchestrator.GetEventStreamAsync<WorkEnqueuedEvent<int>>(
@@ -93,6 +94,19 @@ public class EventStreamAllocationBenchmarks
         {
             await _subscriberCts.CancelAsync().ConfigureAwait(false);
             _subscriberCts.Dispose();
+        }
+
+        if (_subscriberTask is not null)
+        {
+            try
+            {
+#pragma warning disable VSTHRD003 // Awaiting task started in GlobalSetup for orderly cleanup
+                await _subscriberTask.ConfigureAwait(false);
+#pragma warning restore VSTHRD003
+            }
+            catch (OperationCanceledException)
+            {
+            }
         }
 
         if (_eventStreamOrchestrator is not null)

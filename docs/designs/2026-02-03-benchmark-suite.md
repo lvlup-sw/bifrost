@@ -36,7 +36,7 @@ The benchmark suite must validate the architectural claims from the original des
 
 ### Project Structure
 
-```
+```text
 src/Bifrost.Benchmarks/
 ├── Bifrost.Benchmarks.csproj
 ├── Program.cs                              # BenchmarkSwitcher
