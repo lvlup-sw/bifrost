@@ -18,6 +18,7 @@
     <InternalsVisibleTo Include="Bifrost.Resilience" />
     <InternalsVisibleTo Include="Bifrost.Benchmarks" />
     <InternalsVisibleTo Include="Bifrost.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 
   <ItemGroup>
