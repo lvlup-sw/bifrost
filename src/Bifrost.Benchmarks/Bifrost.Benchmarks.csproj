@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bifrost\Bifrost.csproj" />
+    <ProjectReference Include="..\Bifrost.HealthChecks\Bifrost.HealthChecks.csproj" />
     <ProjectReference Include="..\Bifrost.Resilience\Bifrost.Resilience.csproj" />
   </ItemGroup>
 

@@ -30,6 +30,12 @@ public sealed class WorkOrchestratorBuilder<TWork>
     internal List<DecoratorRegistration<TWork>> Decorators { get; } = [];
 
     /// <summary>
+    /// Gets the list of handler decorator factories applied before the handler is passed to the orchestrator.
+    /// </summary>
+    /// <value>A list of factory functions that wrap the handler.</value>
+    internal List<Func<IServiceProvider, IWorkHandler<TWork>, IWorkHandler<TWork>>> HandlerDecorators { get; } = [];
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestratorBuilder{TWork}"/> class.
     /// </summary>
     /// <param name="services">The service collection to register services with.</param>
@@ -46,15 +52,26 @@ public sealed class WorkOrchestratorBuilder<TWork>
         // Sort decorators by order (innermost first)
         var orderedDecorators = Decorators.OrderBy(d => d.Order).ToList();
 
+        // Capture handler decorators for closure
+        var handlerDecorators = HandlerDecorators.ToList();
+
         Services.AddSingleton<IWorkOrchestrator<TWork>>(sp =>
         {
-            // Start with base implementation
+            // Resolve handler from DI and apply handler decorators in order
+            IWorkHandler<TWork> handler = sp.GetRequiredService<IWorkHandler<TWork>>();
+
+            foreach (var decorator in handlerDecorators)
+            {
+                handler = decorator(sp, handler);
+            }
+
+            // Start with base implementation using the decorated handler
             IWorkOrchestrator<TWork> orchestrator = new WorkOrchestrator<TWork>(
-                sp.GetRequiredService<IWorkHandler<TWork>>(),
+                handler,
                 sp.GetRequiredService<IOptions<WorkOrchestratorOptions>>(),
                 sp.GetRequiredService<ILogger<WorkOrchestrator<TWork>>>());
 
-            // Apply decorators in order
+            // Apply orchestrator decorators in order
             foreach (var registration in orderedDecorators)
             {
                 orchestrator = registration.Factory(sp, orchestrator);

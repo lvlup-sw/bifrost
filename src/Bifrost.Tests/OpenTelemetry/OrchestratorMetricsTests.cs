@@ -154,4 +154,47 @@ public class OrchestratorMetricsTests
         await Assert.That(stringMetrics).IsNotNull();
         await Assert.That(intMetrics).IsNotNull();
     }
+
+    /// <summary>
+    /// Verifies that constructor creates the dead-lettered counter.
+    /// </summary>
+    [Test]
+    public async Task Constructor_CreatesDeadLetteredCounter()
+    {
+        // Arrange & Act
+        using var metrics = new OrchestratorMetrics<string>(() => null);
+
+        // Assert
+        await Assert.That(metrics.ItemsDeadLettered).IsNotNull();
+    }
+
+    /// <summary>
+    /// Verifies that RecordDeadLettered increments the counter.
+    /// </summary>
+    [Test]
+    public async Task RecordDeadLettered_IncrementsCounter()
+    {
+        // Arrange
+        using var metrics = new OrchestratorMetrics<string>(() => null);
+
+        // Act - Should not throw
+        metrics.RecordDeadLettered();
+        metrics.RecordDeadLettered();
+
+        // Assert
+        await Assert.That(metrics.ItemsDeadLettered).IsNotNull();
+    }
+
+    /// <summary>
+    /// Verifies that constructor creates the DLQ depth gauge.
+    /// </summary>
+    [Test]
+    public async Task Constructor_CreatesDlqDepthGauge()
+    {
+        // Arrange & Act
+        using var metrics = new OrchestratorMetrics<string>(() => null, () => 5);
+
+        // Assert
+        await Assert.That(metrics.DeadLetterQueueDepth).IsNotNull();
+    }
 }
