@@ -22,8 +22,10 @@ namespace Bifrost.OpenTelemetry;
 ///   <item><description><c>orchestrator.items.processed</c> - Counter for total items processed</description></item>
 ///   <item><description><c>orchestrator.items.failed</c> - Counter for total items that failed processing</description></item>
 ///   <item><description><c>orchestrator.processing.duration</c> - Histogram for processing duration in milliseconds</description></item>
+///   <item><description><c>orchestrator.items.deadlettered</c> - Counter for total items dead-lettered</description></item>
 ///   <item><description><c>orchestrator.queue.pending</c> - Observable gauge for pending items</description></item>
 ///   <item><description><c>orchestrator.workers.active</c> - Observable gauge for active workers</description></item>
+///   <item><description><c>orchestrator.dlq.depth</c> - Observable gauge for dead letter queue depth (optional)</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -69,15 +71,32 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
     public ObservableGauge<int> ActiveWorkers { get; }
 
     /// <summary>
+    /// Gets the counter for total items dead-lettered.
+    /// </summary>
+    /// <value>Counter tracking dead-lettered items.</value>
+    public Counter<long> ItemsDeadLettered { get; }
+
+    /// <summary>
+    /// Gets the observable gauge for dead letter queue depth.
+    /// </summary>
+    /// <value>Observable gauge for current DLQ item count, or <c>null</c> if no DLQ provider was configured.</value>
+    public ObservableGauge<int>? DeadLetterQueueDepth { get; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="OrchestratorMetrics{TWork}"/> class.
     /// </summary>
     /// <param name="orchestratorProvider">
     /// A function that provides the current orchestrator instance for observable gauges.
     /// </param>
+    /// <param name="dlqCountProvider">
+    /// Optional function that provides the current DLQ item count for the observable gauge.
+    /// </param>
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="orchestratorProvider"/> is null.
     /// </exception>
-    public OrchestratorMetrics(Func<IWorkOrchestrator<TWork>?> orchestratorProvider)
+    public OrchestratorMetrics(
+        Func<IWorkOrchestrator<TWork>?> orchestratorProvider,
+        Func<int>? dlqCountProvider = null)
     {
         ArgumentNullException.ThrowIfNull(orchestratorProvider);
 
@@ -99,6 +118,11 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
             unit: "{item}",
             description: "Total number of work items that failed processing");
 
+        ItemsDeadLettered = _meter.CreateCounter<long>(
+            "orchestrator.items.deadlettered",
+            unit: "{item}",
+            description: "Total number of work items dead-lettered");
+
         ProcessingDuration = _meter.CreateHistogram<double>(
             "orchestrator.processing.duration",
             unit: "ms",
@@ -115,12 +139,26 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
             () => orchestratorProvider()?.ActiveWorkers ?? 0,
             unit: "{worker}",
             description: "Current number of active workers processing items");
+
+        if (dlqCountProvider is not null)
+        {
+            DeadLetterQueueDepth = _meter.CreateObservableGauge(
+                "orchestrator.dlq.depth",
+                dlqCountProvider,
+                unit: "{item}",
+                description: "Current number of items in the dead letter queue");
+        }
     }
 
     /// <summary>
     /// Records that a work item was enqueued.
     /// </summary>
     public void RecordEnqueued() => ItemsEnqueued.Add(1);
+
+    /// <summary>
+    /// Records that a work item was dead-lettered.
+    /// </summary>
+    public void RecordDeadLettered() => ItemsDeadLettered.Add(1);
 
     /// <summary>
     /// Records that a work item was processed successfully.

@@ -6,6 +6,7 @@
 
 using Bifrost.Autoscaling;
 using Bifrost.Core;
+using Bifrost.Core.DeadLetter;
 using Bifrost.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -137,6 +138,35 @@ public static class HealthCheckExtensions
                     sp.GetRequiredService<IWorkerRegistry>()),
                 failureStatus: HealthStatus.Unhealthy,
                 tags: ["autoscaling"]));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds a health check for the dead letter queue.
+    /// </summary>
+    /// <typeparam name="TWork">The type of work item.</typeparam>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">Optional custom name for the health check.</param>
+    /// <returns>The builder for chaining.</returns>
+    /// <remarks>
+    /// Reports <see cref="HealthStatus.Degraded"/> at 100+ items
+    /// and <see cref="HealthStatus.Unhealthy"/> at 1000+ items.
+    /// </remarks>
+    public static IHealthChecksBuilder AddDeadLetterQueueHealthCheck<TWork>(
+        this IHealthChecksBuilder builder,
+        string? name = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var healthCheckName = name ?? $"DeadLetterQueue<{typeof(TWork).Name}>";
+
+        builder.Add(new HealthCheckRegistration(
+            healthCheckName,
+            sp => new DeadLetterQueueHealthCheck<TWork>(
+                sp.GetRequiredService<IDeadLetterQueue<TWork>>()),
+            failureStatus: HealthStatus.Unhealthy,
+            tags: ["deadletter"]));
 
         return builder;
     }
