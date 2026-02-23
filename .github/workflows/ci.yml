@@ -28,7 +28,7 @@ jobs:
   build-test:
     name: Build & Test
     needs: format-check
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,7 +103,7 @@ jobs:
   coverage-gate:
     name: Coverage Gate
     needs: build-test
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: self-hosted
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
@@ -156,7 +156,7 @@ jobs:
 
   update-baseline:
     name: Update Coverage Baseline
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: self-hosted
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: build-test
     steps:
