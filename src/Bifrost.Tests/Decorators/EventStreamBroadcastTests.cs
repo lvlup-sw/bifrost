@@ -54,7 +54,7 @@ public class EventStreamBroadcastTests
         var subscriber2Events = new ConcurrentBag<IOrchestratorEvent>();
         var subscriber3Events = new ConcurrentBag<IOrchestratorEvent>();
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         // Start three subscribers
         var subscriber1Task = Task.Run(async () =>
@@ -93,8 +93,8 @@ public class EventStreamBroadcastTests
             }
         });
 
-        // Give subscribers time to start
-        await Task.Delay(100).ConfigureAwait(false);
+        // Give subscribers time to start (generous for CI)
+        await Task.Delay(250).ConfigureAwait(false);
 
         // Act - enqueue work to generate events
         await decorator.EnqueueAsync("test1").ConfigureAwait(false);

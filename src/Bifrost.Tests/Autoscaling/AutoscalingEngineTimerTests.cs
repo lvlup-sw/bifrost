@@ -128,14 +128,27 @@ public class AutoscalingEngineTimerTests
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
         var eventCount = 0;
-        engine.ScalingDecisionMade += (_, _) => Interlocked.Increment(ref eventCount);
+        var twoEventsReceived = new TaskCompletionSource();
+        engine.ScalingDecisionMade += (_, _) =>
+        {
+            if (Interlocked.Increment(ref eventCount) >= 2)
+            {
+                twoEventsReceived.TrySetResult();
+            }
+        };
 
         // Act
         await engine.StartAsync().ConfigureAwait(false);
-        await Task.Delay(300).ConfigureAwait(false); // Should fire at least 5 times (50ms interval)
+
+        // Wait for events deterministically (thread pool may be slow under CI load)
+        var completed = await Task.WhenAny(
+            twoEventsReceived.Task,
+            Task.Delay(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
+
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert - Should have at least 2 evaluations (accounting for timing variance and CI load)
+        // Assert - Should have received at least 2 evaluations
+        await Assert.That(ReferenceEquals(completed, twoEventsReceived.Task)).IsTrue();
         await Assert.That(eventCount).IsGreaterThanOrEqualTo(2);
     }
 
@@ -151,14 +164,22 @@ public class AutoscalingEngineTimerTests
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
         var eventCount = 0;
-        engine.ScalingDecisionMade += (_, _) => Interlocked.Increment(ref eventCount);
+        var firstEventReceived = new TaskCompletionSource();
+        engine.ScalingDecisionMade += (_, _) =>
+        {
+            Interlocked.Increment(ref eventCount);
+            firstEventReceived.TrySetResult();
+        };
 
         // Act
         await engine.StartAsync().ConfigureAwait(false);
-        await Task.Delay(100).ConfigureAwait(false); // Let some evaluations happen
+
+        // Wait for at least one event before stopping
+        await firstEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+
         await engine.StopAsync().ConfigureAwait(false);
         var countAfterStop = eventCount;
-        await Task.Delay(150).ConfigureAwait(false); // Wait to ensure no more evaluations
+        await Task.Delay(300).ConfigureAwait(false); // Wait to ensure no more evaluations
 
         // Assert - No new events after stop
         await Assert.That(eventCount).IsEqualTo(countAfterStop);
