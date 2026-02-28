@@ -17,6 +17,7 @@ namespace Bifrost.Benchmarks.Autoscaling;
 public class WorkerRegistryBenchmarks
 {
     private WorkerRegistry? _registry;
+    private CancellationTokenSource? _cts;
 
     /// <summary>
     /// Creates a worker registry pre-populated with workers.
@@ -25,6 +26,7 @@ public class WorkerRegistryBenchmarks
     public async Task GlobalSetup()
     {
         _registry = new WorkerRegistry();
+        _cts = new CancellationTokenSource();
 
         // Register 8 workers with a long-running function that stays alive
         for (var i = 0; i < 8; i++)
@@ -33,7 +35,7 @@ public class WorkerRegistryBenchmarks
             await _registry.CreateWorkerAsync(
                 workerId,
                 static (_, ct) => Task.Delay(Timeout.Infinite, ct),
-                CancellationToken.None).ConfigureAwait(false);
+                _cts.Token).ConfigureAwait(false);
 
             // Mark half as busy to exercise IdleWorkerCount filtering
             if (i % 2 == 0)
@@ -41,6 +43,16 @@ public class WorkerRegistryBenchmarks
                 _registry.GetWorkerInfo(workerId)?.MarkBusy();
             }
         }
+    }
+
+    /// <summary>
+    /// Cancels and disposes long-running worker tasks.
+    /// </summary>
+    [GlobalCleanup]
+    public void GlobalCleanup()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
     }
 
     /// <summary>

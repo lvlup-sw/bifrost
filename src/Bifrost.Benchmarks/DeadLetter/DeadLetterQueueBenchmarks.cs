@@ -24,6 +24,7 @@ public class DeadLetterQueueBenchmarks
 {
     private DeadLetterQueue<int>? _dlq;
     private DeadLetterQueue<int>? _drainDlq;
+    private IOptions<DeadLetterQueueOptions>? _options;
     private DeadLetterHandler<int>? _happyPathHandler;
     private DeadLetterHandler<int>? _failurePathHandler;
     private DeadLetteredWork<int> _testItem;
@@ -34,18 +35,12 @@ public class DeadLetterQueueBenchmarks
     [GlobalSetup]
     public async Task GlobalSetup()
     {
-        var options = Options.Create(new DeadLetterQueueOptions { Capacity = 10000, MaxRetries = 3 });
+        _options = Options.Create(new DeadLetterQueueOptions { Capacity = 10000, MaxRetries = 3 });
 
-        _dlq = new DeadLetterQueue<int>(options);
-        _drainDlq = new DeadLetterQueue<int>(options);
+        _dlq = new DeadLetterQueue<int>(_options);
+        _drainDlq = new DeadLetterQueue<int>(_options);
 
         _testItem = new DeadLetteredWork<int>(42, null, 1, DateTimeOffset.UtcNow, null);
-
-        // Pre-populate drain DLQ
-        for (var i = 0; i < 100; i++)
-        {
-            await _drainDlq.EnqueueAsync(new DeadLetteredWork<int>(i, null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
-        }
 
         var noopNotifier = new DeadLetterNotifier<int>();
         var logger = NullLogger<DeadLetterHandler<int>>.Instance;
@@ -53,13 +48,13 @@ public class DeadLetterQueueBenchmarks
         // Happy path handler - inner handler succeeds
         var succeedingHandler = new DelegateHandler(_ => ValueTask.CompletedTask);
         _happyPathHandler = new DeadLetterHandler<int>(
-            succeedingHandler, new DeadLetterQueue<int>(options), noopNotifier, options, logger);
+            succeedingHandler, new DeadLetterQueue<int>(_options), noopNotifier, _options, logger);
 
         // Failure path handler - inner handler always throws
         var failingHandler = new DelegateHandler(_ =>
             new ValueTask(Task.FromException(new InvalidOperationException("bench-fail"))));
         _failurePathHandler = new DeadLetterHandler<int>(
-            failingHandler, new DeadLetterQueue<int>(options), noopNotifier,
+            failingHandler, new DeadLetterQueue<int>(_options), noopNotifier,
             Options.Create(new DeadLetterQueueOptions { Capacity = 10000, MaxRetries = 0 }), logger);
     }
 
@@ -74,18 +69,29 @@ public class DeadLetterQueueBenchmarks
     }
 
     /// <summary>
+    /// Pre-populates the drain DLQ before each iteration.
+    /// </summary>
+#pragma warning disable VSTHRD002 // IterationSetup must return void
+    [IterationSetup(Target = nameof(DlqDrain))]
+    public void SetupDrainIteration()
+    {
+        // Recreate to ensure clean state
+        _drainDlq = new DeadLetterQueue<int>(_options!);
+        for (var i = 0; i < 100; i++)
+        {
+            _drainDlq.EnqueueAsync(new DeadLetteredWork<int>(i, null, 1, DateTimeOffset.UtcNow, null))
+                .AsTask().GetAwaiter().GetResult();
+        }
+    }
+#pragma warning restore VSTHRD002
+
+    /// <summary>
     /// Benchmarks draining items via ReadAllAsync.
     /// </summary>
     /// <returns>The number of items drained.</returns>
     [Benchmark]
     public async Task<int> DlqDrain()
     {
-        // Re-populate before drain
-        for (var i = 0; i < 100; i++)
-        {
-            await _drainDlq!.EnqueueAsync(new DeadLetteredWork<int>(i, null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
-        }
-
         var count = 0;
         await foreach (var _ in _drainDlq!.ReadAllAsync().ConfigureAwait(false))
         {
