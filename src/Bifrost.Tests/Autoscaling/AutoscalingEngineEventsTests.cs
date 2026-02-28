@@ -85,7 +85,14 @@ public class AutoscalingEngineEventsTests
 
         // Act
         await engine.StartAsync().ConfigureAwait(false);
-        await Task.Delay(350).ConfigureAwait(false); // Wait for multiple evaluations
+
+        // Poll until we have at least 2 evaluations (generous timeout for CI)
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (correlationIds.Count < 2 && !cts.IsCancellationRequested)
+        {
+            await Task.Delay(50, cts.Token).ConfigureAwait(false);
+        }
+
         await engine.StopAsync().ConfigureAwait(false);
 
         // Assert - Should have at least 2 evaluations with unique IDs
