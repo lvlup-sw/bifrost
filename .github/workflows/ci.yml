@@ -16,7 +16,7 @@ env:
 jobs:
   build-test:
     name: Build & Test
-    runs-on: self-hosted
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,7 +91,7 @@ jobs:
   coverage-gate:
     name: Coverage Gate
     needs: build-test
-    runs-on: self-hosted
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
@@ -144,7 +144,7 @@ jobs:
 
   update-baseline:
     name: Update Coverage Baseline
-    runs-on: self-hosted
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: build-test
     steps:
