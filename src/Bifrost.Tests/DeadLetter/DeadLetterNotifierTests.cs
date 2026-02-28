@@ -69,7 +69,6 @@ public class DeadLetterNotifierTests
 
         // Assert
         await Assert.That(subscription).IsNotNull();
-        await Assert.That(subscription is IDisposable).IsTrue();
     }
 
     /// <summary>

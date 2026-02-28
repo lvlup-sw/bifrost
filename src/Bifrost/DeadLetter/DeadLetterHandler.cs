@@ -62,6 +62,8 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
         // 1 initial attempt + MaxRetries retries
         var maxAttempts = _maxRetries + 1;
 
+        // Retries are immediate (no backoff) by design: the DLQ path is for persistent failures,
+        // not transient network issues. Callers needing backoff should implement it in the inner handler.
         for (var i = 0; i < maxAttempts; i++)
         {
             try
@@ -89,7 +91,8 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
             DateTimeOffset.UtcNow,
             CorrelationId: null);
 
-        await _dlq.EnqueueAsync(deadLetteredWork, ct).ConfigureAwait(false);
+        // Use CancellationToken.None to guarantee dead-letter persistence even if the caller cancels
+        await _dlq.EnqueueAsync(deadLetteredWork, CancellationToken.None).ConfigureAwait(false);
 
         var evt = new WorkDeadLetteredEvent<TWork>(
             work,

@@ -91,7 +91,9 @@ public class WorkOrchestratorBuilderHandlerDecoratorTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
         // Assert
-        await Assert.That(order).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(order).HasCount(2);
+        await Assert.That(order[0]).IsEqualTo(1);
+        await Assert.That(order[1]).IsEqualTo(2);
 
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }

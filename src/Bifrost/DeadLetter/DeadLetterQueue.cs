@@ -50,6 +50,8 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
     /// <inheritdoc/>
     public ValueTask EnqueueAsync(DeadLetteredWork<TWork> item, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+
         if (_channel.Writer.TryWrite(item))
         {
             // Only increment if we haven't exceeded capacity.
@@ -74,8 +76,11 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
     public async IAsyncEnumerable<DeadLetteredWork<TWork>> ReadAllAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+
         while (_channel.Reader.TryRead(out var item))
         {
+            ct.ThrowIfCancellationRequested();
             Interlocked.Decrement(ref _count);
             yield return item;
         }
