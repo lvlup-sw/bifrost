@@ -293,11 +293,18 @@ public class EventStreamBroadcastTests
         var subscriber1Events = new ConcurrentBag<IOrchestratorEvent>();
         var subscriber2Events = new ConcurrentBag<IOrchestratorEvent>();
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        // Register subscribers synchronously — GetEventStreamAsync adds to the
+        // subscriber dictionary before returning the async enumerable, so both
+        // channels exist before any enqueue. The bounded channel (capacity 1000)
+        // buffers events even if readers haven't started iterating yet.
+        var stream1 = decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token);
+        var stream2 = decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token);
 
         var task1 = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in stream1.ConfigureAwait(false))
             {
                 subscriber1Events.Add(evt);
                 if (subscriber1Events.Count >= 1)
@@ -309,7 +316,7 @@ public class EventStreamBroadcastTests
 
         var task2 = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in stream2.ConfigureAwait(false))
             {
                 subscriber2Events.Add(evt);
                 if (subscriber2Events.Count >= 1)
@@ -319,13 +326,10 @@ public class EventStreamBroadcastTests
             }
         });
 
-        // Give subscribers time to start
-        await Task.Delay(100).ConfigureAwait(false);
-
-        // Act
+        // Act — subscribers are registered and channels buffer, no delay needed
         decorator.TryEnqueue("test-work");
 
-        // Wait for subscribers
+        // Wait for subscribers to consume
         await Task.WhenAll(task1, task2).ConfigureAwait(false);
 
         // Assert
