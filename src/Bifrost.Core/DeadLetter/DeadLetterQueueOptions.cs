@@ -12,8 +12,37 @@ namespace Bifrost.Core.DeadLetter;
 /// Configuration options for the dead letter queue.
 /// </summary>
 /// <remarks>
+/// <para>
 /// These options control the capacity of the dead letter queue
 /// and the maximum number of retries before dead-lettering.
+/// </para>
+/// <para><b>Two-layer retry model:</b></para>
+/// <para>
+/// Bifrost has two independent retry layers:
+/// </para>
+/// <list type="number">
+///   <item>
+///     <description>
+///     <b>Resilience layer</b> (<c>.WithResilience()</c>): Polly policies with exponential
+///     backoff for transient failures on <b>enqueue operations</b>. Protects against
+///     temporary channel/infrastructure failures.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///     <b>DLQ layer</b> (<c>.WithDeadLetterQueue()</c>): Immediate retries (no backoff)
+///     on <b>handler execution</b> failures. After <see cref="MaxRetries"/> exhausted,
+///     the work item is dead-lettered. Designed for persistent application-level failures,
+///     not transient infrastructure issues.
+///     </description>
+///   </item>
+/// </list>
+/// <para>
+/// Total attempts for a work item with both layers: the resilience layer retries
+/// <b>enqueue</b> (getting work into the channel), then the DLQ layer retries
+/// <b>handling</b> (processing the work item). They do not compound — each layer
+/// operates on a different phase of the work lifecycle.
+/// </para>
 /// </remarks>
 public sealed class DeadLetterQueueOptions
 {
