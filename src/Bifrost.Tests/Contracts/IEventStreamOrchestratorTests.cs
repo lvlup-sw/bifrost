@@ -4,14 +4,19 @@
 // </copyright>
 // =============================================================================
 
+using System.Reflection;
+
 using Bifrost.Core;
 using Bifrost.Core.Events;
+
+using TUnit.Core;
 
 namespace Bifrost.Tests.Contracts;
 
 /// <summary>
 /// Tests for <see cref="IEventStreamOrchestrator{TWork}"/> interface contract.
 /// </summary>
+[Property("Category", "Unit")]
 public class IEventStreamOrchestratorTests
 {
     /// <summary>
@@ -56,5 +61,72 @@ public class IEventStreamOrchestratorTests
 
         var constraints = genericArgs[0].GetGenericParameterConstraints();
         await Assert.That(constraints).Contains(typeof(IOrchestratorEvent));
+    }
+
+    /// <summary>
+    /// Verifies EnqueueAsync overload with correlationId parameter has correct signature.
+    /// </summary>
+    [Test]
+    public async Task EnqueueAsync_WithCorrelationId_HasCorrectSignature()
+    {
+        // Arrange
+        var interfaceType = typeof(IEventStreamOrchestrator<>);
+        var methods = interfaceType.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.Name == "EnqueueAsync")
+            .ToArray();
+        var method = methods.FirstOrDefault(m => m.GetParameters().Length == 3);
+
+        // Assert
+        await Assert.That(method).IsNotNull();
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(ValueTask));
+
+        var parameters = method.GetParameters();
+        await Assert.That(parameters).HasCount(3);
+        await Assert.That(parameters[0].Name).IsEqualTo("work");
+        await Assert.That(parameters[1].Name).IsEqualTo("correlationId");
+        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(string));
+        await Assert.That(parameters[2].Name).IsEqualTo("ct");
+        await Assert.That(parameters[2].ParameterType).IsEqualTo(typeof(CancellationToken));
+        await Assert.That(parameters[2].HasDefaultValue).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies TryEnqueue overload with correlationId parameter has correct signature.
+    /// </summary>
+    [Test]
+    public async Task TryEnqueue_WithCorrelationId_HasCorrectSignature()
+    {
+        // Arrange
+        var interfaceType = typeof(IEventStreamOrchestrator<>);
+        var methods = interfaceType.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.Name == "TryEnqueue")
+            .ToArray();
+        var method = methods.FirstOrDefault(m => m.GetParameters().Length == 2);
+
+        // Assert
+        await Assert.That(method).IsNotNull();
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(bool));
+
+        var parameters = method.GetParameters();
+        await Assert.That(parameters).HasCount(2);
+        await Assert.That(parameters[0].Name).IsEqualTo("work");
+        await Assert.That(parameters[1].Name).IsEqualTo("correlationId");
+        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(string));
+    }
+
+    /// <summary>
+    /// Verifies the interface has the expected number of declared-only members.
+    /// This catches accidental additions or removals.
+    /// </summary>
+    [Test]
+    public async Task Interface_HasExpectedMemberCount()
+    {
+        // Arrange
+        var interfaceType = typeof(IEventStreamOrchestrator<>);
+        var members = interfaceType.GetMembers(
+            BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance);
+
+        // Assert - 3 declared methods: GetEventStreamAsync, EnqueueAsync, TryEnqueue
+        await Assert.That(members.Length).IsEqualTo(3);
     }
 }

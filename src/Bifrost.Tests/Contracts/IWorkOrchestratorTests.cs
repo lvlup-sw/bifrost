@@ -179,6 +179,152 @@ public class IWorkOrchestratorTests
     }
 
     /// <summary>
+    /// Verifies Run method signature.
+    /// </summary>
+    [Test]
+    public async Task Run_HasCorrectSignature()
+    {
+        // Arrange
+        var interfaceType = typeof(IWorkOrchestrator<>);
+        var method = interfaceType.GetMethod("Run");
+
+        // Assert
+        await Assert.That(method).IsNotNull();
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(void));
+
+        var parameters = method.GetParameters();
+        await Assert.That(parameters).HasCount(1);
+        await Assert.That(parameters[0].Name).IsEqualTo("work");
+    }
+
+    /// <summary>
+    /// Verifies TryRun method signature.
+    /// </summary>
+    [Test]
+    public async Task TryRun_HasCorrectSignature()
+    {
+        // Arrange
+        var interfaceType = typeof(IWorkOrchestrator<>);
+        var method = interfaceType.GetMethod("TryRun");
+
+        // Assert
+        await Assert.That(method).IsNotNull();
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(bool));
+
+        var parameters = method.GetParameters();
+        await Assert.That(parameters).HasCount(1);
+        await Assert.That(parameters[0].Name).IsEqualTo("work");
+    }
+
+    /// <summary>
+    /// Verifies CreateWorkerFunction method signature (no parameters).
+    /// </summary>
+    [Test]
+    public async Task CreateWorkerFunction_HasCorrectSignature()
+    {
+        // Arrange
+        var interfaceType = typeof(IWorkOrchestrator<>);
+        var methods = interfaceType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.Name == "CreateWorkerFunction")
+            .ToArray();
+        var method = methods.FirstOrDefault(m => m.GetParameters().Length == 0);
+
+        // Assert
+        await Assert.That(method).IsNotNull();
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(Func<string, CancellationToken, Task>));
+
+        var parameters = method.GetParameters();
+        await Assert.That(parameters).HasCount(0);
+    }
+
+    /// <summary>
+    /// Verifies CreateWorkerFunction method signature (with callback parameter).
+    /// </summary>
+    [Test]
+    public async Task CreateWorkerFunction_WithCallback_HasCorrectSignature()
+    {
+        // Arrange
+        var interfaceType = typeof(IWorkOrchestrator<>);
+        var methods = interfaceType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.Name == "CreateWorkerFunction")
+            .ToArray();
+        var method = methods.FirstOrDefault(m => m.GetParameters().Length == 1);
+
+        // Assert
+        await Assert.That(method).IsNotNull();
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(Func<string, CancellationToken, Task>));
+
+        var parameters = method.GetParameters();
+        await Assert.That(parameters).HasCount(1);
+        await Assert.That(parameters[0].Name).IsEqualTo("stateCallback");
+        await Assert.That(parameters[0].ParameterType).IsEqualTo(typeof(Action<bool>));
+    }
+
+    /// <summary>
+    /// Verifies RequestScaleUpAsync method signature.
+    /// </summary>
+    [Test]
+    public async Task RequestScaleUpAsync_HasCorrectSignature()
+    {
+        // Arrange
+        var interfaceType = typeof(IWorkOrchestrator<>);
+        var method = interfaceType.GetMethod("RequestScaleUpAsync");
+
+        // Assert
+        await Assert.That(method).IsNotNull();
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(Task));
+
+        var parameters = method.GetParameters();
+        await Assert.That(parameters).HasCount(2);
+        await Assert.That(parameters[0].Name).IsEqualTo("count");
+        await Assert.That(parameters[0].ParameterType).IsEqualTo(typeof(int));
+        await Assert.That(parameters[1].Name).IsEqualTo("cancellationToken");
+        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(CancellationToken));
+        await Assert.That(parameters[1].HasDefaultValue).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies RequestScaleDownAsync method signature.
+    /// </summary>
+    [Test]
+    public async Task RequestScaleDownAsync_HasCorrectSignature()
+    {
+        // Arrange
+        var interfaceType = typeof(IWorkOrchestrator<>);
+        var method = interfaceType.GetMethod("RequestScaleDownAsync");
+
+        // Assert
+        await Assert.That(method).IsNotNull();
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(Task));
+
+        var parameters = method.GetParameters();
+        await Assert.That(parameters).HasCount(2);
+        await Assert.That(parameters[0].Name).IsEqualTo("count");
+        await Assert.That(parameters[0].ParameterType).IsEqualTo(typeof(int));
+        await Assert.That(parameters[1].Name).IsEqualTo("cancellationToken");
+        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(CancellationToken));
+        await Assert.That(parameters[1].HasDefaultValue).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies GetShutdownToken method signature.
+    /// </summary>
+    [Test]
+    public async Task GetShutdownToken_HasCorrectSignature()
+    {
+        // Arrange
+        var interfaceType = typeof(IWorkOrchestrator<>);
+        var method = interfaceType.GetMethod("GetShutdownToken");
+
+        // Assert
+        await Assert.That(method).IsNotNull();
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(CancellationToken));
+
+        var parameters = method.GetParameters();
+        await Assert.That(parameters).HasCount(0);
+    }
+
+    /// <summary>
     /// Verifies interface implements IAsyncDisposable.
     /// </summary>
     [Test]
@@ -189,5 +335,21 @@ public class IWorkOrchestratorTests
 
         // Assert
         await Assert.That(typeof(IAsyncDisposable).IsAssignableFrom(interfaceType)).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies the interface has the expected number of declared members.
+    /// This catches accidental additions or removals.
+    /// </summary>
+    [Test]
+    public async Task Interface_HasExpectedMemberCount()
+    {
+        // Arrange
+        var interfaceType = typeof(IWorkOrchestrator<>);
+        var members = interfaceType.GetMembers(
+            BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance);
+
+        // Assert - 10 methods + 4 property getters + 4 properties = 18
+        await Assert.That(members.Length).IsEqualTo(18);
     }
 }
