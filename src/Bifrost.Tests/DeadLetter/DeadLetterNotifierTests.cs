@@ -94,26 +94,39 @@ public class DeadLetterNotifierTests
     }
 
     /// <summary>
-    /// Verifies that subscribing overwrites the previous subscriber.
+    /// Verifies that subscribing when already subscribed throws InvalidOperationException.
     /// </summary>
     [Test]
-    public async Task Subscribe_OverwritesPreviousSubscriber()
+    public async Task Subscribe_WhenAlreadySubscribed_ThrowsInvalidOperationException()
     {
         // Arrange
         var notifier = new DeadLetterNotifier<string>();
-        var firstCallCount = 0;
-        var secondCallCount = 0;
+        notifier.Subscribe(_ => { });
 
-        notifier.Subscribe(_ => firstCallCount++);
-        notifier.Subscribe(_ => secondCallCount++);
+        // Act & Assert
+        await Assert.That(() => notifier.Subscribe(_ => { }))
+            .Throws<InvalidOperationException>();
+    }
 
-        var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
+    /// <summary>
+    /// Verifies that after disposing a subscription, re-subscribing is allowed.
+    /// </summary>
+    [Test]
+    public async Task Subscribe_AfterDispose_AllowsResubscription()
+    {
+        // Arrange
+        var notifier = new DeadLetterNotifier<string>();
+        var firstSubscription = notifier.Subscribe(_ => { });
 
         // Act
+        firstSubscription.Dispose();
+        var secondCallCount = 0;
+        var secondSubscription = notifier.Subscribe(_ => secondCallCount++);
+
+        var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
         notifier.Notify(evt);
 
         // Assert
-        await Assert.That(firstCallCount).IsEqualTo(0);
         await Assert.That(secondCallCount).IsEqualTo(1);
     }
 }

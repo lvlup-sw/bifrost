@@ -49,7 +49,7 @@ public class DeadLetterQueueExtensionsTests
     }
 
     /// <summary>
-    /// Verifies that WithDeadLetterQueue registers the notifier service.
+    /// Verifies that WithDeadLetterQueue registers the notifier service as concrete type.
     /// </summary>
     [Test]
     public async Task WithDeadLetterQueue_RegistersNotifierService()
@@ -66,7 +66,7 @@ public class DeadLetterQueueExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var notifier = provider.GetService<IDeadLetterNotifier<string>>();
+        var notifier = provider.GetService<DeadLetterNotifier<string>>();
         await Assert.That(notifier).IsNotNull();
 
         await provider.GetRequiredService<IWorkOrchestrator<string>>().DisposeAsync().ConfigureAwait(false);
