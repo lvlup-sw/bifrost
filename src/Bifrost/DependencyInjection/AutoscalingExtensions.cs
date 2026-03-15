@@ -7,6 +7,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Bifrost.Autoscaling;
+using Bifrost.Core;
 using Bifrost.Decorators;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -73,6 +74,14 @@ public static class AutoscalingExtensions
 
         // Register worker registry
         builder.Services.TryAddSingleton<IWorkerRegistry, WorkerRegistry>();
+
+        // Register the autoscaling coordinator (bridges orchestrator → engine)
+        builder.Services.TryAddSingleton<IAutoscalingCoordinator>(sp =>
+        {
+            var orchestrator = sp.GetRequiredService<IWorkOrchestrator<TWork>>();
+            var registry = sp.GetRequiredService<IWorkerRegistry>();
+            return new AutoscalingCoordinator<TWork>(orchestrator, registry);
+        });
 
         // Add the autoscaling decorator
         builder.Decorators.Add(new DecoratorRegistration<TWork>(

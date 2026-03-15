@@ -6,6 +6,10 @@
 
 using Bifrost.Autoscaling;
 
+using Microsoft.Extensions.Logging;
+
+using NSubstitute;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Autoscaling;
@@ -410,5 +414,34 @@ public class WorkerRegistryTests
 
         // Assert
         await Assert.That(workerInfo.IsIdle).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that when a worker function faults, the error is logged (M12).
+    /// </summary>
+    [Test]
+    public async Task CreateWorkerAsync_WorkerFaults_LogsError()
+    {
+        // Arrange
+        var logger = Substitute.For<ILogger<WorkerRegistry>>();
+        var registry = new WorkerRegistry(logger);
+        var faulted = new TaskCompletionSource();
+
+        // Act - Create a worker that throws
+        await registry.CreateWorkerAsync(
+            "faulting-worker",
+            (id, ct) => throw new InvalidOperationException("Worker fault"),
+            CancellationToken.None).ConfigureAwait(false);
+
+        // Wait for the fault to propagate through ContinueWith
+        await Task.Delay(200).ConfigureAwait(false);
+
+        // Assert - Error should be logged
+        logger.Received().Log(
+            LogLevel.Error,
+            Arg.Any<EventId>(),
+            Arg.Any<object>(),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
     }
 }
