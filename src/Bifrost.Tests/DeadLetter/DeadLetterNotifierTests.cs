@@ -7,6 +7,10 @@
 using Bifrost.Core.Events;
 using Bifrost.DeadLetter;
 
+using Microsoft.Extensions.Logging;
+
+using NSubstitute;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.DeadLetter;
@@ -17,6 +21,9 @@ namespace Bifrost.Tests.DeadLetter;
 [Property("Category", "Unit")]
 public class DeadLetterNotifierTests
 {
+    private static DeadLetterNotifier<string> CreateNotifier()
+        => new(Substitute.For<ILogger<DeadLetterNotifier<string>>>());
+
     /// <summary>
     /// Verifies that Notify with a subscriber invokes the callback.
     /// </summary>
@@ -24,7 +31,7 @@ public class DeadLetterNotifierTests
     public async Task Notify_WithSubscriber_InvokesCallback()
     {
         // Arrange
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = CreateNotifier();
         WorkDeadLetteredEvent<string>? received = null;
         notifier.Subscribe(evt => received = evt);
 
@@ -44,7 +51,7 @@ public class DeadLetterNotifierTests
     public async Task Notify_WithoutSubscriber_DoesNotThrow()
     {
         // Arrange
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = CreateNotifier();
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
         // Act - should not throw
@@ -62,7 +69,7 @@ public class DeadLetterNotifierTests
     public async Task Subscribe_ReturnsDisposable()
     {
         // Arrange
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = CreateNotifier();
 
         // Act
         var subscription = notifier.Subscribe(_ => { });
@@ -78,7 +85,7 @@ public class DeadLetterNotifierTests
     public async Task Subscribe_Dispose_RemovesSubscriber()
     {
         // Arrange
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = CreateNotifier();
         var callCount = 0;
         var subscription = notifier.Subscribe(_ => callCount++);
 
@@ -101,7 +108,7 @@ public class DeadLetterNotifierTests
     public async Task Subscribe_Multiple_DoesNotThrow()
     {
         // Arrange
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = CreateNotifier();
         notifier.Subscribe(_ => { });
 
         // Act & Assert - second Subscribe should NOT throw
@@ -116,7 +123,7 @@ public class DeadLetterNotifierTests
     public async Task Subscribe_AfterDispose_AllowsResubscription()
     {
         // Arrange
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = CreateNotifier();
         var firstSubscription = notifier.Subscribe(_ => { });
 
         // Act
@@ -138,7 +145,7 @@ public class DeadLetterNotifierTests
     public async Task Notify_WithMultipleSubscribers_InvokesAllCallbacks()
     {
         // Arrange
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = CreateNotifier();
         var callCount1 = 0;
         var callCount2 = 0;
         var callCount3 = 0;
@@ -167,7 +174,7 @@ public class DeadLetterNotifierTests
     public async Task Notify_SubscriberThrows_OtherSubscribersStillCalled()
     {
         // Arrange
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = CreateNotifier();
         var beforeCallCount = 0;
         var afterCallCount = 0;
 
@@ -195,7 +202,7 @@ public class DeadLetterNotifierTests
     public async Task Notify_SubscriberThrows_DoesNotPropagateToCallerSynchronously()
     {
         // Arrange
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = CreateNotifier();
         notifier.SubscribeAsync(_ => throw new InvalidOperationException("subscriber error"));
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
@@ -218,7 +225,7 @@ public class DeadLetterNotifierTests
     public async Task SubscribeAsync_WithAsyncCallback_InvokesCallback()
     {
         // Arrange
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = CreateNotifier();
         WorkDeadLetteredEvent<string>? received = null;
         notifier.SubscribeAsync(async evt =>
         {

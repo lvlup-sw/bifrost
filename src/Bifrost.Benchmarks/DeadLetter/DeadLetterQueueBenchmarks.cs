@@ -42,7 +42,7 @@ public class DeadLetterQueueBenchmarks
 
         _testItem = new DeadLetteredWork<int>(42, null, 1, DateTimeOffset.UtcNow, null);
 
-        var noopNotifier = new DeadLetterNotifier<int>();
+        var noopNotifier = new DeadLetterNotifier<int>(NullLogger<DeadLetterNotifier<int>>.Instance);
         var logger = NullLogger<DeadLetterHandler<int>>.Instance;
 
         // Happy path handler - inner handler succeeds

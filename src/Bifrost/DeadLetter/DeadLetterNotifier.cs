@@ -6,6 +6,8 @@
 
 using Bifrost.Core.Events;
 
+using Microsoft.Extensions.Logging;
+
 namespace Bifrost.DeadLetter;
 
 /// <summary>
@@ -17,6 +19,16 @@ internal sealed class DeadLetterNotifier<TWork>
 {
     private readonly List<Func<WorkDeadLetteredEvent<TWork>, Task>> _callbacks = [];
     private readonly object _lock = new();
+    private readonly ILogger<DeadLetterNotifier<TWork>> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DeadLetterNotifier{TWork}"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance.</param>
+    public DeadLetterNotifier(ILogger<DeadLetterNotifier<TWork>> logger)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// Notifies all subscribers that a work item was dead-lettered.
@@ -83,7 +95,7 @@ internal sealed class DeadLetterNotifier<TWork>
         return new Subscription(this, callback);
     }
 
-    private static async Task NotifySafe(
+    private async Task NotifySafe(
         Func<WorkDeadLetteredEvent<TWork>, Task> callback,
         WorkDeadLetteredEvent<TWork> evt)
     {
@@ -91,9 +103,9 @@ internal sealed class DeadLetterNotifier<TWork>
         {
             await callback(evt).ConfigureAwait(false);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Subscriber errors must not propagate to the handler loop
+            _logger.LogWarning(ex, "Dead letter subscriber threw an exception for work type {WorkType}", typeof(TWork).Name);
         }
     }
 

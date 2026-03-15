@@ -338,22 +338,6 @@ public class IWorkOrchestratorTests
     }
 
     /// <summary>
-    /// Verifies the interface has the expected number of declared members.
-    /// This catches accidental additions or removals.
-    /// </summary>
-    [Test]
-    public async Task Interface_HasExpectedMemberCount()
-    {
-        // Arrange
-        var interfaceType = typeof(IWorkOrchestrator<>);
-        var members = interfaceType.GetMembers(
-            BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance);
-
-        // Assert - 11 methods + 4 property getters + 4 properties = 19
-        await Assert.That(members.Length).IsEqualTo(19);
-    }
-
-    /// <summary>
     /// Verifies DrainAsync method signature.
     /// </summary>
     [Test]

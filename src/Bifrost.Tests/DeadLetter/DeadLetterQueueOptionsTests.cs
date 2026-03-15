@@ -11,6 +11,7 @@ using Bifrost.Core;
 using Bifrost.Core.DeadLetter;
 using Bifrost.DeadLetter;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -118,7 +119,7 @@ public class DeadLetterQueueOptionsTests
 
         var innerHandler = Substitute.For<IWorkHandler<string>>();
         var dlq = Substitute.For<IDeadLetterQueue<string>>();
-        var notifier = new DeadLetterNotifier<string>();
+        var notifier = new DeadLetterNotifier<string>(NullLogger<DeadLetterNotifier<string>>.Instance);
         var options = Options.Create(new DeadLetterQueueOptions { MaxRetries = maxRetries });
 
         var actualCallCount = 0;

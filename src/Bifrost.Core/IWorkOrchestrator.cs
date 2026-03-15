@@ -193,6 +193,10 @@ public interface IWorkOrchestrator<TWork> : IAsyncDisposable
     ///   <item><description><see cref="PendingCount"/> will be 0</description></item>
     /// </list>
     /// </para>
+    /// <para>
+    /// This method is idempotent: calling it multiple times after the first drain completes
+    /// immediately with no side effects.
+    /// </para>
     /// </remarks>
     Task DrainAsync(CancellationToken ct = default);
 

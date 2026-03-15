@@ -9,6 +9,7 @@ using Bifrost.Core.DeadLetter;
 using Bifrost.Core.Events;
 using Bifrost.DeadLetter;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -37,7 +38,7 @@ public class DeadLetterHandlerTests
     {
         _innerHandler = Substitute.For<IWorkHandler<string>>();
         _dlq = Substitute.For<IDeadLetterQueue<string>>();
-        _notifier = new DeadLetterNotifier<string>();
+        _notifier = new DeadLetterNotifier<string>(Substitute.For<ILogger<DeadLetterNotifier<string>>>());
         _options = Options.Create(new DeadLetterQueueOptions { MaxRetries = 3 });
         return Task.CompletedTask;
     }

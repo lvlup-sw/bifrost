@@ -25,6 +25,14 @@ namespace Bifrost.Handlers;
 /// The proxy itself is registered as a singleton and creates async scopes on each invocation.
 /// The scope is disposed after the handler completes, even if an exception occurs.
 /// </para>
+/// <para>
+/// <b>Precondition:</b> The DI container must register the actual <see cref="IWorkHandler{TWork}"/>
+/// implementation separately from this proxy. If this proxy is itself registered as
+/// <see cref="IWorkHandler{TWork}"/>, resolving the handler from the scope will cause
+/// infinite recursion. The <see cref="DependencyInjection.WorkOrchestratorBuilder{TWork}"/>
+/// ensures this by using the proxy only when <c>HandlerLifetime == Scoped</c> and the actual
+/// handler type is registered at scoped lifetime.
+/// </para>
 /// </remarks>
 internal sealed class ScopedHandlerProxy<TWork> : IWorkHandler<TWork>
 {
