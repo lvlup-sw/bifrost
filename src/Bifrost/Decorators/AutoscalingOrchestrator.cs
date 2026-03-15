@@ -232,9 +232,7 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
     /// <inheritdoc/>
     public Task DrainAsync(CancellationToken ct = default)
-    {
-        throw new NotImplementedException();
-    }
+        => _inner.DrainAsync(ct);
 
     /// <inheritdoc/>
     public Task StopAsync(CancellationToken ct = default)

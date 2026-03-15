@@ -708,4 +708,45 @@ public class EventStreamOrchestratorTests
         await Assert.That(evt.Success).IsFalse();
         await Assert.That(evt.Duration).IsGreaterThanOrEqualTo(TimeSpan.Zero);
     }
+
+    /// <summary>
+    /// Verifies that DrainAsync forwards to the inner orchestrator and completes
+    /// subscriber channels so consumers terminate gracefully.
+    /// </summary>
+    [Test]
+    public async Task DrainAsync_ForwardsToInner_AndCompletesSubscribers()
+    {
+        // Arrange
+        var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
+        _inner.DrainAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        // Start a subscriber
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var subscriberCompleted = false;
+
+        var subscriberTask = Task.Run(async () =>
+        {
+            await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            {
+                // consume events
+            }
+
+            subscriberCompleted = true;
+        });
+
+        // Give subscriber time to register
+        await Task.Delay(200).ConfigureAwait(false);
+
+        // Act
+        await decorator.DrainAsync().ConfigureAwait(false);
+
+        // Wait for subscriber task to complete
+        await subscriberTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+        // Assert - inner was called
+        await _inner.Received(1).DrainAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+
+        // Assert - subscriber completed (channel was completed)
+        await Assert.That(subscriberCompleted).IsTrue();
+    }
 }

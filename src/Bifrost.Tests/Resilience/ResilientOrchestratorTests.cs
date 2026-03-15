@@ -285,4 +285,21 @@ public class ResilientOrchestratorTests
         // Assert
         await Assert.That(orchestrator).IsAssignableTo<IWorkOrchestrator<string>>();
     }
+
+    /// <summary>
+    /// Verifies DrainAsync delegates to inner orchestrator.
+    /// </summary>
+    [Test]
+    public async Task DrainAsync_ForwardsToInner()
+    {
+        // Arrange
+        var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
+        _inner.DrainAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        // Act
+        await orchestrator.DrainAsync().ConfigureAwait(false);
+
+        // Assert
+        await _inner.Received(1).DrainAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+    }
 }
