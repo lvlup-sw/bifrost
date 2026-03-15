@@ -94,18 +94,19 @@ public class DeadLetterNotifierTests
     }
 
     /// <summary>
-    /// Verifies that subscribing when already subscribed throws InvalidOperationException.
+    /// Verifies that multiple subscribers can be registered without throwing.
+    /// Replaces the old single-subscriber restriction test.
     /// </summary>
     [Test]
-    public async Task Subscribe_WhenAlreadySubscribed_ThrowsInvalidOperationException()
+    public async Task Subscribe_Multiple_DoesNotThrow()
     {
         // Arrange
         var notifier = new DeadLetterNotifier<string>();
         notifier.Subscribe(_ => { });
 
-        // Act & Assert
-        await Assert.That(() => notifier.Subscribe(_ => { }))
-            .Throws<InvalidOperationException>();
+        // Act & Assert - second Subscribe should NOT throw
+        var secondSubscription = notifier.Subscribe(_ => { });
+        await Assert.That(secondSubscription).IsNotNull();
     }
 
     /// <summary>
@@ -128,5 +129,112 @@ public class DeadLetterNotifierTests
 
         // Assert
         await Assert.That(secondCallCount).IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Verifies that Notify invokes all registered subscribers when multiple are registered.
+    /// </summary>
+    [Test]
+    public async Task Notify_WithMultipleSubscribers_InvokesAllCallbacks()
+    {
+        // Arrange
+        var notifier = new DeadLetterNotifier<string>();
+        var callCount1 = 0;
+        var callCount2 = 0;
+        var callCount3 = 0;
+        notifier.Subscribe(_ => callCount1++);
+        notifier.Subscribe(_ => callCount2++);
+        notifier.Subscribe(_ => callCount3++);
+
+        var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
+
+        // Act
+        notifier.Notify(evt);
+
+        // Allow fire-and-forget tasks to complete
+        await Task.Delay(100).ConfigureAwait(false);
+
+        // Assert
+        await Assert.That(callCount1).IsEqualTo(1);
+        await Assert.That(callCount2).IsEqualTo(1);
+        await Assert.That(callCount3).IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Verifies that when one subscriber throws, other subscribers are still invoked.
+    /// </summary>
+    [Test]
+    public async Task Notify_SubscriberThrows_OtherSubscribersStillCalled()
+    {
+        // Arrange
+        var notifier = new DeadLetterNotifier<string>();
+        var beforeCallCount = 0;
+        var afterCallCount = 0;
+
+        notifier.Subscribe(_ => beforeCallCount++);
+        notifier.SubscribeAsync(_ => throw new InvalidOperationException("subscriber error"));
+        notifier.Subscribe(_ => afterCallCount++);
+
+        var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
+
+        // Act
+        notifier.Notify(evt);
+
+        // Allow fire-and-forget tasks to complete
+        await Task.Delay(100).ConfigureAwait(false);
+
+        // Assert - both non-throwing subscribers should have been called
+        await Assert.That(beforeCallCount).IsEqualTo(1);
+        await Assert.That(afterCallCount).IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Verifies that when a subscriber throws, the exception does not propagate to the caller of Notify.
+    /// </summary>
+    [Test]
+    public async Task Notify_SubscriberThrows_DoesNotPropagateToCallerSynchronously()
+    {
+        // Arrange
+        var notifier = new DeadLetterNotifier<string>();
+        notifier.SubscribeAsync(_ => throw new InvalidOperationException("subscriber error"));
+
+        var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
+
+        // Act - should NOT throw
+        notifier.Notify(evt);
+
+        // Allow fire-and-forget tasks to complete
+        await Task.Delay(100).ConfigureAwait(false);
+
+        // Assert - if we get here, no exception was thrown synchronously
+        var completed = true;
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that the async Subscribe overload works with async callbacks.
+    /// </summary>
+    [Test]
+    public async Task SubscribeAsync_WithAsyncCallback_InvokesCallback()
+    {
+        // Arrange
+        var notifier = new DeadLetterNotifier<string>();
+        WorkDeadLetteredEvent<string>? received = null;
+        notifier.SubscribeAsync(async evt =>
+        {
+            await Task.Yield();
+            received = evt;
+        });
+
+        var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
+
+        // Act
+        notifier.Notify(evt);
+
+        // Allow fire-and-forget tasks to complete
+        await Task.Delay(100).ConfigureAwait(false);
+
+        // Assert
+        await Assert.That(received).IsEqualTo(evt);
     }
 }
