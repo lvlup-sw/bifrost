@@ -285,4 +285,44 @@ public class ResilientOrchestratorTests
         // Assert
         await Assert.That(orchestrator).IsAssignableTo<IWorkOrchestrator<string>>();
     }
+
+    /// <summary>
+    /// Verifies that TryRun bypasses resilience policies and delegates directly to inner.
+    /// Synchronous channel writes are CPU-bound and do not experience transient failures,
+    /// so resilience policies (retry, timeout, circuit breaker) are not applicable.
+    /// </summary>
+    [Test]
+    public async Task TryRun_BypassesResiliencePolicy()
+    {
+        // Arrange
+        var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
+        _inner.TryRun("work").Returns(true);
+
+        // Act
+        var result = orchestrator.TryRun("work");
+
+        // Assert - TryRun delegates directly (exactly once), no retry wrapping
+        await Assert.That(result).IsTrue();
+        _inner.Received(1).TryRun("work");
+    }
+
+    /// <summary>
+    /// Verifies that Run bypasses resilience policies and delegates directly to inner.
+    /// Synchronous channel writes are CPU-bound and do not experience transient failures,
+    /// so resilience policies (retry, timeout, circuit breaker) are not applicable.
+    /// </summary>
+    [Test]
+    public async Task Run_BypassesResiliencePolicy()
+    {
+        // Arrange
+        var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
+
+        // Act
+        orchestrator.Run("work");
+
+        // Assert - Run delegates directly (exactly once), no retry wrapping
+        _inner.Received(1).Run("work");
+        var callReceived = true;
+        await Assert.That(callReceived).IsTrue();
+    }
 }
