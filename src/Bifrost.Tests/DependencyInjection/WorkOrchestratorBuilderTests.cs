@@ -6,6 +6,7 @@
 
 using Bifrost.Core;
 using Bifrost.DependencyInjection;
+using Bifrost.Handlers;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -126,5 +127,115 @@ public class WorkOrchestratorBuilderTests
 
         // Act & Assert - should not throw
         await Assert.That(() => builder.Build()).ThrowsNothing();
+    }
+
+    /// <summary>
+    /// Verifies that Build falls back to resolving IWorkHandler from the service provider
+    /// when WithHandler was not called (backward compatibility).
+    /// </summary>
+    [Test]
+    public async Task Build_WithoutHandlerRegistered_FallsBackToServiceProvider()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var handler = Substitute.For<IWorkHandler<string>>();
+        services.AddSingleton(handler);
+        var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
+
+        // Act
+        builder.Build();
+        var provider = services.BuildServiceProvider();
+        var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
+
+        // Assert - orchestrator resolves successfully, handler flag is not set
+        await Assert.That(orchestrator).IsNotNull();
+        await Assert.That(builder.HandlerRegistered).IsFalse();
+
+        // Cleanup
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that Build uses ScopedHandlerProxy when HandlerLifetime is Scoped.
+    /// </summary>
+    [Test]
+    public async Task Build_WithScopedHandlerLifetime_UsesScopedHandlerProxy()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Register the actual handler as scoped (simulating what WithHandler would do)
+        services.AddScoped<IWorkHandler<string>, TestStringHandler>();
+
+        var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
+        builder.HandlerLifetime = ServiceLifetime.Scoped;
+        builder.HandlerRegistered = true;
+
+        // Act
+        builder.Build();
+        var provider = services.BuildServiceProvider();
+        var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
+
+        // Enqueue and process a work item to verify the proxy resolves handlers from scope
+        await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
+        await Task.Delay(200).ConfigureAwait(false); // Allow processing
+
+        // Assert - If we got here without exception, the scoped handler proxy resolved correctly
+        await Assert.That(orchestrator).IsNotNull();
+        await Assert.That(TestStringHandler.HandleCallCount).IsGreaterThan(0);
+
+        // Cleanup
+        TestStringHandler.Reset();
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that PostBuildActions are executed during Build.
+    /// </summary>
+    [Test]
+    public async Task PostBuildActions_ExecutedDuringBuild()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<IWorkHandler<string>>());
+        var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
+
+        var actionExecuted = false;
+        builder.PostBuildActions.Add(sp =>
+        {
+            actionExecuted = true;
+        });
+
+        // Act
+        builder.Build();
+        var provider = services.BuildServiceProvider();
+        var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
+
+        // Assert
+        await Assert.That(actionExecuted).IsTrue();
+
+        // Cleanup
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Test handler that tracks invocations for verifying scoped resolution.
+    /// </summary>
+    private class TestStringHandler : IWorkHandler<string>
+    {
+        private static int _handleCallCount;
+
+        public static int HandleCallCount => _handleCallCount;
+
+        public static void Reset() => _handleCallCount = 0;
+
+        public ValueTask HandleAsync(string work, CancellationToken ct)
+        {
+            Interlocked.Increment(ref _handleCallCount);
+            return ValueTask.CompletedTask;
+        }
     }
 }
