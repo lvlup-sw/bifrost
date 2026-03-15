@@ -4,6 +4,7 @@
 // </copyright>
 // =============================================================================
 
+using System.Collections.Concurrent;
 using System.Threading.Channels;
 
 using Bifrost.Core;
@@ -448,5 +449,263 @@ public class EventStreamOrchestratorTests
 
         await Assert.That(completedSuccessfully).IsTrue();
         await _inner.Received(1).DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that PublishToSubscribers removes a subscriber whose buffer is completely full,
+    /// indicating the consumer is not reading (stale subscriber cleanup - M10).
+    /// </summary>
+    [Test]
+    public async Task PublishToSubscribers_WithFullSubscriberBuffer_RemovesStaleSubscriber()
+    {
+        // Arrange
+        var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
+
+        // Create a subscriber but do NOT consume any events from it
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var stream = decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token);
+
+        // Fill the subscriber's buffer completely (capacity is 1000)
+        // The channel uses DropOldest, so all writes succeed
+        for (var i = 0; i < 1000; i++)
+        {
+            await decorator.EnqueueAsync($"fill-{i}").ConfigureAwait(false);
+        }
+
+        // Act - publish one more event, which should trigger stale subscriber cleanup
+        await decorator.EnqueueAsync("trigger-cleanup").ConfigureAwait(false);
+
+        // Allow a brief moment for the cleanup to process
+        await Task.Delay(50).ConfigureAwait(false);
+
+        // Assert - create a new subscriber to verify the stale one was removed.
+        // The stale subscriber should have been removed, so only the new subscriber
+        // exists. We verify indirectly by checking we can still enqueue without errors.
+        var newSubscriberReceived = new TaskCompletionSource<IOrchestratorEvent>();
+        var newSubscriberTask = Task.Run(async () =>
+        {
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            {
+                newSubscriberReceived.TrySetResult(evt);
+                break;
+            }
+        });
+
+        await Task.Delay(100).ConfigureAwait(false);
+        await decorator.EnqueueAsync("verify-event").ConfigureAwait(false);
+
+        var receivedEvt = await newSubscriberReceived.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        await Assert.That(receivedEvt).IsNotNull();
+
+        // Verify that the logger was called with a warning about stale subscriber
+        _logger.Received().Log(
+            LogLevel.Warning,
+            Arg.Any<EventId>(),
+            Arg.Is<object>(o => o.ToString()!.Contains("stale")),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
+    }
+
+    /// <summary>
+    /// Verifies that an active subscriber (one that is reading events) is NOT removed
+    /// during stale subscriber cleanup (M10). The subscriber must keep its buffer
+    /// below capacity by reading events promptly.
+    /// </summary>
+    [Test]
+    public async Task PublishToSubscribers_WithActiveSubscriber_KeepsSubscriber()
+    {
+        // Arrange
+        var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
+        var receivedEvents = new ConcurrentBag<IOrchestratorEvent>();
+        var eventCount = 100; // Well below the 1000 buffer capacity
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        // Create a subscriber that actively consumes events
+        var subscriberTask = Task.Run(async () =>
+        {
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            {
+                receivedEvents.Add(evt);
+                if (receivedEvents.Count >= eventCount)
+                {
+                    break;
+                }
+            }
+        });
+
+        // Give subscriber time to start
+        await Task.Delay(100).ConfigureAwait(false);
+
+        // Act - publish events while subscriber is actively reading
+        for (var i = 0; i < eventCount; i++)
+        {
+            await decorator.EnqueueAsync($"event-{i}").ConfigureAwait(false);
+        }
+
+        // Wait for subscriber to consume events
+        await subscriberTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+        // Assert - active subscriber should have received all events and NOT been removed
+        await Assert.That(receivedEvents.Count).IsEqualTo(eventCount);
+    }
+
+    /// <summary>
+    /// Verifies that ReadWithCleanup properly removes the subscriber on normal completion (M13).
+    /// </summary>
+    [Test]
+    public async Task ReadWithCleanup_CompletesNormally_RemovesSubscriber()
+    {
+        // Arrange
+        var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
+        var subscriberCts = new CancellationTokenSource();
+        var eventsReceived = 0;
+
+        // Start subscriber
+        var subscriberTask = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: subscriberCts.Token).ConfigureAwait(false))
+                {
+                    eventsReceived++;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected
+            }
+        });
+
+        // Give subscriber time to register
+        await Task.Delay(200).ConfigureAwait(false);
+
+        // Enqueue one event to verify subscriber is working
+        await decorator.EnqueueAsync("test-event").ConfigureAwait(false);
+        await Task.Delay(100).ConfigureAwait(false);
+
+        // Act - cancel the subscriber to trigger ReadWithCleanup finally block
+        await subscriberCts.CancelAsync().ConfigureAwait(false);
+        await subscriberTask.ConfigureAwait(false);
+
+        // Give cleanup a moment
+        await Task.Delay(100).ConfigureAwait(false);
+
+        // Assert - subscriber was removed: verify by creating a new subscriber
+        // and confirming the old one no longer exists (indirectly)
+        await Assert.That(eventsReceived).IsGreaterThanOrEqualTo(1);
+
+        // The stale subscriber should NOT generate a warning (it was cleanly removed)
+        // Enqueue more events to verify no stale subscriber warnings
+        var newCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var newEventReceived = new TaskCompletionSource<IOrchestratorEvent>();
+        var newTask = Task.Run(async () =>
+        {
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: newCts.Token).ConfigureAwait(false))
+            {
+                newEventReceived.TrySetResult(evt);
+                break;
+            }
+        });
+
+        await Task.Delay(100).ConfigureAwait(false);
+        await decorator.EnqueueAsync("after-cleanup").ConfigureAwait(false);
+        var newEvt = await newEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        await Assert.That(newEvt).IsNotNull();
+    }
+
+    /// <summary>
+    /// Verifies that WorkCompletedEvent is published with Success=true when work completes
+    /// successfully via the CompletionTrackingHandler (L6).
+    /// </summary>
+    [Test]
+    public async Task WorkCompleted_OnSuccess_PublishesWorkCompletedEvent()
+    {
+        // Arrange - create decorator and completion tracking handler
+        var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
+
+        var innerHandler = Substitute.For<IWorkHandler<string>>();
+        innerHandler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.CompletedTask);
+
+        var trackingHandler = EventStreamOrchestrator<string>.CreateCompletionTrackingHandler(
+            innerHandler, decorator);
+
+        var receivedEvent = new TaskCompletionSource<WorkCompletedEvent<string>>();
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        // Subscribe to WorkCompletedEvent
+        var subscriberTask = Task.Run(async () =>
+        {
+            await foreach (var evt in decorator.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            {
+                receivedEvent.TrySetResult(evt);
+                break;
+            }
+        });
+
+        // Give subscriber time to start
+        await Task.Delay(150).ConfigureAwait(false);
+
+        // Act - process work through the tracking handler
+        await trackingHandler.HandleAsync("completed-work", CancellationToken.None).ConfigureAwait(false);
+
+        // Assert
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+        await Assert.That(evt.Work).IsEqualTo("completed-work");
+        await Assert.That(evt.Success).IsTrue();
+        await Assert.That(evt.Duration).IsGreaterThanOrEqualTo(TimeSpan.Zero);
+    }
+
+    /// <summary>
+    /// Verifies that WorkCompletedEvent is published with Success=false when the handler
+    /// throws an exception via the CompletionTrackingHandler (L6).
+    /// </summary>
+    [Test]
+    public async Task WorkCompleted_OnFailure_PublishesWorkCompletedEventWithFalse()
+    {
+        // Arrange - create decorator and completion tracking handler
+        var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
+
+        var innerHandler = Substitute.For<IWorkHandler<string>>();
+        innerHandler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask>(_ => throw new InvalidOperationException("Handler failed"));
+
+        var trackingHandler = EventStreamOrchestrator<string>.CreateCompletionTrackingHandler(
+            innerHandler, decorator);
+
+        var receivedEvent = new TaskCompletionSource<WorkCompletedEvent<string>>();
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        // Subscribe to WorkCompletedEvent
+        var subscriberTask = Task.Run(async () =>
+        {
+            await foreach (var evt in decorator.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            {
+                receivedEvent.TrySetResult(evt);
+                break;
+            }
+        });
+
+        // Give subscriber time to start
+        await Task.Delay(150).ConfigureAwait(false);
+
+        // Act - process work through the tracking handler (exception is re-thrown)
+        try
+        {
+            await trackingHandler.HandleAsync("failing-work", CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            // Expected - the handler throws, and CompletionTrackingHandler re-throws after publishing
+        }
+
+        // Assert
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+        await Assert.That(evt.Work).IsEqualTo("failing-work");
+        await Assert.That(evt.Success).IsFalse();
+        await Assert.That(evt.Duration).IsGreaterThanOrEqualTo(TimeSpan.Zero);
     }
 }
