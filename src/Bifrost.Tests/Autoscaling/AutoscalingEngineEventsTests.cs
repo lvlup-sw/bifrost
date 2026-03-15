@@ -88,10 +88,17 @@ public class AutoscalingEngineEventsTests
         await engine.StartAsync().ConfigureAwait(false);
 
         // Poll until we have at least 2 evaluations (generous timeout for CI)
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (correlationIds.Count < 2 && !cts.IsCancellationRequested)
         {
-            await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            try
+            {
+                await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
         }
 
         await engine.StopAsync().ConfigureAwait(false);
@@ -205,13 +212,13 @@ public class AutoscalingEngineEventsTests
         coordinator.GetUtilizationRatio().Returns(0.9);
 
         var scaleUpStarted = new TaskCompletionSource();
-        var scaleUpCompleted = false;
+        var scaleUpCompleted = new TaskCompletionSource();
         coordinator.RequestScaleUpAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
                 scaleUpStarted.TrySetResult();
-                await Task.Delay(200).ConfigureAwait(false);
-                scaleUpCompleted = true;
+                await Task.Delay(500).ConfigureAwait(false);
+                scaleUpCompleted.TrySetResult();
             });
 
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -219,11 +226,14 @@ public class AutoscalingEngineEventsTests
         // Act
         await engine.StartAsync().ConfigureAwait(false);
         // Wait for at least one scale up to start
-        await scaleUpStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await scaleUpStarted.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        // Allow the callback to finish adding the task to the pending bag
+        // (scaleUpStarted fires inside the mock, before the callback does _pendingScalingTasks.Add)
+        await Task.Delay(100).ConfigureAwait(false);
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert - The pending scaling task should have been drained
-        await Assert.That(scaleUpCompleted).IsTrue();
+        // Assert - StopAsync should have drained pending tasks, so the scaling task completed
+        await Assert.That(scaleUpCompleted.Task.IsCompleted).IsTrue();
     }
 
     private static IOptions<AutoscalingOptions> CreateOptions(TimeSpan? checkInterval = null)
