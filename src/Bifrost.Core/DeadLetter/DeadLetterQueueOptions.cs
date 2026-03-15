@@ -12,8 +12,37 @@ namespace Bifrost.Core.DeadLetter;
 /// Configuration options for the dead letter queue.
 /// </summary>
 /// <remarks>
+/// <para>
 /// These options control the capacity of the dead letter queue
 /// and the maximum number of retries before dead-lettering.
+/// </para>
+/// <para><b>Two-layer retry model:</b></para>
+/// <para>
+/// Bifrost has two independent retry layers:
+/// </para>
+/// <list type="number">
+///   <item>
+///     <description>
+///     <b>Resilience layer</b> (<c>.WithResilience()</c>): Polly policies with exponential
+///     backoff for transient failures on <b>enqueue operations</b>. Protects against
+///     temporary channel/infrastructure failures.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///     <b>DLQ layer</b> (<c>.WithDeadLetterQueue()</c>): Immediate retries (no backoff)
+///     on <b>handler execution</b> failures. After <see cref="MaxRetries"/> exhausted,
+///     the work item is dead-lettered. Designed for persistent application-level failures,
+///     not transient infrastructure issues.
+///     </description>
+///   </item>
+/// </list>
+/// <para>
+/// Total attempts for a work item with both layers: the resilience layer retries
+/// <b>enqueue</b> (getting work into the channel), then the DLQ layer retries
+/// <b>handling</b> (processing the work item). They do not compound — each layer
+/// operates on a different phase of the work lifecycle.
+/// </para>
 /// </remarks>
 public sealed class DeadLetterQueueOptions
 {
@@ -32,7 +61,22 @@ public sealed class DeadLetterQueueOptions
     /// </summary>
     /// <value>The maximum retry count. Default is 3.</value>
     /// <remarks>
-    /// A value of 0 means no retries; work is dead-lettered on the first failure.
+    /// <para>
+    /// This is the number of <b>retries after the initial attempt</b>. Total processing
+    /// attempts = 1 (initial) + MaxRetries.
+    /// </para>
+    /// <para>
+    /// Examples:
+    /// <list type="bullet">
+    ///   <item><description><c>MaxRetries = 0</c>: 1 attempt total, dead-letter on first failure</description></item>
+    ///   <item><description><c>MaxRetries = 3</c> (default): 4 attempts total</description></item>
+    ///   <item><description><c>MaxRetries = 100</c>: 101 attempts total</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Retries are immediate (no backoff). For transient failure handling with
+    /// exponential backoff, use <c>.WithResilience()</c> instead.
+    /// </para>
     /// </remarks>
     [Range(0, 100)]
     public int MaxRetries { get; set; } = 3;
