@@ -177,4 +177,28 @@ public class ScalingEventTests
         await Assert.That(type.IsPublic).IsTrue();
         await Assert.That(type.IsEnum).IsTrue();
     }
+
+    /// <summary>
+    /// Verifies that the ScalingAction enum has explicit integer values to prevent
+    /// accidental reordering from breaking serialization or persistence.
+    /// </summary>
+    /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// Pins explicit enum values: None=0, ScaleUp=1, ScaleDown=2.
+    /// This ensures the consolidated enum (from Bifrost.Core.Events) maintains
+    /// stable integer representations across versions.
+    /// </remarks>
+    [Test]
+    public async Task ScalingAction_HasExplicitValues()
+    {
+        // Arrange - cast to int variables to avoid TUnit constant value assertion error
+        var noneValue = (int)ScalingAction.None;
+        var scaleUpValue = (int)ScalingAction.ScaleUp;
+        var scaleDownValue = (int)ScalingAction.ScaleDown;
+
+        // Assert - verify each enum member has the expected explicit integer value
+        await Assert.That(noneValue).IsEqualTo(0);
+        await Assert.That(scaleUpValue).IsEqualTo(1);
+        await Assert.That(scaleDownValue).IsEqualTo(2);
+    }
 }
