@@ -33,9 +33,14 @@ public static class DeadLetterQueueExtensions
     /// This extension registers the following services:
     /// <list type="bullet">
     ///   <item><description><see cref="IDeadLetterQueue{TWork}"/> - Channel-backed dead letter queue</description></item>
-    ///   <item><description><see cref="DeadLetterNotifier{TWork}"/> - Single-subscriber notification bridge</description></item>
+    ///   <item><description><see cref="DeadLetterNotifier{TWork}"/> - Multi-subscriber notification bridge</description></item>
     ///   <item><description><see cref="DeadLetterHandler{TWork}"/> - Handler decorator for retry and DLQ routing</description></item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// When combined with <c>WithEventStream()</c>, dead-lettered work items automatically
+    /// produce <see cref="Bifrost.Core.Events.WorkDeadLetteredEvent{TWork}"/> events in the
+    /// event stream. The two extensions can be called in any order.
     /// </para>
     /// </remarks>
     [UnconditionalSuppressMessage(
@@ -62,7 +67,10 @@ public static class DeadLetterQueueExtensions
 
         builder.Services.TryAddSingleton<DeadLetterNotifier<TWork>>();
 
-        // Add handler decorator to wrap the handler with retry+DLQ logic
+        // Add handler decorator to wrap the handler with retry+DLQ logic.
+        // The factory closure captures 'builder' so that EventPublishCallback is read
+        // at factory execution time during Build(). This allows WithEventStream() and
+        // WithDeadLetterQueue() to be called in any order.
         builder.HandlerDecorators.Add(new HandlerDecoratorRegistration<TWork>(
             Order: builder.HandlerDecorators.Count,
             Factory: (sp, handler) =>
@@ -71,7 +79,8 @@ public static class DeadLetterQueueExtensions
                     sp.GetRequiredService<IDeadLetterQueue<TWork>>(),
                     sp.GetRequiredService<DeadLetterNotifier<TWork>>(),
                     sp.GetRequiredService<IOptions<DeadLetterQueueOptions>>(),
-                    sp.GetRequiredService<ILogger<DeadLetterHandler<TWork>>>())));
+                    sp.GetRequiredService<ILogger<DeadLetterHandler<TWork>>>(),
+                    builder.EventPublishCallback)));
 
         return builder;
     }
