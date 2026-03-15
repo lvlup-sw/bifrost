@@ -160,6 +160,18 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
         => _inner.GetShutdownToken();
 
     /// <inheritdoc/>
+    public async Task DrainAsync(CancellationToken ct = default)
+    {
+        await _inner.DrainAsync(ct).ConfigureAwait(false);
+
+        // Complete all subscriber channels so consumers terminate gracefully
+        foreach (var subscriber in _eventSubscribers.Values)
+        {
+            subscriber.Writer.TryComplete();
+        }
+    }
+
+    /// <inheritdoc/>
     public Task StopAsync(CancellationToken ct = default)
     {
         return _inner.StopAsync(ct);

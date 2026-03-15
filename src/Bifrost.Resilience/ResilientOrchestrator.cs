@@ -124,6 +124,10 @@ public sealed class ResilientOrchestrator<TWork> : IWorkOrchestrator<TWork>
         => _inner.GetShutdownToken();
 
     /// <inheritdoc/>
+    public Task DrainAsync(CancellationToken ct = default)
+        => _inner.DrainAsync(ct);
+
+    /// <inheritdoc/>
     public Task StopAsync(CancellationToken ct = default)
     {
         return _inner.StopAsync(ct);
