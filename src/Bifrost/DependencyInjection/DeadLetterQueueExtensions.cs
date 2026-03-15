@@ -33,7 +33,7 @@ public static class DeadLetterQueueExtensions
     /// This extension registers the following services:
     /// <list type="bullet">
     ///   <item><description><see cref="IDeadLetterQueue{TWork}"/> - Channel-backed dead letter queue</description></item>
-    ///   <item><description><see cref="IDeadLetterNotifier{TWork}"/> - Single-subscriber notification bridge</description></item>
+    ///   <item><description><see cref="DeadLetterNotifier{TWork}"/> - Single-subscriber notification bridge</description></item>
     ///   <item><description><see cref="DeadLetterHandler{TWork}"/> - Handler decorator for retry and DLQ routing</description></item>
     /// </list>
     /// </para>
@@ -56,9 +56,11 @@ public static class DeadLetterQueueExtensions
 
         // Register DLQ services (TryAdd to avoid duplicates)
         builder.Services.TryAddSingleton<IDeadLetterQueue<TWork>>(sp =>
-            new DeadLetterQueue<TWork>(sp.GetRequiredService<IOptions<DeadLetterQueueOptions>>()));
+            new DeadLetterQueue<TWork>(
+                sp.GetRequiredService<IOptions<DeadLetterQueueOptions>>(),
+                sp.GetRequiredService<ILogger<DeadLetterQueue<TWork>>>()));
 
-        builder.Services.TryAddSingleton<IDeadLetterNotifier<TWork>, DeadLetterNotifier<TWork>>();
+        builder.Services.TryAddSingleton<DeadLetterNotifier<TWork>>();
 
         // Add handler decorator to wrap the handler with retry+DLQ logic
         builder.HandlerDecorators.Add(new HandlerDecoratorRegistration<TWork>(
@@ -67,7 +69,7 @@ public static class DeadLetterQueueExtensions
                 new DeadLetterHandler<TWork>(
                     handler,
                     sp.GetRequiredService<IDeadLetterQueue<TWork>>(),
-                    sp.GetRequiredService<IDeadLetterNotifier<TWork>>(),
+                    sp.GetRequiredService<DeadLetterNotifier<TWork>>(),
                     sp.GetRequiredService<IOptions<DeadLetterQueueOptions>>(),
                     sp.GetRequiredService<ILogger<DeadLetterHandler<TWork>>>())));
 

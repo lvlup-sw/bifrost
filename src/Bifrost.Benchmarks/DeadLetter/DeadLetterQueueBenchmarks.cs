@@ -37,8 +37,8 @@ public class DeadLetterQueueBenchmarks
     {
         _options = Options.Create(new DeadLetterQueueOptions { Capacity = 10000, MaxRetries = 3 });
 
-        _dlq = new DeadLetterQueue<int>(_options);
-        _drainDlq = new DeadLetterQueue<int>(_options);
+        _dlq = new DeadLetterQueue<int>(_options, NullLogger<DeadLetterQueue<int>>.Instance);
+        _drainDlq = new DeadLetterQueue<int>(_options, NullLogger<DeadLetterQueue<int>>.Instance);
 
         _testItem = new DeadLetteredWork<int>(42, null, 1, DateTimeOffset.UtcNow, null);
 
@@ -48,13 +48,13 @@ public class DeadLetterQueueBenchmarks
         // Happy path handler - inner handler succeeds
         var succeedingHandler = new DelegateHandler(_ => ValueTask.CompletedTask);
         _happyPathHandler = new DeadLetterHandler<int>(
-            succeedingHandler, new DeadLetterQueue<int>(_options), noopNotifier, _options, logger);
+            succeedingHandler, new DeadLetterQueue<int>(_options, NullLogger<DeadLetterQueue<int>>.Instance), noopNotifier, _options, logger);
 
         // Failure path handler - inner handler always throws
         var failingHandler = new DelegateHandler(_ =>
             new ValueTask(Task.FromException(new InvalidOperationException("bench-fail"))));
         _failurePathHandler = new DeadLetterHandler<int>(
-            failingHandler, new DeadLetterQueue<int>(_options), noopNotifier,
+            failingHandler, new DeadLetterQueue<int>(_options, NullLogger<DeadLetterQueue<int>>.Instance), noopNotifier,
             Options.Create(new DeadLetterQueueOptions { Capacity = 10000, MaxRetries = 0 }), logger);
     }
 
@@ -76,7 +76,7 @@ public class DeadLetterQueueBenchmarks
     public void SetupDrainIteration()
     {
         // Recreate to ensure clean state
-        _drainDlq = new DeadLetterQueue<int>(_options!);
+        _drainDlq = new DeadLetterQueue<int>(_options!, NullLogger<DeadLetterQueue<int>>.Instance);
         for (var i = 0; i < 100; i++)
         {
             _drainDlq.EnqueueAsync(new DeadLetteredWork<int>(i, null, 1, DateTimeOffset.UtcNow, null))

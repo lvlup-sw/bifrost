@@ -26,7 +26,7 @@ public class DeadLetterHandlerTests
 {
     private IWorkHandler<string> _innerHandler = null!;
     private IDeadLetterQueue<string> _dlq = null!;
-    private IDeadLetterNotifier<string> _notifier = null!;
+    private DeadLetterNotifier<string> _notifier = null!;
     private IOptions<DeadLetterQueueOptions> _options = null!;
 
     /// <summary>
@@ -37,7 +37,7 @@ public class DeadLetterHandlerTests
     {
         _innerHandler = Substitute.For<IWorkHandler<string>>();
         _dlq = Substitute.For<IDeadLetterQueue<string>>();
-        _notifier = Substitute.For<IDeadLetterNotifier<string>>();
+        _notifier = new DeadLetterNotifier<string>();
         _options = Options.Create(new DeadLetterQueueOptions { MaxRetries = 3 });
         return Task.CompletedTask;
     }
@@ -131,12 +131,14 @@ public class DeadLetterHandlerTests
         _innerHandler.HandleAsync("work", Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask(Task.FromException(new InvalidOperationException("fail"))));
         var handler = CreateHandler();
+        var notificationCount = 0;
+        _notifier.Subscribe(_ => notificationCount++);
 
         // Act
         await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
 
         // Assert
-        _notifier.Received(1).Notify(Arg.Any<WorkDeadLetteredEvent<string>>());
+        await Assert.That(notificationCount).IsEqualTo(1);
     }
 
     /// <summary>
