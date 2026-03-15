@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Bifrost.Autoscaling;
+using Bifrost.Core.Events;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -87,10 +88,17 @@ public class AutoscalingEngineEventsTests
         await engine.StartAsync().ConfigureAwait(false);
 
         // Poll until we have at least 2 evaluations (generous timeout for CI)
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (correlationIds.Count < 2 && !cts.IsCancellationRequested)
         {
-            await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            try
+            {
+                await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
         }
 
         await engine.StopAsync().ConfigureAwait(false);
@@ -158,6 +166,74 @@ public class AutoscalingEngineEventsTests
 
         // Assert
         await Assert.That(type.IsSealed).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that a faulted scaling decision execution logs the error (M8).
+    /// </summary>
+    [Test]
+    public async Task ExecuteScalingDecisionAsync_OnFault_LogsError()
+    {
+        // Arrange - High utilization to trigger scale up
+        var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
+        var coordinator = Substitute.For<IAutoscalingCoordinator>();
+        coordinator.ActiveWorkerCount.Returns(2);
+        coordinator.GetUtilizationRatio().Returns(0.9);
+        coordinator.RequestScaleUpAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("Scaling fault"));
+
+        var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<AutoscalingEngine>>();
+        var engine = new AutoscalingEngine(options, coordinator, logger);
+
+        // Act
+        await engine.StartAsync().ConfigureAwait(false);
+        await Task.Delay(300).ConfigureAwait(false); // Wait for evaluation + fault handling
+        await engine.StopAsync().ConfigureAwait(false);
+
+        // Assert - Error should be logged (via ContinueWith fault handler)
+        logger.Received().Log(
+            Microsoft.Extensions.Logging.LogLevel.Error,
+            Arg.Any<Microsoft.Extensions.Logging.EventId>(),
+            Arg.Any<object>(),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
+    }
+
+    /// <summary>
+    /// Verifies that StopAsync drains pending scaling tasks (M8).
+    /// </summary>
+    [Test]
+    public async Task StopAsync_DrainsPendingScalingTasks()
+    {
+        // Arrange - High utilization to trigger scale up with a slow handler
+        var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
+        var coordinator = Substitute.For<IAutoscalingCoordinator>();
+        coordinator.ActiveWorkerCount.Returns(2);
+        coordinator.GetUtilizationRatio().Returns(0.9);
+
+        var scaleUpStarted = new TaskCompletionSource();
+        var scaleUpCompleted = new TaskCompletionSource();
+        coordinator.RequestScaleUpAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                scaleUpStarted.TrySetResult();
+                await Task.Delay(500).ConfigureAwait(false);
+                scaleUpCompleted.TrySetResult();
+            });
+
+        var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
+
+        // Act
+        await engine.StartAsync().ConfigureAwait(false);
+        // Wait for at least one scale up to start
+        await scaleUpStarted.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        // Allow the callback to finish adding the task to the pending bag
+        // (scaleUpStarted fires inside the mock, before the callback does _pendingScalingTasks.Add)
+        await Task.Delay(100).ConfigureAwait(false);
+        await engine.StopAsync().ConfigureAwait(false);
+
+        // Assert - StopAsync should have drained pending tasks, so the scaling task completed
+        await Assert.That(scaleUpCompleted.Task.IsCompleted).IsTrue();
     }
 
     private static IOptions<AutoscalingOptions> CreateOptions(TimeSpan? checkInterval = null)

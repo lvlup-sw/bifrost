@@ -12,6 +12,7 @@ using Bifrost.Decorators;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using NSubstitute;
 
@@ -62,7 +63,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.EnqueueAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
 
         // Act
@@ -74,13 +75,15 @@ public class AutoscalingOrchestratorFullTests
     }
 
     /// <summary>
-    /// Verifies RequestScaleUpAsync creates state-aware workers with busy/idle callbacks.
+    /// Verifies RequestScaleUpAsync registers workers with registry using inner orchestrator worker function.
     /// </summary>
     [Test]
-    public async Task RequestScaleUpAsync_CreatesStateAwareWorkers()
+    public async Task RequestScaleUpAsync_RegistersWorkersWithRegistry()
     {
         // Arrange
         var workerInfo = new WorkerInfo("test-worker");
+        Func<string, CancellationToken, Task> workerFunc = (_, _) => Task.CompletedTask;
+        _inner.CreateWorkerFunction(Arg.Any<Action<bool>?>()).Returns(workerFunc);
         _registry.CreateWorkerAsync(
                 Arg.Any<string>(),
                 Arg.Any<Func<string, CancellationToken, Task>>(),
@@ -88,16 +91,42 @@ public class AutoscalingOrchestratorFullTests
             .Returns(Task.FromResult(workerInfo));
 
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
+
+        // Act
+        await orchestrator.RequestScaleUpAsync(3).ConfigureAwait(false);
+
+        // Assert - 3 workers should be created via registry
+        await _registry.Received(3).CreateWorkerAsync(
+            Arg.Is<string>(s => s.StartsWith("AutoScale-", StringComparison.Ordinal)),
+            Arg.Any<Func<string, CancellationToken, Task>>(),
+            Arg.Any<CancellationToken>()).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies RequestScaleUpAsync uses inner orchestrator's CreateWorkerFunction.
+    /// </summary>
+    [Test]
+    public async Task RequestScaleUpAsync_UsesInnerOrchestratorWorkerFunction()
+    {
+        // Arrange
+        var workerInfo = new WorkerInfo("test-worker");
+        Func<string, CancellationToken, Task> workerFunc = (_, _) => Task.CompletedTask;
+        _inner.CreateWorkerFunction(Arg.Any<Action<bool>?>()).Returns(workerFunc);
+        _registry.CreateWorkerAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<string, CancellationToken, Task>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(workerInfo));
+
+        var orchestrator = new AutoscalingOrchestrator<string>(
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
         await orchestrator.RequestScaleUpAsync(2).ConfigureAwait(false);
 
-        // Assert - Two workers should be created
-        await _registry.Received(2).CreateWorkerAsync(
-            Arg.Is<string>(s => s.StartsWith("AutoScale-", StringComparison.Ordinal)),
-            Arg.Any<Func<string, CancellationToken, Task>>(),
-            Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        // Assert - CreateWorkerFunction should be called for each worker
+        _inner.Received(2).CreateWorkerFunction(Arg.Any<Action<bool>?>());
     }
 
     /// <summary>
@@ -111,7 +140,7 @@ public class AutoscalingOrchestratorFullTests
         _registry.RequestMultipleWorkerStop(Arg.Any<int>()).Returns(3);
 
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
         await orchestrator.RequestScaleDownAsync(5).ConfigureAwait(false);
@@ -131,7 +160,7 @@ public class AutoscalingOrchestratorFullTests
         _registry.ActiveWorkerCount.Returns(3);
 
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
         var result = orchestrator.ActiveWorkers;
@@ -148,7 +177,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Act & Assert
         await Assert.That(() => new AutoscalingOrchestrator<string>(
-                null!, _registry, _metrics, _options, _logger))
+                null!, _registry, _metrics, Options.Create(_options), _logger))
             .Throws<ArgumentNullException>();
     }
 
@@ -160,7 +189,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Act & Assert
         await Assert.That(() => new AutoscalingOrchestrator<string>(
-                _inner, null!, _metrics, _options, _logger))
+                _inner, null!, _metrics, Options.Create(_options), _logger))
             .Throws<ArgumentNullException>();
     }
 
@@ -172,7 +201,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Act & Assert
         await Assert.That(() => new AutoscalingOrchestrator<string>(
-                _inner, _registry, null!, _options, _logger))
+                _inner, _registry, null!, Options.Create(_options), _logger))
             .Throws<ArgumentNullException>();
     }
 
@@ -184,7 +213,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Act & Assert
         await Assert.That(() => new AutoscalingOrchestrator<string>(
-                _inner, _registry, _metrics, null!, _logger))
+                _inner, _registry, _metrics, (IOptions<AutoscalingOptions>)null!, _logger))
             .Throws<ArgumentNullException>();
     }
 
@@ -196,7 +225,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Act & Assert
         await Assert.That(() => new AutoscalingOrchestrator<string>(
-                _inner, _registry, _metrics, _options, null!))
+                _inner, _registry, _metrics, Options.Create(_options), null!))
             .Throws<ArgumentNullException>();
     }
 
@@ -208,7 +237,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.TryEnqueue("work").Returns(true);
 
         // Act
@@ -227,7 +256,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.TryEnqueue("work").Returns(false);
 
         // Act
@@ -247,7 +276,7 @@ public class AutoscalingOrchestratorFullTests
         // Arrange
         _inner.PendingCount.Returns(42);
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
         var result = orchestrator.PendingCount;
@@ -265,7 +294,7 @@ public class AutoscalingOrchestratorFullTests
         // Arrange
         _inner.Capacity.Returns(256);
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
         var result = orchestrator.Capacity;
@@ -284,7 +313,7 @@ public class AutoscalingOrchestratorFullTests
         var expectedWriter = Channel.CreateUnbounded<string>().Writer;
         _inner.Writer.Returns(expectedWriter);
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
         var result = orchestrator.Writer;
@@ -301,7 +330,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
         // Act
@@ -319,7 +348,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.DisposeAsync().Returns(ValueTask.CompletedTask);
 
         // Act
@@ -337,7 +366,7 @@ public class AutoscalingOrchestratorFullTests
     {
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Assert
         await Assert.That(orchestrator).IsAssignableTo<IWorkOrchestrator<string>>();
@@ -353,7 +382,7 @@ public class AutoscalingOrchestratorFullTests
         _registry.IdleWorkerCount.Returns(0);
 
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
         await orchestrator.RequestScaleDownAsync(5).ConfigureAwait(false);

@@ -6,6 +6,9 @@
 
 using System.Collections.Concurrent;
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Bifrost.Autoscaling;
 
 /// <summary>
@@ -24,6 +27,24 @@ namespace Bifrost.Autoscaling;
 public sealed class WorkerRegistry : IWorkerRegistry
 {
     private readonly ConcurrentDictionary<string, WorkerInfo> _workers = new();
+    private readonly ILogger<WorkerRegistry> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WorkerRegistry"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance for diagnostic output.</param>
+    public WorkerRegistry(ILogger<WorkerRegistry> logger)
+    {
+        _logger = logger ?? NullLogger<WorkerRegistry>.Instance;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WorkerRegistry"/> class with no logger.
+    /// </summary>
+    public WorkerRegistry()
+        : this(NullLogger<WorkerRegistry>.Instance)
+    {
+    }
 
     /// <inheritdoc/>
     public int ActiveWorkerCount => _workers.Count;
@@ -62,7 +83,7 @@ public sealed class WorkerRegistry : IWorkerRegistry
         // Start the worker task
         // Note: Pass CancellationToken.None to StartNew so the delegate is always scheduled.
         // Check cancellation inside the delegate to ensure cleanup always runs.
-        _ = Task.Factory.StartNew(
+        var workerTask = Task.Factory.StartNew(
             async () =>
             {
                 try
@@ -78,6 +99,13 @@ public sealed class WorkerRegistry : IWorkerRegistry
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default).Unwrap();
+
+        // Observe faults to prevent unobserved task exceptions and log errors
+        _ = workerTask.ContinueWith(
+            t => _logger.LogError(t.Exception, "Worker {WorkerId} faulted", workerId),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
 
         return Task.FromResult(workerInfo);
     }

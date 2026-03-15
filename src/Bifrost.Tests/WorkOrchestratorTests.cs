@@ -490,4 +490,82 @@ public class WorkOrchestratorTests
         var result = orchestrator.TryEnqueue("test");
         await Assert.That(result).IsFalse();
     }
+
+    /// <summary>
+    /// Verifies that the worker loop logs work item context when the handler throws.
+    /// </summary>
+    /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// Arranges a handler that throws for a specific work item, enqueues that item,
+    /// waits for processing, then asserts the error log message contains the work item value.
+    /// </remarks>
+    [Test]
+    public async Task WorkerLoop_HandlerThrows_LogsWorkItemContext()
+    {
+        // Arrange
+        var processed = new TaskCompletionSource();
+        _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                processed.TrySetResult();
+                throw new InvalidOperationException("Test exception");
+            });
+
+        await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
+
+        // Act
+        await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
+        await processed.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
+        // Allow a brief moment for the log call to complete after the exception
+        await Task.Delay(100).ConfigureAwait(false);
+
+        // Assert - verify error log contains the work item "test-item"
+        _logger.Received().Log(
+            LogLevel.Error,
+            Arg.Any<EventId>(),
+            Arg.Is<object>(o => o.ToString()!.Contains("test-item", StringComparison.Ordinal)),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
+    }
+
+    /// <summary>
+    /// Verifies that DisposeAsync completes within a bounded time even when a worker
+    /// is blocked on a long-running handler that ignores cancellation.
+    /// </summary>
+    /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// Arranges an orchestrator with a handler that blocks indefinitely (ignoring cancellation),
+    /// enqueues an item so the worker picks it up and blocks, then calls DisposeAsync.
+    /// Asserts DisposeAsync completes within 10 seconds (the internal timeout is 5 seconds).
+    /// </remarks>
+    [Test]
+    public async Task DisposeAsync_WithSlowWorker_CompletesWithinTimeout()
+    {
+        // Arrange - handler that blocks forever, ignoring cancellation
+        var workerStarted = new TaskCompletionSource();
+        var handler = Substitute.For<IWorkHandler<string>>();
+        handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                workerStarted.TrySetResult();
+                // Block indefinitely - do NOT honor cancellation token
+                // This simulates a misbehaving handler that ignores cancellation
+                return new ValueTask(Task.Delay(TimeSpan.FromMinutes(10)));
+            });
+
+        var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 1 });
+        var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
+
+        // Enqueue work so the worker picks it up and blocks
+        await orchestrator.EnqueueAsync("blocking-work").ConfigureAwait(false);
+        await workerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
+        // Act - DisposeAsync should complete within a bounded time due to internal timeout
+        var disposeTask = orchestrator.DisposeAsync().AsTask();
+        var completed = await Task.WhenAny(disposeTask, Task.Delay(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
+
+        // Assert - DisposeAsync should have completed (not the 10s delay)
+        await Assert.That(ReferenceEquals(completed, disposeTask)).IsTrue();
+    }
 }

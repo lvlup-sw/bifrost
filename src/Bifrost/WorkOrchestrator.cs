@@ -146,7 +146,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Dynamic worker {WorkerId} failed to process work item", workerId);
+                        _logger.LogError(ex, "Dynamic worker {WorkerId} failed to process work item: {WorkItem}", workerId, work);
                     }
                     finally
                     {
@@ -204,7 +204,19 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     {
         _channel.Writer.TryComplete();
         await _cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAll(_workers).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            await Task.WhenAll(_workers)
+                .WaitAsync(timeoutCts.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("DisposeAsync timed out waiting for workers to complete");
+        }
+
         _cts.Dispose();
     }
 
@@ -226,7 +238,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Worker {WorkerId} failed to process work item", workerId);
+                    _logger.LogError(ex, "Worker {WorkerId} failed to process work item: {WorkItem}", workerId, work);
                 }
             }
         }

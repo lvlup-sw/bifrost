@@ -6,6 +6,10 @@
 
 using Bifrost.Autoscaling;
 
+using Microsoft.Extensions.Logging;
+
+using NSubstitute;
+
 using TUnit.Core;
 
 namespace Bifrost.Tests.Autoscaling;
@@ -410,5 +414,44 @@ public class WorkerRegistryTests
 
         // Assert
         await Assert.That(workerInfo.IsIdle).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that when a worker function faults, the error is logged (M12).
+    /// </summary>
+    [Test]
+    public async Task CreateWorkerAsync_WorkerFaults_LogsError()
+    {
+        // Arrange
+        var logger = Substitute.For<ILogger<WorkerRegistry>>();
+        var logReceived = new TaskCompletionSource();
+
+        // Signal when the logger receives an error call
+        logger.When(l => l.Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Any<object>(),
+                Arg.Any<Exception?>(),
+                Arg.Any<Func<object, Exception?, string>>()))
+            .Do(_ => logReceived.TrySetResult());
+
+        var registry = new WorkerRegistry(logger);
+
+        // Act - Create a worker that throws
+        await registry.CreateWorkerAsync(
+            "faulting-worker",
+            (id, ct) => throw new InvalidOperationException("Worker fault"),
+            CancellationToken.None).ConfigureAwait(false);
+
+        // Wait for the ContinueWith fault handler to log (deterministic, no fixed delay)
+        await logReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+        // Assert - Error was logged (guaranteed by the signal above)
+        logger.Received().Log(
+            LogLevel.Error,
+            Arg.Any<EventId>(),
+            Arg.Any<object>(),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
     }
 }

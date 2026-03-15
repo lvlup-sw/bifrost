@@ -21,7 +21,7 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
 {
     private readonly IWorkHandler<TWork> _inner;
     private readonly IDeadLetterQueue<TWork> _dlq;
-    private readonly IDeadLetterNotifier<TWork> _notifier;
+    private readonly DeadLetterNotifier<TWork> _notifier;
     private readonly int _maxRetries;
     private readonly ILogger<DeadLetterHandler<TWork>> _logger;
 
@@ -36,7 +36,7 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
     public DeadLetterHandler(
         IWorkHandler<TWork> inner,
         IDeadLetterQueue<TWork> dlq,
-        IDeadLetterNotifier<TWork> notifier,
+        DeadLetterNotifier<TWork> notifier,
         IOptions<DeadLetterQueueOptions> options,
         ILogger<DeadLetterHandler<TWork>> logger)
     {

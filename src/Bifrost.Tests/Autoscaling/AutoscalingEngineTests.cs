@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Bifrost.Autoscaling;
+using Bifrost.Core.Events;
 
 using Microsoft.Extensions.Options;
 

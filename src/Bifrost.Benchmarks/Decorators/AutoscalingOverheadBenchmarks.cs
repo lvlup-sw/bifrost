@@ -48,7 +48,10 @@ public class AutoscalingOverheadBenchmarks
             NullLogger<WorkOrchestrator<int>>.Instance);
         _metricsEnabled = new AutoscalingOrchestrator<int>(
             baseForEnabled,
-            new WorkerMetrics());
+            new WorkerRegistry(),
+            new WorkerMetrics(),
+            Options.Create(new AutoscalingOptions()),
+            NullLogger<AutoscalingOrchestrator<int>>.Instance);
 
         var baseForDisabled = new WorkOrchestrator<int>(
             handler,
@@ -58,7 +61,7 @@ public class AutoscalingOverheadBenchmarks
             baseForDisabled,
             new WorkerRegistry(),
             new WorkerMetrics(),
-            new AutoscalingOptions { Enabled = false },
+            Options.Create(new AutoscalingOptions { Enabled = false }),
             NullLogger<AutoscalingOrchestrator<int>>.Instance);
     }
 

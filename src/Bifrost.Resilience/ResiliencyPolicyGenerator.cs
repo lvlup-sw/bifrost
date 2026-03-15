@@ -40,6 +40,19 @@ public static class ResiliencyPolicyGenerator
     /// <param name="handledExceptionTypes">Specific exception types to handle. If null or empty, handles transient exceptions.</param>
     /// <returns>A configured <see cref="AsyncPolicyWrap{TResult}"/>.</returns>
     /// <exception cref="ArgumentNullException">Thrown when logger or settings is null.</exception>
+    /// <remarks>
+    /// <para>
+    /// The fallback policy is the outermost layer — it executes last, after all retries and
+    /// circuit breaker attempts are exhausted. When triggered, the fallback logs an error via
+    /// <see cref="ILogger"/> and returns <paramref name="fallbackValue"/>.
+    /// </para>
+    /// <para>
+    /// <strong>Important:</strong> Callers cannot distinguish a successful result (possibly after
+    /// retries) from a fallback value. If distinguishing these cases is required, callers should
+    /// wrap the result in a discriminated type or use <see cref="GetAsyncBackgroundTaskPattern"/>
+    /// which allows exceptions to propagate.
+    /// </para>
+    /// </remarks>
     public static AsyncPolicyWrap<T> GeneratePolicy<T>(
         ILogger logger,
         ResiliencySettings settings,

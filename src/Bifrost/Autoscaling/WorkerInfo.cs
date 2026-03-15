@@ -22,7 +22,7 @@ namespace Bifrost.Autoscaling;
 /// </remarks>
 public sealed class WorkerInfo
 {
-    private volatile bool _stopRequested;
+    private int _stopRequested; // 1 = stop requested, 0 = running (int for Interlocked)
     private volatile int _isIdle; // 1 = idle, 0 = busy (int for Interlocked)
 
     /// <summary>
@@ -91,7 +91,7 @@ public sealed class WorkerInfo
     /// item before exiting. The flag is read by the worker loop to determine
     /// when to exit gracefully.
     /// </remarks>
-    public bool StopRequested => _stopRequested;
+    public bool StopRequested => Volatile.Read(ref _stopRequested) == 1;
 
     /// <summary>
     /// Marks the worker as busy (not idle).
@@ -117,10 +117,12 @@ public sealed class WorkerInfo
     /// <remarks>
     /// This is a soft stop signal that sets <see cref="StopRequested"/> to true. The worker
     /// should complete its current work item before checking this flag and exiting gracefully.
-    /// This method is thread-safe via volatile write semantics.
+    /// This method is thread-safe via <see cref="Interlocked.Exchange(ref int, int)"/>
+    /// to ensure atomic state transitions, matching the pattern used by
+    /// <see cref="MarkBusy"/> and <see cref="MarkIdle"/>.
     /// </remarks>
     internal void RequestStop()
     {
-        _stopRequested = true;
+        Interlocked.Exchange(ref _stopRequested, 1);
     }
 }

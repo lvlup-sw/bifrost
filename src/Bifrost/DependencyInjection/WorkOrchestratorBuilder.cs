@@ -30,10 +30,10 @@ public sealed class WorkOrchestratorBuilder<TWork>
     internal List<DecoratorRegistration<TWork>> Decorators { get; } = [];
 
     /// <summary>
-    /// Gets the list of handler decorator factories applied before the handler is passed to the orchestrator.
+    /// Gets the list of handler decorator registrations applied before the handler is passed to the orchestrator.
     /// </summary>
-    /// <value>A list of factory functions that wrap the handler.</value>
-    internal List<Func<IServiceProvider, IWorkHandler<TWork>, IWorkHandler<TWork>>> HandlerDecorators { get; } = [];
+    /// <value>A list of handler decorator registrations with ordering support.</value>
+    internal List<HandlerDecoratorRegistration<TWork>> HandlerDecorators { get; } = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestratorBuilder{TWork}"/> class.
@@ -49,20 +49,46 @@ public sealed class WorkOrchestratorBuilder<TWork>
     /// </summary>
     public void Build()
     {
+        // Validate unique orchestrator decorator orders
+        var duplicateOrders = Decorators
+            .GroupBy(d => d.Order)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        if (duplicateOrders.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Duplicate decorator order(s): {string.Join(", ", duplicateOrders)}. Each orchestrator decorator must have a unique Order value.");
+        }
+
+        // Validate unique handler decorator orders
+        var duplicateHandlerOrders = HandlerDecorators
+            .GroupBy(d => d.Order)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        if (duplicateHandlerOrders.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Duplicate handler decorator order(s): {string.Join(", ", duplicateHandlerOrders)}. Each handler decorator must have a unique Order value.");
+        }
+
         // Sort decorators by order (innermost first)
         var orderedDecorators = Decorators.OrderBy(d => d.Order).ToList();
 
-        // Capture handler decorators for closure
-        var handlerDecorators = HandlerDecorators.ToList();
+        // Sort handler decorators by order (innermost first)
+        var orderedHandlerDecorators = HandlerDecorators.OrderBy(d => d.Order).ToList();
 
         Services.AddSingleton<IWorkOrchestrator<TWork>>(sp =>
         {
             // Resolve handler from DI and apply handler decorators in order
             IWorkHandler<TWork> handler = sp.GetRequiredService<IWorkHandler<TWork>>();
 
-            foreach (var decorator in handlerDecorators)
+            foreach (var registration in orderedHandlerDecorators)
             {
-                handler = decorator(sp, handler);
+                handler = registration.Factory(sp, handler);
             }
 
             // Start with base implementation using the decorated handler
@@ -91,3 +117,13 @@ public sealed class WorkOrchestratorBuilder<TWork>
 internal sealed record DecoratorRegistration<TWork>(
     int Order,
     Func<IServiceProvider, IWorkOrchestrator<TWork>, IWorkOrchestrator<TWork>> Factory);
+
+/// <summary>
+/// Registration for a handler decorator in the chain.
+/// </summary>
+/// <typeparam name="TWork">The type of work item to process.</typeparam>
+/// <param name="Order">The order in which to apply this handler decorator (lower = innermost).</param>
+/// <param name="Factory">Factory function to create the handler decorator.</param>
+internal sealed record HandlerDecoratorRegistration<TWork>(
+    int Order,
+    Func<IServiceProvider, IWorkHandler<TWork>, IWorkHandler<TWork>> Factory);

@@ -83,11 +83,7 @@ public class AutoscalingExtensionsTests
 
         // Act
         var builder = services.AddWorkOrchestrator<string>()
-            .WithAutoscaling(opts =>
-            {
-                opts.MinWorkers = 3;
-                opts.MaxWorkers = 20;
-            });
+            .WithAutoscaling(new AutoscalingOptions { MinWorkers = 3, MaxWorkers = 20 });
         builder.Build();
 
         var provider = services.BuildServiceProvider();

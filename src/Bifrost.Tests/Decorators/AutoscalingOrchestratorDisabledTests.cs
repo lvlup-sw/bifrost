@@ -11,6 +11,7 @@ using Bifrost.Core;
 using Bifrost.Decorators;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using NSubstitute;
 
@@ -61,7 +62,7 @@ public class AutoscalingOrchestratorDisabledTests
     {
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.EnqueueAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
 
         // Act
@@ -80,7 +81,7 @@ public class AutoscalingOrchestratorDisabledTests
     {
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.TryEnqueue("work").Returns(true);
 
         // Act
@@ -99,7 +100,7 @@ public class AutoscalingOrchestratorDisabledTests
     {
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.EnqueueAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
         _inner.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         _inner.DisposeAsync().Returns(ValueTask.CompletedTask);
@@ -127,7 +128,7 @@ public class AutoscalingOrchestratorDisabledTests
     {
         // Arrange & Act
         _ = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Assert - verify warning was logged
         _logger.Received(1).Log(
@@ -149,7 +150,7 @@ public class AutoscalingOrchestratorDisabledTests
         _registry.ActiveWorkerCount.Returns(3);
 
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
         var result = orchestrator.ActiveWorkers;
@@ -166,7 +167,7 @@ public class AutoscalingOrchestratorDisabledTests
     {
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
         await orchestrator.RequestScaleUpAsync(5).ConfigureAwait(false);
@@ -188,7 +189,7 @@ public class AutoscalingOrchestratorDisabledTests
         _registry.IdleWorkerCount.Returns(5);
 
         var orchestrator = new AutoscalingOrchestrator<string>(
-            _inner, _registry, _metrics, _options, _logger);
+            _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
         await orchestrator.RequestScaleDownAsync(3).ConfigureAwait(false);

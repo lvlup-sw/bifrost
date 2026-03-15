@@ -4,6 +4,8 @@
 // </copyright>
 // =============================================================================
 
+using Bifrost.Core.Events;
+
 namespace Bifrost.Autoscaling;
 
 /// <summary>

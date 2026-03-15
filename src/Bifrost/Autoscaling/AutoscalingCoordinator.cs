@@ -23,32 +23,37 @@ namespace Bifrost.Autoscaling;
 /// </para>
 /// <para>
 /// The coordinator is intentionally stateless - it merely delegates calls to the
-/// underlying orchestrator. This design ensures:
+/// underlying orchestrator and worker registry. This design ensures:
 /// <list type="bullet">
 ///   <item><description>Single source of truth for metrics (the orchestrator)</description></item>
 ///   <item><description>No state synchronization issues</description></item>
 ///   <item><description>Thread-safe by delegation</description></item>
 /// </list>
 /// </para>
-/// <para>
-/// <strong>Note:</strong> Some methods are currently stubs that throw
-/// <see cref="NotImplementedException"/>. These will be implemented in Phase 9
-/// when the orchestrator gains dynamic worker management capabilities.
-/// </para>
 /// </remarks>
 public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
 {
     private readonly IWorkOrchestrator<TWork> _orchestrator;
+    private readonly IWorkerRegistry _registry;
+    private readonly Action<IOrchestratorEvent>? _publishCallback;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AutoscalingCoordinator{TWork}"/> class.
     /// </summary>
     /// <param name="orchestrator">The work orchestrator to coordinate with.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="orchestrator"/> is null.</exception>
-    public AutoscalingCoordinator(IWorkOrchestrator<TWork> orchestrator)
+    /// <param name="registry">The worker registry for dynamic worker management.</param>
+    /// <param name="publishCallback">Optional callback for publishing events to the event stream.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="orchestrator"/> or <paramref name="registry"/> is null.</exception>
+    public AutoscalingCoordinator(
+        IWorkOrchestrator<TWork> orchestrator,
+        IWorkerRegistry registry,
+        Action<IOrchestratorEvent>? publishCallback = null)
     {
         ArgumentNullException.ThrowIfNull(orchestrator);
+        ArgumentNullException.ThrowIfNull(registry);
         _orchestrator = orchestrator;
+        _registry = registry;
+        _publishCallback = publishCallback;
     }
 
     #region IAutoscalingMetricsPort
@@ -86,68 +91,58 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
     #region IAutoscalingControlPort
 
     /// <inheritdoc/>
-    /// <exception cref="NotImplementedException">
-    /// This method is a stub for Phase 9. The orchestrator does not yet support
-    /// dynamic worker scaling.
-    /// </exception>
-    public Task RequestScaleUpAsync(int count, CancellationToken cancellationToken = default)
+    public async Task RequestScaleUpAsync(int count, CancellationToken cancellationToken = default)
     {
-        // Phase 9: Will delegate to orchestrator's dynamic scaling capability
-        throw new NotImplementedException(
-            "RequestScaleUpAsync will be implemented in Phase 9 when the orchestrator " +
-            "supports dynamic worker management.");
+        for (var i = 0; i < count; i++)
+        {
+            var workerId = $"Coordinator-{Guid.NewGuid():N}";
+
+            void StateCallback(bool isBusy)
+            {
+                var workerInfo = _registry.GetWorkerInfo(workerId);
+                if (workerInfo == null)
+                {
+                    return;
+                }
+
+                if (isBusy)
+                {
+                    workerInfo.MarkBusy();
+                }
+                else
+                {
+                    workerInfo.MarkIdle();
+                }
+            }
+
+            var workerFunc = _orchestrator.CreateWorkerFunction(StateCallback);
+            await _registry.CreateWorkerAsync(workerId, workerFunc, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <inheritdoc/>
-    /// <exception cref="NotImplementedException">
-    /// This method is a stub for Phase 9. The orchestrator does not yet support
-    /// dynamic worker scaling.
-    /// </exception>
     public Task RequestScaleDownAsync(int count, CancellationToken cancellationToken = default)
     {
-        // Phase 9: Will delegate to orchestrator's dynamic scaling capability
-        throw new NotImplementedException(
-            "RequestScaleDownAsync will be implemented in Phase 9 when the orchestrator " +
-            "supports dynamic worker management.");
+        _registry.RequestMultipleWorkerStop(count);
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
-    /// <exception cref="NotImplementedException">
-    /// This method is a stub for Phase 9. The orchestrator does not yet expose
-    /// worker function creation.
-    /// </exception>
     public Func<string, CancellationToken, Task> CreateWorkerFunction()
     {
-        // Phase 9: Will delegate to orchestrator's worker function factory
-        throw new NotImplementedException(
-            "CreateWorkerFunction will be implemented in Phase 9 when the orchestrator " +
-            "supports dynamic worker management.");
+        return _orchestrator.CreateWorkerFunction();
     }
 
     /// <inheritdoc/>
-    /// <exception cref="NotImplementedException">
-    /// This method is a stub for Phase 9. The orchestrator does not yet expose
-    /// worker function creation with callbacks.
-    /// </exception>
     public Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback)
     {
-        // Phase 9: Will delegate to orchestrator's worker function factory
-        throw new NotImplementedException(
-            "CreateWorkerFunction with callback will be implemented in Phase 9 when " +
-            "the orchestrator supports dynamic worker management.");
+        return _orchestrator.CreateWorkerFunction(stateCallback);
     }
 
     /// <inheritdoc/>
-    /// <exception cref="NotImplementedException">
-    /// This method is a stub for Phase 9. The orchestrator does not yet expose
-    /// its shutdown token.
-    /// </exception>
     public CancellationToken GetShutdownToken()
     {
-        // Phase 9: Will delegate to orchestrator's shutdown token
-        throw new NotImplementedException(
-            "GetShutdownToken will be implemented in Phase 9 when the orchestrator " +
-            "exposes its shutdown token.");
+        return _orchestrator.GetShutdownToken();
     }
 
     #endregion
@@ -155,37 +150,24 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
     #region IAutoscalingEventsPort
 
     /// <inheritdoc/>
-    /// <exception cref="NotImplementedException">
-    /// This method is a stub for Phase 9. The coordinator needs to be connected
-    /// to an event stream decorator.
-    /// </exception>
     public void PublishEvent(IOrchestratorEvent orchestratorEvent)
     {
-        // Phase 9: Will delegate to event stream decorator
-        throw new NotImplementedException(
-            "PublishEvent will be implemented in Phase 9 when the coordinator " +
-            "is connected to an event stream decorator.");
+        _publishCallback?.Invoke(orchestratorEvent);
     }
 
     /// <inheritdoc/>
-    /// <exception cref="NotImplementedException">
-    /// This property is a stub for Phase 9. The coordinator needs to be connected
-    /// to an event stream decorator.
-    /// </exception>
-    public long QueuedEventCount =>
-        throw new NotImplementedException(
-            "QueuedEventCount will be implemented in Phase 9 when the coordinator " +
-            "is connected to an event stream decorator.");
+    /// <remarks>
+    /// Returns 0 as a placeholder. Real event count tracking would require
+    /// coupling to the event stream implementation.
+    /// </remarks>
+    public long QueuedEventCount => 0L;
 
     /// <inheritdoc/>
-    /// <exception cref="NotImplementedException">
-    /// This property is a stub for Phase 9. The coordinator needs to be connected
-    /// to an event stream decorator.
-    /// </exception>
-    public long ActiveSubscriberCount =>
-        throw new NotImplementedException(
-            "ActiveSubscriberCount will be implemented in Phase 9 when the coordinator " +
-            "is connected to an event stream decorator.");
+    /// <remarks>
+    /// Returns 0 as a placeholder. Real subscriber count tracking would require
+    /// coupling to the event stream implementation.
+    /// </remarks>
+    public long ActiveSubscriberCount => 0L;
 
     #endregion
 }
