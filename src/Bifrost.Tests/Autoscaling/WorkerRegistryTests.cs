@@ -424,8 +424,18 @@ public class WorkerRegistryTests
     {
         // Arrange
         var logger = Substitute.For<ILogger<WorkerRegistry>>();
+        var logReceived = new TaskCompletionSource();
+
+        // Signal when the logger receives an error call
+        logger.When(l => l.Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Any<object>(),
+                Arg.Any<Exception?>(),
+                Arg.Any<Func<object, Exception?, string>>()))
+            .Do(_ => logReceived.TrySetResult());
+
         var registry = new WorkerRegistry(logger);
-        var faulted = new TaskCompletionSource();
 
         // Act - Create a worker that throws
         await registry.CreateWorkerAsync(
@@ -433,10 +443,10 @@ public class WorkerRegistryTests
             (id, ct) => throw new InvalidOperationException("Worker fault"),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Wait for the fault to propagate through ContinueWith
-        await Task.Delay(200).ConfigureAwait(false);
+        // Wait for the ContinueWith fault handler to log (deterministic, no fixed delay)
+        await logReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
-        // Assert - Error should be logged
+        // Assert - Error was logged (guaranteed by the signal above)
         logger.Received().Log(
             LogLevel.Error,
             Arg.Any<EventId>(),
