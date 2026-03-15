@@ -32,7 +32,22 @@ public sealed class DeadLetterQueueOptions
     /// </summary>
     /// <value>The maximum retry count. Default is 3.</value>
     /// <remarks>
-    /// A value of 0 means no retries; work is dead-lettered on the first failure.
+    /// <para>
+    /// This is the number of <b>retries after the initial attempt</b>. Total processing
+    /// attempts = 1 (initial) + MaxRetries.
+    /// </para>
+    /// <para>
+    /// Examples:
+    /// <list type="bullet">
+    ///   <item><description><c>MaxRetries = 0</c>: 1 attempt total, dead-letter on first failure</description></item>
+    ///   <item><description><c>MaxRetries = 3</c> (default): 4 attempts total</description></item>
+    ///   <item><description><c>MaxRetries = 100</c>: 101 attempts total</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Retries are immediate (no backoff). For transient failure handling with
+    /// exponential backoff, use <c>.WithResilience()</c> instead.
+    /// </para>
     /// </remarks>
     [Range(0, 100)]
     public int MaxRetries { get; set; } = 3;
