@@ -61,13 +61,15 @@ public static class DeadLetterQueueExtensions
         builder.Services.TryAddSingleton<IDeadLetterNotifier<TWork>, DeadLetterNotifier<TWork>>();
 
         // Add handler decorator to wrap the handler with retry+DLQ logic
-        builder.HandlerDecorators.Add((sp, handler) =>
-            new DeadLetterHandler<TWork>(
-                handler,
-                sp.GetRequiredService<IDeadLetterQueue<TWork>>(),
-                sp.GetRequiredService<IDeadLetterNotifier<TWork>>(),
-                sp.GetRequiredService<IOptions<DeadLetterQueueOptions>>(),
-                sp.GetRequiredService<ILogger<DeadLetterHandler<TWork>>>()));
+        builder.HandlerDecorators.Add(new HandlerDecoratorRegistration<TWork>(
+            Order: builder.HandlerDecorators.Count,
+            Factory: (sp, handler) =>
+                new DeadLetterHandler<TWork>(
+                    handler,
+                    sp.GetRequiredService<IDeadLetterQueue<TWork>>(),
+                    sp.GetRequiredService<IDeadLetterNotifier<TWork>>(),
+                    sp.GetRequiredService<IOptions<DeadLetterQueueOptions>>(),
+                    sp.GetRequiredService<ILogger<DeadLetterHandler<TWork>>>())));
 
         return builder;
     }
