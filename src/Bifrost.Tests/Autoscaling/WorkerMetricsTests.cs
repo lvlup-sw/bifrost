@@ -17,19 +17,6 @@ namespace Bifrost.Tests.Autoscaling;
 public class WorkerMetricsTests
 {
     /// <summary>
-    /// Verifies that initial pending count is zero.
-    /// </summary>
-    [Test]
-    public async Task PendingWorkCount_Initial_ReturnsZero()
-    {
-        // Arrange
-        var metrics = new WorkerMetrics();
-
-        // Assert
-        await Assert.That(metrics.PendingWorkCount).IsEqualTo(0);
-    }
-
-    /// <summary>
     /// Verifies that initial in-flight count is zero.
     /// </summary>
     [Test]
@@ -43,39 +30,21 @@ public class WorkerMetricsTests
     }
 
     /// <summary>
-    /// Verifies RecordEnqueue increments pending count.
+    /// Verifies RecordEnqueue does not throw.
     /// </summary>
     [Test]
-    public async Task RecordEnqueue_IncrementsPendingCount()
+    public async Task RecordEnqueue_DoesNotThrow()
     {
         // Arrange
         var metrics = new WorkerMetrics();
 
-        // Act
+        // Act — RecordEnqueue is a signal for the autoscaling decorator
         metrics.RecordEnqueue();
         metrics.RecordEnqueue();
         metrics.RecordEnqueue();
 
-        // Assert
-        await Assert.That(metrics.PendingWorkCount).IsEqualTo(3);
-    }
-
-    /// <summary>
-    /// Verifies RecordDequeue decrements pending count.
-    /// </summary>
-    [Test]
-    public async Task RecordDequeue_DecrementsPendingCount()
-    {
-        // Arrange
-        var metrics = new WorkerMetrics();
-        metrics.RecordEnqueue();
-        metrics.RecordEnqueue();
-
-        // Act
-        metrics.RecordDequeue();
-
-        // Assert
-        await Assert.That(metrics.PendingWorkCount).IsEqualTo(1);
+        // Assert — still implements the interface correctly
+        await Assert.That(metrics).IsAssignableTo<IWorkerMetrics>();
     }
 
     /// <summary>
@@ -114,79 +83,6 @@ public class WorkerMetricsTests
     }
 
     /// <summary>
-    /// Verifies that utilization ratio is calculated correctly.
-    /// </summary>
-    [Test]
-    public async Task CalculateUtilizationRatio_ReturnsCorrectValue()
-    {
-        // Arrange
-        var metrics = new WorkerMetrics();
-        metrics.RecordEnqueue();
-        metrics.RecordEnqueue();
-        metrics.RecordEnqueue();
-        metrics.RecordEnqueue();
-
-        // Act
-        var ratio = metrics.CalculateUtilizationRatio(maxBacklog: 10);
-
-        // Assert - 4 pending / 10 max = 0.4
-        await Assert.That(ratio).IsEqualTo(0.4);
-    }
-
-    /// <summary>
-    /// Verifies that utilization ratio handles empty queue.
-    /// </summary>
-    [Test]
-    public async Task CalculateUtilizationRatio_EmptyQueue_ReturnsZero()
-    {
-        // Arrange
-        var metrics = new WorkerMetrics();
-
-        // Act
-        var ratio = metrics.CalculateUtilizationRatio(maxBacklog: 100);
-
-        // Assert
-        await Assert.That(ratio).IsEqualTo(0.0);
-    }
-
-    /// <summary>
-    /// Verifies that utilization ratio caps at 1.0.
-    /// </summary>
-    [Test]
-    public async Task CalculateUtilizationRatio_OverCapacity_ReturnsOne()
-    {
-        // Arrange
-        var metrics = new WorkerMetrics();
-        for (var i = 0; i < 150; i++)
-        {
-            metrics.RecordEnqueue();
-        }
-
-        // Act
-        var ratio = metrics.CalculateUtilizationRatio(maxBacklog: 100);
-
-        // Assert - Should cap at 1.0
-        await Assert.That(ratio).IsEqualTo(1.0);
-    }
-
-    /// <summary>
-    /// Verifies that utilization ratio handles zero max backlog.
-    /// </summary>
-    [Test]
-    public async Task CalculateUtilizationRatio_ZeroMaxBacklog_ReturnsOne()
-    {
-        // Arrange
-        var metrics = new WorkerMetrics();
-        metrics.RecordEnqueue();
-
-        // Act
-        var ratio = metrics.CalculateUtilizationRatio(maxBacklog: 0);
-
-        // Assert - Division by zero protection should return 1.0
-        await Assert.That(ratio).IsEqualTo(1.0);
-    }
-
-    /// <summary>
     /// Verifies that metrics are thread-safe under concurrent access.
     /// </summary>
     [Test]
@@ -197,7 +93,7 @@ public class WorkerMetricsTests
         const int operationsPerTask = 1000;
         const int taskCount = 10;
 
-        // Act - Run parallel enqueue/dequeue operations
+        // Act - Run parallel execution start/end operations
         await Task.WhenAll(
             Enumerable.Range(0, taskCount).Select(_ =>
                 Task.Run(() =>
@@ -206,13 +102,11 @@ public class WorkerMetricsTests
                     {
                         metrics.RecordEnqueue();
                         metrics.RecordExecutionStart();
-                        metrics.RecordDequeue();
                         metrics.RecordExecutionEnd();
                     }
                 }))).ConfigureAwait(false);
 
-        // Assert - After balanced operations, counts should be zero
-        await Assert.That(metrics.PendingWorkCount).IsEqualTo(0);
+        // Assert - After balanced operations, in-flight count should be zero
         await Assert.That(metrics.InFlightCount).IsEqualTo(0);
     }
 

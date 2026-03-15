@@ -20,7 +20,7 @@ public static class ResilienceExtensions
     /// <summary>
     /// The decorator order for resilience (inner to autoscaling).
     /// </summary>
-    private const int ResilienceDecoratorOrder = 50;
+    private const int ResilienceDecoratorOrder = 25;
 
     /// <summary>
     /// Adds resilience support to the work orchestrator using Polly policies.
@@ -39,9 +39,9 @@ public static class ResilienceExtensions
     /// </list>
     /// </para>
     /// <para>
-    /// The resilience decorator is added at order 50, making it inner to the autoscaling
-    /// decorator (order 100). This ensures resilience policies are applied to individual
-    /// enqueue operations before metrics are recorded.
+    /// The resilience decorator is added at order 25, making it inner to both the event stream
+    /// decorator (order 50) and autoscaling decorator (order 100). This ensures resilience
+    /// policies are applied to individual enqueue operations before events or metrics are recorded.
     /// </para>
     /// <para>
     /// The decorator applies the following Polly policies:

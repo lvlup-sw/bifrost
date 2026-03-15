@@ -40,7 +40,9 @@ public interface IAutoscalingEventsPort
     /// </summary>
     /// <value>The count of queued events.</value>
     /// <remarks>
-    /// This metric can be used to monitor event stream backpressure.
+    /// This property is a placeholder and currently returns 0 in all implementations.
+    /// It is not used in scaling decisions. Future versions may connect this to the
+    /// event stream subscriber infrastructure.
     /// </remarks>
     long QueuedEventCount { get; }
 
@@ -49,7 +51,9 @@ public interface IAutoscalingEventsPort
     /// </summary>
     /// <value>The count of active subscribers.</value>
     /// <remarks>
-    /// This metric can be used to determine if anyone is consuming events.
+    /// This property is a placeholder and currently returns 0 in all implementations.
+    /// It is not used in scaling decisions. Future versions may connect this to the
+    /// event stream subscriber infrastructure.
     /// </remarks>
     long ActiveSubscriberCount { get; }
 }

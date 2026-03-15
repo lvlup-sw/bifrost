@@ -21,38 +21,17 @@ namespace Bifrost.Autoscaling;
 /// </remarks>
 public sealed class WorkerMetrics : IWorkerMetrics
 {
-    private long _pendingCount;
     private long _inFlightCount;
-
-    /// <inheritdoc/>
-    public long PendingWorkCount => Interlocked.Read(ref _pendingCount);
 
     /// <inheritdoc/>
     public long InFlightCount => Interlocked.Read(ref _inFlightCount);
 
     /// <inheritdoc/>
-    public double CalculateUtilizationRatio(int maxBacklog)
-    {
-        if (maxBacklog <= 0)
-        {
-            return 1.0;
-        }
-
-        var pending = Interlocked.Read(ref _pendingCount);
-        var ratio = (double)pending / maxBacklog;
-        return Math.Min(ratio, 1.0);
-    }
-
-    /// <inheritdoc/>
     public void RecordEnqueue()
     {
-        Interlocked.Increment(ref _pendingCount);
-    }
-
-    /// <inheritdoc/>
-    public void RecordDequeue()
-    {
-        Interlocked.Decrement(ref _pendingCount);
+        // Enqueue tracking is a signal for the autoscaling decorator.
+        // Utilization is computed by AutoscalingCoordinator.GetUtilizationRatio()
+        // which reads the channel's actual PendingCount directly.
     }
 
     /// <inheritdoc/>

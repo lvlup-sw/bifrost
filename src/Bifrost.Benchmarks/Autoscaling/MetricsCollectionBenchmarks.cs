@@ -20,18 +20,12 @@ public class MetricsCollectionBenchmarks
     private WorkerMetrics? _metrics;
 
     /// <summary>
-    /// Creates a WorkerMetrics instance and pre-seeds it with enqueue calls.
+    /// Creates a WorkerMetrics instance.
     /// </summary>
     [GlobalSetup]
     public void GlobalSetup()
     {
         _metrics = new WorkerMetrics();
-
-        // Pre-seed with pending work so CalculateUtilizationRatio has data
-        for (var i = 0; i < 100; i++)
-        {
-            _metrics.RecordEnqueue();
-        }
     }
 
     /// <summary>
@@ -44,21 +38,20 @@ public class MetricsCollectionBenchmarks
     }
 
     /// <summary>
-    /// Benchmarks the cost of recording a dequeue operation.
+    /// Benchmarks the cost of recording an execution start.
     /// </summary>
     [Benchmark]
-    public void RecordDequeue()
+    public void RecordExecutionStart()
     {
-        _metrics!.RecordDequeue();
+        _metrics!.RecordExecutionStart();
     }
 
     /// <summary>
-    /// Benchmarks the cost of calculating the utilization ratio.
+    /// Benchmarks the cost of recording an execution end.
     /// </summary>
-    /// <returns>The utilization ratio.</returns>
     [Benchmark]
-    public double CalculateUtilization()
+    public void RecordExecutionEnd()
     {
-        return _metrics!.CalculateUtilizationRatio(1000);
+        _metrics!.RecordExecutionEnd();
     }
 }

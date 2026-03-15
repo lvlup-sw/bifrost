@@ -45,6 +45,11 @@ public interface IAutoscalingMetricsPort
     /// Gets the total number of events queued for publishing.
     /// </summary>
     /// <value>The count of queued events.</value>
+    /// <remarks>
+    /// This property is a placeholder and currently returns 0 in all implementations.
+    /// It is not used in scaling decisions. Future versions may connect this to the
+    /// event stream subscriber infrastructure.
+    /// </remarks>
     long QueuedCount { get; }
 
     /// <summary>
