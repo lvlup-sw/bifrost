@@ -104,7 +104,5 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
             Interlocked.Decrement(ref _count);
             yield return item;
         }
-
-        await Task.CompletedTask.ConfigureAwait(false);
     }
 }

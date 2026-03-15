@@ -79,7 +79,6 @@ public static class ResiliencyPolicyGenerator
     ///   <item><description><see cref="SocketException"/> - Low-level network failures</description></item>
     ///   <item><description><see cref="IOException"/> - File system or stream failures</description></item>
     ///   <item><description><see cref="DbException"/> - Database connectivity issues</description></item>
-    ///   <item><description><see cref="InvalidOperationException"/> - Process execution failures</description></item>
     ///   <item><description><see cref="TimeoutRejectedException"/> - Polly timeout policy failures</description></item>
     /// </list>
     /// </remarks>
@@ -90,7 +89,6 @@ public static class ResiliencyPolicyGenerator
         typeof(SocketException),
         typeof(IOException),
         typeof(DbException),
-        typeof(InvalidOperationException),
         typeof(TimeoutRejectedException)
     ];
 

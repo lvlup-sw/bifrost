@@ -53,7 +53,6 @@ public class ResiliencyPolicyGeneratorTests
         await Assert.That(types).Contains(typeof(SocketException));
         await Assert.That(types).Contains(typeof(IOException));
         await Assert.That(types).Contains(typeof(DbException));
-        await Assert.That(types).Contains(typeof(InvalidOperationException));
         await Assert.That(types).Contains(typeof(TimeoutRejectedException));
     }
 

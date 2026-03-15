@@ -48,13 +48,16 @@ public class WorkCompletedEventTests
         var workProperty = type.GetProperty("Work");
         var durationProperty = type.GetProperty("Duration");
         var successProperty = type.GetProperty("Success");
+        var correlationIdProperty = type.GetProperty("CorrelationId");
 
         await Assert.That(workProperty).IsNotNull();
         await Assert.That(durationProperty).IsNotNull();
         await Assert.That(successProperty).IsNotNull();
+        await Assert.That(correlationIdProperty).IsNotNull();
 
         await Assert.That(durationProperty!.PropertyType).IsEqualTo(typeof(TimeSpan));
         await Assert.That(successProperty!.PropertyType).IsEqualTo(typeof(bool));
+        await Assert.That(correlationIdProperty!.PropertyType).IsEqualTo(typeof(string));
     }
 
     /// <summary>
@@ -68,6 +71,19 @@ public class WorkCompletedEventTests
 
         // Assert
         await Assert.That(typeof(IOrchestratorEvent).IsAssignableFrom(type)).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies the record class implements ICorrelatedEvent.
+    /// </summary>
+    [Test]
+    public async Task WorkCompletedEvent_ImplementsICorrelatedEvent()
+    {
+        // Arrange
+        var type = typeof(WorkCompletedEvent<>);
+
+        // Assert
+        await Assert.That(typeof(ICorrelatedEvent).IsAssignableFrom(type)).IsTrue();
     }
 
     /// <summary>
@@ -88,6 +104,32 @@ public class WorkCompletedEventTests
         await Assert.That(evt.Work).IsEqualTo(work);
         await Assert.That(evt.Duration).IsEqualTo(duration);
         await Assert.That(evt.Success).IsEqualTo(success);
+    }
+
+    /// <summary>
+    /// Verifies constructor defaults CorrelationId to null.
+    /// </summary>
+    [Test]
+    public async Task Constructor_DefaultsCorrelationIdToNull()
+    {
+        // Act
+        var evt = new WorkCompletedEvent<string>("work", TimeSpan.Zero, true);
+
+        // Assert
+        await Assert.That(evt.CorrelationId).IsNull();
+    }
+
+    /// <summary>
+    /// Verifies constructor sets CorrelationId when provided.
+    /// </summary>
+    [Test]
+    public async Task Constructor_SetsCorrelationId()
+    {
+        // Act
+        var evt = new WorkCompletedEvent<string>("work", TimeSpan.Zero, true, "corr-123");
+
+        // Assert
+        await Assert.That(evt.CorrelationId).IsEqualTo("corr-123");
     }
 
     /// <summary>
