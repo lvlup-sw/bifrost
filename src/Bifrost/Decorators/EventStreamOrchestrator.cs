@@ -5,6 +5,7 @@
 // =============================================================================
 
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
@@ -33,6 +34,8 @@ namespace Bifrost.Decorators;
 /// </remarks>
 public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TWork>
 {
+    private const int SubscriberCapacity = 1000;
+
     private readonly IWorkOrchestrator<TWork> _inner;
     private readonly ILogger<EventStreamOrchestrator<TWork>> _logger;
     private readonly ConcurrentDictionary<Guid, Channel<IOrchestratorEvent>> _eventSubscribers = new();
@@ -189,7 +192,7 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
 
         var subscriberId = Guid.NewGuid();
         var subscriberChannel = Channel.CreateBounded<IOrchestratorEvent>(
-            new BoundedChannelOptions(1000)
+            new BoundedChannelOptions(SubscriberCapacity)
             {
                 FullMode = BoundedChannelFullMode.DropOldest,
                 SingleReader = true,
@@ -240,15 +243,26 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
         }
         finally
         {
-            // Cleanup subscriber on completion or cancellation
-            if (_eventSubscribers.TryRemove(subscriberId, out var channel))
+            // Cleanup subscriber on completion or cancellation (M13: log on failure)
+            if (!_eventSubscribers.TryRemove(subscriberId, out var channel))
+            {
+                _logger.LogWarning(
+                    "Failed to remove event subscriber {SubscriberId} during cleanup",
+                    subscriberId);
+            }
+            else
             {
                 channel.Writer.TryComplete();
             }
         }
     }
 
-    private void PublishToSubscribers(IOrchestratorEvent evt)
+    /// <summary>
+    /// Publishes an event to all subscribers. Also called by <see cref="CompletionTrackingHandler"/>
+    /// to publish <see cref="WorkCompletedEvent{TWork}"/> events.
+    /// </summary>
+    /// <param name="evt">The event to publish.</param>
+    internal void PublishToSubscribers(IOrchestratorEvent evt)
     {
         if (_disposed)
         {
@@ -259,6 +273,95 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
         {
             // Non-blocking write - DropOldest ensures we don't block
             subscriber.Writer.TryWrite(evt);
+        }
+
+        // M10: Clean up stale subscribers whose buffers are completely full.
+        // A full buffer indicates the consumer is not reading events.
+        foreach (var (id, channel) in _eventSubscribers)
+        {
+            if (channel.Reader.CanCount && channel.Reader.Count >= SubscriberCapacity)
+            {
+                if (_eventSubscribers.TryRemove(id, out var staleChannel))
+                {
+                    staleChannel.Writer.TryComplete();
+                    _logger.LogWarning("Removed stale event subscriber {SubscriberId} — buffer full", id);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Creates a handler decorator that tracks work completion and publishes
+    /// <see cref="WorkCompletedEvent{TWork}"/> events to the event stream.
+    /// </summary>
+    /// <param name="innerHandler">The handler to wrap.</param>
+    /// <param name="orchestrator">The event stream orchestrator to publish events to.</param>
+    /// <returns>A handler that wraps the inner handler with completion tracking.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when parameters are null.</exception>
+    public static IWorkHandler<TWork> CreateCompletionTrackingHandler(
+        IWorkHandler<TWork> innerHandler,
+        EventStreamOrchestrator<TWork> orchestrator)
+    {
+        ArgumentNullException.ThrowIfNull(innerHandler);
+        ArgumentNullException.ThrowIfNull(orchestrator);
+
+        return new CompletionTrackingHandler(innerHandler, evt => orchestrator.PublishToSubscribers(evt));
+    }
+
+    /// <summary>
+    /// Creates a handler decorator that tracks work completion and publishes
+    /// <see cref="WorkCompletedEvent{TWork}"/> events via a callback. This overload
+    /// supports late-binding scenarios where the orchestrator instance is not yet
+    /// available at handler construction time (e.g., during DI registration).
+    /// </summary>
+    /// <param name="innerHandler">The handler to wrap.</param>
+    /// <param name="publishCallback">Callback invoked to publish completion events.</param>
+    /// <returns>A handler that wraps the inner handler with completion tracking.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when parameters are null.</exception>
+    internal static IWorkHandler<TWork> CreateCompletionTrackingHandler(
+        IWorkHandler<TWork> innerHandler,
+        Action<IOrchestratorEvent> publishCallback)
+    {
+        ArgumentNullException.ThrowIfNull(innerHandler);
+        ArgumentNullException.ThrowIfNull(publishCallback);
+
+        return new CompletionTrackingHandler(innerHandler, publishCallback);
+    }
+
+    /// <summary>
+    /// Handler decorator that instruments work processing with timing and publishes
+    /// <see cref="WorkCompletedEvent{TWork}"/> events on completion.
+    /// </summary>
+    private sealed class CompletionTrackingHandler : IWorkHandler<TWork>
+    {
+        private readonly IWorkHandler<TWork> _innerHandler;
+        private readonly Action<IOrchestratorEvent> _publishCallback;
+
+        public CompletionTrackingHandler(
+            IWorkHandler<TWork> innerHandler,
+            Action<IOrchestratorEvent> publishCallback)
+        {
+            _innerHandler = innerHandler;
+            _publishCallback = publishCallback;
+        }
+
+        public async ValueTask HandleAsync(TWork work, CancellationToken ct)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            try
+            {
+                await _innerHandler.HandleAsync(work, ct).ConfigureAwait(false);
+                stopwatch.Stop();
+                _publishCallback(
+                    new WorkCompletedEvent<TWork>(work, stopwatch.Elapsed, Success: true));
+            }
+            catch
+            {
+                stopwatch.Stop();
+                _publishCallback(
+                    new WorkCompletedEvent<TWork>(work, stopwatch.Elapsed, Success: false));
+                throw;
+            }
         }
     }
 }

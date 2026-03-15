@@ -4,6 +4,8 @@
 // </copyright>
 // =============================================================================
 
+using Bifrost.Core;
+using Bifrost.Core.Events;
 using Bifrost.Decorators;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -32,17 +34,41 @@ public static class EventStreamExtensions
     /// The decorator is applied with order 50, placing it between the core orchestrator
     /// and higher-order decorators like autoscaling.
     /// </para>
+    /// <para>
+    /// Additionally, a handler decorator is registered to publish
+    /// <see cref="WorkCompletedEvent{TWork}"/> events when work items complete processing.
+    /// The handler decorator uses late-binding to reference the orchestrator instance,
+    /// allowing proper DI ordering where handler decorators are applied before orchestrator
+    /// decorators.
+    /// </para>
     /// </remarks>
     public static WorkOrchestratorBuilder<TWork> WithEventStream<TWork>(
         this WorkOrchestratorBuilder<TWork> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
+        // Use a captured reference for late-binding the orchestrator to the handler decorator.
+        // The handler decorator is applied first (to the handler), then the orchestrator
+        // decorator wraps the orchestrator. By the time the handler processes work,
+        // the orchestrator reference is available.
+        EventStreamOrchestrator<TWork>? eventStreamOrchestrator = null;
+
+        // Add handler decorator for WorkCompletedEvent publishing
+        builder.HandlerDecorators.Add((sp, handler) =>
+            EventStreamOrchestrator<TWork>.CreateCompletionTrackingHandler(
+                handler,
+                evt => eventStreamOrchestrator?.PublishToSubscribers(evt)));
+
+        // Add orchestrator decorator for event streaming
         builder.Decorators.Add(new DecoratorRegistration<TWork>(
             Order: 50,
-            Factory: (sp, inner) => new EventStreamOrchestrator<TWork>(
-                inner,
-                sp.GetRequiredService<ILogger<EventStreamOrchestrator<TWork>>>())));
+            Factory: (sp, inner) =>
+            {
+                eventStreamOrchestrator = new EventStreamOrchestrator<TWork>(
+                    inner,
+                    sp.GetRequiredService<ILogger<EventStreamOrchestrator<TWork>>>());
+                return eventStreamOrchestrator;
+            }));
 
         return builder;
     }
