@@ -24,6 +24,7 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
     private readonly DeadLetterNotifier<TWork> _notifier;
     private readonly int _maxRetries;
     private readonly ILogger<DeadLetterHandler<TWork>> _logger;
+    private readonly Action<IOrchestratorEvent>? _eventPublishCallback;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DeadLetterHandler{TWork}"/> class.
@@ -33,12 +34,14 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
     /// <param name="notifier">The notifier for dead letter events.</param>
     /// <param name="options">The dead letter queue options.</param>
     /// <param name="logger">The logger instance.</param>
+    /// <param name="eventPublishCallback">Optional callback to publish dead-letter events to the event stream.</param>
     public DeadLetterHandler(
         IWorkHandler<TWork> inner,
         IDeadLetterQueue<TWork> dlq,
         DeadLetterNotifier<TWork> notifier,
         IOptions<DeadLetterQueueOptions> options,
-        ILogger<DeadLetterHandler<TWork>> logger)
+        ILogger<DeadLetterHandler<TWork>> logger,
+        Action<IOrchestratorEvent>? eventPublishCallback = null)
     {
         ArgumentNullException.ThrowIfNull(inner);
         ArgumentNullException.ThrowIfNull(dlq);
@@ -51,6 +54,7 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
         _notifier = notifier;
         _maxRetries = options.Value.MaxRetries;
         _logger = logger;
+        _eventPublishCallback = eventPublishCallback;
     }
 
     /// <inheritdoc/>
@@ -101,6 +105,7 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
             DateTimeOffset.UtcNow);
 
         _notifier.Notify(evt);
+        _eventPublishCallback?.Invoke(evt);
 
         _logger.LogError(lastException, "Work item dead-lettered after {Attempts} attempts", attempts);
     }

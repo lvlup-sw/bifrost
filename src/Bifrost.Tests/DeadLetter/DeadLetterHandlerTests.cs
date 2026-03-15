@@ -326,10 +326,95 @@ public class DeadLetterHandlerTests
         await Assert.That(typeof(IWorkHandler<string>).IsAssignableFrom(type)).IsTrue();
     }
 
-    private DeadLetterHandler<string> CreateHandler()
+    /// <summary>
+    /// Verifies that when a publish callback is provided and work is dead-lettered,
+    /// the callback is invoked with a WorkDeadLetteredEvent.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_Failure_WithPublishCallback_PublishesEvent()
+    {
+        // Arrange
+        _innerHandler.HandleAsync("work", Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask(Task.FromException(new InvalidOperationException("fail"))));
+
+        IOrchestratorEvent? capturedEvent = null;
+        Action<IOrchestratorEvent> publishCallback = evt => capturedEvent = evt;
+
+        var handler = CreateHandler(publishCallback);
+
+        // Act
+        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+
+        // Assert
+        await Assert.That(capturedEvent).IsNotNull();
+        await Assert.That(capturedEvent).IsTypeOf<WorkDeadLetteredEvent<string>>();
+
+        var deadLetteredEvent = (WorkDeadLetteredEvent<string>)capturedEvent!;
+        await Assert.That(deadLetteredEvent.Work).IsEqualTo("work");
+        await Assert.That(deadLetteredEvent.AttemptCount).IsEqualTo(4); // 1 initial + 3 retries
+        await Assert.That(deadLetteredEvent.Exception).IsNotNull();
+    }
+
+    /// <summary>
+    /// Verifies that when the publish callback is null, dead-lettering still completes normally.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_Failure_WithNullPublishCallback_StillDeadLetters()
+    {
+        // Arrange
+        _innerHandler.HandleAsync("work", Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask(Task.FromException(new InvalidOperationException("fail"))));
+
+        var handler = CreateHandler(eventPublishCallback: null);
+
+        // Act
+        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+
+        // Assert - dead-lettering still happens
+        await _dlq.Received(1).EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that the publish callback is not invoked when work succeeds.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_Success_PublishCallbackNotInvoked()
+    {
+        // Arrange
+        _innerHandler.HandleAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
+
+        var callbackInvoked = false;
+        Action<IOrchestratorEvent> publishCallback = _ => callbackInvoked = true;
+
+        var handler = CreateHandler(publishCallback);
+
+        // Act
+        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+
+        // Assert
+        await Assert.That(callbackInvoked).IsFalse();
+    }
+
+    /// <summary>
+    /// Verifies that the constructor accepts a null publish callback (optional parameter).
+    /// </summary>
+    [Test]
+    public async Task Constructor_AcceptsNullPublishCallback()
+    {
+        // Act & Assert - should not throw
+        var handler = new DeadLetterHandler<string>(
+            _innerHandler, _dlq, _notifier, _options,
+            NullLogger<DeadLetterHandler<string>>.Instance,
+            eventPublishCallback: null);
+
+        await Assert.That(handler).IsNotNull();
+    }
+
+    private DeadLetterHandler<string> CreateHandler(Action<IOrchestratorEvent>? eventPublishCallback = null)
     {
         return new DeadLetterHandler<string>(
             _innerHandler, _dlq, _notifier, _options,
-            NullLogger<DeadLetterHandler<string>>.Instance);
+            NullLogger<DeadLetterHandler<string>>.Instance,
+            eventPublishCallback);
     }
 }
