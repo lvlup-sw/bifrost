@@ -38,14 +38,17 @@ internal sealed class DeadLetterNotifier<TWork>
             throw new InvalidOperationException("DeadLetterNotifier already has an active subscriber.");
         }
 
-        return new Subscription(this);
+        return new Subscription(this, callback);
     }
 
-    private sealed class Subscription(DeadLetterNotifier<TWork> notifier) : IDisposable
+    private sealed class Subscription(
+        DeadLetterNotifier<TWork> notifier,
+        Action<WorkDeadLetteredEvent<TWork>> originalCallback) : IDisposable
     {
         public void Dispose()
         {
-            Interlocked.Exchange(ref notifier._callback, null);
+            // Only clear if this subscription still owns the callback slot
+            Interlocked.CompareExchange(ref notifier._callback, null, originalCallback);
         }
     }
 }

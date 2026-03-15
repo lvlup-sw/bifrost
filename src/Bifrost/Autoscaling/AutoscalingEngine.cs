@@ -43,7 +43,8 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     private readonly ILogger<AutoscalingEngine> _logger;
     private readonly Lock _scalingLock = new();
     private readonly Timer _evaluationTimer;
-    private readonly ConcurrentBag<Task> _pendingScalingTasks = new();
+    private readonly ConcurrentDictionary<int, Task> _pendingScalingTasks = new();
+    private int _pendingTaskId;
     private DateTimeOffset _lastScalingTime = DateTimeOffset.MinValue;
     private volatile bool _isRunning;
     private bool _disposed;
@@ -158,7 +159,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
         _isRunning = false;
 
         // Drain pending scaling tasks
-        await Task.WhenAll(_pendingScalingTasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        await Task.WhenAll(_pendingScalingTasks.Values).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
         _logger.LogInformation("Autoscaling engine stopped");
     }
@@ -292,7 +293,8 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
             if (decision.Action != ScalingAction.None)
             {
                 var task = ExecuteScalingDecisionAsync(decision);
-                _pendingScalingTasks.Add(task);
+                var taskId = Interlocked.Increment(ref _pendingTaskId);
+                _pendingScalingTasks[taskId] = task;
                 _ = task.ContinueWith(
                     t =>
                     {
@@ -300,7 +302,11 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
                         {
                             _logger.LogError(t.Exception, "Scaling decision execution faulted");
                         }
+
+                        _pendingScalingTasks.TryRemove(taskId, out _);
                     },
+                    CancellationToken.None,
+                    TaskContinuationOptions.None,
                     TaskScheduler.Default);
             }
         }

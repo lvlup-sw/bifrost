@@ -518,7 +518,7 @@ Write test: `FullDecoratorChain_ProcessesWorkEndToEnd`
 
 ### Finding Coverage
 
-All 32 audit findings addressed:
+All 31 audit findings addressed (L7 false positive excluded):
 - **4 HIGH:** H1 (Task 7), H2 (Task 7), H3 (Task 2), H4 (Task 7)
-- **17 MEDIUM:** M1 (Task 1), M2 (Task 4), M3 (Task 3), M4 (Task 2), M5 (Task 7), M6 (Task 2), M7 (Task 4), M8 (Task 7), M9 (Task 7), M10 (Task 6), M11 (Task 1), M12 (Task 7), M13 (Task 6), M14 (Task 5), M15 (Task 5)
+- **15 MEDIUM:** M1 (Task 1), M2 (Task 4), M3 (Task 3), M4 (Task 2), M5 (Task 7), M6 (Task 2), M7 (Task 4), M8 (Task 7), M9 (Task 7), M10 (Task 6), M11 (Task 1), M12 (Task 7), M13 (Task 6), M14 (Task 5), M15 (Task 5)
 - **10 LOW:** L1 (Task 7), L2 (Task 3), L3 (Task 1), L4 (Task 7), L5 (Task 8), L6 (Task 6), L7 (FALSE POSITIVE), L8 (Task 7), L9 (Task 5), L10 (Task 9)

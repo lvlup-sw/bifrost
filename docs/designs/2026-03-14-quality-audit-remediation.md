@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-14
 **Issue:** #11 — Backend quality audit: 4 HIGH, 17 MEDIUM findings across 7 dimensions
-**Scope:** All 32 findings (4 HIGH, 17 MEDIUM, 10 LOW + 1 false positive)
+**Scope:** 31 findings (4 HIGH, 15 MEDIUM, 10 LOW) + L7 false positive (32 gross)
 **Approach:** Complete the Coordinator Pattern + holistic hardening
 **Delivery:** Single PR
 

@@ -109,9 +109,18 @@ public class MultiDecoratorIntegrationTests
         var metrics = provider.GetRequiredService<IWorkerMetrics>();
         await Assert.That(metrics).IsNotNull();
 
-        // Cleanup
-        await orchestrator.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        // Cleanup — cancel and observe the worker task
         await cts.CancelAsync().ConfigureAwait(false);
+        try
+        {
+            await workerTask.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown
+        }
+
+        await orchestrator.StopAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <summary>

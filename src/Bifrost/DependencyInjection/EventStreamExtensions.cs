@@ -54,8 +54,12 @@ public static class EventStreamExtensions
         EventStreamOrchestrator<TWork>? eventStreamOrchestrator = null;
 
         // Add handler decorator for WorkCompletedEvent publishing
+        var nextHandlerOrder = builder.HandlerDecorators.Count == 0
+            ? 0
+            : builder.HandlerDecorators.Max(d => d.Order) + 1;
+
         builder.HandlerDecorators.Add(new HandlerDecoratorRegistration<TWork>(
-            Order: builder.HandlerDecorators.Count,
+            Order: nextHandlerOrder,
             Factory: (sp, handler) =>
                 EventStreamOrchestrator<TWork>.CreateCompletionTrackingHandler(
                     handler,

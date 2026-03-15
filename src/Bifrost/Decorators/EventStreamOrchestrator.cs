@@ -244,13 +244,7 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
         finally
         {
             // Cleanup subscriber on completion or cancellation (M13: log on failure)
-            if (!_eventSubscribers.TryRemove(subscriberId, out var channel))
-            {
-                _logger.LogWarning(
-                    "Failed to remove event subscriber {SubscriberId} during cleanup",
-                    subscriberId);
-            }
-            else
+            if (_eventSubscribers.TryRemove(subscriberId, out var channel))
             {
                 channel.Writer.TryComplete();
             }

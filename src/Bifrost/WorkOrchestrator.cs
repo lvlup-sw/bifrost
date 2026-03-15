@@ -210,7 +210,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         {
             await Task.WhenAll(_workers)
                 .WaitAsync(timeoutCts.Token)
-                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

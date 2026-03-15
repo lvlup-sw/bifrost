@@ -96,7 +96,26 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
         for (var i = 0; i < count; i++)
         {
             var workerId = $"Coordinator-{Guid.NewGuid():N}";
-            var workerFunc = _orchestrator.CreateWorkerFunction();
+
+            void StateCallback(bool isBusy)
+            {
+                var workerInfo = _registry.GetWorkerInfo(workerId);
+                if (workerInfo == null)
+                {
+                    return;
+                }
+
+                if (isBusy)
+                {
+                    workerInfo.MarkBusy();
+                }
+                else
+                {
+                    workerInfo.MarkIdle();
+                }
+            }
+
+            var workerFunc = _orchestrator.CreateWorkerFunction(StateCallback);
             await _registry.CreateWorkerAsync(workerId, workerFunc, cancellationToken).ConfigureAwait(false);
         }
     }
