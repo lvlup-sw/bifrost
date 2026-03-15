@@ -40,19 +40,17 @@ public class AutoscalingOptionsTests
     }
 
     /// <summary>
-    /// Verifies Enabled property can be set and defaults to true.
+    /// Verifies Enabled property can be set via object initializer and defaults to true.
     /// </summary>
     [Test]
-    public async Task Enabled_DefaultsToTrue_CanBeSet()
+    public async Task Enabled_DefaultsToTrue_CanBeSetViaInitializer()
     {
-        // Arrange
-        var options = new AutoscalingOptions();
+        // Arrange - verify default
+        var defaultOptions = new AutoscalingOptions();
+        await Assert.That(defaultOptions.Enabled).IsTrue();
 
-        // Assert default
-        await Assert.That(options.Enabled).IsTrue();
-
-        // Act
-        options.Enabled = false;
+        // Act - set via object initializer (init-only)
+        var options = new AutoscalingOptions { Enabled = false };
 
         // Assert
         await Assert.That(options.Enabled).IsFalse();
@@ -155,22 +153,22 @@ public class AutoscalingOptionsTests
     }
 
     /// <summary>
-    /// Verifies properties can be set.
+    /// Verifies properties can be set via object initializer.
     /// </summary>
     [Test]
-    public async Task Properties_CanBeSet()
+    public async Task Properties_CanBeSetViaInitializer()
     {
-        // Arrange
-        var options = new AutoscalingOptions();
-
-        // Act
-        options.MinWorkers = 2;
-        options.MaxWorkers = 32;
-        options.HighWatermark = 0.9;
-        options.LowWatermark = 0.2;
-        options.CooldownPeriod = TimeSpan.FromMinutes(1);
-        options.ScaleUpStep = 4;
-        options.ScaleDownStep = 2;
+        // Act - set all properties via object initializer (init-only)
+        var options = new AutoscalingOptions
+        {
+            MinWorkers = 2,
+            MaxWorkers = 32,
+            HighWatermark = 0.9,
+            LowWatermark = 0.2,
+            CooldownPeriod = TimeSpan.FromMinutes(1),
+            ScaleUpStep = 4,
+            ScaleDownStep = 2,
+        };
 
         // Assert
         await Assert.That(options.MinWorkers).IsEqualTo(2);
@@ -180,6 +178,41 @@ public class AutoscalingOptionsTests
         await Assert.That(options.CooldownPeriod).IsEqualTo(TimeSpan.FromMinutes(1));
         await Assert.That(options.ScaleUpStep).IsEqualTo(4);
         await Assert.That(options.ScaleDownStep).IsEqualTo(2);
+    }
+
+    /// <summary>
+    /// Verifies that all settable properties use init-only setters to prevent
+    /// runtime mutation after construction.
+    /// </summary>
+    /// <remarks>
+    /// Init-only setters (get; init;) allow object initializer syntax and Options Pattern
+    /// binding while preventing post-construction mutation. The IsExternalInit modifier
+    /// on the setter's return parameter distinguishes init from set.
+    /// </remarks>
+    [Test]
+    public async Task Properties_AreInitOnly()
+    {
+        // Arrange
+        var type = typeof(AutoscalingOptions);
+        var propertyNames = new[]
+        {
+            "Enabled", "MinWorkers", "MaxWorkers", "HighWatermark",
+            "LowWatermark", "CooldownPeriod", "ScaleUpStep", "ScaleDownStep", "CheckInterval",
+        };
+
+        // Act & Assert - each property's setter should have IsExternalInit modifier
+        foreach (var propertyName in propertyNames)
+        {
+            var property = type.GetProperty(propertyName);
+            await Assert.That(property).IsNotNull();
+
+            var setMethod = property!.SetMethod;
+            await Assert.That(setMethod).IsNotNull();
+
+            var modifiers = setMethod!.ReturnParameter.GetRequiredCustomModifiers();
+            var hasInitOnly = modifiers.Any(t => t.Name == "IsExternalInit");
+            await Assert.That(hasInitOnly).IsTrue();
+        }
     }
 
     /// <summary>

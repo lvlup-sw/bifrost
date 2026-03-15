@@ -11,6 +11,7 @@ using Bifrost.HealthChecks;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 using NSubstitute;
 
@@ -159,11 +160,8 @@ public class HealthCheckExtensionsTests
         mockRegistry.GetAllWorkers().Returns([]);
 
         services.AddSingleton(mockRegistry);
-        services.Configure<AutoscalingOptions>(options =>
-        {
-            options.MinWorkers = 1;
-            options.MaxWorkers = 16;
-        });
+        services.AddSingleton<IOptions<AutoscalingOptions>>(
+            Options.Create(new AutoscalingOptions { MinWorkers = 1, MaxWorkers = 16 }));
 
         // Act
         services.AddHealthChecks()
@@ -195,11 +193,8 @@ public class HealthCheckExtensionsTests
         mockRegistry.GetAllWorkers().Returns([]);
 
         services.AddSingleton(mockRegistry);
-        services.Configure<AutoscalingOptions>(options =>
-        {
-            options.MinWorkers = 1;
-            options.MaxWorkers = 16;
-        });
+        services.AddSingleton<IOptions<AutoscalingOptions>>(
+            Options.Create(new AutoscalingOptions { MinWorkers = 1, MaxWorkers = 16 }));
 
         // Act
         services.AddHealthChecks()

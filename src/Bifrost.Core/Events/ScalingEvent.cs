@@ -14,17 +14,17 @@ public enum ScalingAction
     /// <summary>
     /// No scaling action was taken.
     /// </summary>
-    None,
+    None = 0,
 
     /// <summary>
     /// Workers were scaled up (increased).
     /// </summary>
-    ScaleUp,
+    ScaleUp = 1,
 
     /// <summary>
     /// Workers were scaled down (decreased).
     /// </summary>
-    ScaleDown
+    ScaleDown = 2,
 }
 
 /// <summary>

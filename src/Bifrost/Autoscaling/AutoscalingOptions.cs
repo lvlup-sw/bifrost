@@ -32,7 +32,7 @@ public class AutoscalingOptions
     /// orchestrator without tracking metrics or managing dynamic workers.
     /// This reduces overhead when autoscaling is not needed.
     /// </remarks>
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; init; } = true;
 
     /// <summary>
     /// Gets or sets the minimum number of workers to maintain.
@@ -43,7 +43,7 @@ public class AutoscalingOptions
     /// ensuring at least one worker is always available to process work.
     /// </remarks>
     [Range(1, 100)]
-    public int MinWorkers { get; set; } = 1;
+    public int MinWorkers { get; init; } = 1;
 
     /// <summary>
     /// Gets or sets the maximum number of workers allowed.
@@ -54,7 +54,7 @@ public class AutoscalingOptions
     /// providing an upper bound on resource consumption.
     /// </remarks>
     [Range(1, 100)]
-    public int MaxWorkers { get; set; } = 16;
+    public int MaxWorkers { get; init; } = 16;
 
     /// <summary>
     /// Gets or sets the high watermark threshold for scaling up.
@@ -65,7 +65,7 @@ public class AutoscalingOptions
     /// add workers to handle the increased load.
     /// </remarks>
     [Range(0.0, 1.0)]
-    public double HighWatermark { get; set; } = 0.8;
+    public double HighWatermark { get; init; } = 0.8;
 
     /// <summary>
     /// Gets or sets the low watermark threshold for scaling down.
@@ -76,7 +76,7 @@ public class AutoscalingOptions
     /// remove workers to reduce resource consumption.
     /// </remarks>
     [Range(0.0, 1.0)]
-    public double LowWatermark { get; set; } = 0.3;
+    public double LowWatermark { get; init; } = 0.3;
 
     /// <summary>
     /// Gets or sets the cooldown period between scaling decisions.
@@ -86,7 +86,7 @@ public class AutoscalingOptions
     /// After a scaling action, the autoscaler will wait for this duration
     /// before making another decision, preventing oscillation.
     /// </remarks>
-    public TimeSpan CooldownPeriod { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan CooldownPeriod { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
     /// Gets or sets the number of workers to add during scale up.
@@ -97,7 +97,7 @@ public class AutoscalingOptions
     /// A smaller step provides more gradual scaling at the cost of responsiveness.
     /// </remarks>
     [Range(1, 10)]
-    public int ScaleUpStep { get; set; } = 2;
+    public int ScaleUpStep { get; init; } = 2;
 
     /// <summary>
     /// Gets or sets the number of workers to remove during scale down.
@@ -108,7 +108,7 @@ public class AutoscalingOptions
     /// removing workers that may be needed again shortly.
     /// </remarks>
     [Range(1, 10)]
-    public int ScaleDownStep { get; set; } = 1;
+    public int ScaleDownStep { get; init; } = 1;
 
     /// <summary>
     /// Gets or sets the interval between scaling evaluations.
@@ -119,5 +119,5 @@ public class AutoscalingOptions
     /// and makes scaling decisions based on the configured watermarks.
     /// A shorter interval provides more responsive scaling but increases CPU usage.
     /// </remarks>
-    public TimeSpan CheckInterval { get; set; } = TimeSpan.FromSeconds(5);
+    public TimeSpan CheckInterval { get; init; } = TimeSpan.FromSeconds(5);
 }
