@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-03-14
+
+### Fixed
+
+- **Resilience:** Removed `InvalidOperationException` from transient exception list — it caused business logic errors (e.g. "Queue is full") to be retried by resilience policies
+- **Resilience:** Changed decorator order from 50 to 25 to avoid collision with event stream decorator, enabling both features to be composed together
+- **Metrics:** Removed dead `PendingWorkCount`, `CalculateUtilizationRatio`, `RecordDequeue` from `IWorkerMetrics` — never called in production, utilization is tracked via `AutoscalingCoordinator` which reads the channel directly
+- **Events:** `WorkCompletedEvent<TWork>` now implements `ICorrelatedEvent` with optional `CorrelationId`, matching `WorkEnqueuedEvent` and `WorkDeadLetteredEvent`
+- **DLQ:** Removed dead no-op `await` in `DeadLetterQueue.ReadAllAsync`
+- **Autoscaling:** Remediated 31 findings across autoscaling, DLQ, and event stream subsystems (PR #12)
+- **Docs:** Documented placeholder metrics (`QueuedCount`, `QueuedEventCount`, `ActiveSubscriberCount`) as stubs in port interface docs
+
 ## [0.3.0] - 2026-03-02
 
 ### Added
@@ -80,7 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed from `Levelup.Channels` to `Bifrost` per naming convention decision
 - Restructured repository to follow lvlup-sw conventions (src/ layout)
 
-[Unreleased]: https://github.com/lvlup-sw/bifrost/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/lvlup-sw/bifrost/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/lvlup-sw/bifrost/compare/v0.3.0...v0.3.5
 [0.3.0]: https://github.com/lvlup-sw/bifrost/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/lvlup-sw/bifrost/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/lvlup-sw/bifrost/releases/tag/v0.1.0
