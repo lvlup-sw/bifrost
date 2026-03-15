@@ -175,6 +175,175 @@ public class HandlerExtensionsTests
         await Assert.That(result).IsEqualTo(builder);
     }
 
+    // =========================================================================
+    // Factory overload tests (Task 6)
+    // =========================================================================
+
+    /// <summary>
+    /// Verifies that WithHandler factory overload registers a handler created by the factory.
+    /// </summary>
+    [Test]
+    public async Task WithHandler_Factory_RegistersFromFactory()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
+        var factoryHandler = new TestHandler();
+
+        // Act
+        builder.WithHandler<string>(sp => factoryHandler);
+        builder.Build();
+        var provider = services.BuildServiceProvider();
+        var resolved = provider.GetService<IWorkHandler<string>>();
+
+        // Assert
+        await Assert.That(resolved).IsNotNull();
+        await Assert.That(resolved).IsSameReferenceAs(factoryHandler);
+
+        // Cleanup
+        var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that WithHandler factory overload respects the specified lifetime.
+    /// </summary>
+    [Test]
+    public async Task WithHandler_Factory_RespectsLifetime()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
+
+        // Act
+        builder.WithHandler<string>(sp => new TestHandler(), ServiceLifetime.Transient);
+
+        // Assert
+        var descriptor = services.FirstOrDefault(d =>
+            d.ServiceType == typeof(IWorkHandler<string>));
+        await Assert.That(descriptor).IsNotNull();
+        await Assert.That(descriptor!.Lifetime).IsEqualTo(ServiceLifetime.Transient);
+    }
+
+    /// <summary>
+    /// Verifies that WithHandler factory overload throws when factory is null.
+    /// </summary>
+    [Test]
+    public async Task WithHandler_Factory_NullFactory_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var builder = services.AddWorkOrchestrator<string>();
+
+        // Act & Assert
+        await Assert.That(() =>
+                builder.WithHandler<string>(
+                    (Func<IServiceProvider, IWorkHandler<string>>)null!))
+            .Throws<ArgumentNullException>();
+    }
+
+    // =========================================================================
+    // Delegate overload tests (Task 6)
+    // =========================================================================
+
+    /// <summary>
+    /// Verifies that WithHandler delegate overload registers an InlineDelegateWorkHandler.
+    /// </summary>
+    [Test]
+    public async Task WithHandler_Delegate_RegistersInlineDelegateHandler()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
+
+        // Act
+        builder.WithHandler<string>((work, ct) => ValueTask.CompletedTask);
+        builder.Build();
+        var provider = services.BuildServiceProvider();
+        var handler = provider.GetService<IWorkHandler<string>>();
+
+        // Assert
+        await Assert.That(handler).IsNotNull();
+        await Assert.That(handler!.GetType().Name).Contains("InlineDelegateWorkHandler");
+
+        // Cleanup
+        var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that WithHandler delegate overload actually invokes the delegate on processing.
+    /// </summary>
+    [Test]
+    public async Task WithHandler_Delegate_HandlerInvokesDelegateOnProcess()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
+
+        var invoked = false;
+        builder.WithHandler<string>((work, ct) =>
+        {
+            invoked = true;
+            return ValueTask.CompletedTask;
+        });
+        builder.Build();
+        var provider = services.BuildServiceProvider();
+        var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
+
+        // Act
+        await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
+        await Task.Delay(200).ConfigureAwait(false); // Allow processing
+
+        // Assert
+        await Assert.That(invoked).IsTrue();
+
+        // Cleanup
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that WithHandler delegate overload throws when delegate is null.
+    /// </summary>
+    [Test]
+    public async Task WithHandler_Delegate_NullDelegate_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var builder = services.AddWorkOrchestrator<string>();
+
+        // Act & Assert
+        await Assert.That(() =>
+                builder.WithHandler<string>(
+                    (Func<string, CancellationToken, ValueTask>)null!))
+            .Throws<ArgumentNullException>();
+    }
+
+    /// <summary>
+    /// Verifies that WithHandler delegate overload registers as Singleton by default.
+    /// </summary>
+    [Test]
+    public async Task WithHandler_Delegate_RegistersAsSingleton()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
+
+        // Act
+        builder.WithHandler<string>((work, ct) => ValueTask.CompletedTask);
+
+        // Assert
+        var descriptor = services.FirstOrDefault(d =>
+            d.ServiceType == typeof(IWorkHandler<string>));
+        await Assert.That(descriptor).IsNotNull();
+        await Assert.That(descriptor!.Lifetime).IsEqualTo(ServiceLifetime.Singleton);
+    }
+
     /// <summary>
     /// A simple test handler for string work items.
     /// </summary>

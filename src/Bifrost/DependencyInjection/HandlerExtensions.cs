@@ -7,6 +7,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Bifrost.Core;
+using Bifrost.Handlers;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -56,6 +57,71 @@ public static class HandlerExtensions
 
         builder.HandlerRegistered = true;
         builder.HandlerLifetime = lifetime;
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers a work handler using a factory function with the specified service lifetime.
+    /// </summary>
+    /// <typeparam name="TWork">The type of work item to process.</typeparam>
+    /// <param name="builder">The builder to configure.</param>
+    /// <param name="factory">Factory function that creates the handler from the service provider.</param>
+    /// <param name="lifetime">
+    /// The service lifetime for the handler registration. Default is <see cref="ServiceLifetime.Singleton"/>.
+    /// </param>
+    /// <returns>The builder for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder"/> or <paramref name="factory"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when a handler has already been registered.</exception>
+    public static WorkOrchestratorBuilder<TWork> WithHandler<TWork>(
+        this WorkOrchestratorBuilder<TWork> builder,
+        Func<IServiceProvider, IWorkHandler<TWork>> factory,
+        ServiceLifetime lifetime = ServiceLifetime.Singleton)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(factory);
+        ValidateHandlerNotRegistered(builder);
+
+        builder.Services.Add(new ServiceDescriptor(
+            typeof(IWorkHandler<TWork>),
+            sp => factory(sp),
+            lifetime));
+
+        builder.HandlerRegistered = true;
+        builder.HandlerLifetime = lifetime;
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers a work handler from an inline delegate, wrapped in an <see cref="InlineDelegateWorkHandler{TWork}"/>.
+    /// </summary>
+    /// <typeparam name="TWork">The type of work item to process.</typeparam>
+    /// <param name="builder">The builder to configure.</param>
+    /// <param name="handler">The delegate invoked for each work item.</param>
+    /// <returns>The builder for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder"/> or <paramref name="handler"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when a handler has already been registered.</exception>
+    /// <remarks>
+    /// <para>
+    /// The delegate is wrapped in a singleton <see cref="InlineDelegateWorkHandler{TWork}"/>.
+    /// For scoped or transient lifetimes, use the factory overload or type-based overload instead.
+    /// </para>
+    /// </remarks>
+    public static WorkOrchestratorBuilder<TWork> WithHandler<TWork>(
+        this WorkOrchestratorBuilder<TWork> builder,
+        Func<TWork, CancellationToken, ValueTask> handler)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(handler);
+        ValidateHandlerNotRegistered(builder);
+
+        var wrappedHandler = new InlineDelegateWorkHandler<TWork>(handler);
+
+        builder.Services.AddSingleton<IWorkHandler<TWork>>(wrappedHandler);
+
+        builder.HandlerRegistered = true;
+        builder.HandlerLifetime = ServiceLifetime.Singleton;
 
         return builder;
     }
