@@ -10,6 +10,9 @@ using Bifrost.Autoscaling;
 using Bifrost.Core;
 using Bifrost.Decorators;
 
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+
 using NSubstitute;
 
 using TUnit.Core;
@@ -23,6 +26,7 @@ namespace Bifrost.Tests.Decorators;
 public class AutoscalingOrchestratorTests
 {
     private IWorkOrchestrator<string> _inner = null!;
+    private IWorkerRegistry _registry = null!;
     private IWorkerMetrics _metrics = null!;
 
     /// <summary>
@@ -32,6 +36,7 @@ public class AutoscalingOrchestratorTests
     public Task Setup()
     {
         _inner = Substitute.For<IWorkOrchestrator<string>>();
+        _registry = Substitute.For<IWorkerRegistry>();
         _metrics = Substitute.For<IWorkerMetrics>();
 
         // Setup default property values
@@ -39,8 +44,21 @@ public class AutoscalingOrchestratorTests
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
         _inner.Writer.Returns(Channel.CreateUnbounded<string>().Writer);
+        _registry.ActiveWorkerCount.Returns(0);
+        _registry.IdleWorkerCount.Returns(0);
 
         return Task.CompletedTask;
+    }
+
+    private AutoscalingOrchestrator<string> CreateOrchestrator(
+        AutoscalingOptions? options = null)
+    {
+        return new AutoscalingOrchestrator<string>(
+            _inner,
+            _registry,
+            _metrics,
+            Options.Create(options ?? new AutoscalingOptions()),
+            NullLogger<AutoscalingOrchestrator<string>>.Instance);
     }
 
     /// <summary>
@@ -50,7 +68,7 @@ public class AutoscalingOrchestratorTests
     public async Task EnqueueAsync_TracksMetrics()
     {
         // Arrange
-        var orchestrator = new AutoscalingOrchestrator<string>(_inner, _metrics);
+        var orchestrator = CreateOrchestrator();
         _inner.EnqueueAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
 
         // Act
@@ -68,7 +86,7 @@ public class AutoscalingOrchestratorTests
     public async Task TryEnqueue_Success_TracksMetrics()
     {
         // Arrange
-        var orchestrator = new AutoscalingOrchestrator<string>(_inner, _metrics);
+        var orchestrator = CreateOrchestrator();
         _inner.TryEnqueue("work").Returns(true);
 
         // Act
@@ -86,7 +104,7 @@ public class AutoscalingOrchestratorTests
     public async Task TryEnqueue_Failure_DoesNotTrackMetrics()
     {
         // Arrange
-        var orchestrator = new AutoscalingOrchestrator<string>(_inner, _metrics);
+        var orchestrator = CreateOrchestrator();
         _inner.TryEnqueue("work").Returns(false);
 
         // Act
@@ -105,7 +123,7 @@ public class AutoscalingOrchestratorTests
     {
         // Arrange
         _inner.PendingCount.Returns(42);
-        var orchestrator = new AutoscalingOrchestrator<string>(_inner, _metrics);
+        var orchestrator = CreateOrchestrator();
 
         // Act
         var result = orchestrator.PendingCount;
@@ -122,7 +140,7 @@ public class AutoscalingOrchestratorTests
     {
         // Arrange
         _inner.ActiveWorkers.Returns(8);
-        var orchestrator = new AutoscalingOrchestrator<string>(_inner, _metrics);
+        var orchestrator = CreateOrchestrator();
 
         // Act
         var result = orchestrator.ActiveWorkers;
@@ -139,7 +157,7 @@ public class AutoscalingOrchestratorTests
     {
         // Arrange
         _inner.Capacity.Returns(256);
-        var orchestrator = new AutoscalingOrchestrator<string>(_inner, _metrics);
+        var orchestrator = CreateOrchestrator();
 
         // Act
         var result = orchestrator.Capacity;
@@ -157,7 +175,7 @@ public class AutoscalingOrchestratorTests
         // Arrange
         var expectedWriter = Channel.CreateUnbounded<string>().Writer;
         _inner.Writer.Returns(expectedWriter);
-        var orchestrator = new AutoscalingOrchestrator<string>(_inner, _metrics);
+        var orchestrator = CreateOrchestrator();
 
         // Act
         var result = orchestrator.Writer;
@@ -173,7 +191,7 @@ public class AutoscalingOrchestratorTests
     public async Task StopAsync_DelegatesToInner()
     {
         // Arrange
-        var orchestrator = new AutoscalingOrchestrator<string>(_inner, _metrics);
+        var orchestrator = CreateOrchestrator();
         _inner.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
         // Act
@@ -190,7 +208,7 @@ public class AutoscalingOrchestratorTests
     public async Task DisposeAsync_DelegatesToInner()
     {
         // Arrange
-        var orchestrator = new AutoscalingOrchestrator<string>(_inner, _metrics);
+        var orchestrator = CreateOrchestrator();
         _inner.DisposeAsync().Returns(ValueTask.CompletedTask);
 
         // Act
@@ -207,7 +225,10 @@ public class AutoscalingOrchestratorTests
     public async Task Constructor_NullInner_Throws()
     {
         // Act & Assert
-        await Assert.That(() => new AutoscalingOrchestrator<string>(null!, _metrics))
+        await Assert.That(() => new AutoscalingOrchestrator<string>(
+                null!, _registry, _metrics,
+                Options.Create(new AutoscalingOptions()),
+                NullLogger<AutoscalingOrchestrator<string>>.Instance))
             .Throws<ArgumentNullException>();
     }
 
@@ -218,7 +239,10 @@ public class AutoscalingOrchestratorTests
     public async Task Constructor_NullMetrics_Throws()
     {
         // Act & Assert
-        await Assert.That(() => new AutoscalingOrchestrator<string>(_inner, null!))
+        await Assert.That(() => new AutoscalingOrchestrator<string>(
+                _inner, _registry, null!,
+                Options.Create(new AutoscalingOptions()),
+                NullLogger<AutoscalingOrchestrator<string>>.Instance))
             .Throws<ArgumentNullException>();
     }
 
@@ -229,7 +253,7 @@ public class AutoscalingOrchestratorTests
     public async Task AutoscalingOrchestrator_ImplementsIWorkOrchestrator()
     {
         // Arrange
-        var orchestrator = new AutoscalingOrchestrator<string>(_inner, _metrics);
+        var orchestrator = CreateOrchestrator();
 
         // Assert
         await Assert.That(orchestrator).IsAssignableTo<IWorkOrchestrator<string>>();

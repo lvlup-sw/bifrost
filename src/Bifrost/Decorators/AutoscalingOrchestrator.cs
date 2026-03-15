@@ -10,6 +10,7 @@ using Bifrost.Autoscaling;
 using Bifrost.Core;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Bifrost.Decorators;
 
@@ -45,14 +46,14 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <param name="inner">The inner orchestrator to wrap.</param>
     /// <param name="registry">The worker registry for dynamic scaling.</param>
     /// <param name="metrics">The metrics tracker for autoscaling.</param>
-    /// <param name="options">The autoscaling configuration options.</param>
+    /// <param name="options">The autoscaling configuration options wrapped in <see cref="IOptions{TOptions}"/>.</param>
     /// <param name="logger">The logger for diagnostic output.</param>
     /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public AutoscalingOrchestrator(
         IWorkOrchestrator<TWork> inner,
         IWorkerRegistry registry,
         IWorkerMetrics metrics,
-        AutoscalingOptions options,
+        IOptions<AutoscalingOptions> options,
         ILogger<AutoscalingOrchestrator<TWork>> logger)
     {
         ArgumentNullException.ThrowIfNull(inner);
@@ -64,33 +65,13 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
         _inner = inner;
         _registry = registry;
         _metrics = metrics;
-        _options = options;
+        _options = options.Value;
         _logger = logger;
 
         if (!_options.Enabled)
         {
             _logger.LogWarning("Autoscaling is disabled - decorator will pass through without metrics overhead");
         }
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AutoscalingOrchestrator{TWork}"/> class.
-    /// </summary>
-    /// <param name="inner">The inner orchestrator to wrap.</param>
-    /// <param name="metrics">The metrics tracker for autoscaling.</param>
-    /// <remarks>
-    /// This constructor is provided for backward compatibility. When using this constructor,
-    /// dynamic scaling features are not available but metrics tracking is enabled.
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when inner or metrics is null.</exception>
-    public AutoscalingOrchestrator(IWorkOrchestrator<TWork> inner, IWorkerMetrics metrics)
-        : this(
-            inner,
-            new WorkerRegistry(),
-            metrics,
-            new AutoscalingOptions(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<AutoscalingOrchestrator<TWork>>.Instance)
-    {
     }
 
     /// <inheritdoc/>
@@ -138,9 +119,15 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <remarks>
-    /// Creates state-aware workers that report their busy/idle status via callbacks.
+    /// <para>
+    /// Creates workers using the inner orchestrator's <see cref="IWorkOrchestrator{TWork}.CreateWorkerFunction(Action{bool}?)"/>
+    /// which captures the real channel reader in its closure. A state callback is provided
+    /// to track busy/idle status and record metrics.
+    /// </para>
+    /// <para>
     /// Workers are registered with the <see cref="IWorkerRegistry"/> and will be
     /// included in the <see cref="ActiveWorkers"/> count.
+    /// </para>
     /// </remarks>
     public async Task RequestScaleUpAsync(int count, CancellationToken cancellationToken = default)
     {
@@ -153,48 +140,31 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
         {
             var workerId = $"AutoScale-{Guid.NewGuid():N}";
 
-            // Create worker function that reports busy/idle state
-            async Task WorkerFunction(string id, CancellationToken ct)
+            // Create a state callback that marks busy/idle and records metrics
+            void StateCallback(bool isBusy)
             {
-                var workerInfo = _registry.GetWorkerInfo(id);
+                var workerInfo = _registry.GetWorkerInfo(workerId);
                 if (workerInfo == null)
                 {
                     return;
                 }
 
-                workerInfo.MarkIdle();
-
-                try
+                if (isBusy)
                 {
-                    await foreach (var work in _inner.Writer.AsChannelReader().ReadAllAsync(ct).ConfigureAwait(false))
-                    {
-                        workerInfo.MarkBusy();
-                        _metrics.RecordExecutionStart();
-
-                        try
-                        {
-                            // Work is processed by the inner orchestrator's handler
-                            // We just need to manage the state here
-                        }
-                        finally
-                        {
-                            _metrics.RecordExecutionEnd();
-                            workerInfo.MarkIdle();
-                        }
-
-                        if (workerInfo.StopRequested)
-                        {
-                            break;
-                        }
-                    }
+                    workerInfo.MarkBusy();
+                    _metrics.RecordExecutionStart();
                 }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                else
                 {
-                    // Expected during shutdown
+                    _metrics.RecordExecutionEnd();
+                    workerInfo.MarkIdle();
                 }
             }
 
-            await _registry.CreateWorkerAsync(workerId, WorkerFunction, cancellationToken).ConfigureAwait(false);
+            // Get a worker function from the inner orchestrator, which captures the real channel reader
+            var workerFunc = _inner.CreateWorkerFunction(StateCallback);
+
+            await _registry.CreateWorkerAsync(workerId, workerFunc, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -228,14 +198,19 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public void Run(TWork work)
     {
         _inner.Run(work);
-        _metrics.RecordEnqueue();
+
+        if (_options.Enabled)
+        {
+            _metrics.RecordEnqueue();
+        }
     }
 
     /// <inheritdoc/>
     public bool TryRun(TWork work)
     {
         var result = _inner.TryRun(work);
-        if (result)
+
+        if (result && _options.Enabled)
         {
             _metrics.RecordEnqueue();
         }
@@ -265,25 +240,5 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public ValueTask DisposeAsync()
     {
         return _inner.DisposeAsync();
-    }
-}
-
-/// <summary>
-/// Extension methods for ChannelWriter to support reading.
-/// </summary>
-internal static class ChannelWriterExtensions
-{
-    /// <summary>
-    /// This is a placeholder that would require the actual channel reader.
-    /// In production, the worker would need access to the channel reader directly.
-    /// </summary>
-    /// <typeparam name="T">The type of items in the channel.</typeparam>
-    /// <param name="writer">The channel writer.</param>
-    /// <returns>A channel reader.</returns>
-    public static ChannelReader<T> AsChannelReader<T>(this ChannelWriter<T> writer)
-    {
-        // This is a design limitation - in practice, workers need the reader
-        // For now, return an empty channel reader
-        return Channel.CreateUnbounded<T>().Reader;
     }
 }

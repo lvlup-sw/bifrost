@@ -71,12 +71,18 @@ public static class AutoscalingExtensions
         builder.Services.TryAddSingleton<IWorkerMetrics, WorkerMetrics>();
         builder.Services.TryAddSingleton<AutoscalingEngine>();
 
+        // Register worker registry
+        builder.Services.TryAddSingleton<IWorkerRegistry, WorkerRegistry>();
+
         // Add the autoscaling decorator
         builder.Decorators.Add(new DecoratorRegistration<TWork>(
             AutoscalingDecoratorOrder,
             (sp, inner) => new AutoscalingOrchestrator<TWork>(
                 inner,
-                sp.GetRequiredService<IWorkerMetrics>())));
+                sp.GetRequiredService<IWorkerRegistry>(),
+                sp.GetRequiredService<IWorkerMetrics>(),
+                sp.GetRequiredService<IOptions<AutoscalingOptions>>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AutoscalingOrchestrator<TWork>>>())));
 
         return builder;
     }

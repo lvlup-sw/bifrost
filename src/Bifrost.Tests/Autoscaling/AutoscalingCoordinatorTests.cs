@@ -22,6 +22,7 @@ namespace Bifrost.Tests.Autoscaling;
 public class AutoscalingCoordinatorTests
 {
     private IWorkOrchestrator<string> _mockOrchestrator = null!;
+    private IWorkerRegistry _mockRegistry = null!;
 
     /// <summary>
     /// Sets up test dependencies.
@@ -30,8 +31,11 @@ public class AutoscalingCoordinatorTests
     public Task Setup()
     {
         _mockOrchestrator = Substitute.For<IWorkOrchestrator<string>>();
+        _mockRegistry = Substitute.For<IWorkerRegistry>();
         return Task.CompletedTask;
     }
+
+    #region Constructor Tests
 
     /// <summary>
     /// Verifies that constructor throws when orchestrator is null.
@@ -40,9 +44,24 @@ public class AutoscalingCoordinatorTests
     public async Task Constructor_NullOrchestrator_ThrowsArgumentNullException()
     {
         // Act & Assert
-        await Assert.That(() => new AutoscalingCoordinator<string>(null!))
+        await Assert.That(() => new AutoscalingCoordinator<string>(null!, _mockRegistry))
             .Throws<ArgumentNullException>();
     }
+
+    /// <summary>
+    /// Verifies that constructor throws when registry is null.
+    /// </summary>
+    [Test]
+    public async Task Constructor_NullRegistry_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        await Assert.That(() => new AutoscalingCoordinator<string>(_mockOrchestrator, null!))
+            .Throws<ArgumentNullException>();
+    }
+
+    #endregion
+
+    #region IAutoscalingMetricsPort Tests
 
     /// <summary>
     /// Verifies that MaxBacklog delegates to orchestrator Capacity.
@@ -52,7 +71,7 @@ public class AutoscalingCoordinatorTests
     {
         // Arrange
         _mockOrchestrator.Capacity.Returns(100);
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
         // Act
         var result = coordinator.MaxBacklog;
@@ -69,7 +88,7 @@ public class AutoscalingCoordinatorTests
     {
         // Arrange
         _mockOrchestrator.PendingCount.Returns(42);
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
         // Act
         var result = coordinator.PendingWorkCount;
@@ -86,7 +105,7 @@ public class AutoscalingCoordinatorTests
     {
         // Arrange
         _mockOrchestrator.ActiveWorkers.Returns(5);
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
         // Act
         var result = coordinator.ActiveWorkerCount;
@@ -104,7 +123,7 @@ public class AutoscalingCoordinatorTests
         // Arrange
         _mockOrchestrator.PendingCount.Returns(50);
         _mockOrchestrator.Capacity.Returns(100);
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
         // Act
         var result = coordinator.GetUtilizationRatio();
@@ -122,7 +141,7 @@ public class AutoscalingCoordinatorTests
         // Arrange
         _mockOrchestrator.PendingCount.Returns(50);
         _mockOrchestrator.Capacity.Returns(0);
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
         // Act
         var result = coordinator.GetUtilizationRatio();
@@ -140,7 +159,7 @@ public class AutoscalingCoordinatorTests
         // Arrange
         _mockOrchestrator.PendingCount.Returns(100);
         _mockOrchestrator.Capacity.Returns(100);
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
         // Act
         var result = coordinator.GetUtilizationRatio();
@@ -155,10 +174,10 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task GetUtilizationRatio_OverCapacity_ReturnsGreaterThanOne()
     {
-        // Arrange (edge case - channel may report more than capacity temporarily)
+        // Arrange
         _mockOrchestrator.PendingCount.Returns(150);
         _mockOrchestrator.Capacity.Returns(100);
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
         // Act
         var result = coordinator.GetUtilizationRatio();
@@ -174,14 +193,18 @@ public class AutoscalingCoordinatorTests
     public async Task QueuedCount_ReturnsExpectedValue()
     {
         // Arrange
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
         // Act
         var result = coordinator.QueuedCount;
 
-        // Assert - Placeholder returns 0 until event stream integration
+        // Assert
         await Assert.That(result).IsEqualTo(0L);
     }
+
+    #endregion
+
+    #region Interface Tests
 
     /// <summary>
     /// Verifies that IAutoscalingCoordinator implements all three port interfaces.
@@ -211,116 +234,184 @@ public class AutoscalingCoordinatorTests
         await Assert.That(typeof(IAutoscalingCoordinator).IsAssignableFrom(type)).IsTrue();
     }
 
+    #endregion
+
+    #region IAutoscalingControlPort Tests (7a-7b)
+
     /// <summary>
-    /// Verifies that RequestScaleUpAsync throws NotImplementedException (Phase 9 stub).
+    /// Verifies that CreateWorkerFunction delegates to the inner orchestrator.
     /// </summary>
     [Test]
-    public async Task RequestScaleUpAsync_ThrowsNotImplementedException()
+    public async Task CreateWorkerFunction_DelegatesToInnerOrchestrator()
     {
         // Arrange
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        Func<string, CancellationToken, Task> expectedFunc = (_, _) => Task.CompletedTask;
+        _mockOrchestrator.CreateWorkerFunction().Returns(expectedFunc);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act & Assert
-        await Assert.That(() => coordinator.RequestScaleUpAsync(1, CancellationToken.None))
-            .Throws<NotImplementedException>();
+        // Act
+        var result = coordinator.CreateWorkerFunction();
+
+        // Assert
+        await Assert.That(result).IsEqualTo(expectedFunc);
+        _mockOrchestrator.Received(1).CreateWorkerFunction();
     }
 
     /// <summary>
-    /// Verifies that RequestScaleDownAsync throws NotImplementedException (Phase 9 stub).
+    /// Verifies that CreateWorkerFunction with callback delegates to the inner orchestrator.
     /// </summary>
     [Test]
-    public async Task RequestScaleDownAsync_ThrowsNotImplementedException()
+    public async Task CreateWorkerFunction_WithCallback_DelegatesToInnerOrchestrator()
     {
         // Arrange
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        Action<bool> callback = _ => { };
+        Func<string, CancellationToken, Task> expectedFunc = (_, _) => Task.CompletedTask;
+        _mockOrchestrator.CreateWorkerFunction(callback).Returns(expectedFunc);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act & Assert
-        await Assert.That(() => coordinator.RequestScaleDownAsync(1, CancellationToken.None))
-            .Throws<NotImplementedException>();
+        // Act
+        var result = coordinator.CreateWorkerFunction(callback);
+
+        // Assert
+        await Assert.That(result).IsEqualTo(expectedFunc);
+        _mockOrchestrator.Received(1).CreateWorkerFunction(callback);
+    }
+
+    #endregion
+
+    #region IAutoscalingControlPort Tests (7c-7d)
+
+    /// <summary>
+    /// Verifies that RequestScaleUpAsync creates workers via registry.
+    /// </summary>
+    [Test]
+    public async Task RequestScaleUpAsync_CreatesWorkersViaRegistry()
+    {
+        // Arrange
+        Func<string, CancellationToken, Task> workerFunc = (_, _) => Task.CompletedTask;
+        _mockOrchestrator.CreateWorkerFunction().Returns(workerFunc);
+        _mockRegistry.CreateWorkerAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<string, CancellationToken, Task>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new WorkerInfo("test")));
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
+
+        // Act
+        await coordinator.RequestScaleUpAsync(3, CancellationToken.None).ConfigureAwait(false);
+
+        // Assert - 3 workers should be created via registry
+        await _mockRegistry.Received(3).CreateWorkerAsync(
+            Arg.Any<string>(),
+            Arg.Any<Func<string, CancellationToken, Task>>(),
+            Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Verifies that CreateWorkerFunction throws NotImplementedException (Phase 9 stub).
+    /// Verifies that RequestScaleDownAsync stops workers via registry.
     /// </summary>
     [Test]
-    public async Task CreateWorkerFunction_ThrowsNotImplementedException()
+    public async Task RequestScaleDownAsync_StopsWorkersViaRegistry()
     {
         // Arrange
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        _mockRegistry.RequestMultipleWorkerStop(3).Returns(3);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act & Assert
-        await Assert.That(() => coordinator.CreateWorkerFunction())
-            .Throws<NotImplementedException>();
+        // Act
+        await coordinator.RequestScaleDownAsync(3, CancellationToken.None).ConfigureAwait(false);
+
+        // Assert
+        _mockRegistry.Received(1).RequestMultipleWorkerStop(3);
     }
 
     /// <summary>
-    /// Verifies that CreateWorkerFunction with callback throws NotImplementedException (Phase 9 stub).
+    /// Verifies that GetShutdownToken delegates to orchestrator.
     /// </summary>
     [Test]
-    public async Task CreateWorkerFunctionWithCallback_ThrowsNotImplementedException()
+    public async Task GetShutdownToken_DelegatesToOrchestrator()
     {
         // Arrange
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        using var cts = new CancellationTokenSource();
+        _mockOrchestrator.GetShutdownToken().Returns(cts.Token);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act & Assert
-        await Assert.That(() => coordinator.CreateWorkerFunction(_ => { }))
-            .Throws<NotImplementedException>();
+        // Act
+        var result = coordinator.GetShutdownToken();
+
+        // Assert
+        await Assert.That(result).IsEqualTo(cts.Token);
+        _mockOrchestrator.Received(1).GetShutdownToken();
     }
 
-    /// <summary>
-    /// Verifies that GetShutdownToken throws NotImplementedException (Phase 9 stub).
-    /// </summary>
-    [Test]
-    public async Task GetShutdownToken_ThrowsNotImplementedException()
-    {
-        // Arrange
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+    #endregion
 
-        // Act & Assert
-        await Assert.That(() => coordinator.GetShutdownToken())
-            .Throws<NotImplementedException>();
-    }
+    #region IAutoscalingEventsPort Tests (7e-7f)
 
     /// <summary>
-    /// Verifies that PublishEvent throws NotImplementedException (Phase 9 stub).
+    /// Verifies that PublishEvent with event stream callback delegates to it.
     /// </summary>
     [Test]
-    public async Task PublishEvent_ThrowsNotImplementedException()
+    public async Task PublishEvent_WithEventStream_DelegatesToEventStream()
     {
         // Arrange
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        IOrchestratorEvent? capturedEvent = null;
+        Action<IOrchestratorEvent> publishCallback = evt => capturedEvent = evt;
+        var coordinator = new AutoscalingCoordinator<string>(
+            _mockOrchestrator, _mockRegistry, publishCallback);
         var mockEvent = Substitute.For<IOrchestratorEvent>();
 
-        // Act & Assert
-        await Assert.That(() => coordinator.PublishEvent(mockEvent))
-            .Throws<NotImplementedException>();
+        // Act
+        coordinator.PublishEvent(mockEvent);
+
+        // Assert
+        await Assert.That(capturedEvent).IsEqualTo(mockEvent);
     }
 
     /// <summary>
-    /// Verifies that QueuedEventCount throws NotImplementedException (Phase 9 stub).
+    /// Verifies that PublishEvent without event stream is a no-op.
     /// </summary>
     [Test]
-    public async Task QueuedEventCount_ThrowsNotImplementedException()
+    public async Task PublishEvent_WithoutEventStream_NoOp()
     {
         // Arrange
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
+        var mockEvent = Substitute.For<IOrchestratorEvent>();
 
-        // Act & Assert
-        await Assert.That(() => _ = coordinator.QueuedEventCount)
-            .Throws<NotImplementedException>();
+        // Act & Assert - should not throw
+        await Assert.That(() => coordinator.PublishEvent(mockEvent)).ThrowsNothing();
     }
 
     /// <summary>
-    /// Verifies that ActiveSubscriberCount throws NotImplementedException (Phase 9 stub).
+    /// Verifies that QueuedEventCount returns 0 when no event stream.
     /// </summary>
     [Test]
-    public async Task ActiveSubscriberCount_ThrowsNotImplementedException()
+    public async Task QueuedEventCount_ReturnsZeroWhenNoEventStream()
     {
         // Arrange
-        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator);
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act & Assert
-        await Assert.That(() => _ = coordinator.ActiveSubscriberCount)
-            .Throws<NotImplementedException>();
+        // Act
+        var result = coordinator.QueuedEventCount;
+
+        // Assert
+        await Assert.That(result).IsEqualTo(0L);
     }
+
+    /// <summary>
+    /// Verifies that ActiveSubscriberCount returns 0 when no event stream.
+    /// </summary>
+    [Test]
+    public async Task ActiveSubscriberCount_ReturnsZeroWhenNoEventStream()
+    {
+        // Arrange
+        var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
+
+        // Act
+        var result = coordinator.ActiveSubscriberCount;
+
+        // Assert
+        await Assert.That(result).IsEqualTo(0L);
+    }
+
+    #endregion
 }

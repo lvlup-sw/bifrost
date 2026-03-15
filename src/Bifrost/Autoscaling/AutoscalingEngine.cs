@@ -4,6 +4,8 @@
 // </copyright>
 // =============================================================================
 
+using System.Collections.Concurrent;
+
 using Bifrost.Core.Events;
 
 using Microsoft.Extensions.Logging;
@@ -41,6 +43,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     private readonly ILogger<AutoscalingEngine> _logger;
     private readonly Lock _scalingLock = new();
     private readonly Timer _evaluationTimer;
+    private readonly ConcurrentBag<Task> _pendingScalingTasks = new();
     private DateTimeOffset _lastScalingTime = DateTimeOffset.MinValue;
     private volatile bool _isRunning;
     private bool _disposed;
@@ -111,6 +114,17 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     public AutoscalingOptions Configuration => _options;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// This event is raised after each scaling evaluation, regardless of whether a scaling
+    /// action was taken. Subscribers receive the scaling decision and a correlation ID.
+    /// </para>
+    /// <para>
+    /// <strong>Important:</strong> Handler exceptions are caught and logged to prevent
+    /// a faulting subscriber from disrupting the scaling evaluation loop. Handlers should
+    /// avoid long-running operations to prevent blocking the evaluation timer.
+    /// </para>
+    /// </remarks>
     public event EventHandler<ScalingDecisionEventArgs>? ScalingDecisionMade;
 
     /// <inheritdoc/>
@@ -133,19 +147,20 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     }
 
     /// <inheritdoc/>
-    public Task StopAsync(CancellationToken cancellationToken = default)
+    public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         if (!_isRunning)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         _evaluationTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _isRunning = false;
 
-        _logger.LogInformation("Autoscaling engine stopped");
+        // Drain pending scaling tasks
+        await Task.WhenAll(_pendingScalingTasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
-        return Task.CompletedTask;
+        _logger.LogInformation("Autoscaling engine stopped");
     }
 
     /// <inheritdoc/>
@@ -273,10 +288,20 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
             // Raise the event
             OnScalingDecisionMade(new ScalingDecisionEventArgs(decision, correlationId));
 
-            // Execute the scaling action if needed (fire-and-forget, intentionally not awaited)
+            // Execute the scaling action if needed
             if (decision.Action != ScalingAction.None)
             {
-                _ = ExecuteScalingDecisionAsync(decision);
+                var task = ExecuteScalingDecisionAsync(decision);
+                _pendingScalingTasks.Add(task);
+                _ = task.ContinueWith(
+                    t =>
+                    {
+                        if (t.IsFaulted)
+                        {
+                            _logger.LogError(t.Exception, "Scaling decision execution faulted");
+                        }
+                    },
+                    TaskScheduler.Default);
             }
         }
         catch (Exception ex)

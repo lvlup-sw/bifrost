@@ -49,7 +49,10 @@ public class DecoratorOverheadBenchmarks
             NullLogger<WorkOrchestrator<int>>.Instance);
         _withAutoscaling = new AutoscalingOrchestrator<int>(
             baseForAutoscaling,
-            new WorkerMetrics());
+            new WorkerRegistry(),
+            new WorkerMetrics(),
+            Options.Create(new AutoscalingOptions()),
+            NullLogger<AutoscalingOrchestrator<int>>.Instance);
 
         var baseForEventStream = new WorkOrchestrator<int>(
             handler,
@@ -65,7 +68,10 @@ public class DecoratorOverheadBenchmarks
             NullLogger<WorkOrchestrator<int>>.Instance);
         var autoscalingLayer = new AutoscalingOrchestrator<int>(
             baseForFullStack,
-            new WorkerMetrics());
+            new WorkerRegistry(),
+            new WorkerMetrics(),
+            Options.Create(new AutoscalingOptions()),
+            NullLogger<AutoscalingOrchestrator<int>>.Instance);
         _fullStack = new EventStreamOrchestrator<int>(
             autoscalingLayer,
             NullLogger<EventStreamOrchestrator<int>>.Instance);
