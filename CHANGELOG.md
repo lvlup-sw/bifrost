@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-15
+
+### Added
+
+- **Handler Registration API:** `WithHandler<TWork, THandler>()` with type-based, factory, and delegate overloads for flexible handler registration
+- **Scoped Handler Support:** `ScopedHandlerProxy` for per-item DI scope isolation (EF Core DbContext, etc.)
+- **DLQ Extensibility:** `IDeadLetterSubscriber<TWork>`, `WithDeadLetterSubscriber()`, and multi-subscriber notifier for dead letter queue extensibility
+- **EventStream + DLQ Wiring:** Dead-lettered items automatically publish to the event stream
+- **DrainAsync:** Graceful drain support for zero-downtime deployments
+- **Handler Decorator Extensibility:** `WithHandlerDecorator()` for custom cross-cutting concerns
+
+### Improved
+
+- `DeadLetterNotifier` now logs subscriber errors instead of silently swallowing
+- `EventStreamOrchestrator` is drain-safe for late subscribers
+- Comprehensive XML documentation for resilience/DLQ interaction model
+
+### Stats
+
+- 38 files changed, 609 tests, 92.91% coverage
+
 ## [0.3.5] - 2026-03-14
 
 ### Fixed
@@ -92,7 +113,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed from `Levelup.Channels` to `Bifrost` per naming convention decision
 - Restructured repository to follow lvlup-sw conventions (src/ layout)
 
-[Unreleased]: https://github.com/lvlup-sw/bifrost/compare/v0.3.5...HEAD
+[Unreleased]: https://github.com/lvlup-sw/bifrost/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/lvlup-sw/bifrost/compare/v0.3.5...v0.4.0
 [0.3.5]: https://github.com/lvlup-sw/bifrost/compare/v0.3.0...v0.3.5
 [0.3.0]: https://github.com/lvlup-sw/bifrost/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/lvlup-sw/bifrost/compare/v0.1.0...v0.2.0
