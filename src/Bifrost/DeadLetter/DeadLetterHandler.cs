@@ -105,7 +105,15 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
             DateTimeOffset.UtcNow);
 
         _notifier.Notify(evt);
-        _eventPublishCallback?.Invoke(evt);
+
+        try
+        {
+            _eventPublishCallback?.Invoke(evt);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to publish dead-letter event for work type {WorkType}", typeof(TWork).Name);
+        }
 
         _logger.LogError(lastException, "Work item dead-lettered after {Attempts} attempts", attempts);
     }
