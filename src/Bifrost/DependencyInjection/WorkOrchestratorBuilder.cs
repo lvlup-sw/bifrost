@@ -5,6 +5,8 @@
 // =============================================================================
 
 using Bifrost.Core;
+using Bifrost.Core.Events;
+using Bifrost.Handlers;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -34,6 +36,30 @@ public sealed class WorkOrchestratorBuilder<TWork>
     /// </summary>
     /// <value>A list of handler decorator registrations with ordering support.</value>
     internal List<HandlerDecoratorRegistration<TWork>> HandlerDecorators { get; } = [];
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a handler has been registered via WithHandler.
+    /// </summary>
+    /// <value><c>true</c> if WithHandler was called; otherwise, <c>false</c>.</value>
+    internal bool HandlerRegistered { get; set; }
+
+    /// <summary>
+    /// Gets or sets the service lifetime of the registered handler, if any.
+    /// </summary>
+    /// <value>The service lifetime, or <c>null</c> if no handler was registered via WithHandler.</value>
+    internal ServiceLifetime? HandlerLifetime { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback for publishing events to the event stream.
+    /// </summary>
+    /// <value>An action that publishes an event, or <c>null</c> if no event stream is configured.</value>
+    internal Action<IOrchestratorEvent>? EventPublishCallback { get; set; }
+
+    /// <summary>
+    /// Gets the list of actions to execute after the orchestrator factory has been resolved.
+    /// </summary>
+    /// <value>A list of post-build actions that receive the service provider.</value>
+    internal List<Action<IServiceProvider>> PostBuildActions { get; } = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestratorBuilder{TWork}"/> class.
@@ -81,11 +107,27 @@ public sealed class WorkOrchestratorBuilder<TWork>
         // Sort handler decorators by order (innermost first)
         var orderedHandlerDecorators = HandlerDecorators.OrderBy(d => d.Order).ToList();
 
+        // Capture post-build actions for execution inside the factory
+        var postBuildActions = PostBuildActions.ToList();
+        var handlerLifetime = HandlerLifetime;
+
         Services.AddSingleton<IWorkOrchestrator<TWork>>(sp =>
         {
-            // Resolve handler from DI and apply handler decorators in order
-            IWorkHandler<TWork> handler = sp.GetRequiredService<IWorkHandler<TWork>>();
+            // Resolve handler: use ScopedHandlerProxy for scoped lifetime,
+            // otherwise resolve directly from DI (existing behavior)
+            IWorkHandler<TWork> handler;
 
+            if (handlerLifetime == ServiceLifetime.Scoped)
+            {
+                handler = new ScopedHandlerProxy<TWork>(
+                    sp.GetRequiredService<IServiceScopeFactory>());
+            }
+            else
+            {
+                handler = sp.GetRequiredService<IWorkHandler<TWork>>();
+            }
+
+            // Apply handler decorators in order
             foreach (var registration in orderedHandlerDecorators)
             {
                 handler = registration.Factory(sp, handler);
@@ -101,6 +143,12 @@ public sealed class WorkOrchestratorBuilder<TWork>
             foreach (var registration in orderedDecorators)
             {
                 orchestrator = registration.Factory(sp, orchestrator);
+            }
+
+            // Execute post-build actions
+            foreach (var action in postBuildActions)
+            {
+                action(sp);
             }
 
             return orchestrator;

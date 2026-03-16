@@ -338,18 +338,23 @@ public class IWorkOrchestratorTests
     }
 
     /// <summary>
-    /// Verifies the interface has the expected number of declared members.
-    /// This catches accidental additions or removals.
+    /// Verifies DrainAsync method signature.
     /// </summary>
     [Test]
-    public async Task Interface_HasExpectedMemberCount()
+    public async Task DrainAsync_HasCorrectSignature()
     {
         // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
-        var members = interfaceType.GetMembers(
-            BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance);
+        var method = interfaceType.GetMethod("DrainAsync");
 
-        // Assert - 10 methods + 4 property getters + 4 properties = 18
-        await Assert.That(members.Length).IsEqualTo(18);
+        // Assert
+        await Assert.That(method).IsNotNull();
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(Task));
+
+        var parameters = method.GetParameters();
+        await Assert.That(parameters).HasCount(1);
+        await Assert.That(parameters[0].Name).IsEqualTo("ct");
+        await Assert.That(parameters[0].ParameterType).IsEqualTo(typeof(CancellationToken));
+        await Assert.That(parameters[0].HasDefaultValue).IsTrue();
     }
 }

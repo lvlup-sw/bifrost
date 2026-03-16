@@ -172,6 +172,17 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         => Task.CompletedTask;
 
     /// <inheritdoc/>
+    public async Task DrainAsync(CancellationToken ct = default)
+    {
+        // Stop accepting new work
+        _channel.Writer.TryComplete();
+
+        // Wait for workers to finish processing remaining items
+        // (workers exit naturally when the channel reader completes)
+        await Task.WhenAll(_workers).WaitAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
     public CancellationToken GetShutdownToken() => _cts.Token;
 
     /// <inheritdoc/>

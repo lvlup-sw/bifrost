@@ -170,6 +170,37 @@ public interface IWorkOrchestrator<TWork> : IAsyncDisposable
     Task RequestScaleDownAsync(int count, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Drains the orchestrator by processing all remaining queued items
+    /// without accepting new work.
+    /// </summary>
+    /// <param name="ct">Cancellation token to abort the drain operation.</param>
+    /// <returns>A task that completes when all queued items have been processed.</returns>
+    /// <remarks>
+    /// <para>
+    /// Unlike <see cref="StopAsync"/>, which cancels workers immediately,
+    /// <c>DrainAsync</c> completes the channel writer (preventing new enqueues)
+    /// and waits for workers to finish processing all remaining items naturally.
+    /// </para>
+    /// <para>
+    /// This is useful for zero-downtime deployments where in-flight work should
+    /// complete before the host shuts down.
+    /// </para>
+    /// <para>
+    /// After <c>DrainAsync</c> completes:
+    /// <list type="bullet">
+    ///   <item><description><see cref="EnqueueAsync"/> will throw <see cref="ChannelClosedException"/></description></item>
+    ///   <item><description><see cref="TryEnqueue"/> will return <c>false</c></description></item>
+    ///   <item><description><see cref="PendingCount"/> will be 0</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// This method is idempotent: calling it multiple times after the first drain completes
+    /// immediately with no side effects.
+    /// </para>
+    /// </remarks>
+    Task DrainAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Gets the shutdown token for the orchestrator.
     /// </summary>
     /// <returns>A cancellation token that is canceled when the orchestrator is stopped or disposed.</returns>

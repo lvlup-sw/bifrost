@@ -65,6 +65,12 @@ public static class EventStreamExtensions
                     handler,
                     evt => eventStreamOrchestrator?.PublishToSubscribers(evt))));
 
+        // Set builder-level publish callback for cross-cutting event routing.
+        // Other extensions (e.g., WithDeadLetterQueue) can use this to publish
+        // events through the event stream. Late-bound: eventStreamOrchestrator
+        // is set when the orchestrator factory runs during Build().
+        builder.EventPublishCallback = evt => eventStreamOrchestrator?.PublishToSubscribers(evt);
+
         // Add orchestrator decorator for event streaming
         builder.Decorators.Add(new DecoratorRegistration<TWork>(
             Order: 50,

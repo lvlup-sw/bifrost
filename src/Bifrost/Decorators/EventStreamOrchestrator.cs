@@ -40,6 +40,7 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     private readonly ILogger<EventStreamOrchestrator<TWork>> _logger;
     private readonly ConcurrentDictionary<Guid, Channel<IOrchestratorEvent>> _eventSubscribers = new();
     private volatile bool _disposed;
+    private volatile bool _draining;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EventStreamOrchestrator{TWork}"/> class.
@@ -160,6 +161,20 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
         => _inner.GetShutdownToken();
 
     /// <inheritdoc/>
+    public async Task DrainAsync(CancellationToken ct = default)
+    {
+        _draining = true;
+
+        await _inner.DrainAsync(ct).ConfigureAwait(false);
+
+        // Complete all subscriber channels so consumers terminate gracefully
+        foreach (var subscriber in _eventSubscribers.Values)
+        {
+            subscriber.Writer.TryComplete();
+        }
+    }
+
+    /// <inheritdoc/>
     public Task StopAsync(CancellationToken ct = default)
     {
         return _inner.StopAsync(ct);
@@ -200,6 +215,12 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
             });
 
         _eventSubscribers.TryAdd(subscriberId, subscriberChannel);
+
+        // If drain has started, ensure late subscribers terminate immediately
+        if (_draining)
+        {
+            subscriberChannel.Writer.TryComplete();
+        }
 
         return ReadWithCleanup<TEvent>(subscriberId, subscriberChannel.Reader, correlationId, cancellationToken);
     }
