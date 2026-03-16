@@ -117,41 +117,61 @@ public class ScopedHandlerIntegrationTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var eventOrchestrator = orchestrator as IEventStreamOrchestrator<string>;
 
-        // Collect events
+        // Collect events — start consumer before enqueuing to ensure subscriber is registered
         var events = new ConcurrentBag<IOrchestratorEvent>();
+        using var eventCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var subscriberReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var eventTask = Task.Run(async () =>
         {
             if (eventOrchestrator == null)
             {
+                subscriberReady.TrySetResult();
                 return;
             }
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            var enumerable = eventOrchestrator
+                .GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: eventCts.Token);
+            var enumerator = enumerable.GetAsyncEnumerator(eventCts.Token);
+
+            // Signal that the subscriber channel is now registered
+            subscriberReady.TrySetResult();
+
             try
             {
-                await foreach (var evt in eventOrchestrator
-                    .GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token)
-                    .ConfigureAwait(false))
+                while (await enumerator.MoveNextAsync().ConfigureAwait(false))
                 {
-                    events.Add(evt);
+                    events.Add(enumerator.Current);
                 }
             }
             catch (OperationCanceledException)
             {
-                // Expected
+                // Expected when CTS fires
+            }
+            finally
+            {
+                await enumerator.DisposeAsync().ConfigureAwait(false);
             }
         });
 
+        // Wait for subscriber registration before enqueuing
+        await subscriberReady.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
         // Act
         await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false); // Allow processing
+
+        // Wait for processing to complete deterministically
+        await orchestrator.DrainAsync().ConfigureAwait(false);
+
+        // Give event propagation a moment to complete (fire-and-forget subscriber notification)
+        await Task.Delay(100).ConfigureAwait(false);
+        await eventCts.CancelAsync().ConfigureAwait(false);
+        await eventTask.ConfigureAwait(false);
 
         // Assert - events should have been published
         await Assert.That(events.Count).IsGreaterThan(0);
 
         // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
-        await eventTask.ConfigureAwait(false);
     }
 
     /// <summary>
