@@ -8,7 +8,12 @@ using Bifrost.Core;
 
 using TUnit.Core;
 
-namespace Bifrost.Tests.Core;
+// NOTE: deliberately NOT "Bifrost.Tests.Core" — declaring that namespace would
+// shadow the "Core.IWorkHandler<>" qualified reference in
+// HealthChecks/DeadLetterQueueHealthCheckTests.cs (C# resolves "Core" against
+// the nearest enclosing namespace, Bifrost.Tests, before Bifrost). These are
+// contract-type tests, so they live in the existing Contracts namespace.
+namespace Bifrost.Tests.Contracts;
 
 /// <summary>
 /// Tests for the <see cref="WorkClass"/>, <see cref="EnqueueResult"/>, and
@@ -24,14 +29,19 @@ public class WorkClassTests
     [Test]
     public async Task WorkClass_Values_OrderedInteractiveDefaultBatch()
     {
+        // Arrange - locals so the TUnit analyzer does not see constant operands
+        var interactive = (int)WorkClass.Interactive;
+        var defaultClass = (int)WorkClass.Default;
+        var batch = (int)WorkClass.Batch;
+
         // Assert - explicit underlying values
-        await Assert.That((int)WorkClass.Interactive).IsEqualTo(0);
-        await Assert.That((int)WorkClass.Default).IsEqualTo(1);
-        await Assert.That((int)WorkClass.Batch).IsEqualTo(2);
+        await Assert.That(interactive).IsEqualTo(0);
+        await Assert.That(defaultClass).IsEqualTo(1);
+        await Assert.That(batch).IsEqualTo(2);
 
         // Assert - ordering reads "lower = more urgent"
-        await Assert.That((int)WorkClass.Interactive).IsLessThan((int)WorkClass.Default);
-        await Assert.That((int)WorkClass.Default).IsLessThan((int)WorkClass.Batch);
+        await Assert.That(interactive).IsLessThan(defaultClass);
+        await Assert.That(defaultClass).IsLessThan(batch);
     }
 
     /// <summary>
