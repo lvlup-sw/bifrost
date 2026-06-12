@@ -61,23 +61,15 @@ internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
     public bool TryEnqueue(in T item) => _channel.Writer.TryWrite(item);
 
     /// <inheritdoc/>
-    public async ValueTask<bool> WaitToDequeueAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            // Contract shutdown semantic: cancellation completes the wait with false.
-            return false;
-        }
-        catch (ChannelClosedException)
-        {
-            // Defensive: WaitToReadAsync reports completion as false, but normalize anyway.
-            return false;
-        }
-    }
+    /// <remarks>
+    /// Direct forward of <see cref="ChannelReader{T}.WaitToReadAsync(CancellationToken)"/>
+    /// — no wrapper state machine, so a suspending wait stays allocation-free on the
+    /// channel's pooled source (DR-7). Completion-and-drained surfaces as <c>false</c>;
+    /// cancellation surfaces as <see cref="OperationCanceledException"/>, which the
+    /// contract permits and the canonical consume loop's boundary absorbs.
+    /// </remarks>
+    public ValueTask<bool> WaitToDequeueAsync(CancellationToken cancellationToken)
+        => _channel.Reader.WaitToReadAsync(cancellationToken);
 
     /// <inheritdoc/>
     public bool TryDequeue([MaybeNullWhen(false)] out T item) => _channel.Reader.TryRead(out item);

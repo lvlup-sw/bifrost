@@ -24,7 +24,10 @@ namespace Bifrost.Tests.Queues;
 /// The suite encodes the canonical consumer pattern via <see cref="ConsumeOneAsync{T}"/>:
 /// await <see cref="IWorkQueue{T}.WaitToDequeueAsync(CancellationToken)"/>, then
 /// <see cref="IWorkQueue{T}.TryDequeue(out T)"/> — which may legitimately miss under
-/// relaxed bindings — and on a miss loop back to the wait.
+/// relaxed bindings — and on a miss loop back to the wait. Per the contract's
+/// cancellation semantic, the loop also owns the
+/// <see cref="OperationCanceledException"/> catch — once, AROUND the loop, never per
+/// wait — mirroring the orchestrator's worker shutdown boundary.
 /// </para>
 /// </remarks>
 public abstract class WorkQueueContractTests
@@ -107,14 +110,17 @@ public abstract class WorkQueueContractTests
     }
 
     /// <summary>
-    /// Verifies the contract's shutdown semantic: cancelling the token passed to
-    /// <see cref="IWorkQueue{T}.WaitToDequeueAsync(CancellationToken)"/> completes the
-    /// pending wait with <c>false</c> — it must NOT throw
-    /// <see cref="OperationCanceledException"/>.
+    /// Verifies the contract's cancellation-side shutdown semantic: cancelling the
+    /// token passed to <see cref="IWorkQueue{T}.WaitToDequeueAsync(CancellationToken)"/>
+    /// terminates a parked wait by surfacing <see cref="OperationCanceledException"/>
+    /// — bindings forward their wait primitive's native cancellation (DR-7), and the
+    /// canonical consume loop owns the catch (see <see cref="ConsumeOneAsync{T}"/>).
+    /// Completion-side shutdown (queue completed and drained → <c>false</c>) is
+    /// covered by each binding's completion tests.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
-    public async Task WaitToDequeueAsync_OnShutdown_CompletesFalse()
+    public async Task WaitToDequeueAsync_OnCancellation_SurfacesOperationCanceled()
     {
         // Arrange — empty queue, so the wait cannot be satisfied by an item.
         var queue = CreateQueue(SmallCapacity);
@@ -123,10 +129,25 @@ public abstract class WorkQueueContractTests
 
         // Act — signal shutdown via the cancellation pathway.
         await shutdownCts.CancelAsync().ConfigureAwait(false);
-        var signaled = await waitTask.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Assert — the chosen semantic is completes-false, never OperationCanceledException.
-        await Assert.That(signaled).IsFalse();
+        // Assert — the parked wait terminates with OperationCanceledException (any
+        // subtype: the channel binding's canceled task rethrows TaskCanceledException,
+        // the semaphore bindings throw the base type).
+        var surfaced = false;
+        try
+        {
+            _ = await waitTask.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            surfaced = true;
+        }
+
+        await Assert.That(surfaced).IsTrue();
+
+        // And the loop-owned boundary absorbs it as a clean shutdown result.
+        var (received, _) = await ConsumeOneAsync(queue, shutdownCts.Token).ConfigureAwait(false);
+        await Assert.That(received).IsFalse();
     }
 
     /// <summary>
@@ -276,27 +297,39 @@ public abstract class WorkQueueContractTests
     /// The canonical consume loop shared by all contract tests: await
     /// <see cref="IWorkQueue{T}.WaitToDequeueAsync(CancellationToken)"/>; on a successful
     /// wait attempt <see cref="IWorkQueue{T}.TryDequeue(out T)"/>; if the dequeue
-    /// spuriously misses (permitted for relaxed bindings), loop back to the wait.
+    /// spuriously misses (permitted for relaxed bindings), loop back to the wait. Per
+    /// the contract's cancellation semantic, the loop owns the
+    /// <see cref="OperationCanceledException"/> catch — once, around the loop.
     /// </summary>
     /// <typeparam name="T">The item type of the queue.</typeparam>
     /// <param name="queue">The queue to consume from.</param>
     /// <param name="cancellationToken">Token whose cancellation signals shutdown.</param>
     /// <returns>
-    /// <c>(true, item)</c> when an item was received; <c>(false, default)</c> when the
-    /// wait completed false (shutdown via cancellation).
+    /// <c>(true, item)</c> when an item was received; <c>(false, default)</c> on
+    /// shutdown — queue completion (the wait completed <c>false</c>) or cancellation
+    /// (surfaced as <see cref="OperationCanceledException"/> and absorbed here, at the
+    /// loop boundary).
     /// </returns>
     protected static async Task<(bool Received, T Item)> ConsumeOneAsync<T>(
         IWorkQueue<T> queue,
         CancellationToken cancellationToken)
     {
-        while (await queue.WaitToDequeueAsync(cancellationToken).ConfigureAwait(false))
+        try
         {
-            if (queue.TryDequeue(out var item))
+            while (await queue.WaitToDequeueAsync(cancellationToken).ConfigureAwait(false))
             {
-                return (true, item);
-            }
+                if (queue.TryDequeue(out var item))
+                {
+                    return (true, item);
+                }
 
-            // Spurious miss under a relaxed binding — loop back to the wait.
+                // Spurious miss under a relaxed binding — loop back to the wait.
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation-side shutdown, absorbed once at the loop boundary per the
+            // contract — the wait itself never normalizes it (DR-7).
         }
 
         return (false, default!);
