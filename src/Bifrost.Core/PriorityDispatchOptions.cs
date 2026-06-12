@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Bifrost.Queues;
+namespace Bifrost.Core;
 
 /// <summary>
 /// Configuration options for class-based priority dispatch (designs DR-5 and DR-6).
@@ -12,7 +12,8 @@ namespace Bifrost.Queues;
 /// <remarks>
 /// <para>
 /// These windows parameterize the WFQ-style virtual-time priority key computed by
-/// <see cref="PriorityKey"/>: <c>effectivePriority = EnqueuedAtTicks − Boost(Class)</c>,
+/// the queue layer's <c>PriorityKey</c>:
+/// <c>effectivePriority = EnqueuedAtTicks − Boost(Class)</c>,
 /// where smaller = sooner. <see cref="InteractiveBoostWindow"/> is how far "back in
 /// time" Interactive work is credited; <see cref="BatchPenaltyWindow"/> is how far
 /// "forward in time" Batch work is deferred. Default work is never adjusted.

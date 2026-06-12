@@ -38,4 +38,36 @@ public class WorkOrchestratorOptions
     /// </remarks>
     [Range(1, 100)]
     public int WorkerCount { get; set; } = 2;
+
+    /// <summary>
+    /// Gets or sets the dispatch strategy selecting the orchestrator's internal
+    /// queue binding (DR-4).
+    /// </summary>
+    /// <value>
+    /// The strategy. Default is <see cref="DispatchStrategy.Fifo"/>, preserving the
+    /// orchestrator's pre-existing strict-FIFO, producer-wait semantics.
+    /// </value>
+    /// <remarks>
+    /// Selection is enum/factory-based — the orchestrator constructs the binding
+    /// directly from this value with no reflective resolution (trim/AOT-safe). The
+    /// priority strategies change the asynchronous enqueue semantics to fail-fast
+    /// admission; see <see cref="DispatchStrategy"/> for the semantics table.
+    /// </remarks>
+    public DispatchStrategy DispatchStrategy { get; set; } = DispatchStrategy.Fifo;
+
+    /// <summary>
+    /// Gets or sets the class-based priority dispatch options consumed by the
+    /// priority strategies (DR-5, DR-6).
+    /// </summary>
+    /// <value>
+    /// The priority options. Eagerly defaulted to a new
+    /// <see cref="PriorityDispatchOptions"/> so configure delegates can mutate it
+    /// without null checks.
+    /// </value>
+    /// <remarks>
+    /// Ignored when <see cref="DispatchStrategy"/> is
+    /// <see cref="DispatchStrategy.Fifo"/>. Watermark monotonicity is validated by
+    /// the selected binding's constructor at orchestrator construction.
+    /// </remarks>
+    public PriorityDispatchOptions Priority { get; set; } = new();
 }

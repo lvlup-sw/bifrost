@@ -150,7 +150,7 @@ public sealed class DispatchStrategyTests
         // already completed when the method returns (fail-fast admission).
         var overflow = orchestrator.EnqueueAsync("overflow", WorkClass.Interactive);
         var completedSynchronously = overflow.IsCompleted;
-        var result = await overflow;
+        var result = await overflow.ConfigureAwait(false);
 
         // Assert — synchronous completion and the capacity rejection mapping.
         await Assert.That(completedSynchronously).IsTrue();

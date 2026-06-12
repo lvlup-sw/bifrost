@@ -22,9 +22,13 @@ namespace Bifrost;
 /// This implementation provides a high-performance, zero-allocation hot path for
 /// enqueueing work items. It manages a pool of workers that consume items from the
 /// internal work queue via the canonical wait/try-dequeue loop defined by the
-/// <see cref="IWorkQueue{T}"/> contract. The default binding is a strict-FIFO
-/// bounded-channel queue; strategy selection is a construction concern layered on
-/// later without changing this type's surface.
+/// <see cref="IWorkQueue{T}"/> contract. The binding is selected by
+/// <see cref="WorkOrchestratorOptions.DispatchStrategy"/> via a direct
+/// enum-switch factory in the constructor (DR-4) — no reflective resolution, so
+/// the factory is trim/AOT-safe; all bindings are sealed, so the default FIFO
+/// path devirtualizes (the FIFO wait-path is reached through an exact-type
+/// pattern match, and interface calls on sealed bindings are candidates for
+/// guarded devirtualization).
 /// </para>
 /// <para>
 /// Work items are carried internally as <see cref="WorkEnvelope{TWork}"/> values
@@ -36,13 +40,21 @@ namespace Bifrost;
 /// </remarks>
 public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 {
-    private readonly FifoChannelWorkQueue<WorkEnvelope<TWork>> _queue;
+    private readonly IWorkQueue<WorkEnvelope<TWork>> _queue;
     private readonly IWorkHandler<TWork> _handler;
     private readonly ILogger<WorkOrchestrator<TWork>> _logger;
     private readonly Task[] _workers;
     private readonly CancellationTokenSource _cts = new();
     private readonly int _capacity;
     private readonly TimeProvider _timeProvider;
+
+    /// <summary>
+    /// Whether the queue has been completed for adding (drain, stop, or dispose).
+    /// Volatile: read on the fail-fast enqueue path to map post-completion
+    /// rejections to <see cref="RejectionReason.Shutdown"/>; the bindings' own
+    /// try-enqueue surface cannot distinguish completion from capacity.
+    /// </summary>
+    private volatile bool _queueCompleted;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestrator{TWork}"/> class.
@@ -55,6 +67,15 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <see cref="TimeProvider.System"/> when null.
     /// </param>
     /// <exception cref="ArgumentNullException">Thrown when handler, options, or logger is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <see cref="WorkOrchestratorOptions.DispatchStrategy"/> is not a
+    /// defined <see cref="DispatchStrategy"/> value.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown by the priority bindings when the admission watermarks in
+    /// <see cref="WorkOrchestratorOptions.Priority"/> are not monotone
+    /// non-decreasing with class urgency (DR-6).
+    /// </exception>
     public WorkOrchestrator(
         IWorkHandler<TWork> handler,
         IOptions<WorkOrchestratorOptions> options,
@@ -72,7 +93,19 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         var opts = options.Value;
         _capacity = opts.Capacity;
 
-        _queue = new FifoChannelWorkQueue<WorkEnvelope<TWork>>(opts.Capacity);
+        // DR-4: enum/factory-based strategy selection — a direct switch constructing
+        // the sealed binding, no reflective resolution (trim/AOT-safe).
+        _queue = opts.DispatchStrategy switch
+        {
+            DispatchStrategy.Fifo =>
+                new FifoChannelWorkQueue<WorkEnvelope<TWork>>(opts.Capacity),
+            DispatchStrategy.PriorityMultiQueue =>
+                new ConcurrentPriorityWorkQueue<TWork>(opts.Capacity, opts.Priority, _timeProvider.TimestampFrequency),
+            DispatchStrategy.PriorityLocking =>
+                new LockingPriorityWorkQueue<TWork>(opts.Capacity, opts.Priority, _timeProvider.TimestampFrequency),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(options), opts.DispatchStrategy, "Unknown dispatch strategy."),
+        };
 
         // Start worker tasks
         _workers = Enumerable.Range(0, opts.WorkerCount)
@@ -95,8 +128,9 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
     /// <summary>
     /// Gets the internal work queue as its <see cref="IWorkQueue{T}"/> strategy
-    /// contract. Test-only inspection seam (via InternalsVisibleTo) that also marks
-    /// the boundary where a binding will later be injected instead of constructed.
+    /// contract. Test-only inspection seam (via InternalsVisibleTo); the concrete
+    /// binding is selected by <see cref="WorkOrchestratorOptions.DispatchStrategy"/>
+    /// in the constructor (DR-4).
     /// </summary>
     internal IWorkQueue<WorkEnvelope<TWork>> WorkQueue => _queue;
 
@@ -110,11 +144,65 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     internal Action<WorkClass, TimeSpan>? QueueWaitObserved { get; set; }
 
     /// <inheritdoc/>
-    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
+    /// <remarks>
+    /// <para>
+    /// <b>Enqueue semantics differ by strategy (DR-6), by design:</b>
+    /// </para>
+    /// <list type="table">
+    ///   <listheader>
+    ///     <term>Strategy</term>
+    ///     <description>Behavior at capacity / under policy</description>
+    ///   </listheader>
+    ///   <item>
+    ///     <term><see cref="DispatchStrategy.Fifo"/> (default)</term>
+    ///     <description>
+    ///     Producer-wait: awaits space when the queue is full, then
+    ///     <see cref="EnqueueResult.Accepted"/>. Rejects only with
+    ///     <see cref="RejectionReason.Shutdown"/> — on queue completion or
+    ///     cancellation of <c>ct</c>. Never rejects for capacity.
+    ///     </description>
+    ///   </item>
+    ///   <item>
+    ///     <term>
+    ///     <see cref="DispatchStrategy.PriorityMultiQueue"/> /
+    ///     <see cref="DispatchStrategy.PriorityLocking"/>
+    ///     </term>
+    ///     <description>
+    ///     FAIL-FAST admission: never waits for space — the returned
+    ///     <see cref="ValueTask{T}"/> is already completed. A try-enqueue failure
+    ///     maps immediately to <see cref="RejectionReason.CapacityExceeded"/>;
+    ///     class-watermark shedding and hard capacity exhaustion are deliberately
+    ///     indistinguishable at this surface (rejections route to the dead-letter
+    ///     queue when configured). After the queue is completed, rejections carry
+    ///     <see cref="RejectionReason.Shutdown"/>. Producer-wait at capacity was
+    ///     rejected in design as admission-side priority inversion: a blocked
+    ///     producer queue-jumps whatever class drains first.
+    ///     </description>
+    ///   </item>
+    /// </list>
+    /// </remarks>
+    public ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
     {
         var envelope = new WorkEnvelope<TWork>(work, workClass, _timeProvider.GetTimestamp());
-        var accepted = await _queue.EnqueueAsync(envelope, ct).ConfigureAwait(false);
-        return accepted ? EnqueueResult.Accepted : EnqueueResult.Rejected(RejectionReason.Shutdown);
+
+        // Default FIFO strategy: producer-wait path on the concrete sealed binding.
+        // The exact-type pattern match devirtualizes the call (DR-4).
+        if (_queue is FifoChannelWorkQueue<WorkEnvelope<TWork>> fifo)
+        {
+            return EnqueueFifoAsync(fifo, envelope, ct);
+        }
+
+        // Priority strategies: fail-fast admission (DR-6) — fully synchronous, the
+        // ValueTask below is always already completed.
+        if (_queueCompleted || ct.IsCancellationRequested)
+        {
+            return new ValueTask<EnqueueResult>(EnqueueResult.Rejected(RejectionReason.Shutdown));
+        }
+
+        return new ValueTask<EnqueueResult>(
+            _queue.TryEnqueue(envelope)
+                ? EnqueueResult.Accepted
+                : EnqueueResult.Rejected(RejectionReason.CapacityExceeded));
     }
 
     /// <inheritdoc/>
@@ -174,7 +262,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public async Task DrainAsync(CancellationToken ct = default)
     {
         // Stop accepting new work
-        _queue.Complete();
+        CompleteQueue();
 
         // Wait for workers to finish processing remaining items
         // (workers exit naturally once the completed queue is empty and the wait
@@ -191,7 +279,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         // Cancel the shutdown token first to signal all workers (including dynamic ones)
         await _cts.CancelAsync().ConfigureAwait(false);
 
-        _queue.Complete();
+        CompleteQueue();
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         linkedCts.CancelAfter(TimeSpan.FromSeconds(30)); // Graceful shutdown timeout
@@ -213,7 +301,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
-        _queue.Complete();
+        CompleteQueue();
         await _cts.CancelAsync().ConfigureAwait(false);
 
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -240,6 +328,52 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <returns><see langword="true"/> if an envelope was read; otherwise <see langword="false"/>.</returns>
     internal bool TryReadEnvelope(out WorkEnvelope<TWork> envelope)
         => _queue.TryDequeue(out envelope);
+
+    /// <summary>
+    /// The FIFO producer-wait enqueue path on the concrete sealed binding: awaits
+    /// space at capacity; completion or cancellation surface as
+    /// <see cref="RejectionReason.Shutdown"/>, never as exceptions.
+    /// </summary>
+    /// <param name="fifo">The FIFO binding (devirtualized via the caller's pattern match).</param>
+    /// <param name="envelope">The envelope to enqueue.</param>
+    /// <param name="ct">Token whose cancellation abandons the wait.</param>
+    /// <returns>The admission outcome.</returns>
+    private static async ValueTask<EnqueueResult> EnqueueFifoAsync(
+        FifoChannelWorkQueue<WorkEnvelope<TWork>> fifo,
+        WorkEnvelope<TWork> envelope,
+        CancellationToken ct)
+    {
+        var accepted = await fifo.EnqueueAsync(envelope, ct).ConfigureAwait(false);
+        return accepted ? EnqueueResult.Accepted : EnqueueResult.Rejected(RejectionReason.Shutdown);
+    }
+
+    /// <summary>
+    /// Marks the queue complete for adding. <c>Complete</c> is a concrete-only
+    /// member by design (not part of <see cref="IWorkQueue{T}"/>), so this
+    /// switches over the three sealed bindings — and records completion locally so
+    /// the fail-fast enqueue path can report <see cref="RejectionReason.Shutdown"/>
+    /// rather than <see cref="RejectionReason.CapacityExceeded"/> afterwards.
+    /// </summary>
+    private void CompleteQueue()
+    {
+        _queueCompleted = true;
+
+        switch (_queue)
+        {
+            case FifoChannelWorkQueue<WorkEnvelope<TWork>> fifo:
+                fifo.Complete();
+                break;
+            case ConcurrentPriorityWorkQueue<TWork> multiQueue:
+                multiQueue.Complete();
+                break;
+            case LockingPriorityWorkQueue<TWork> locking:
+                locking.Complete();
+                break;
+            default:
+                throw new InvalidOperationException(
+                    $"Unknown work queue binding: {_queue.GetType()}.");
+        }
+    }
 
     /// <summary>
     /// Static worker loop: wraps the canonical queue-consume loop with start/stop
