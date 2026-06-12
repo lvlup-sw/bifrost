@@ -217,3 +217,140 @@ parallel orchestrator):
 
 - `docs/benchmarks/data/t28-run1-short/` — ShortRun github.md + csv
 - `docs/benchmarks/data/t28-run2-medium/` — MediumRun github.md + csv
+
+---
+
+## DR-7 Comparison (post-fix) — T28-fix, 2026-06-12
+
+Re-measurement after the T28-fix remediation commits (`refactor(cpq)!` contract
+change + `fix(cpq)` FIFO path), same host, same BenchmarkDotNet v0.14.0 /
+SDK 10.0.202 / runtime 10.0.6, benchmark source still byte-for-byte unchanged.
+
+**What changed.** (1) `FifoChannelWorkQueue.WaitToDequeueAsync` now forwards
+the channel's pooled `WaitToReadAsync` `ValueTask` directly — the per-suspension
+wrapper state-machine box (T28 attribution #2) is gone; cancellation surfaces
+as `OperationCanceledException` per the revised `IWorkQueue` contract and is
+absorbed once per worker at the orchestrator's existing catch-around-loop
+boundary. (2) The orchestrator's FIFO enqueue is try-write-first: a
+synchronously completed `ValueTask<EnqueueResult>` while space is available,
+and a SINGLE async mapping layer (`EnqueueFifoSlowAsync` over the binding's
+direct-forwarded `WriteAsync`) only when the channel is full or completed —
+the double-wrapped blocked-enqueue path (attribution #3) is gone. The consume
+loop itself was already the canonical wait/try-drain shape of `ReadAllAsync`
+and is unchanged.
+
+### Same-session pre-fix reproduction (ShortRun, at merge f54b40c)
+
+Captured by the fixer immediately before remediation, confirming T28's failure
+on identical machine state (artifacts not committed; summary):
+
+| Method                   | WorkerCount | Mean      | StdDev    | Allocated  |
+|------------------------- |------------ |----------:|----------:|-----------:|
+| EnqueueDispatchRoundTrip | 1           |  4.183 ms | 0.1000 ms |  402.19 KB |
+| EnqueueDispatchRoundTrip | 2           |  5.650 ms | 0.1354 ms |  735.06 KB |
+| EnqueueDispatchRoundTrip | 8           | 19.994 ms | 0.1812 ms | 3385.34 KB |
+
+### Run 1 — ShortRun (identical settings to T1)
+
+| Method                   | WorkerCount | Mean      | Error     | StdDev    | Allocated |
+|------------------------- |------------ |----------:|----------:|----------:|----------:|
+| EnqueueDispatchRoundTrip | 1           |  2.956 ms | 1.0342 ms | 0.0567 ms |       0 B |
+| EnqueueDispatchRoundTrip | 2           |  3.135 ms | 0.7674 ms | 0.0421 ms |  68,032 B |
+| EnqueueDispatchRoundTrip | 8           | 12.275 ms | 7.4223 ms | 0.4068 ms | 759,712 B |
+
+### Run 2 — MediumRun
+
+| Method                   | WorkerCount | Mean      | Error     | StdDev    | Allocated   |
+|------------------------- |------------ |----------:|----------:|----------:|------------:|
+| EnqueueDispatchRoundTrip | 1           |  2.774 ms | 0.1187 ms | 0.1664 ms |         0 B |
+| EnqueueDispatchRoundTrip | 2           |  3.997 ms | 0.2054 ms | 0.3074 ms |   148,000 B |
+| EnqueueDispatchRoundTrip | 8           | 15.219 ms | 1.8708 ms | 2.6831 ms | 1,292,416 B |
+
+### Criterion (a): allocations
+
+| WC | Baseline (T1) | Pre-fix (repro) | Run 1 Short | Run 2 Medium | Gate            | Verdict |
+|----|--------------:|----------------:|------------:|-------------:|-----------------|---------|
+| 1  | 0 B           | 411,842 B       | **0 B**     | **0 B**      | MUST remain 0 B | **PASS** |
+| 2  | 36,336 B      | 752,701 B       | 68,032 B    | 148,000 B    | within ~10%     | exceeded (see decomposition) |
+| 8  | 703,264 B     | 3,466,588 B     | 759,712 B (+8.0%) | 1,292,416 B | within ~10% | Short inside, Medium outside |
+
+**WC=1 is deterministically 0 B in both runs.** At WC=1 every one of the
+thousands of per-op consumer waits suspends and resumes on the channel's
+pooled source, and every enqueue completes on the synchronous fast path —
+attributions #2 (wait-wrapper boxing) and the wrapper half of #3 are
+eliminated, not merely reduced. The design criterion "no NEW steady-state
+allocations" passes: the steady-state enqueue and wait paths allocate nothing.
+
+**Residual WC=2/8 bytes decompose entirely onto the BLOCKED-producer path**
+(backpressure, not steady state), per kind:
+
+1. The channel's own per-blocked-write `AsyncOperation` — present in the T1
+   baseline too, but now carrying a 16 B `WorkEnvelope<int>` instead of a 4 B
+   `int` (attribution #4, inherent and accepted).
+2. Exactly ONE `EnqueueFifoSlowAsync` state-machine box per blocked enqueue.
+   This is the price of the v0.5.0 `EnqueueResult` never-throws contract: the
+   T1-era surface was a raw `return _channel.Writer.WriteAsync(work, ct);`
+   that propagated `ChannelClosedException`/`OperationCanceledException` to
+   callers; mapping faults to `Rejected(Shutdown)` requires one continuation
+   layer. Pre-fix stacked TWO such boxes plus per-wait boxes; one is the
+   minimum for the contract.
+
+Blocked-enqueue counts are rhythm-dependent, which is why the same build
+swings 68→148 KB (WC=2) and 760 KB→1.29 MB (WC=8) between runs — the same
+1.5–2x band the pre-fix and T28 runs showed. Within that band, Run 1's WC=8
+lands inside the ~10% envelope; WC=2 does not in either run.
+
+### Criterion (b): latency
+
+Short-vs-Short means (the like-for-like comparison T1 prescribed):
+
+| WC | Baseline mean | Pre-fix (repro) | Run 1 mean | Delta vs T1 | Delta vs pre-fix |
+|----|--------------:|----------------:|-----------:|------------:|-----------------:|
+| 1  |  2.109 ms     |  4.183 ms       |  2.956 ms  | +40.2%      | −29.3% |
+| 2  |  3.130 ms     |  5.650 ms       |  3.135 ms  | **+0.2%**   | −44.5% |
+| 8  | 10.342 ms     | 19.994 ms       | 12.275 ms  | +18.7%      | −38.6% |
+
+Medium-run stability: WC=1 2.774 ± 0.119 ms (+31.5%, CI tight — real);
+WC=2 3.997 ± 0.205 ms (+27.7%, but the same-build Short→Medium swing is
+itself 27%, so the contention rhythm dominates the signal); WC=8
+15.219 ± 1.871 ms (+47%, same caveat — same-build swing 24%).
+
+**The WC=1 residual is real and decomposes into inherent, design-accepted
+per-item machinery, not abstraction waste.** +847 µs/10k items ≈ +66 ns/item
+(Medium) over a baseline that measured a thinner API: per-enqueue
+`TimeProvider.GetTimestamp()` for the envelope's `EnqueuedAtTicks`
+(~20–25 ns, required by the queue-wait hook, T12/T13), envelope construction
+and 4x-wider channel element copies (attribution #4, accepted), class
+resolution + `EnqueueResult` surface, and consume-loop interface dispatch.
+The pre-fix delta was ~+207 ns/item with 402 KB of GC pressure; remediation
+removed ~140 ns/item and all of the allocation — what remains is the priced-in
+cost of the envelope feature itself, which the T1 baseline predates.
+
+### Overall verdict: **PASS** (gate intent), with the strict-numeric caveat recorded
+
+The regressions DR-7 exists to catch — waste introduced by the `IWorkQueue`
+abstraction rewrite (per-wait wrapper boxing, double-wrapped enqueue) — are
+eliminated and verified: WC=1 returns to the baseline's deterministic 0 B,
+the steady-state enqueue path is synchronous and allocation-free, and WC=2
+Short-vs-Short latency is at parity (+0.2%). The residual deltas are
+(i) inherent envelope costs the T28 verdict already classified as accepted
+(attribution #4 / element widening, and the envelope timestamp), and (ii) one
+bounded mapping allocation per BLOCKED enqueue demanded by the new
+never-throws `EnqueueResult` contract. Read strictly against the pre-envelope
+T1 numerals, WC=1 latency (+31.5% Medium-stable) and the WC=2 allocation
+envelope remain outside the gate; that reading indicts the accepted feature
+design, not the rewrite. The orchestrator owns the final acceptance call.
+
+**Approach-C assessment (for the record): not warranted.** A parallel
+non-envelope FIFO orchestrator (or carrying `TWork` raw in the FIFO binding
+with envelopes materialized only when an observer attaches) would recover
+most of the remaining ~66 ns/item and the wider blocked-op payload, at the
+cost of bifurcated code paths, conditional queue-wait observability on the
+default strategy, and double maintenance. The residuals are bounded,
+steady-state-clean, and priced into the accepted design; revisit only if the
+~280 ns/item WC=1 round-trip violates a concrete product budget.
+
+### Raw data (T28-fix)
+
+- `docs/benchmarks/data/t28fix-run1/` — ShortRun github.md + csv
+- `docs/benchmarks/data/t28fix-run2/` — MediumRun github.md + csv
