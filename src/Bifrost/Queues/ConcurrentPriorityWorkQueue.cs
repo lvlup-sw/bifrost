@@ -5,8 +5,10 @@
 // =============================================================================
 
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 using Bifrost.Concurrency;
+using Bifrost.Core;
 
 namespace Bifrost.Queues;
 
@@ -56,6 +58,42 @@ namespace Bifrost.Queues;
 /// empty reports shutdown, and post-completion waits never park.
 /// </para>
 /// <para>
+/// <b>Class-aware watermark admission (DR-6).</b> Under pressure this binding sheds
+/// the LOWEST class FIRST, at admission: Batch enqueues are rejected once the
+/// approximate count reaches <see cref="PriorityDispatchOptions.BatchAdmissionWatermark"/>
+/// × capacity (0.90 by default), Default at
+/// <see cref="PriorityDispatchOptions.DefaultAdmissionWatermark"/> × capacity (0.95),
+/// and Interactive is admitted to
+/// <see cref="PriorityDispatchOptions.InteractiveAdmissionWatermark"/> × capacity
+/// (1.0 — hard capacity). This is the WRED / priority-load-shedding precedent applied
+/// at the enqueue gate: shedding happens by REFUSING new low-class work while
+/// reserving the remaining headroom for urgent work, so no eviction machinery (and no
+/// remove-from-middle support in the CPQ) is ever needed. It is also the design's
+/// admission-side priority-inversion fix: the rejected alternative —
+/// producer-waits-at-capacity — would let a backlog of Batch items block the producer
+/// of an Interactive item, inverting priority at the queue boundary; shedding the low
+/// class at admission keeps the gate open for urgent work instead.
+/// </para>
+/// <para>
+/// <b>Approximate-count tolerance (DR-6).</b> The watermark check reads
+/// <see cref="Count"/>, the MultiQueue's striped sum, which is approximate under
+/// concurrency — so admission near a watermark may transiently over- or under-admit
+/// by roughly the in-flight operation count. This slop is tolerated by design:
+/// watermarks are load-shedding heuristics, not invariants, and the structure's hard
+/// capacity gate remains the exact backstop. At quiescence the striped sum is exact,
+/// so the boundary is exact (count 89 admits Batch at the default 0.90 × 100; count
+/// 90 rejects).
+/// </para>
+/// <para>
+/// <b>Interaction with the virtual-time key (DR-5 × DR-6).</b> The two mechanisms are
+/// complementary, not overlapping: watermarks govern the ADMISSION side (which
+/// classes still get in as the queue fills — shed order under pressure), while the
+/// key's bounded boost window governs the DEQUEUE side (admitted low-class work
+/// cannot be starved longer than the boost window). Neither subsumes the other — the
+/// key alone cannot prevent a full queue of Batch work from crowding out Interactive
+/// admission, and watermarks alone cannot bound how long admitted Batch work waits.
+/// </para>
+/// <para>
 /// <see cref="Complete"/> is a concrete-only member — it is not part of
 /// <see cref="IWorkQueue{T}"/>; the orchestrator reaches it via the concrete type,
 /// mirroring <see cref="FifoChannelWorkQueue{T}"/>. This binding has no producer-wait
@@ -67,6 +105,16 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     private readonly ConcurrentPriorityQueue<WorkEnvelope<TWork>, long> _queue;
     private readonly SemaphoreSlim _signal = new(0);
     private readonly PriorityKey.Boosts _boosts;
+
+    /// <summary>
+    /// Per-class admission threshold COUNTS (DR-6), precomputed once in the
+    /// constructor as <c>floor(watermarkFraction × capacity)</c> so the hot-path check
+    /// is a single integer comparison — no floating point, no allocation. An enqueue
+    /// of a class is rejected while <see cref="Count"/> ≥ its threshold.
+    /// </summary>
+    private readonly long _batchAdmissionThreshold;
+    private readonly long _defaultAdmissionThreshold;
+    private readonly long _interactiveAdmissionThreshold;
 
     /// <summary>
     /// The number of consumers currently inside
@@ -107,10 +155,39 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// Thrown when <paramref name="capacity"/> is less than one, or
     /// <paramref name="timestampFrequency"/> is zero or negative.
     /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the admission watermarks in <paramref name="options"/> are not
+    /// monotone non-decreasing with class urgency
+    /// (<c>Batch ≤ Default ≤ Interactive</c>) — a more urgent class must never be
+    /// shed before a less urgent one (DR-6). Validated here, at consumption, because
+    /// the cross-property relation cannot be a single-setter guard on the options
+    /// without order-of-assignment traps.
+    /// </exception>
     public ConcurrentPriorityWorkQueue(int capacity, PriorityDispatchOptions options, long timestampFrequency)
     {
         _boosts = PriorityKey.Precompute(options, timestampFrequency);
+
+        if (options.BatchAdmissionWatermark > options.DefaultAdmissionWatermark
+            || options.DefaultAdmissionWatermark > options.InteractiveAdmissionWatermark)
+        {
+            throw new ArgumentException(
+                "Admission watermarks must be monotone non-decreasing with class urgency: "
+                + $"Batch ({options.BatchAdmissionWatermark}) <= Default "
+                + $"({options.DefaultAdmissionWatermark}) <= Interactive "
+                + $"({options.InteractiveAdmissionWatermark}).",
+                nameof(options));
+        }
+
         _queue = new ConcurrentPriorityQueue<WorkEnvelope<TWork>, long>(capacity);
+
+        // Precompute the per-class admission thresholds as integer COUNTS (DR-6),
+        // mirroring the Boosts precompute above: the floating-point watermark × capacity
+        // products are evaluated exactly once here, so TryEnqueue's admission check is
+        // pure integer comparison. floor() semantics — a class admits while the
+        // approximate count is strictly below its threshold.
+        _batchAdmissionThreshold = (long)(options.BatchAdmissionWatermark * capacity);
+        _defaultAdmissionThreshold = (long)(options.DefaultAdmissionWatermark * capacity);
+        _interactiveAdmissionThreshold = (long)(options.InteractiveAdmissionWatermark * capacity);
     }
 
     /// <inheritdoc/>
@@ -123,11 +200,15 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Computes the virtual-time key from the envelope (<see cref="PriorityKey.Compute{TWork}"/>)
-    /// and offers it to the bounded priority queue. <c>false</c> means hard capacity
-    /// exhaustion or a completed queue; a rejection never releases a wake-up permit, so
-    /// the semaphore-counts-items invariant is preserved. Class watermarks are a later
-    /// admission-policy layer (T21), not part of this binding.
+    /// Applies the class watermark admission check (DR-6) against the approximate
+    /// count, then computes the virtual-time key from the envelope
+    /// (<see cref="PriorityKey.Compute{TWork}"/>) and offers it to the bounded
+    /// priority queue. <c>false</c> means a watermark rejection, hard capacity
+    /// exhaustion, or a completed queue — intentionally indistinguishable per the
+    /// <see cref="IWorkQueue{T}"/> contract; a rejection never releases a wake-up
+    /// permit, so the semaphore-counts-items invariant is preserved. The watermark
+    /// check is approximate under concurrency (striped count) and exact at quiescence;
+    /// the structure's hard capacity gate stays as the exact backstop.
     /// </remarks>
     public bool TryEnqueue(in WorkEnvelope<TWork> item)
     {
@@ -138,9 +219,19 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
             return false;
         }
 
+        if (_queue.Count >= AdmissionThresholdFor(item.Class))
+        {
+            // Watermark shed (DR-6): the queue has filled past this class's admission
+            // threshold — refuse the item, reserving the remaining headroom for more
+            // urgent classes. No permit is released. The striped count read here may
+            // be slightly stale under concurrency; that slop is tolerated by design.
+            return false;
+        }
+
         if (!_queue.TryEnqueue(item, PriorityKey.Compute(in item, in _boosts)))
         {
             // Hard capacity: the bounded gate rejected the item — no permit is released.
+            // This exact backstop also covers any watermark under-count slop.
             return false;
         }
 
@@ -241,4 +332,24 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
             _signal.Release(waiters);
         }
     }
+
+    /// <summary>
+    /// Looks up the precomputed admission threshold count for the given work class
+    /// (DR-6). Branch-light hot-path helper: a single switch over the three classes,
+    /// no allocation, no floating point. Unrecognized values fall back to the Default
+    /// threshold, mirroring <see cref="PriorityKey.Boosts.BoostTicksFor"/>.
+    /// </summary>
+    /// <param name="workClass">The work class seeking admission.</param>
+    /// <returns>
+    /// The threshold count: the class is rejected while <see cref="Count"/> is greater
+    /// than or equal to this value.
+    /// </returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private long AdmissionThresholdFor(WorkClass workClass)
+        => workClass switch
+        {
+            WorkClass.Interactive => _interactiveAdmissionThreshold,
+            WorkClass.Batch => _batchAdmissionThreshold,
+            _ => _defaultAdmissionThreshold,
+        };
 }

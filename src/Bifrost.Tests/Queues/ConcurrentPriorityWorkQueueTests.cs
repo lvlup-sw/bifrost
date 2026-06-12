@@ -27,11 +27,14 @@ namespace Bifrost.Tests.Queues;
 /// with <c>T = int</c>. Rather than reshaping the abstract suite (out of scope), the
 /// <see cref="CreateQueue(int)"/> override returns a thin test-only adapter
 /// (<see cref="IntEnvelopeAdapter"/>) that wraps each <see cref="int"/> into a
-/// <see cref="WorkEnvelope{TWork}"/> with <see cref="WorkClass.Default"/> (zero boost) and
-/// a monotonic stamp, so contract items dequeue by plain enqueue order modulo the
-/// documented MultiQueue rank relaxation — which the suite's canonical consume loop
-/// already tolerates. The adapter forwards <c>Count</c>, the wait, and the dequeue
-/// unchanged, so every contract property exercises the real composed binding.
+/// <see cref="WorkEnvelope{TWork}"/> with <see cref="WorkClass.Interactive"/> — the class
+/// admitted to full hard capacity under the T21 watermark admission policy (DR-6), which
+/// is what the suite's fill-to-capacity expectations require; its constant boost shifts
+/// every key equally — and a monotonic stamp, so contract items dequeue by plain enqueue
+/// order modulo the documented MultiQueue rank relaxation — which the suite's canonical
+/// consume loop already tolerates. The adapter forwards <c>Count</c>, the wait, and the
+/// dequeue unchanged, so every contract property exercises the real composed binding
+/// under DEFAULT dispatch options.
 /// </para>
 /// <para>
 /// <b>Rank-relaxation handling in the ordering test.</b> The CPQ's relaxed dequeue has a
@@ -76,16 +79,18 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     [Test]
     public async Task WaitToDequeueAsync_SemaphoreCountsItems_ReleasePerEnqueue()
     {
-        // Arrange — fill to capacity, then prove the over-capacity rejection funds no permit.
+        // Arrange — fill to capacity, then prove the over-capacity rejection funds no
+        // permit. Interactive class: admitted to hard capacity under the T21 watermark
+        // policy (the class is incidental to the invariant under test).
         const int itemCount = 5;
         var queue = CreateEnvelopeQueue(itemCount);
         for (var i = 0; i < itemCount; i++)
         {
-            var accepted = queue.TryEnqueue(new WorkEnvelope<int>(i, WorkClass.Default, 1_000 + i));
+            var accepted = queue.TryEnqueue(new WorkEnvelope<int>(i, WorkClass.Interactive, 1_000 + i));
             await Assert.That(accepted).IsTrue();
         }
 
-        var rejected = queue.TryEnqueue(new WorkEnvelope<int>(999, WorkClass.Default, 2_000));
+        var rejected = queue.TryEnqueue(new WorkEnvelope<int>(999, WorkClass.Interactive, 2_000));
         await Assert.That(rejected).IsFalse();
 
         // Act + Assert — exactly itemCount wait+dequeue cycles succeed.
@@ -151,7 +156,12 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
             InteractiveBoostWindow = TimeSpan.FromSeconds(30), // 30_000 ticks at 1 kHz
             BatchPenaltyWindow = TimeSpan.FromSeconds(60),     // 60_000 ticks at 1 kHz
         };
-        var queue = CreateEnvelopeQueue(totalItems, options);
+
+        // 2× headroom so the T21 class watermarks (Batch 0.90, Default 0.95 of
+        // capacity) never trip during the interleaved fill — this test isolates
+        // dequeue-side ORDERING; admission-side shedding is covered by
+        // WatermarkAdmissionTests.
+        var queue = CreateEnvelopeQueue(2 * totalItems, options);
 
         // Virtual-time layout (ticks at 1 kHz; smaller key = sooner):
         //   Interactive — FRESHEST timestamps (1_520_000+i), key 1_490_000+i (boost −30_000)
@@ -439,11 +449,14 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     /// <summary>
     /// Test-only adapter that lets the int-typed contract suite drive the envelope-typed
     /// binding: each int is wrapped into a <see cref="WorkEnvelope{TWork}"/> with
-    /// <see cref="WorkClass.Default"/> (zero boost) and a monotonically increasing stamp,
-    /// so the priority key degenerates to enqueue order and the suite's expectations hold
-    /// modulo the documented rank relaxation (which the canonical consume loop tolerates).
-    /// Count, the wait, and the dequeue are forwarded unchanged, so the contract runs
-    /// against the real composed (CPQ + semaphore) queue.
+    /// <see cref="WorkClass.Interactive"/> — admitted to full hard capacity under the
+    /// T21 watermark admission policy, matching the suite's fill-to-capacity
+    /// expectations; its constant boost shifts every key by the same amount — and a
+    /// monotonically increasing stamp, so the priority key degenerates to enqueue order
+    /// and the suite's expectations hold modulo the documented rank relaxation (which
+    /// the canonical consume loop tolerates). Count, the wait, and the dequeue are
+    /// forwarded unchanged, so the contract runs against the real composed
+    /// (CPQ + semaphore) queue.
     /// </summary>
     private sealed class IntEnvelopeAdapter : IWorkQueue<int>
     {
@@ -463,7 +476,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
         public bool TryEnqueue(in int item) =>
             _inner.TryEnqueue(new WorkEnvelope<int>(
                 item,
-                WorkClass.Default,
+                WorkClass.Interactive,
                 Interlocked.Increment(ref _stamp)));
 
         /// <inheritdoc/>

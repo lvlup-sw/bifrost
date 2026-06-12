@@ -7,7 +7,7 @@
 namespace Bifrost.Queues;
 
 /// <summary>
-/// Configuration options for class-based priority dispatch (design DR-5).
+/// Configuration options for class-based priority dispatch (designs DR-5 and DR-6).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,6 +23,26 @@ namespace Bifrost.Queues;
 /// enqueued Interactive item — no aging scans or re-scoring required.
 /// </para>
 /// <para>
+/// <b>Admission watermarks (DR-6).</b> The watermark fractions parameterize the
+/// complementary admission-side policy: a bounded priority queue sheds the LOWEST
+/// class FIRST at admission — Batch is rejected once the queue count reaches
+/// <see cref="BatchAdmissionWatermark"/> × capacity, Default at
+/// <see cref="DefaultAdmissionWatermark"/> × capacity, and Interactive is admitted up
+/// to <see cref="InteractiveAdmissionWatermark"/> × capacity (the full queue by
+/// default) — the WRED / priority-load-shedding precedent, with no eviction
+/// machinery. The two knobs are complementary, not overlapping: watermarks decide the
+/// admission-side shed order under pressure; the virtual-time key's bounded boost
+/// window provides the dequeue-side starvation bound for whatever was admitted.
+/// </para>
+/// <para>
+/// Each watermark fraction must lie in <c>(0, 1]</c>, enforced by its setter. The
+/// cross-property monotonicity requirement — fractions non-decreasing with class
+/// urgency, <c>Batch ≤ Default ≤ Interactive</c>, so a more urgent class is never
+/// shed before a less urgent one — cannot be a single-setter guard without
+/// order-of-assignment traps, and is therefore validated where the options are
+/// consumed (the priority queue binding's constructor).
+/// </para>
+/// <para>
 /// Validation uses throwing setters rather than <c>[Range]</c> attributes because
 /// the <see cref="System.ComponentModel.DataAnnotations.RangeAttribute"/> overload
 /// required for <see cref="TimeSpan"/> relies on TypeConverter-based string
@@ -33,6 +53,9 @@ public class PriorityDispatchOptions
 {
     private TimeSpan _interactiveBoostWindow = TimeSpan.FromSeconds(30);
     private TimeSpan _batchPenaltyWindow;
+    private double _batchAdmissionWatermark = 0.90;
+    private double _defaultAdmissionWatermark = 0.95;
+    private double _interactiveAdmissionWatermark = 1.0;
 
     /// <summary>
     /// Gets or sets the virtual-time credit applied to Interactive work.
@@ -79,6 +102,85 @@ public class PriorityDispatchOptions
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.Zero);
             _batchPenaltyWindow = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the admission watermark for Batch work, as a fraction of queue
+    /// capacity.
+    /// </summary>
+    /// <value>The Batch admission fraction in <c>(0, 1]</c>. Default is 0.90.</value>
+    /// <remarks>
+    /// Batch enqueues are rejected once the queue count reaches this fraction of
+    /// capacity — the first class shed under pressure (DR-6). Must not exceed
+    /// <see cref="DefaultAdmissionWatermark"/>; the monotonicity relation is validated
+    /// where the options are consumed (see the class remarks).
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when the assigned value is not in <c>(0, 1]</c>.
+    /// </exception>
+    public double BatchAdmissionWatermark
+    {
+        get => _batchAdmissionWatermark;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1.0);
+            _batchAdmissionWatermark = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the admission watermark for Default work, as a fraction of queue
+    /// capacity.
+    /// </summary>
+    /// <value>The Default admission fraction in <c>(0, 1]</c>. Default is 0.95.</value>
+    /// <remarks>
+    /// Default enqueues are rejected once the queue count reaches this fraction of
+    /// capacity — shed after Batch but before Interactive (DR-6). Must lie between
+    /// <see cref="BatchAdmissionWatermark"/> and
+    /// <see cref="InteractiveAdmissionWatermark"/>; the monotonicity relation is
+    /// validated where the options are consumed (see the class remarks).
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when the assigned value is not in <c>(0, 1]</c>.
+    /// </exception>
+    public double DefaultAdmissionWatermark
+    {
+        get => _defaultAdmissionWatermark;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1.0);
+            _defaultAdmissionWatermark = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the admission watermark for Interactive work, as a fraction of
+    /// queue capacity.
+    /// </summary>
+    /// <value>
+    /// The Interactive admission fraction in <c>(0, 1]</c>. Default is 1.0 —
+    /// Interactive work is admitted all the way to hard capacity.
+    /// </value>
+    /// <remarks>
+    /// The most urgent class is shed last (DR-6); at the default of 1.0 only hard
+    /// capacity exhaustion rejects Interactive work. Must not be less than
+    /// <see cref="DefaultAdmissionWatermark"/>; the monotonicity relation is validated
+    /// where the options are consumed (see the class remarks).
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when the assigned value is not in <c>(0, 1]</c>.
+    /// </exception>
+    public double InteractiveAdmissionWatermark
+    {
+        get => _interactiveAdmissionWatermark;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1.0);
+            _interactiveAdmissionWatermark = value;
         }
     }
 }
