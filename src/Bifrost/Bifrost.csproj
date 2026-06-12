@@ -30,6 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Bifrost.Concurrency\Bifrost.Concurrency.csproj" />
     <ProjectReference Include="..\Bifrost.Core\Bifrost.Core.csproj" />
   </ItemGroup>
 
