@@ -13,6 +13,7 @@ using Bifrost.Benchmarks.Core;
 using Bifrost.Benchmarks.DeadLetter;
 using Bifrost.Benchmarks.Decorators;
 using Bifrost.Benchmarks.HealthChecks;
+using Bifrost.Benchmarks.Orchestrator;
 
 // Use BenchmarkSwitcher for flexible benchmark selection
 // Run with --filter to select specific benchmarks, e.g.:
@@ -50,6 +51,7 @@ var switcher = new BenchmarkSwitcher(
     typeof(WorkerRegistryBenchmarks),
     typeof(HealthCheckBenchmarks),
     typeof(DeadLetterQueueBenchmarks),
+    typeof(OrchestratorBaselineBenchmarks),
 ]);
 
 switcher.Run(args, config);
