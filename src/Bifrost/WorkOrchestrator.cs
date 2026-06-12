@@ -47,6 +47,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     private readonly CancellationTokenSource _cts = new();
     private readonly int _capacity;
     private readonly TimeProvider _timeProvider;
+    private readonly Func<TWork, WorkClass>? _classifier;
 
     /// <summary>
     /// Whether the queue has been completed for adding (drain, stop, or dispose).
@@ -66,6 +67,15 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// The time provider used for enqueue timestamping; defaults to
     /// <see cref="TimeProvider.System"/> when null.
     /// </param>
+    /// <param name="classifier">
+    /// Optional work classifier (DR-2), the options-level alternative to per-call
+    /// tagging. Precedence rule: a per-call class other than
+    /// <see cref="WorkClass.Default"/> wins; a per-call
+    /// <see cref="WorkClass.Default"/> defers to the classifier; with no classifier
+    /// the class stays <see cref="WorkClass.Default"/>. The delegate is invoked only
+    /// when the per-call class is <see cref="WorkClass.Default"/>, keeping the
+    /// default FIFO hot path allocation-free.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when handler, options, or logger is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <see cref="WorkOrchestratorOptions.DispatchStrategy"/> is not a
@@ -80,7 +90,8 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         IWorkHandler<TWork> handler,
         IOptions<WorkOrchestratorOptions> options,
         ILogger<WorkOrchestrator<TWork>> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        Func<TWork, WorkClass>? classifier = null)
     {
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(options);
@@ -89,6 +100,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         _handler = handler;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _classifier = classifier;
 
         var opts = options.Value;
         _capacity = opts.Capacity;
@@ -180,10 +192,16 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     ///     </description>
     ///   </item>
     /// </list>
+    /// <para>
+    /// <b>Work-class precedence (DR-2), shared by all enqueue overloads:</b> a
+    /// per-call class other than <see cref="WorkClass.Default"/> wins; a per-call
+    /// <see cref="WorkClass.Default"/> defers to the classifier; with no classifier
+    /// the class stays <see cref="WorkClass.Default"/>.
+    /// </para>
     /// </remarks>
     public ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
     {
-        var envelope = new WorkEnvelope<TWork>(work, workClass, _timeProvider.GetTimestamp());
+        var envelope = new WorkEnvelope<TWork>(work, ResolveClass(work, workClass), _timeProvider.GetTimestamp());
 
         // Default FIFO strategy: producer-wait path on the concrete sealed binding.
         // The exact-type pattern match devirtualizes the call (DR-4).
@@ -208,7 +226,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <inheritdoc/>
     public bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        return _queue.TryEnqueue(new WorkEnvelope<TWork>(work, workClass, _timeProvider.GetTimestamp()));
+        return _queue.TryEnqueue(new WorkEnvelope<TWork>(work, ResolveClass(work, workClass), _timeProvider.GetTimestamp()));
     }
 
     /// <inheritdoc/>
@@ -328,6 +346,28 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <returns><see langword="true"/> if an envelope was read; otherwise <see langword="false"/>.</returns>
     internal bool TryReadEnvelope(out WorkEnvelope<TWork> envelope)
         => _queue.TryDequeue(out envelope);
+
+    /// <summary>
+    /// Resolves the effective <see cref="WorkClass"/> for an enqueue (DR-2).
+    /// Precedence rule: a per-call class other than <see cref="WorkClass.Default"/>
+    /// wins; a per-call <see cref="WorkClass.Default"/> defers to the classifier;
+    /// with no classifier the class stays <see cref="WorkClass.Default"/>. The
+    /// classifier delegate is invoked only on the per-call-Default path, so the
+    /// hot path stays allocation-free. Sole classification site — every enqueue
+    /// overload routes through here (Run/TryRun via TryEnqueue).
+    /// </summary>
+    /// <param name="work">The work item, passed to the classifier when consulted.</param>
+    /// <param name="perCall">The per-call work class supplied by the caller.</param>
+    /// <returns>The effective work class for the envelope.</returns>
+    private WorkClass ResolveClass(TWork work, WorkClass perCall)
+    {
+        if (perCall != WorkClass.Default)
+        {
+            return perCall;
+        }
+
+        return _classifier is null ? WorkClass.Default : _classifier(work);
+    }
 
     /// <summary>
     /// The FIFO producer-wait enqueue path on the concrete sealed binding: awaits
