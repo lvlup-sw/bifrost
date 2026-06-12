@@ -40,6 +40,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     private readonly Task[] _workers;
     private readonly CancellationTokenSource _cts = new();
     private readonly int _capacity;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestrator{TWork}"/> class.
@@ -47,11 +48,16 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <param name="handler">The handler that processes work items.</param>
     /// <param name="options">Configuration options for the orchestrator.</param>
     /// <param name="logger">The logger instance.</param>
-    /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
+    /// <param name="timeProvider">
+    /// The time provider used for enqueue timestamping; defaults to
+    /// <see cref="TimeProvider.System"/> when null.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Thrown when handler, options, or logger is null.</exception>
     public WorkOrchestrator(
         IWorkHandler<TWork> handler,
         IOptions<WorkOrchestratorOptions> options,
-        ILogger<WorkOrchestrator<TWork>> logger)
+        ILogger<WorkOrchestrator<TWork>> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(options);
@@ -59,6 +65,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
         _handler = handler;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         var opts = options.Value;
         _capacity = opts.Capacity;
