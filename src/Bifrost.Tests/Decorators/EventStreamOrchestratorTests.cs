@@ -5,7 +5,6 @@
 // =============================================================================
 
 using System.Collections.Concurrent;
-using System.Threading.Channels;
 
 using Bifrost.Core;
 using Bifrost.Core.Events;
@@ -38,6 +37,8 @@ public class EventStreamOrchestratorTests
         _inner.PendingCount.Returns(5);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
+        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .Returns(EnqueueResult.Accepted);
 
         return Task.CompletedTask;
     }
@@ -71,7 +72,7 @@ public class EventStreamOrchestratorTests
         await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
 
         // Assert
-        await _inner.Received(1).EnqueueAsync("test-work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("test-work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(evt.Work).IsEqualTo("test-work");
@@ -292,21 +293,43 @@ public class EventStreamOrchestratorTests
     }
 
     /// <summary>
-    /// Verifies that Writer delegates to inner orchestrator.
+    /// Verifies that a rejected admission outcome suppresses event publication.
     /// </summary>
     [Test]
-    public async Task Writer_DelegatesToInner()
+    public async Task EnqueueAsync_Rejected_DoesNotPublishEvent()
     {
         // Arrange
-        var channel = Channel.CreateBounded<string>(10);
-        _inner.Writer.Returns(channel.Writer);
+        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .Returns(EnqueueResult.Rejected(RejectionReason.Shutdown));
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
+        var eventReceived = false;
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        var subscriberTask = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+                {
+                    eventReceived = true;
+                    break;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when no event arrives before the timeout
+            }
+        });
+
+        await Task.Delay(100).ConfigureAwait(false);
 
         // Act
-        var result = decorator.Writer;
+        var result = await decorator.EnqueueAsync("rejected-work").ConfigureAwait(false);
+        await subscriberTask.ConfigureAwait(false);
 
         // Assert
-        await Assert.That(result).IsSameReferenceAs(channel.Writer);
+        await Assert.That(result.IsAccepted).IsFalse();
+        await Assert.That(eventReceived).IsFalse();
     }
 
     /// <summary>

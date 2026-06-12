@@ -417,21 +417,15 @@ public class WorkOrchestratorTests
     }
 
     /// <summary>
-    /// Verifies that Writer property provides access to the channel writer.
+    /// Verifies that the Writer escape hatch has been removed from the
+    /// concrete orchestrator (deliberate v0.5.0 break).
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
-    /// <remarks>
-    /// Arranges an orchestrator, asserts Writer property is not null.
-    /// Exposes the underlying ChannelWriter for advanced enqueue scenarios.
-    /// </remarks>
     [Test]
-    public async Task Writer_ProvidesChannelAccess()
+    public async Task Writer_EscapeHatch_Removed()
     {
-        // Arrange
-        await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
-
         // Assert
-        await Assert.That(orchestrator.Writer).IsNotNull();
+        await Assert.That(typeof(WorkOrchestrator<string>).GetProperty("Writer")).IsNull();
     }
 
     /// <summary>

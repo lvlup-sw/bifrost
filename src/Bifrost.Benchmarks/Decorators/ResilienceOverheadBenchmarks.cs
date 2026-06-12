@@ -56,14 +56,14 @@ public class ResilienceOverheadBenchmarks
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> representing the enqueue operation.</returns>
     [Benchmark(Baseline = true)]
-    public ValueTask EnqueueAsync_Bare() => _bare!.EnqueueAsync(42);
+    public ValueTask<EnqueueResult> EnqueueAsync_Bare() => _bare!.EnqueueAsync(42);
 
     /// <summary>
     /// Resilience-wrapped orchestrator EnqueueAsync exercising the Polly pipeline.
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> representing the enqueue operation.</returns>
     [Benchmark]
-    public ValueTask EnqueueAsync_WithResilience() => _withResilience!.EnqueueAsync(42);
+    public ValueTask<EnqueueResult> EnqueueAsync_WithResilience() => _withResilience!.EnqueueAsync(42);
 
     /// <summary>
     /// Disposes all orchestrator instances.

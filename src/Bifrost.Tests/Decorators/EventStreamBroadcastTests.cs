@@ -38,6 +38,8 @@ public class EventStreamBroadcastTests
         _inner.PendingCount.Returns(5);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
+        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .Returns(EnqueueResult.Accepted);
 
         return Task.CompletedTask;
     }

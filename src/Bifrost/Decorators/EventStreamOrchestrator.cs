@@ -69,30 +69,37 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     public int Capacity => _inner.Capacity;
 
     /// <inheritdoc/>
-    public ChannelWriter<TWork> Writer => _inner.Writer;
-
-    /// <inheritdoc/>
-    public async ValueTask EnqueueAsync(TWork work, CancellationToken ct = default)
+    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
     {
-        await _inner.EnqueueAsync(work, ct).ConfigureAwait(false);
+        var result = await _inner.EnqueueAsync(work, workClass, ct).ConfigureAwait(false);
 
-        var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
-        PublishToSubscribers(evt);
+        if (result.IsAccepted)
+        {
+            var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
+            PublishToSubscribers(evt);
+        }
+
+        return result;
     }
 
     /// <inheritdoc/>
-    public async ValueTask EnqueueAsync(TWork work, string? correlationId, CancellationToken ct = default)
+    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, string? correlationId, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
     {
-        await _inner.EnqueueAsync(work, ct).ConfigureAwait(false);
+        var result = await _inner.EnqueueAsync(work, workClass, ct).ConfigureAwait(false);
 
-        var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount, correlationId);
-        PublishToSubscribers(evt);
+        if (result.IsAccepted)
+        {
+            var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount, correlationId);
+            PublishToSubscribers(evt);
+        }
+
+        return result;
     }
 
     /// <inheritdoc/>
-    public bool TryEnqueue(TWork work)
+    public bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        var result = _inner.TryEnqueue(work);
+        var result = _inner.TryEnqueue(work, workClass);
 
         if (result)
         {
@@ -104,9 +111,9 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     }
 
     /// <inheritdoc/>
-    public bool TryEnqueue(TWork work, string? correlationId)
+    public bool TryEnqueue(TWork work, string? correlationId, WorkClass workClass = WorkClass.Default)
     {
-        var result = _inner.TryEnqueue(work);
+        var result = _inner.TryEnqueue(work, workClass);
 
         if (result)
         {
@@ -118,18 +125,18 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     }
 
     /// <inheritdoc/>
-    public void Run(TWork work)
+    public void Run(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        _inner.Run(work);
+        _inner.Run(work, workClass);
 
         var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
         PublishToSubscribers(evt);
     }
 
     /// <inheritdoc/>
-    public bool TryRun(TWork work)
+    public bool TryRun(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        var result = _inner.TryRun(work);
+        var result = _inner.TryRun(work, workClass);
 
         if (result)
         {

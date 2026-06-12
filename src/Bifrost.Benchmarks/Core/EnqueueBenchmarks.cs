@@ -73,7 +73,7 @@ public class EnqueueBenchmarks
     /// </para>
     /// </remarks>
     [Benchmark]
-    public ValueTask EnqueueAsync()
+    public ValueTask<EnqueueResult> EnqueueAsync()
     {
         return _orchestrator!.EnqueueAsync(42);
     }
