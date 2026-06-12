@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Bifrost.Core;
+using Bifrost.Decorators;
 using Bifrost.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,17 @@ public static class OpenTelemetryExtensions
     private const int QueueWaitAttachOrder = int.MinValue;
 
     /// <summary>
+    /// Decorator order for the rejected-counter hook attachment: directly above
+    /// the rejection-routing decorator
+    /// (<see cref="RejectionRoutingRegistration.DecoratorOrder"/>) so its
+    /// pass-through factory receives that decorator instance before any further
+    /// wrapping (resilience = 25, event stream = 50, autoscaling = 100) applies.
+    /// Distinct from <see cref="QueueWaitAttachOrder"/> — the two attach points
+    /// never collide.
+    /// </summary>
+    private const int RejectedCounterAttachOrder = RejectionRoutingRegistration.DecoratorOrder + 1;
+
+    /// <summary>
     /// Adds OpenTelemetry metrics instrumentation to the work orchestrator.
     /// </summary>
     /// <typeparam name="TWork">The type of work items.</typeparam>
@@ -43,6 +55,7 @@ public static class OpenTelemetryExtensions
     ///   <item><description><c>orchestrator.items.failed</c> - Counter for failed items</description></item>
     ///   <item><description><c>orchestrator.processing.duration</c> - Histogram for processing time</description></item>
     ///   <item><description><c>bifrost.orchestrator.queue_wait</c> - Histogram for queue wait, tagged by <c>work.class</c></description></item>
+    ///   <item><description><c>bifrost.orchestrator.rejected</c> - Counter for admission rejections, tagged by <c>work.class</c> and <c>rejection.reason</c></description></item>
     ///   <item><description><c>orchestrator.queue.pending</c> - Gauge for pending queue depth</description></item>
     ///   <item><description><c>orchestrator.workers.active</c> - Gauge for active worker count</description></item>
     /// </list>
@@ -56,10 +69,14 @@ public static class OpenTelemetryExtensions
     /// <see cref="OrchestratorMetrics{TWork}"/> into your <see cref="IWorkHandler{TWork}"/>
     /// implementation and call the recording methods manually.
     /// The observable gauges (<c>orchestrator.queue.pending</c> and <c>orchestrator.workers.active</c>)
-    /// are automatically reported by querying the orchestrator, and the
+    /// are automatically reported by querying the orchestrator, the
     /// <c>bifrost.orchestrator.queue_wait</c> histogram is recorded automatically at dequeue via
     /// the orchestrator's internal queue-wait hook (see
-    /// <see cref="OrchestratorMetrics{TWork}.QueueWait"/> for the Stage-2 evidence recipe).
+    /// <see cref="OrchestratorMetrics{TWork}.QueueWait"/> for the Stage-2 evidence recipe), and
+    /// the <c>bifrost.orchestrator.rejected</c> counter is recorded automatically on admission
+    /// rejection via the rejection-routing decorator (see
+    /// <see cref="OrchestratorMetrics{TWork}.Rejected"/>) — independent of whether a dead-letter
+    /// queue is configured.
     /// </para>
     /// </remarks>
     /// <example>
@@ -131,6 +148,31 @@ public static class OpenTelemetryExtensions
                     {
                         concrete.QueueWaitObserved =
                             sp.GetRequiredService<OrchestratorMetrics<TWork>>().RecordQueueWait;
+                    }
+
+                    return orchestrator;
+                }));
+        }
+
+        // Rejections are always counted (DR-6), independent of DLQ configuration:
+        // ensure the rejection-routing decorator exists (idempotent, shared with
+        // WithDeadLetterQueue — any call order), then attach the rejected counter
+        // to it via a pass-through registered directly above it, mirroring the
+        // queue-wait attach pattern. The hook is bound once at build time as a
+        // method-group delegate; the per-rejection record path is allocation-free
+        // (cached work.class and rejection.reason tag values).
+        RejectionRoutingRegistration.EnsureRegistered(builder);
+
+        if (!builder.Decorators.Any(d => d.Order == RejectedCounterAttachOrder))
+        {
+            builder.Decorators.Add(new DecoratorRegistration<TWork>(
+                RejectedCounterAttachOrder,
+                static (sp, orchestrator) =>
+                {
+                    if (orchestrator is RejectionRoutingOrchestrator<TWork> routing)
+                    {
+                        routing.RejectionObserved =
+                            sp.GetRequiredService<OrchestratorMetrics<TWork>>().RecordRejected;
                     }
 
                     return orchestrator;

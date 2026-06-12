@@ -35,12 +35,22 @@ public static class DeadLetterQueueExtensions
     ///   <item><description><see cref="IDeadLetterQueue{TWork}"/> - Channel-backed dead letter queue</description></item>
     ///   <item><description><see cref="DeadLetterNotifier{TWork}"/> - Multi-subscriber notification bridge</description></item>
     ///   <item><description><see cref="DeadLetterHandler{TWork}"/> - Handler decorator for retry and DLQ routing</description></item>
+    ///   <item><description><see cref="Bifrost.Decorators.RejectionRoutingOrchestrator{TWork}"/> - Orchestrator decorator routing admission rejections to the DLQ (DR-6)</description></item>
     /// </list>
     /// </para>
     /// <para>
     /// When combined with <c>WithEventStream()</c>, dead-lettered work items automatically
     /// produce <see cref="Bifrost.Core.Events.WorkDeadLetteredEvent{TWork}"/> events in the
     /// event stream. The two extensions can be called in any order.
+    /// </para>
+    /// <para>
+    /// Admission rejections (fail-fast priority strategies, DR-6) route through the
+    /// same dead-letter pathway as handler failures, marked with an attempt count of
+    /// zero and a <see cref="Bifrost.Core.WorkRejectedException"/> carrying the
+    /// <see cref="Bifrost.Core.RejectionReason"/>. Routing is observability, not
+    /// retry: the caller still receives the rejected
+    /// <see cref="Bifrost.Core.EnqueueResult"/>, and shutdown rejections during
+    /// teardown are never dead-lettered.
     /// </para>
     /// </remarks>
     [UnconditionalSuppressMessage(
@@ -81,6 +91,12 @@ public static class DeadLetterQueueExtensions
                     sp.GetRequiredService<IOptions<DeadLetterQueueOptions>>(),
                     sp.GetRequiredService<ILogger<DeadLetterHandler<TWork>>>(),
                     builder.EventPublishCallback)));
+
+        // Route admission rejections (DR-6) into the dead-letter pathway via the
+        // rejection-routing orchestrator decorator. Idempotent and shared with
+        // WithOpenTelemetry, which attaches the rejected counter to the same
+        // decorator.
+        RejectionRoutingRegistration.EnsureRegistered(builder);
 
         return builder;
     }
