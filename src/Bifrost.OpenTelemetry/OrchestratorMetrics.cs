@@ -22,6 +22,7 @@ namespace Bifrost.OpenTelemetry;
 ///   <item><description><c>orchestrator.items.processed</c> - Counter for total items processed</description></item>
 ///   <item><description><c>orchestrator.items.failed</c> - Counter for total items that failed processing</description></item>
 ///   <item><description><c>orchestrator.processing.duration</c> - Histogram for processing duration in milliseconds</description></item>
+///   <item><description><c>bifrost.orchestrator.queue_wait</c> - Histogram for queue wait in milliseconds, tagged by <c>work.class</c></description></item>
 ///   <item><description><c>orchestrator.items.deadlettered</c> - Counter for total items dead-lettered</description></item>
 ///   <item><description><c>orchestrator.queue.pending</c> - Observable gauge for pending items</description></item>
 ///   <item><description><c>orchestrator.workers.active</c> - Observable gauge for active workers</description></item>
@@ -31,6 +32,17 @@ namespace Bifrost.OpenTelemetry;
 /// </remarks>
 public sealed class OrchestratorMetrics<TWork> : IDisposable
 {
+    // Cached work.class tag values: one per WorkClass member, so the per-dequeue
+    // record path never calls Enum.ToString() and never allocates.
+    private static readonly KeyValuePair<string, object?> InteractiveClassTag =
+        new("work.class", nameof(WorkClass.Interactive));
+
+    private static readonly KeyValuePair<string, object?> DefaultClassTag =
+        new("work.class", nameof(WorkClass.Default));
+
+    private static readonly KeyValuePair<string, object?> BatchClassTag =
+        new("work.class", nameof(WorkClass.Batch));
+
     private readonly Meter _meter;
     private bool _disposed;
 
@@ -57,6 +69,27 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
     /// </summary>
     /// <value>Histogram tracking processing duration in milliseconds.</value>
     public Histogram<double> ProcessingDuration { get; }
+
+    /// <summary>
+    /// Gets the histogram for the time work items spend queued before dispatch,
+    /// tagged by <c>work.class</c> (the <see cref="WorkClass"/> enum member name).
+    /// </summary>
+    /// <value>Histogram tracking queue wait in milliseconds, tagged by work class.</value>
+    /// <remarks>
+    /// <para>
+    /// This instrument is the Stage-2 evidence signal for priority dispatch
+    /// (issue #17). Evidence recipe: when the <c>Interactive</c>-class p95 queue wait
+    /// exceeds the 500 ms operator budget while <c>Batch</c>-class work is
+    /// co-resident, consider enabling priority dispatch.
+    /// </para>
+    /// <para>
+    /// Recorded values are computed exclusively from <see cref="TimeProvider"/>
+    /// monotonic elapsed time (<see cref="TimeProvider.GetElapsedTime(long)"/> over
+    /// the envelope's enqueue timestamp). FireTime-style wall-clock timestamps are
+    /// never used, so the measurement is immune to clock adjustments.
+    /// </para>
+    /// </remarks>
+    public Histogram<double> QueueWait { get; }
 
     /// <summary>
     /// Gets the observable gauge for pending items.
@@ -128,6 +161,13 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
             unit: "ms",
             description: "Work item processing duration in milliseconds");
 
+        QueueWait = _meter.CreateHistogram<double>(
+            "bifrost.orchestrator.queue_wait",
+            unit: "ms",
+            description: "Time work items spend queued before dispatch, tagged by work.class. " +
+                "Stage-2 evidence for priority dispatch (issue #17): interactive-class p95 " +
+                "queue wait > 500 ms while batch-class work is co-resident.");
+
         PendingItems = _meter.CreateObservableGauge(
             "orchestrator.queue.pending",
             () => orchestratorProvider()?.PendingCount ?? 0,
@@ -169,6 +209,26 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
         ItemsProcessed.Add(1);
         ProcessingDuration.Record(durationMs);
     }
+
+    /// <summary>
+    /// Records the time a work item spent queued before dispatch.
+    /// </summary>
+    /// <param name="workClass">The work class of the dequeued item.</param>
+    /// <param name="waited">
+    /// The queue wait computed from <see cref="TimeProvider"/> monotonic elapsed time.
+    /// </param>
+    /// <remarks>
+    /// Allocation-free per record: the <c>work.class</c> tag values are cached per
+    /// <see cref="WorkClass"/> member, so no string or boxing allocation occurs on
+    /// the dequeue hot path.
+    /// </remarks>
+    public void RecordQueueWait(WorkClass workClass, TimeSpan waited)
+        => QueueWait.Record(waited.TotalMilliseconds, workClass switch
+        {
+            WorkClass.Interactive => InteractiveClassTag,
+            WorkClass.Batch => BatchClassTag,
+            _ => DefaultClassTag,
+        });
 
     /// <summary>
     /// Records that a work item failed processing.
