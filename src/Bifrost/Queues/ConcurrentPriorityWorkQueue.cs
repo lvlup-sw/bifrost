@@ -7,6 +7,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Bifrost.Concurrency;
+using Bifrost.Core;
 
 namespace Bifrost.Queues;
 
