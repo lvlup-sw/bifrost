@@ -95,7 +95,8 @@ public abstract class WorkQueueContractTests
     {
         // Arrange
         var queue = CreateQueue(SmallCapacity);
-        queue.TryEnqueue(42);
+        var enqueued = queue.TryEnqueue(42);
+        await Assert.That(enqueued).IsTrue();
         using var timeoutCts = new CancellationTokenSource(WaitTimeout);
 
         // Act
@@ -139,7 +140,8 @@ public abstract class WorkQueueContractTests
     {
         // Arrange
         var queue = CreateQueue(SmallCapacity);
-        queue.TryEnqueue(99);
+        var enqueued = queue.TryEnqueue(99);
+        await Assert.That(enqueued).IsTrue();
         using var timeoutCts = new CancellationTokenSource(WaitTimeout);
 
         // Act — the canonical loop tolerates spurious TryDequeue misses by re-waiting.
@@ -167,7 +169,8 @@ public abstract class WorkQueueContractTests
         // Act — N uncontended enqueues; the queue is quiescent after each operation.
         for (var i = 0; i < enqueueCount; i++)
         {
-            queue.TryEnqueue(i);
+            var enqueued = queue.TryEnqueue(i);
+            await Assert.That(enqueued).IsTrue();
         }
 
         // Assert — exact at quiescence.
