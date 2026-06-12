@@ -32,6 +32,16 @@ using Bifrost.Benchmarks.Orchestrator;
 // dedicated verbs instead of the switcher:
 //   dotnet run -c Release -- throughput [windowSeconds] [outputDirectory]
 //   dotnet run -c Release -- stickiness [windowSeconds] [outputDirectory]
+//
+// DR-8 consumer-shaped soak verb: a long mixed-arrival window with seconds-long simulated work
+// items driven against BOTH priority bindings — plain console harness, also not a BDN fit:
+//   dotnet run -c Release -- soak [--seconds 600] [--binding both|locking|multiqueue] [--workers 2,8] ...
+if (args.Length > 0 && args[0].Equals("soak", StringComparison.OrdinalIgnoreCase))
+{
+    await SoakVerbs.RunSoakAsync(args).ConfigureAwait(false);
+    return;
+}
+
 if (args.Length > 0 && args[0].Equals("throughput", StringComparison.OrdinalIgnoreCase))
 {
     ThroughputVerbs.RunThroughputSweep(args);
