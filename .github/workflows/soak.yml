@@ -1,0 +1,51 @@
+name: CPQ Soak (DR-8)
+
+# Consumer-shaped soak — release-gate/nightly artifact, NOT a per-PR gate (design DR-8).
+# Runs the 'soak' verb against BOTH priority bindings at workers {2,8} and uploads the
+# CSV/MD artifacts. See docs/benchmarks/2026-06-cpq-soak.md for the harness description
+# and how to read the results.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Per-run soak window in seconds (4 runs total)'
+        required: false
+        default: '600'
+  schedule:
+    # Nightly at 03:17 UTC.
+    - cron: '17 3 * * *'
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_QUALITY: 'preview'
+
+jobs:
+  soak:
+    name: Consumer-shaped soak (both bindings)
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Run soak (both bindings, workers 2 and 8)
+        run: |
+          WINDOW='${{ github.event.inputs.seconds || '600' }}'
+          dotnet run -c Release --project src/Bifrost.Benchmarks -- \
+            soak --seconds "$WINDOW" --out soak-results
+
+      - name: Upload soak artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpq-soak-results
+          path: soak-results/
+          retention-days: 30
