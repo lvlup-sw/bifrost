@@ -26,11 +26,17 @@ namespace Bifrost.Queues;
 /// attempt the dequeue; on a miss, loop back to the wait. A miss is never an error.
 /// </para>
 /// <para>
-/// <b>Shutdown semantic.</b> Cancellation of the token passed to
-/// <see cref="WaitToDequeueAsync(CancellationToken)"/> is the orderly shutdown signal:
-/// the wait completes with <c>false</c> — it never throws
-/// <see cref="OperationCanceledException"/>. After a <c>false</c> result, residual
-/// items may still be drained directly via <see cref="TryDequeue(out T)"/>.
+/// <b>Shutdown semantic.</b> Two orderly exits, owned at different layers. Queue
+/// COMPLETION (a binding's concrete complete-for-adding member) finishes the wait
+/// with <c>false</c> once residual items are drained — the loop's natural exit.
+/// CANCELLATION of the token passed to
+/// <see cref="WaitToDequeueAsync(CancellationToken)"/> MAY instead surface as
+/// <see cref="OperationCanceledException"/>: bindings forward their wait primitive's
+/// native cancellation semantics rather than normalizing per wait, which would cost a
+/// wrapper <c>async</c> state-machine allocation on every suspending wait (DR-7). The
+/// canonical consume loop therefore owns the catch — once per worker, AROUND the
+/// loop, never per wait. After either exit, residual items may still be drained
+/// directly via <see cref="TryDequeue(out T)"/>.
 /// </para>
 /// <para>
 /// <b>Admission policy.</b> Watermarks, class-based admission, and any other
@@ -71,10 +77,15 @@ public interface IWorkQueue<T>
     /// <returns>
     /// <c>true</c> when an item is likely available — follow with
     /// <see cref="TryDequeue(out T)"/>, tolerating a spurious miss by looping back to
-    /// this wait. <c>false</c> on shutdown: this method completes with <c>false</c>
-    /// when <paramref name="cancellationToken"/> is cancelled and never throws
-    /// <see cref="OperationCanceledException"/>.
+    /// this wait. <c>false</c> when the queue has been completed for adding and is
+    /// drained (the consume loop's natural exit).
     /// </returns>
+    /// <exception cref="OperationCanceledException">
+    /// MAY be thrown when <paramref name="cancellationToken"/> is cancelled: bindings
+    /// forward their wait primitive's native cancellation semantics rather than
+    /// normalizing per wait (a per-suspension wrapper allocation, DR-7). The canonical
+    /// consume loop owns the catch — once per worker, around the loop.
+    /// </exception>
     ValueTask<bool> WaitToDequeueAsync(CancellationToken cancellationToken);
 
     /// <summary>

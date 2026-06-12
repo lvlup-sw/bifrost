@@ -103,10 +103,21 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
             await Assert.That(dequeued).IsTrue();
         }
 
-        // No extra signals: a further wait must block until its token cancels, then report false.
+        // No extra signals: a further wait must park until its token cancels, then
+        // surface OperationCanceledException per the contract (the consume loop owns
+        // the catch; here the test plays the loop's role).
         using var extraCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
-        var extraSignaled = await queue.WaitToDequeueAsync(extraCts.Token).ConfigureAwait(false);
-        await Assert.That(extraSignaled).IsFalse();
+        var extraSurfacedCancellation = false;
+        try
+        {
+            _ = await queue.WaitToDequeueAsync(extraCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            extraSurfacedCancellation = true;
+        }
+
+        await Assert.That(extraSurfacedCancellation).IsTrue();
     }
 
     /// <summary>

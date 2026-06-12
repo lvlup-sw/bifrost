@@ -227,11 +227,14 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Cancellation completes the wait with <c>false</c> — never an
-    /// <see cref="OperationCanceledException"/> — per the contract's shutdown semantic.
-    /// After <see cref="Complete"/>, the wait completes <c>false</c> once the queue is
-    /// also empty; while residual items remain it completes <c>true</c> so the canonical
-    /// consume loop can drain them (see the completion-wake remarks on the class).
+    /// Cancellation surfaces as <see cref="OperationCanceledException"/> — thrown
+    /// upfront for a pre-cancelled token and natively by
+    /// <see cref="SemaphoreSlim.WaitAsync(CancellationToken)"/> for a parked wait —
+    /// per the contract: the canonical consume loop owns the catch, keeping all three
+    /// bindings consistent (DR-7). After <see cref="Complete"/>, the wait completes
+    /// <c>false</c> once the queue is also empty; while residual items remain it
+    /// completes <c>true</c> so the canonical consume loop can drain them (see the
+    /// completion-wake remarks on the class).
     /// </remarks>
     public async ValueTask<bool> WaitToDequeueAsync(CancellationToken cancellationToken)
     {
@@ -242,11 +245,10 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
         Interlocked.Increment(ref _waiterCount);
         try
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                // Contract shutdown semantic: report false rather than throwing.
-                return false;
-            }
+            // Contract cancellation semantic: surface OperationCanceledException
+            // (checked before the completed flag, matching the channel binding's
+            // WaitToReadAsync ordering); the consume loop's boundary absorbs it.
+            cancellationToken.ThrowIfCancellationRequested();
 
             if (_completed)
             {
@@ -256,15 +258,9 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
                 return !_queue.IsEmpty;
             }
 
-            try
-            {
-                await _signal.WaitAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                // Contract shutdown semantic: cancellation completes the wait with false.
-                return false;
-            }
+            // Cancellation of a parked wait propagates the semaphore's native
+            // OperationCanceledException to the consume loop's boundary.
+            await _signal.WaitAsync(cancellationToken).ConfigureAwait(false);
 
             // Permit acquired: either an item permit (an item is likely available —
             // TryDequeue may still spuriously miss; consumers loop back to this wait) or
