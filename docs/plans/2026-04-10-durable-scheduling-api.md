@@ -1,7 +1,8 @@
-# Implementation Plan: Bifrost Durable Scheduling API
+# Implementation Plan: Bifrost Scheduling API
 
 **Design:** `docs/designs/2026-04-10-durable-scheduling-api.md`
 **Issue:** [#16](https://github.com/lvlup-sw/bifrost/issues/16)
+**Revised:** 2026-06-12 to match design revision R1–R10; see `docs/research/2026-06-12-durable-scheduling-precedents.md`. (The file name keeps the historical `durable-scheduling` slug — see the design's naming note, R6.)
 **Iron Law:** No production code without a failing test first.
 
 ---
@@ -22,25 +23,28 @@ See `docs/designs/2026-04-10-durable-scheduling-api.md`.
 - All three missed-fire policies — DR-3
 - All three dispatch modes (orchestrator, inline, custom) — DR-4
 - `IScheduleStore` contract + `InMemoryScheduleStore` — DR-5
-- `IExclusiveScheduleStore` + `ILeadershipLease` **contracts only**; in-memory always-leader behavior — DR-6
-- `ScheduleTickLoop` with priority-queue engine and wake-channel for mutations — DR-7
-- Observability: metrics, events, health check, inspector API — DR-8
+- Single-process always-leader behavior + multi-instance startup warning — DR-6 (the coordination contract does **not** ship in v1 at all; deferred per R4)
+- `ScheduleTickLoop` with priority-queue (min-heap) engine and wake-channel for mutations — DR-7
+- Observability: metrics, events, health check, inspector API (incl. `GetNextOccurrences`) — DR-8
 - `ISchedulerTestHarness` with `FakeTimeProvider` support — DR-9
-- Full error-handling surface — DR-10
-- Benchmark suite in `Bifrost.Benchmarks/Scheduling/` — DR-11
+- Full error-handling surface, expanded per the mined edge-case inventory (research §6 / R9) — DR-10
+- Benchmark suite in `Bifrost.Benchmarks/Scheduling/` — DR-11 (revised per R2)
+- At-least-once delivery semantics with stable `(JobName, FireTime)` idempotency key — DR-12 (new, R3)
+- End-to-end AOT validation: `PublishAot` smoke + trim-warnings-as-errors — DR-13 (new, R8)
+- Design-revision additions (2026-06-12, Tasks 45–51): registration-time `Cadence.After` resolution (R1), banned-API architecture test (R1), early-wake clamp (R2), DR-10 hardening (R9), R10 ergonomics
 
 **Excluded (follow-up releases, explicitly deferred):**
-- `Bifrost.Scheduling.Marten` adapter package — deferred to follow-up release. The `IExclusiveScheduleStore` contract is in scope so the adapter can be built without core changes.
+- `Bifrost.Scheduling.Marten` adapter package — deferred to follow-up release.
 - `Bifrost.Scheduling.Wolverine` interop adapter — deferred per issue #16 "Wolverine interop surface" section.
-- Any persistent storage implementation beyond in-memory — deferred; the contract is the forward-compatibility boundary.
-- Durable multi-instance leader election — the contract ships, no concrete implementation ships.
+- Any persistent storage implementation beyond in-memory — deferred; the `IScheduleStore` contract is the forward-compatibility boundary.
+- Multi-instance coordination — deferred **entirely, including the contract** (DR-6/R4). No coordination interface, lease type, or leader-election API appears in the v1 public surface; the contract is designed together with the Marten adapter, not before it.
 
 ## Summary
 
-- **Total tasks:** 44
-- **Parallel groups:** 11 (A through K)
-- **Estimated test count:** ~140
-- **Design coverage:** 11 of 11 DR-N requirements covered
+- **Total tasks:** 50 active (51 numbered — Task 8 removed per design R4, tombstone retained to keep task numbering and dependency references stable)
+- **Parallel groups:** 13 (A through M)
+- **Estimated test count:** ~160
+- **Design coverage:** 13 of 13 DR-N requirements covered
 
 ---
 
@@ -50,17 +54,19 @@ See `docs/designs/2026-04-10-durable-scheduling-api.md`.
 
 | DR | Requirement | Tasks |
 |----|-------------|-------|
-| DR-1 | Job registry with fluent and runtime APIs | 5, 6, 15, 19, 20, 21, 38, 39 |
-| DR-2 | Cadence primitives | 9, 10, 11, 12, 13, 38, 43 |
+| DR-1 | Job registry with fluent and runtime APIs | 5, 6, 15, 19, 20, 21, 38, 39, 51 |
+| DR-2 | Cadence primitives | 9, 10, 11, 12, 13, 38, 43, 45, 48 |
 | DR-3 | Missed-fire policies | 5, 14, 26, 38 |
 | DR-4 | Pluggable dispatch — orchestrator, inline, and custom | 16, 22, 23, 24, 30, 38, 40, 44 |
 | DR-5 | Pluggable storage via IScheduleStore | 6, 7, 18, 39 |
-| DR-6 | Coordination — single-leader default, opt-in exclusivity | 5, 8, 27, 39 |
-| DR-7 | Timer-wheel tick engine | 25, 26, 42 |
-| DR-8 | Observability — metrics, events, and health checks | 17, 31, 32, 33, 34 |
+| DR-6 | Coordination — single-process v1; coordination contract deferred (R4) | 5, 27, 39 |
+| DR-7 | Min-heap tick engine | 25, 26, 42, 46, 47 |
+| DR-8 | Observability — metrics, events, and health checks | 17, 31, 32, 33, 34, 51 |
 | DR-9 | Testing primitives — FakeTimeProvider + deterministic fire control | 3, 35, 36, 37 |
-| DR-10 | Error handling and edge cases | 13, 26, 28, 29, 30 |
-| DR-11 | Performance and allocation targets | 41, 42, 43, 44 |
+| DR-10 | Error handling and edge cases | 13, 26, 28, 29, 30, 48 |
+| DR-11 | Performance targets (revised per R2) | 41, 42, 43, 44, 48 |
+| DR-12 | Delivery semantics — at-least-once per occurrence (new, R3) | 49 |
+| DR-13 | AOT compatibility — end to end (new, R8) | 50 |
 
 ### Design Section → Task Mapping
 
@@ -69,20 +75,22 @@ This table maps every Technical Design subsection of `docs/designs/2026-04-10-du
 | Design Section | Tasks |
 |----------------|-------|
 | Package layout | 1, 2, 3, 4 (scaffolds all three packages + test project per the Package layout diagram) |
-| Type model | 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17 (all types in the Type model code block) |
-| Tick loop (pseudo-code) | 25, 26, 27, 28, 29, 30 (implements the `ScheduleTickLoop` pseudo-code loop) |
+| Type model | 5, 6, 7, 9, 10, 11, 12, 15, 16, 17, 45 (all types in the Type model code block; the coordination contract is intentionally absent — DR-6/R4) |
+| Tick loop (pseudo-code) | 25, 26, 27, 28, 29, 30, 47, 48, 49 (implements the `ScheduleTickLoop` pseudo-code loop) |
 | Fluent builder integration | 38, 39 (`ISchedulerBuilder`, `AddJob<TWork>`, `AddInlineJob`, `UseStore<T>`) |
-| DR-1: Job registry with fluent and runtime APIs | 5, 6, 15, 19, 20, 21, 38, 39 |
-| DR-2: Cadence primitives | 9, 10, 11, 12, 13, 38, 43 |
+| DR-1: Job registry with fluent and runtime APIs | 5, 6, 15, 19, 20, 21, 38, 39, 51 |
+| DR-2: Cadence primitives | 9, 10, 11, 12, 13, 38, 43, 45, 48 |
 | DR-3: Missed-fire policies | 5, 14, 26, 38 |
 | DR-4: Pluggable dispatch — orchestrator, inline, and custom | 16, 22, 23, 24, 30, 38, 40, 44 |
 | DR-5: Pluggable storage via IScheduleStore | 6, 7, 18, 39 |
-| DR-6: Coordination — single-leader default, opt-in exclusivity | 5, 8, 27, 39 |
-| DR-7: Timer-wheel tick engine | 25, 26, 42 |
-| DR-8: Observability — metrics, events, and health checks | 17, 31, 32, 33, 34 |
+| DR-6: Coordination — single-process v1; coordination contract deferred (R4) | 5, 27, 39 |
+| DR-7: Min-heap tick engine | 25, 26, 42, 46, 47 |
+| DR-8: Observability — metrics, events, and health checks | 17, 31, 32, 33, 34, 51 |
 | DR-9: Testing primitives — FakeTimeProvider + deterministic fire control | 3, 35, 36, 37 |
-| DR-10: Error handling and edge cases | 13, 26, 28, 29, 30 |
-| DR-11: Performance and allocation targets | 41, 42, 43, 44 |
+| DR-10: Error handling and edge cases | 13, 26, 28, 29, 30, 48 |
+| DR-11: Performance targets (revised per R2) | 41, 42, 43, 44, 48 |
+| DR-12: Delivery semantics — at-least-once per occurrence (new, R3) | 49 |
+| DR-13: AOT compatibility — end to end (new, R8) | 50 |
 
 ---
 
@@ -270,27 +278,21 @@ Implements the **Type model** section of the design document. All public types f
 
 ---
 
-### Task 8: IExclusiveScheduleStore + ILeadershipLease
-**Phase:** RED → GREEN → REFACTOR
-**Test Layer:** unit
-**Implements:** DR-6
+### Task 8: REMOVED per design R4 (2026-06-12) — coordination contract deferred to the Marten adapter
+**Phase:** n/a (tombstone)
+**Test Layer:** n/a
+**Implements:** n/a
 
-1. **[RED]** `src/Bifrost.Tests.Scheduling/Core/IExclusiveScheduleStoreTests.cs`
-   - `IExclusiveScheduleStore_ExtendsIScheduleStore`
-   - `IExclusiveScheduleStore_HasTryAcquireLeadershipAsyncMethod` — signature `ValueTask<ILeadershipLease?> TryAcquireLeadershipAsync(CancellationToken)`
-   - `ILeadershipLease_ImplementsIAsyncDisposable`
-   - `ILeadershipLease_HasIsHeldProperty`
-   - `ILeadershipLease_HasRenewAsyncMethod`
-   - Expected failure: types don't exist
+This task previously defined the `IExclusiveScheduleStore` + leadership-lease contracts. Per the
+revised design (DR-6 / R4), the coordination contract does **not** ship in v1 at all — not even as
+an unimplemented interface. It is designed together with the first durable adapter
+(`Bifrost.Scheduling.Marten`), where the real store informs the shape (epoch/fencing token,
+`LastRenewedAt`/`ExpiresAt` instead of a bare held-flag, conditional checkpoint writes, abstract
+base class over interface). The tombstone is retained so task numbering and dependency references
+across this plan remain stable.
 
-2. **[GREEN]**
-   - `src/Bifrost.Scheduling.Core/IExclusiveScheduleStore.cs`
-   - `src/Bifrost.Scheduling.Core/ILeadershipLease.cs`
-
-3. **[REFACTOR]** XML docs noting "no concrete multi-instance implementation ships in v1; adapter packages required"
-
-**Dependencies:** Task 7
-**Parallelizable:** Yes
+**Dependencies:** None (tombstone)
+**Parallelizable:** n/a
 
 ---
 
@@ -308,13 +310,14 @@ Implements **DR-2: Cadence primitives**. All cadence variants — interval, cron
    - `OneShotCadence_ComputeNextFire_WhenLastFiredNotNull_ReturnsNull` — one-shot doesn't re-fire
    - `OneShotCadence_ComputeNextFire_WhenFireAtInPast_StillReturnsFireAt` — tick loop decides what to do with past fires
    - `Cadence_At_ReturnsOneShotCadence`
-   - `Cadence_After_ReturnsOneShotCadenceWithNowPlusDelay` — uses TimeProvider
+   - `Cadence_After_ReturnsRelativeOneShotCadence` — the static factory performs **no clock access** (R1/DR-2); registration-time resolution via `TimeProvider` is tested in Task 45
    - Expected failure: types don't exist / are stubs from Task 6
 
 2. **[GREEN]**
    - Replace `Cadence` stub with `public abstract record Cadence` exposing abstract `ComputeNextFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)`
    - Add static factory methods `Interval`, `Cron`, `At`, `After` (stubs for non-OneShot types; filled in later tasks)
    - `src/Bifrost.Scheduling.Core/OneShotCadence.cs` — `public sealed record OneShotCadence(DateTimeOffset FireAt) : Cadence`
+   - `src/Bifrost.Scheduling.Core/RelativeOneShotCadence.cs` — `public sealed record RelativeOneShotCadence(TimeSpan Delay) : Cadence`; its `ComputeNextFire` throws `InvalidOperationException` (an unresolved relative cadence must never reach the tick loop — the registry resolves it to an absolute `OneShotCadence` at registration, Task 45)
 
 3. **[REFACTOR]** XML docs on Cadence contract
 
@@ -514,7 +517,7 @@ Implements **DR-2: Cadence primitives**. All cadence variants — interval, cron
    - `JobResumedEvent_RecordStruct_HasFields`
    - `SchedulerFaultedEvent_RecordStruct_HasFields`
    - All events implement `IEquatable<T>` (via record semantics)
-   - All events are zero-allocation when fields fit in struct layout
+   - All events are `readonly record struct` types (no heap allocation by construction — verified by type shape, not a benchmark gate)
 
 2. **[GREEN]** `src/Bifrost.Scheduling.Core/Events/*.cs` — one `readonly record struct` per event
 
@@ -766,27 +769,26 @@ Implements **DR-2: Cadence primitives**. All cadence variants — interval, cron
 
 ---
 
-### Task 27: ScheduleTickLoop — single-leader behavior and exclusive-store warning
+### Task 27: ScheduleTickLoop — always-leader v1 behavior and multi-instance warning
 **Phase:** RED → GREEN → REFACTOR
 **Test Layer:** integration
 **Acceptance Test Ref:** Task 25
 **Implements:** DR-6
 
-1. **[RED]** `src/Bifrost.Tests.Scheduling/TickEngine/LeadershipTests.cs`
-   - `TickLoop_InMemoryStore_AssumesLeadership_Fires` — in-memory store, loop ticks normally
-   - `TickLoop_ExclusiveStore_AcquiresLeadership` — mock `IExclusiveScheduleStore`, verify `TryAcquireLeadershipAsync` called
-   - `TickLoop_ExclusiveStore_LeadershipDenied_DoesNotFire` — returns null lease, loop waits
-   - `TickLoop_ExclusiveStore_LeaseReleased_StopsFiring` — `IsHeld = false`, loop pauses firing
-   - `TickLoop_NonExclusiveStore_Multinstance_LogsWarning` — startup log contains warning about duplicate fires
+> The tick loop in v1 is **unconditionally always-leader** (DR-6/R4). There is no leadership
+> acquisition, lease, or coordination code path — multi-instance coordination arrives with the
+> Marten adapter, contract and all.
+
+1. **[RED]** `src/Bifrost.Tests.Scheduling/TickEngine/SingleProcessBehaviorTests.cs`
+   - `TickLoop_SingleProcess_TicksEveryRegisteredJob` — default in-memory store, loop ticks all jobs unconditionally
+   - `TickLoop_MultiInstanceExpected_LogsStartupWarning` — `SchedulerOptions.MultiInstanceExpected = true` with a non-exclusive-capable store: startup log contains a prominent warning that duplicate fires will occur
+   - `TickLoop_MultiInstanceNotExpected_NoWarning` — default options, no warning logged
 
 2. **[GREEN]**
-   - Add leadership check to tick loop startup
-   - If `IScheduleStore is IExclusiveScheduleStore exclusive`, call `TryAcquireLeadershipAsync`
-   - Add periodic `RenewAsync` (configurable interval via options)
-   - If lease denied, enter idle wait and retry after backoff
-   - Emit warning log if non-exclusive store + multi-instance detection heuristic (not auto-detected in v1; log only on explicit `SchedulerOptions.MultiInstanceExpected = true`)
+   - No leadership code path: the loop ticks unconditionally
+   - Add `SchedulerOptions.MultiInstanceExpected` (default `false`); on startup, when `true`, emit a prominent warning log that v1 scheduling is single-process and duplicate fires occur across instances (auto-detection is out of scope — see Deferred Items)
 
-3. **[REFACTOR]** Extract `LeadershipManager` helper
+3. **[REFACTOR]** Extract startup-validation/warning helper; XML docs stating the DR-6 documentation contract: "Run Bifrost scheduling on exactly one process. Multi-instance support arrives with the storage adapter (e.g., `Bifrost.Scheduling.Marten`)."
 
 **Dependencies:** Task 26
 **Parallelizable:** No
@@ -804,13 +806,13 @@ Implements **DR-2: Cadence primitives**. All cadence variants — interval, cron
    - `Shutdown_InFlightDispatches_WaitsForCompletion_WithinTimeout`
    - `Shutdown_InFlightDispatchExceedsTimeout_Abandoned` — loop returns after timeout expires even if dispatches pending
    - `Shutdown_AfterStop_NoNewFires` — calling `StopAsync` then advancing time: no dispatches
-   - `Shutdown_ReleasesLeadershipLease` — mock exclusive store, verify `DisposeAsync` called on lease
+   - `Shutdown_StopAsyncIdempotent_AndStopBeforeStart_NoThrow` — `StopAsync` twice, and stop-before-fully-started, never throws from disposed primitives (NCronJob#172)
 
 2. **[GREEN]**
    - Override `StopAsync` in `ScheduleTickLoop`
    - Track in-flight dispatches via `CountdownEvent` or similar
    - Wait up to `SchedulerOptions.ShutdownTimeout`
-   - Dispose leadership lease in finally
+   - Guard stop path for idempotency and stop-before-start
 
 3. **[REFACTOR]** XML docs
 
@@ -958,6 +960,7 @@ Implements **DR-8: Observability — metrics, events, and health checks**. Metri
    - `GetJob_DelegatesToRegistry`
    - `GetMetricsSnapshot_ReturnsCurrentValues` — job count, fires in last minute, etc.
    - `Inspector_IsReadOnly_NoMutationMethods` — via reflection
+   - (`GetNextOccurrences(name, count)` is added in Task 51 — R10/DR-8: previews must be computed by the same cadence engine that fires)
 
 2. **[GREEN]**
    - `src/Bifrost.Scheduling.Core/IBifrostScheduleInspector.cs`
@@ -1051,7 +1054,7 @@ Implements **DR-8: Observability — metrics, events, and health checks**. Metri
    - `Every_Interval_SetsIntervalCadence`
    - `Cron_Expression_SetsCronCadence`
    - `At_DateTimeOffset_SetsOneShotCadence`
-   - `After_TimeSpan_SetsOneShotCadence`
+   - `After_TimeSpan_SetsRelativeOneShotCadence` — resolved to an absolute `OneShotCadence` by the registry at registration time (R1; Task 45)
    - `WithJitter_Fraction_UpdatesIntervalCadence`
    - `WithMissedFirePolicy_Policy_SetsPolicy`
    - `DispatchTo_OrchestratorType_SetsOrchestratorDispatch` — chained `.DispatchTo<IWorkOrchestrator<TWork>>(fire)`
@@ -1121,11 +1124,16 @@ Implements **DR-8: Observability — metrics, events, and health checks**. Metri
 
 ---
 
-## Group L: Benchmarks — Performance and allocation targets
+## Group L: Benchmarks — Performance targets (revised per R2)
 
-Implements **DR-11: Performance and allocation targets**. Validates the zero-allocation steady-state goal, p99 fire latency target, and 10K-job scaling claim.
+Implements **DR-11: Performance targets (revised per R2)**. Merge-gating validation covers the
+correctness-flavored targets only: saturation correctness (1,000+ simultaneous due jobs, none lost —
+Task 48), p99 fire latency < 5ms at 10K registered jobs, and the O(log n) per-fire scaling curve.
+Allocation figures (dispatch-handoff steady state approaching 0 B/fire; registration < 256 B) are
+**tracked benchmark targets** — regressions are investigated, but they are not acceptance gates and
+do not fail the build or block merge.
 
-### Task 41: Benchmarks — Performance and allocation targets (registry operations)
+### Task 41: Benchmarks — Performance targets (registry operations)
 **Phase:** Benchmark
 **Test Layer:** benchmark
 **Implements:** DR-11
@@ -1136,7 +1144,7 @@ Implements **DR-11: Performance and allocation targets**. Validates the zero-all
    - `Register_Single` — register one job, measure allocation and time
    - `Register_Bulk` — register 1000 jobs
    - `Pause_Single`, `Resume_Single`, `Trigger_Single`
-   - `GetJobs_1000Jobs` — allocation target <256B single result list
+   - `GetJobs_1000Jobs` — allocations tracked (benchmark target: a single result-list allocation; registration target < 256 B per DR-11 — tracked, not gating)
 3. Add `Bifrost.Benchmarks.csproj` ProjectReference to `Bifrost.Scheduling.csproj`
 
 **Verification:**
@@ -1149,19 +1157,20 @@ Implements **DR-11: Performance and allocation targets**. Validates the zero-all
 
 ---
 
-### Task 42: Benchmarks — Performance and allocation targets (tick engine)
+### Task 42: Benchmarks — Performance targets (tick engine)
 **Phase:** Benchmark
 **Test Layer:** benchmark
 **Implements:** DR-7, DR-11
 
 **Steps:**
 1. `TickEngineBenchmarks.cs` — `[MemoryDiagnoser]`, `[Params(10, 100, 1000, 10000)] public int JobCount`
-   - `FireLatency` — measure p99 from `NextFireAt` to dispatch handoff
-   - `SteadyStateAllocation` — 0-B target per fire (via allocation counter in body)
+   - `FireLatency` — measure p99 from `NextFireAt` to dispatch handoff (**merge gate:** p99 < 5ms at 10K jobs, in-memory store)
+   - `ScalingCurve` — per-fire cost across the `JobCount` params (**merge gate:** O(log n) heap behavior, verified by the scaling curve)
+   - `SteadyStateAllocation` — dispatch-handoff allocations per fire (**tracked benchmark target, not a gate:** approaching 0 B/fire; per design R2, a truly allocation-free loop requires a reusable wake primitive + pooled dispatch state and may be deferred to a follow-up optimization pass without changing the public API)
 2. Note: IterationSetup for async work per Bifrost memory rules — use `void` with `.AsTask().GetAwaiter().GetResult()`
 
 **Verification:**
-- Benchmark runs and reports allocation < 1B per fire for 10K jobs
+- Benchmark runs; p99 fire latency and O(log n) scaling validated (merge-gating); allocation figures recorded as tracked targets
 
 **testingStrategy:** `benchmarks: true`
 
@@ -1170,7 +1179,7 @@ Implements **DR-11: Performance and allocation targets**. Validates the zero-all
 
 ---
 
-### Task 43: Benchmarks — Performance and allocation targets (cadence compute)
+### Task 43: Benchmarks — Performance targets (cadence compute)
 **Phase:** Benchmark
 **Test Layer:** benchmark
 **Implements:** DR-2, DR-11
@@ -1190,7 +1199,7 @@ Implements **DR-11: Performance and allocation targets**. Validates the zero-all
 
 ---
 
-### Task 44: Benchmarks — Performance and allocation targets (dispatch overhead)
+### Task 44: Benchmarks — Performance targets (dispatch overhead)
 **Phase:** Benchmark
 **Test Layer:** benchmark
 **Implements:** DR-4, DR-11
@@ -1208,6 +1217,192 @@ Implements **DR-11: Performance and allocation targets**. Validates the zero-all
 
 ---
 
+## Group M: Design-Revision Tasks (2026-06-12 — R1–R10, DR-12, DR-13)
+
+Added by the 2026-06-12 plan revision to match the revised design. Tests are TUnit on
+Microsoft.Testing.Platform (`dotnet test --project src/Bifrost.Tests.Scheduling`); assertions MUST
+be awaited. Tasks 45 and 46 can start as soon as their dependencies allow (they do not need to wait
+for Group L).
+
+### Task 45: RelativeOneShotCadence — registration-time resolution via TimeProvider (R1/DR-2)
+**Phase:** RED → GREEN → REFACTOR
+**Test Layer:** integration
+**Implements:** DR-2
+
+1. **[RED]** `src/Bifrost.Tests.Scheduling/Cadences/RelativeOneShotResolutionTests.cs`
+   - `Cadence_After_PerformsNoClockAccess` — `Cadence.After(delay)` returns `RelativeOneShotCadence(delay)`; the static factory never reads any clock (no `TimeProvider`, no `DateTimeOffset.UtcNow`)
+   - `RegisterAsync_RelativeOneShot_ResolvesToAbsoluteOneShot_ViaInjectedTimeProvider` — with `FakeTimeProvider` at `T0`, registering `Cadence.After(5.Minutes())` stores a `OneShotCadence` with `FireAt == T0 + 5min`
+   - `RegisterAsync_Resolution_TracksFakeClock_NotSystemClock` — advance the fake clock to `T1` before registering; resolved `FireAt == T1 + delay` (proves resolution uses the registry's injected `TimeProvider`)
+   - `RelativeOneShotCadence_ComputeNextFire_Throws` — an unresolved relative cadence must never reach the tick loop; `InvalidOperationException` with a descriptive message
+   - Expected failure: registry stores the relative cadence unresolved / resolution path doesn't exist
+
+2. **[GREEN]**
+   - `ScheduleRegistry.RegisterAsync` (and the fluent-builder registration path, Task 39): when the cadence is `RelativeOneShotCadence`, resolve to `new OneShotCadence(timeProvider.GetUtcNow() + Delay)` before persisting the `JobRecord`
+   - `RelativeOneShotCadence.ComputeNextFire` throws `InvalidOperationException`
+
+3. **[REFACTOR]** XML docs on `Cadence.After` stating the R1 contract: "resolved against the registry's injected `TimeProvider` at registration time; the static factory performs no clock access"
+
+**Dependencies:** Tasks 9, 19
+**Parallelizable:** Yes
+
+---
+
+### Task 46: Banned-API architecture test (R1/DR-7)
+**Phase:** RED → GREEN → REFACTOR
+**Test Layer:** unit (architecture)
+**Implements:** DR-7
+
+1. **[RED]** `src/Bifrost.Tests.Scheduling/Architecture/BannedTimeApiTests.cs`
+   - `SchedulingAssemblies_ContainNoBannedClockApis` — scans the shipped `Bifrost.Scheduling.Core` and `Bifrost.Scheduling` assemblies (IL member references) for `DateTime.Now`, `DateTime.UtcNow`, `DateTimeOffset.Now`, `DateTimeOffset.UtcNow`
+   - `SchedulingAssemblies_ContainNoNonTimeProviderTaskDelay` — every `Task.Delay` reference must be a `TimeProvider`-accepting overload
+   - `BannedApiCheck_CatchesDeliberateViolation` — self-test: the scanner flags a test-local fixture method that calls `DateTime.UtcNow` (proves the check isn't vacuously green)
+   - Expected failure: scanner doesn't exist (and any existing violation in shipping code surfaces here)
+
+2. **[GREEN]**
+   - Implement the IL/member-reference scanner in the architecture test
+   - Additionally make the check **build-failing** at compile time: add `Microsoft.CodeAnalysis.BannedApiAnalyzers` + a `BannedSymbols.txt` (banning `DateTime.Now`/`DateTime.UtcNow`/`DateTimeOffset.Now`/`DateTimeOffset.UtcNow` and the non-`TimeProvider` `Task.Delay` overloads) to `Bifrost.Scheduling.Core` and `Bifrost.Scheduling` (analyzer version pinned in `src/Directory.Packages.props` per CPM)
+   - Fix any violations the check surfaces
+
+3. **[REFACTOR]** Document the banned-API rule in both csproj files (comment) and the package README section; keep `BannedSymbols.txt` shared via a single linked file
+
+**Dependencies:** Tasks 2, 4
+**Parallelizable:** Yes
+
+---
+
+### Task 47: Early-wake clamp (R2/DR-7)
+**Phase:** RED → GREEN → REFACTOR
+**Test Layer:** integration
+**Acceptance Test Ref:** Task 25
+**Implements:** DR-7
+
+1. **[RED]** `src/Bifrost.Tests.Scheduling/TickEngine/EarlyWakeClampTests.cs` (uses `FakeTimeProvider`)
+   - `TickLoop_WakesBeforeNextFireAt_ReSleeps_NoDispatch` — loop woken (command-channel nudge) while `now < NextFireAt`: zero dispatches, loop re-arms until `NextFireAt <= now`
+   - `TickLoop_TimerFires20msEarly_ExactlyOneDispatchPerOccurrence` — simulate the timer completing up to 20ms before the scheduled instant (NCronJob#327 class): exactly one dispatch per occurrence, never a duplicate
+   - `TickLoop_NextFire_ComputedFromScheduledOccurrenceTime` — after a fire, the next fire equals `ComputeNextFire(lastFiredAt: scheduledOccurrence, …)` — never computed from a wall-clock reading earlier than the scheduled instant
+
+2. **[GREEN]** In `ScheduleTickLoop`:
+   - After any wake, if `_heap` top is not yet due (`now < NextFireAt`), recompute the delay and continue waiting — dispatch only when `NextFireAt <= now`
+   - In `DispatchDueJobs`, pass the **scheduled occurrence time** (the heap key), not `now`, as `lastFiredAt` into `ComputeNextFire`
+
+3. **[REFACTOR]** Extract clamp logic into the `WaitForNextFireOrCommand` helper from Task 25; XML doc the invariant
+
+**Dependencies:** Task 25
+**Parallelizable:** No (tick-engine internals)
+
+---
+
+### Task 48: DR-10 hardening — clock jumps, failure isolation, DST properties, resume pin, saturation (R9)
+**Phase:** RED → GREEN → REFACTOR
+**Test Layer:** integration + property
+**Acceptance Test Ref:** Task 25
+**Implements:** DR-10 (also gates DR-11 saturation correctness)
+
+1. **[RED]**
+   - `src/Bifrost.Tests.Scheduling/TickEngine/ClockJumpTests.cs`
+     - `TickLoop_BackwardClockJump_ReArmsWithinOneWaitCycle` — `FakeTimeProvider` jumps backward by days mid-wait; the loop never sleeps on a stale absolute deadline and re-arms within one wait cycle (quartznet#1508/#2034: backward jump silently stopped ALL firing)
+   - `src/Bifrost.Tests.Scheduling/TickEngine/JobFailureIsolationTests.cs`
+     - `ComputeNextFire_Throws_JobMarkedFaulted_PublishesJobFireFailedEvent` — a cadence whose `ComputeNextFire` throws marks only that job `Faulted`
+     - `ComputeNextFire_Throws_OtherJobsKeepFiring` — one faulted job never halts scheduling of others (Hangfire#530/#529/#537 crash-looped the shared loop)
+   - `src/Bifrost.Tests.Scheduling/Cadences/CronCadenceDstPropertyTests.cs`
+     - **Property test:** `CronCadence_ComputeNextFire_StrictlyGreaterThanInput_AcrossDstWeek` — `ComputeNextFire(t) > t` for every instant across both DST boundaries (transition week), in multiple zones **including half-hour offsets** (e.g., `Australia/Adelaide`, `Asia/Tehran`) — quartznet#2497/#332 infinite-loop class
+     - `CronCadence_FallBackRepeatedHour_PerMinute_FiresExactly60Times` — per-minute cron across the fall-back repeated hour: exactly 60 fires, never a tight refire loop (quartznet#2475) and never a one-hour silence (Hangfire#567)
+   - `src/Bifrost.Tests.Scheduling/TickEngine/ResumePinTests.cs`
+     - `Resume_AfterNMissedOccurrences_FiresNothing_NextFireIsNaturalOccurrence` — **pin test**: paused across N occurrences → resume → zero catch-up fires; missed-fire policies apply only on startup recovery from a store
+   - `src/Bifrost.Tests.Scheduling/TickEngine/SaturationTests.cs`
+     - `Saturation_1000PlusJobsDueSameInstant_AllDispatched_NoneLost` — 1,000+ jobs due at the same instant are all dispatched (or carried into the immediately following loop iterations); none silently lost (Hangfire#751)
+
+2. **[GREEN]**
+   - Wait computation re-reads `TimeProvider.GetUtcNow()` per cycle and clamps negative/oversized delays (backward-jump re-arm); log a warning on non-monotonic readings (extends Task 29's clock-skew handling)
+   - Wrap per-job `ComputeNextFire` in try/catch: mark `Faulted`, publish `JobFireFailedEvent`, continue the loop
+   - Fix any DST defects the property tests surface in `CronCadence` (Cronos boundary handling)
+   - Resume path schedules the next natural occurrence only (no missed-fire application — confirms Task 26's startup-only wiring)
+   - `DispatchDueJobs` drains every due heap entry per iteration
+
+3. **[REFACTOR]** Consolidate fault-isolation handling into a `SafeComputeNextFire` helper alongside Task 30's `SafeDispatch`
+
+**testingStrategy:** `propertyTests: true`
+
+**Dependencies:** Tasks 13, 26, 29, 47
+**Parallelizable:** No (tick-engine internals)
+
+---
+
+### Task 49: DR-12 delivery semantics — scheduled FireTime + at-least-once documentation
+**Phase:** RED → GREEN → REFACTOR
+**Test Layer:** integration
+**Implements:** DR-12
+
+1. **[RED]** `src/Bifrost.Tests.Scheduling/Dispatch/DeliverySemanticsTests.cs`
+   - `JobFireContext_FireTime_IsScheduledOccurrenceTime_NotWallClock` — fire a job whose dispatch happens after a (fake-clock) late wake: `FireTime` equals the scheduled occurrence instant, not the dispatch-time reading
+   - `JobFireContext_FireTime_StableAcrossReFire` — simulate restart with a checkpoint missing for the last occurrence (crash between dispatch handoff and `RecordFiredAsync`); the `Coalesce` re-fire presents the **identical** `(JobName, FireTime)` pair as the original fire
+   - `TriggerAsync_FireTime_IsTriggerInstant` — on-demand triggers use the trigger instant (no scheduled occurrence exists)
+
+2. **[GREEN]**
+   - `ScheduleTickLoop.DispatchDueJobs` constructs `JobFireContext` with the scheduled occurrence time (the heap key / missed-occurrence time), never `_time.GetUtcNow()`
+   - Missed-fire catch-up path carries the original occurrence time into the re-fire context
+
+3. **[REFACTOR]** XML docs (blunt, per the industry precedents in the design):
+   - `IJobDispatcher.DispatchAsync` and the inline-dispatch delegate (`IInlineJobBuilder.Run`): "Execution is **at-least-once per scheduled occurrence**. Your handler will sometimes run more than once for the same occurrence — make it idempotent. Use `(JobName, FireTime)` as the idempotency/dedup key."
+   - `JobFireContext.FireTime`: "the scheduled occurrence time — stable across a re-fire of the same occurrence; never the wall-clock dispatch time"
+   - Document the duplicate window precisely: a crash between dispatch handoff and the `RecordFiredAsync` checkpoint means the missed-fire policy re-fires the occurrence on restart (with a durable store); `Coalesce` (default) bounds duplicates to one catch-up fire
+
+**Dependencies:** Tasks 16, 26, 47
+**Parallelizable:** No (depends on tick-engine fire path)
+
+---
+
+### Task 50: DR-13 AOT validation — PublishAot smoke, trim-warnings-as-errors, no reflective activation
+**Phase:** RED → GREEN → REFACTOR
+**Test Layer:** unit (architecture) + CI
+**Implements:** DR-13
+
+1. **[RED]** `src/Bifrost.Tests.Scheduling/Architecture/AotSafetyTests.cs`
+   - `SchedulingAssemblies_ContainNoTypeGetTypeCalls` — IL member-reference scan of `Bifrost.Scheduling.Core` and `Bifrost.Scheduling`: no `Type.GetType`, no `Activator.CreateInstance(Type)` from strings, no `Expression.Compile`
+   - `DispatcherTypeName_IsDiagnosticOnly` — the dispatch router resolves custom dispatchers via **generic DI registration** (`DispatchVia<TDispatcher>()` registers `TDispatcher` at configuration time); `JobRecord.DispatcherTypeName` is never an activation input
+   - Expected failure: scanner doesn't exist (and any reflective activation surfaces here)
+
+2. **[GREEN]**
+   - Verify/enforce `IsAotCompatible=true` (repo standard) on `Bifrost.Scheduling.Core`, `Bifrost.Scheduling`, and `Bifrost.Scheduling.Testing`, with trim/AOT analyzer warnings flowing into warnings-as-errors (zero warnings)
+   - Create `samples/Bifrost.Scheduling.AotSmoke/` — a minimal `PublishAot=true` console host exercising: DI-time + runtime registration, **all three dispatch modes** (orchestrator, inline, custom via `DispatchVia<TDispatcher>()`), and the in-memory store
+   - Add a CI step publishing the smoke app with `dotnet publish -c Release /p:PublishAot=true` and running it (non-zero exit on failure)
+
+3. **[REFACTOR]** README/package-description phrasing uses only the defensible comparative claims from the design (DR-13): "no reflection-based job activation, no type-name serialization, no expression-tree compilation" — never "first" or "only"
+
+**Dependencies:** Tasks 22, 39
+**Parallelizable:** Yes (after Task 39)
+
+---
+
+### Task 51: R10 ergonomics — no silent fire-now, double-AddScheduler guard, GetNextOccurrences
+**Phase:** RED → GREEN → REFACTOR
+**Test Layer:** integration
+**Implements:** DR-1, DR-8
+
+1. **[RED]**
+   - `src/Bifrost.Tests.Scheduling/Registry/RegistrationErgonomicsTests.cs`
+     - `RegisterAsync_AtCadenceInPast_Throws` — `Cadence.At(past)` throws at registration; never a silent immediate fire (quartznet#636/#2180, Hangfire#1637)
+     - `ReRegister_UnchangedSchedule_NeverFiresImmediately` — re-registering/updating a job with an unchanged schedule causes zero dispatches before the next legitimate occurrence (quartznet#1545)
+     - `Update_FutureSchedule_NeverFiresImmediately` — updating to a future schedule never fires as a side effect; `TriggerAsync` is the only API that fires on demand
+   - `src/Bifrost.Tests.Scheduling/DependencyInjection/DoubleAddSchedulerTests.cs`
+     - `AddScheduler_CalledTwice_ThrowsInvalidOperationException` — registration APIs that look composable but silently no-op are a trap (NCronJob#138)
+   - `src/Bifrost.Tests.Scheduling/Observability/NextOccurrencesTests.cs`
+     - `GetNextOccurrences_ReturnsNFutureInstants_Ordered` — `IBifrostScheduleInspector.GetNextOccurrences(name, count)` returns `count` distinct, ordered future instants
+     - `GetNextOccurrences_MatchesActualFires` — drive the scheduler with the test harness: the instants previewed are exactly the instants the tick engine fires (same cadence engine for display and firing — coravel#250, Hangfire#899)
+
+2. **[GREEN]**
+   - Registration-time validation in `ScheduleRegistry`: one-shot cadence with a past fire time throws a descriptive exception
+   - Re-register/update path recomputes `NextFireAt` from the schedule only — no fire-now side effects
+   - `AddScheduler` registers a marker service and throws `InvalidOperationException` if already present
+   - Add `GetNextOccurrences(string name, int count)` to `IBifrostScheduleInspector` (Task 34); implement in `ScheduleInspector` by iterating the job's `Cadence.ComputeNextFire` — the same engine the tick loop uses
+
+3. **[REFACTOR]** XML docs: "mutating operations never cause immediate execution as a side effect"; document IIS/App Service idle-timeout behavior alongside the health check (R10)
+
+**Dependencies:** Tasks 19, 34, 36, 39
+**Parallelizable:** Yes (after Task 39)
+
+---
+
 ## Parallelization Strategy
 
 ### Sequential critical path
@@ -1215,7 +1410,7 @@ Implements **DR-11: Performance and allocation targets**. Validates the zero-all
 ```
 Group A (1→2→3→4)
   ↓
-Group B (5, 6 sequential; 7, 8, 15, 16, 17 parallel after 6)
+Group B (5, 6 sequential; 7, 15, 16, 17 parallel after 6)  [Task 8 removed — R4]
   ↓
 Group C (9→10→11; 12 parallel with 10 after 9; 13 after 12)
   ↓
@@ -1236,19 +1431,23 @@ Group J (35→36→37)
 Group K (38→39→40)
   ↓
 Group L (41, 42, 43, 44 parallel)
+  ↓
+Group M (45, 46 may start earlier, as soon as their dependencies allow;
+         47→48 sequential after Group H; 49 after 47; 50, 51 after Task 39)
 ```
 
 ### Parallel opportunities
 
 | Phase | Parallel tasks | Worktree strategy |
 |-------|----------------|-------------------|
-| After Task 6 | 7, 8, 15, 16, 17 | 5 parallel worktrees (core contracts) |
+| After Task 6 | 7, 15, 16, 17 | 4 parallel worktrees (core contracts) |
 | After Task 9 | 10 + 12 (parallel) | 2 parallel worktrees |
 | After Task 14 | 18 (Group E) parallel with Group F start (but Group F depends on 18, so sequential in practice) | - |
 | After Task 19 | 20, 21 | 2 parallel worktrees |
 | Group G | 22, 23, 24 | 3 parallel worktrees |
 | Group I | 31, 32, 33, 34 | 4 parallel worktrees |
 | Group L | 41, 42, 43, 44 | 4 parallel worktrees |
+| Group M | 45 + 46 (any time after deps); 48 + 49 after 47; 50 + 51 after 39 | up to 2-3 parallel worktrees per phase |
 
 ### Strictly sequential (no parallelism possible)
 
@@ -1260,7 +1459,7 @@ Group L (41, 42, 43, 44 parallel)
 
 ## Deferred Items
 
-1. **`Bifrost.Scheduling.Marten` adapter package** — `IExclusiveScheduleStore` ships without concrete implementation. Marten adapter is a follow-up feature workflow. Rationale: the forcing use case (`basileus#145`) is single-instance, so multi-instance durability is not critical path. The contract is designed to accommodate Marten without changes.
+1. **`Bifrost.Scheduling.Marten` adapter package and the multi-instance coordination contract** — both deferred to a follow-up feature workflow. Per design DR-6/R4, no coordination interface, lease type, or leader-election API ships in v1; the contract is designed **with** the Marten adapter, not before it, so the first real store can inform its shape. The design records binding requirements for that future contract: a strictly monotonic epoch/fencing token, `LastRenewedAt`/`ExpiresAt` exposure (no bare held-flag), checkpoint writes conditional on ownership, and an abstract base class over an interface for the lease type. Rationale: the forcing use case (`basileus#145`) is single-instance, so multi-instance durability is not critical path — and an unimplemented coordination contract is a guess (research §4).
 
 2. **`Bifrost.Scheduling.Wolverine` interop** — deferred per issue #16 "follow-up" positioning. The `IJobDispatcher` extension point is the integration hook — adapters can be added without core changes.
 
@@ -1281,13 +1480,15 @@ Group L (41, 42, 43, 44 parallel)
 ## Completion Checklist
 
 - [ ] All tests written before implementation (Iron Law)
-- [ ] All 44 tasks complete
+- [ ] All 50 active tasks complete (51 numbered; Task 8 removed per design R4)
 - [ ] `check_plan_coverage` passed
-- [ ] `check_provenance_chain` passed — all 11 DR-N requirements trace to tasks
+- [ ] `check_provenance_chain` passed — all 13 DR-N requirements trace to tasks
 - [ ] `check_task_decomposition` run (advisory)
 - [ ] `spec_coverage_check` passed
 - [ ] `check_coverage_thresholds` passed — 80% line, 70% branch, 100% function for `Bifrost.Scheduling.Core` and `Bifrost.Scheduling`
-- [ ] Benchmarks validate DR-11 targets (0-B steady state, p99 < 5ms at 10K jobs)
+- [ ] Benchmarks validate DR-11 merge gates (saturation correctness via Task 48, p99 < 5ms at 10K jobs, O(log n) scaling); allocation figures recorded as tracked benchmark targets, not gates
+- [ ] Banned-API check (Task 46) build-failing and green; no `DateTime*.Now/UtcNow` or non-`TimeProvider` `Task.Delay` in shipping scheduling code
+- [ ] CI `PublishAot` smoke + trim-warnings-as-errors green on all scheduling packages (Task 50, DR-13)
 - [ ] Integration test (Task 40) confirms scheduler + orchestrator + resilience + DLQ end-to-end
 - [ ] All new projects added to solution and build green
 - [ ] CHANGELOG entry for the new scheduling feature
