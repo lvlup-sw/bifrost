@@ -22,10 +22,23 @@ namespace Bifrost.Queues;
 /// provide the FIFO guarantee.
 /// </para>
 /// <para>
-/// <see cref="EnqueueAsync(T, CancellationToken)"/> and <see cref="Complete"/> are
+/// <see cref="WriteAsync(T, CancellationToken)"/> and <see cref="Complete"/> are
 /// concrete-only members — they are not part of <see cref="IWorkQueue{T}"/>. The
 /// orchestrator reaches them via the concrete type (pattern-matched), keeping the
 /// strategy contract minimal for bindings that have no waiting accept path.
+/// </para>
+/// <para>
+/// <b>DR-7 (no FIFO regression):</b> both asynchronous members forward the channel's
+/// own <see cref="ValueTask"/>s directly, with no wrapper <c>async</c> state machine.
+/// A suspending wait therefore rides the channel's pooled
+/// <see cref="System.Threading.Tasks.Sources.IValueTaskSource"/> exactly as the
+/// pre-rewrite <c>ReadAllAsync</c> loop did. The cost of this shape is that the
+/// channel's native fault semantics surface to callers: cancellation appears as
+/// <see cref="OperationCanceledException"/> (permitted by the
+/// <see cref="IWorkQueue{T}"/> contract; the orchestrator's canonical-loop boundary
+/// absorbs it) and post-completion writes fault with
+/// <see cref="ChannelClosedException"/> (mapped by the orchestrator's single
+/// producer-wait async layer).
 /// </para>
 /// </remarks>
 internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
@@ -76,31 +89,19 @@ internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
 
     /// <summary>
     /// Asynchronously enqueues an item, waiting for space when the queue is at capacity
-    /// (producer-wait semantics, concrete-only member).
+    /// (producer-wait semantics, concrete-only member). Direct forward of
+    /// <see cref="ChannelWriter{T}.WriteAsync(T, CancellationToken)"/> — no wrapper
+    /// state machine (DR-7) — so the channel's native fault semantics surface here:
+    /// cancellation faults the task with <see cref="OperationCanceledException"/> and
+    /// a post-<see cref="Complete"/> write faults with
+    /// <see cref="ChannelClosedException"/>. The orchestrator's single producer-wait
+    /// async layer owns the mapping of both to its rejected-shutdown outcome.
     /// </summary>
     /// <param name="item">The item to enqueue.</param>
     /// <param name="cancellationToken">Token whose cancellation abandons the wait.</param>
-    /// <returns>
-    /// <c>true</c> when the item was accepted; <c>false</c> when the queue was completed
-    /// via <see cref="Complete"/> or <paramref name="cancellationToken"/> was cancelled
-    /// before space became available. Never throws for either condition.
-    /// </returns>
-    public async ValueTask<bool> EnqueueAsync(T item, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _channel.Writer.WriteAsync(item, cancellationToken).ConfigureAwait(false);
-            return true;
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
-        }
-        catch (ChannelClosedException)
-        {
-            return false;
-        }
-    }
+    /// <returns>A task that completes when the item has been accepted.</returns>
+    public ValueTask WriteAsync(T item, CancellationToken cancellationToken)
+        => _channel.Writer.WriteAsync(item, cancellationToken);
 
     /// <summary>
     /// Marks the queue as complete for adding (concrete-only member). Residual items

@@ -4,6 +4,8 @@
 // </copyright>
 // =============================================================================
 
+using System.Threading.Channels;
+
 using Bifrost.Queues;
 
 namespace Bifrost.Tests.Queues;
@@ -18,8 +20,11 @@ namespace Bifrost.Tests.Queues;
 /// contract suite against this binding. The tests declared here cover behavior specific
 /// to the FIFO channel binding: strict FIFO ordering (a property the priority bindings
 /// deliberately do not have) and the concrete-only producer-wait members
-/// <see cref="FifoChannelWorkQueue{T}.EnqueueAsync(T, CancellationToken)"/> and
-/// <see cref="FifoChannelWorkQueue{T}.Complete"/>.
+/// <see cref="FifoChannelWorkQueue{T}.WriteAsync(T, CancellationToken)"/> and
+/// <see cref="FifoChannelWorkQueue{T}.Complete"/>. Per DR-7 the asynchronous members
+/// forward the channel's own <see cref="ValueTask"/>s, so the channel's native fault
+/// semantics surface at this layer; the orchestrator owns the mapping to its
+/// never-throwing enqueue surface (covered by the orchestrator enqueue-surface tests).
 /// </para>
 /// </remarks>
 [InheritsTests]
@@ -58,14 +63,14 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
 
     /// <summary>
     /// Verifies the concrete-only asynchronous accept path: with the queue at capacity,
-    /// <see cref="FifoChannelWorkQueue{T}.EnqueueAsync(T, CancellationToken)"/> waits for
-    /// space (producer-wait semantics) and completes <c>true</c> once a slot frees.
+    /// <see cref="FifoChannelWorkQueue{T}.WriteAsync(T, CancellationToken)"/> waits for
+    /// space (producer-wait semantics) and completes once a slot frees.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
-    public async Task EnqueueAsync_WaitsForSpace_ThenReturnsTrue()
+    public async Task WriteAsync_WaitsForSpace_ThenCompletes()
     {
-        // Arrange — fill to capacity so the async enqueue must wait.
+        // Arrange — fill to capacity so the async write must wait.
         var queue = new FifoChannelWorkQueue<int>(SmallCapacity);
         for (var i = 0; i < SmallCapacity; i++)
         {
@@ -73,38 +78,38 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
             await Assert.That(filled).IsTrue();
         }
 
-        // Act — start the async enqueue; it must remain pending while the queue is full.
-        var pending = queue.EnqueueAsync(SmallCapacity, CancellationToken.None).AsTask();
+        // Act — start the async write; it must remain pending while the queue is full.
+        var pending = queue.WriteAsync(SmallCapacity, CancellationToken.None).AsTask();
         await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
         await Assert.That(pending.IsCompleted).IsFalse();
 
-        // Free one slot; the pending enqueue must now complete true.
+        // Free one slot; the pending write must now complete successfully.
         var dequeued = queue.TryDequeue(out _);
         await Assert.That(dequeued).IsTrue();
-        var accepted = await pending.WaitAsync(BindingWaitTimeout).ConfigureAwait(false);
+        await pending.WaitAsync(BindingWaitTimeout).ConfigureAwait(false);
 
         // Assert
-        await Assert.That(accepted).IsTrue();
+        await Assert.That(pending.IsCompletedSuccessfully).IsTrue();
     }
 
     /// <summary>
-    /// Verifies that <see cref="FifoChannelWorkQueue{T}.EnqueueAsync(T, CancellationToken)"/>
-    /// after <see cref="FifoChannelWorkQueue{T}.Complete"/> returns <c>false</c> — it must
-    /// not throw <see cref="System.Threading.Channels.ChannelClosedException"/>.
+    /// Verifies that <see cref="FifoChannelWorkQueue{T}.WriteAsync(T, CancellationToken)"/>
+    /// after <see cref="FifoChannelWorkQueue{T}.Complete"/> faults with the channel's
+    /// native <see cref="ChannelClosedException"/> (DR-7 direct forward, no wrapper);
+    /// the orchestrator's single producer-wait async layer owns the mapping to
+    /// <c>Rejected(Shutdown)</c>, covered by the orchestrator enqueue-surface tests.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
-    public async Task EnqueueAsync_AfterComplete_ReturnsFalse()
+    public async Task WriteAsync_AfterComplete_ThrowsChannelClosed()
     {
         // Arrange
         var queue = new FifoChannelWorkQueue<int>(SmallCapacity);
         queue.Complete();
 
-        // Act
-        var accepted = await queue.EnqueueAsync(1, CancellationToken.None).ConfigureAwait(false);
-
-        // Assert
-        await Assert.That(accepted).IsFalse();
+        // Act + Assert — channel-native fault surfaces at the binding layer.
+        await Assert.That(() => queue.WriteAsync(1, CancellationToken.None).AsTask())
+            .Throws<ChannelClosedException>();
     }
 
     /// <summary>

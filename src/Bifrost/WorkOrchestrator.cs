@@ -4,6 +4,8 @@
 // </copyright>
 // =============================================================================
 
+using System.Threading.Channels;
+
 using Bifrost.Core;
 using Bifrost.Queues;
 
@@ -203,11 +205,29 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     {
         var envelope = new WorkEnvelope<TWork>(work, ResolveClass(work, workClass), _timeProvider.GetTimestamp());
 
-        // Default FIFO strategy: producer-wait path on the concrete sealed binding.
-        // The exact-type pattern match devirtualizes the call (DR-4).
+        // Default FIFO strategy on the concrete sealed binding (the exact-type pattern
+        // match devirtualizes the calls, DR-4).
         if (_queue is FifoChannelWorkQueue<WorkEnvelope<TWork>> fifo)
         {
-            return EnqueueFifoAsync(fifo, envelope, ct);
+            if (ct.IsCancellationRequested)
+            {
+                // Matches the channel's own WriteAsync ordering: a cancelled token is
+                // reported before admission is attempted — as Rejected(Shutdown),
+                // never as an exception.
+                return new ValueTask<EnqueueResult>(EnqueueResult.Rejected(RejectionReason.Shutdown));
+            }
+
+            // Try-write-first fast path (DR-7): while space is available, admission
+            // completes fully synchronously — zero allocation, no async layer. The
+            // bounded channel hands freed slots to parked writers before a try-write
+            // can see them, so this cannot jump the producer-wait queue.
+            if (fifo.TryEnqueue(envelope))
+            {
+                return new ValueTask<EnqueueResult>(EnqueueResult.Accepted);
+            }
+
+            // Queue full or completed: the single async layer on the enqueue path.
+            return EnqueueFifoSlowAsync(fifo, envelope, ct);
         }
 
         // Priority strategies: fail-fast admission (DR-6) — fully synchronous, the
@@ -370,21 +390,36 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     }
 
     /// <summary>
-    /// The FIFO producer-wait enqueue path on the concrete sealed binding: awaits
-    /// space at capacity; completion or cancellation surface as
-    /// <see cref="RejectionReason.Shutdown"/>, never as exceptions.
+    /// The FIFO producer-wait slow path, entered only when the fast-path try-write
+    /// failed (queue full or completed): awaits the channel's own
+    /// <see cref="FifoChannelWorkQueue{T}.WriteAsync(T, CancellationToken)"/> — the
+    /// SINGLE async layer on the enqueue path (DR-7) — and maps the channel's native
+    /// faults to <see cref="RejectionReason.Shutdown"/>: completion surfaces as
+    /// <see cref="ChannelClosedException"/> and cancellation as
+    /// <see cref="OperationCanceledException"/>; neither escapes to callers.
     /// </summary>
     /// <param name="fifo">The FIFO binding (devirtualized via the caller's pattern match).</param>
     /// <param name="envelope">The envelope to enqueue.</param>
     /// <param name="ct">Token whose cancellation abandons the wait.</param>
     /// <returns>The admission outcome.</returns>
-    private static async ValueTask<EnqueueResult> EnqueueFifoAsync(
+    private static async ValueTask<EnqueueResult> EnqueueFifoSlowAsync(
         FifoChannelWorkQueue<WorkEnvelope<TWork>> fifo,
         WorkEnvelope<TWork> envelope,
         CancellationToken ct)
     {
-        var accepted = await fifo.EnqueueAsync(envelope, ct).ConfigureAwait(false);
-        return accepted ? EnqueueResult.Accepted : EnqueueResult.Rejected(RejectionReason.Shutdown);
+        try
+        {
+            await fifo.WriteAsync(envelope, ct).ConfigureAwait(false);
+            return EnqueueResult.Accepted;
+        }
+        catch (OperationCanceledException)
+        {
+            return EnqueueResult.Rejected(RejectionReason.Shutdown);
+        }
+        catch (ChannelClosedException)
+        {
+            return EnqueueResult.Rejected(RejectionReason.Shutdown);
+        }
     }
 
     /// <summary>
@@ -448,14 +483,18 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// Optional busy/idle callback invoked around each handled item (dynamic workers).
     /// </param>
     /// <param name="ct">
-    /// Token whose cancellation signals orderly shutdown: the wait completes
-    /// <see langword="false"/> and residual items are abandoned to preserve the
-    /// pre-rewrite stop semantics.
+    /// Token whose cancellation signals orderly shutdown: per the
+    /// <see cref="IWorkQueue{T}"/> contract the wait MAY surface it as
+    /// <see cref="OperationCanceledException"/> (bindings forward their primitive's
+    /// native cancellation, keeping suspending waits on pooled sources); residual
+    /// items are abandoned to preserve the pre-rewrite stop semantics. Queue
+    /// COMPLETION (drain) still exits the loop via a <see langword="false"/> wait.
     /// </param>
     /// <returns>A task that completes when the queue is finished or shutdown is signalled.</returns>
     /// <exception cref="OperationCanceledException">
-    /// Rethrown when the handler observes cancellation of <paramref name="ct"/>;
-    /// callers treat this as the shutdown boundary.
+    /// Thrown when cancellation of <paramref name="ct"/> surfaces from the queue wait
+    /// or is observed by the handler. Callers own this catch — once per worker,
+    /// AROUND the loop (the canonical-loop boundary), never per wait.
     /// </exception>
     private async Task ConsumeQueueAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct)
     {
