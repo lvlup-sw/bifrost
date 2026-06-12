@@ -9,6 +9,7 @@ using BenchmarkDotNet.Running;
 
 using Bifrost.Benchmarks.Allocation;
 using Bifrost.Benchmarks.Autoscaling;
+using Bifrost.Benchmarks.Concurrency;
 using Bifrost.Benchmarks.Core;
 using Bifrost.Benchmarks.DeadLetter;
 using Bifrost.Benchmarks.Decorators;
@@ -25,6 +26,23 @@ using Bifrost.Benchmarks.Orchestrator;
 //
 // CI smoke test (minimal run):
 //   dotnet run -c Release -- --job Dry --filter "*"
+//
+// CPQ contended-throughput verbs (ported from DataFerry@2bf0456): BenchmarkDotNet deliberately
+// does not measure cross-thread throughput, so the custom fixed-window harness runs behind
+// dedicated verbs instead of the switcher:
+//   dotnet run -c Release -- throughput [windowSeconds] [outputDirectory]
+//   dotnet run -c Release -- stickiness [windowSeconds] [outputDirectory]
+if (args.Length > 0 && args[0].Equals("throughput", StringComparison.OrdinalIgnoreCase))
+{
+    ThroughputVerbs.RunThroughputSweep(args);
+    return;
+}
+
+if (args.Length > 0 && args[0].Equals("stickiness", StringComparison.OrdinalIgnoreCase))
+{
+    ThroughputVerbs.RunStickinessSweep(args);
+    return;
+}
 
 var config = ManualConfig.Create(DefaultConfig.Instance);
 
@@ -52,6 +70,7 @@ var switcher = new BenchmarkSwitcher(
     typeof(HealthCheckBenchmarks),
     typeof(DeadLetterQueueBenchmarks),
     typeof(OrchestratorBaselineBenchmarks),
+    typeof(CpqSingleThreadedLatencyBenchmarks),
 ]);
 
 switcher.Run(args, config);
