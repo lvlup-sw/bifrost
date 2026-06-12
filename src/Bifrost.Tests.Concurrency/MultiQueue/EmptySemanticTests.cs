@@ -45,9 +45,14 @@ public class EmptySemanticTests
     private const int ElementCount = 50_000;
     private const int ConsumerCount = 6;
 
+    /// <summary>
+    /// The observed-empty proof (§5.2 / T17) on the default queue (<c>s = 1</c>): with production
+    /// quiescent, no concurrent consumer may ever see <c>TryDequeue</c> return
+    /// <see langword="false"/> while the queue's own <c>Count</c> is still positive (DR-9).
+    /// </summary>
     [Test]
     public async Task TryDequeue_AfterAllEnqueuesComplete_NeverFalseWhileElementsRemain()
-        => await AssertNoFalseEmptyWhileElementsRemain(new ConcurrentPriorityQueue<int, int>());
+        => await AssertNoFalseEmptyWhileElementsRemain(new ConcurrentPriorityQueue<int, int>()).ConfigureAwait(false);
 
     /// <summary>
     /// The observed-empty proof (§5.2 / T17) re-run with stickiness enabled (<c>s = 4</c>): every
@@ -61,7 +66,7 @@ public class EmptySemanticTests
     [Test]
     public async Task EmptySemantics_MultiThreaded_WithStickiness_NoFalseEmpty()
         => await AssertNoFalseEmptyWhileElementsRemain(
-            new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 4));
+            new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 4)).ConfigureAwait(false);
 
     /// <summary>
     /// Shared body of the quiescent-drain observed-empty proof (DR-9), parameterized only by the
@@ -177,6 +182,11 @@ public class EmptySemanticTests
         await Assert.That(queue.IsEmpty).IsTrue().Because("the queue must be empty after a full drain");
     }
 
+    /// <summary>
+    /// The post-drain emptiness consistency surface (DR-17): after a true drain-to-empty the three
+    /// emptiness surfaces agree (<c>IsEmpty</c> true, <c>Count</c> zero, a quiescent
+    /// <c>TryDequeue</c> false), and the queue stays fully functional for a subsequent enqueue.
+    /// </summary>
     [Test]
     public async Task IsEmpty_AfterTrueDrain_ConsistentWithTryDequeueFalse()
     {
