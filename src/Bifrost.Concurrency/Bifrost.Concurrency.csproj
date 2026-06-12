@@ -21,4 +21,10 @@
     <InternalsVisibleTo Include="Bifrost.Tests.Concurrency" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Banned-API gate (RS0030): reflection/runtime-codegen regressions fail the build (DR-9) -->
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="BannedSymbols.txt" />
+  </ItemGroup>
+
 </Project>
