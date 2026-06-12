@@ -5,10 +5,8 @@
 // =============================================================================
 
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
 
 using Bifrost.Concurrency;
-using Bifrost.Core;
 
 namespace Bifrost.Queues;
 
@@ -108,13 +106,12 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
 
     /// <summary>
     /// Per-class admission threshold COUNTS (DR-6), precomputed once in the
-    /// constructor as <c>floor(watermarkFraction × capacity)</c> so the hot-path check
-    /// is a single integer comparison — no floating point, no allocation. An enqueue
-    /// of a class is rejected while <see cref="Count"/> ≥ its threshold.
+    /// constructor via the shared <see cref="AdmissionThresholds.Precompute"/> (also
+    /// used by <see cref="LockingPriorityWorkQueue{TWork}"/>) so the hot-path check is
+    /// a single integer comparison — no floating point, no allocation. An enqueue of a
+    /// class is rejected while <see cref="Count"/> ≥ its threshold.
     /// </summary>
-    private readonly long _batchAdmissionThreshold;
-    private readonly long _defaultAdmissionThreshold;
-    private readonly long _interactiveAdmissionThreshold;
+    private readonly AdmissionThresholds _thresholds;
 
     /// <summary>
     /// The number of consumers currently inside
@@ -159,35 +156,22 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// Thrown when the admission watermarks in <paramref name="options"/> are not
     /// monotone non-decreasing with class urgency
     /// (<c>Batch ≤ Default ≤ Interactive</c>) — a more urgent class must never be
-    /// shed before a less urgent one (DR-6). Validated here, at consumption, because
-    /// the cross-property relation cannot be a single-setter guard on the options
-    /// without order-of-assignment traps.
+    /// shed before a less urgent one (DR-6). Validated by the shared
+    /// <see cref="AdmissionThresholds.Precompute"/>, at consumption, because the
+    /// cross-property relation cannot be a single-setter guard on the options without
+    /// order-of-assignment traps.
     /// </exception>
     public ConcurrentPriorityWorkQueue(int capacity, PriorityDispatchOptions options, long timestampFrequency)
     {
         _boosts = PriorityKey.Precompute(options, timestampFrequency);
 
-        if (options.BatchAdmissionWatermark > options.DefaultAdmissionWatermark
-            || options.DefaultAdmissionWatermark > options.InteractiveAdmissionWatermark)
-        {
-            throw new ArgumentException(
-                "Admission watermarks must be monotone non-decreasing with class urgency: "
-                + $"Batch ({options.BatchAdmissionWatermark}) <= Default "
-                + $"({options.DefaultAdmissionWatermark}) <= Interactive "
-                + $"({options.InteractiveAdmissionWatermark}).",
-                nameof(options));
-        }
+        // Validate watermark monotonicity and precompute the per-class admission
+        // thresholds as integer COUNTS (DR-6), mirroring the Boosts precompute above:
+        // the floating-point watermark × capacity products are evaluated exactly once,
+        // so TryEnqueue's admission check is pure integer comparison.
+        _thresholds = AdmissionThresholds.Precompute(options, capacity);
 
         _queue = new ConcurrentPriorityQueue<WorkEnvelope<TWork>, long>(capacity);
-
-        // Precompute the per-class admission thresholds as integer COUNTS (DR-6),
-        // mirroring the Boosts precompute above: the floating-point watermark × capacity
-        // products are evaluated exactly once here, so TryEnqueue's admission check is
-        // pure integer comparison. floor() semantics — a class admits while the
-        // approximate count is strictly below its threshold.
-        _batchAdmissionThreshold = (long)(options.BatchAdmissionWatermark * capacity);
-        _defaultAdmissionThreshold = (long)(options.DefaultAdmissionWatermark * capacity);
-        _interactiveAdmissionThreshold = (long)(options.InteractiveAdmissionWatermark * capacity);
     }
 
     /// <inheritdoc/>
@@ -219,7 +203,7 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
             return false;
         }
 
-        if (_queue.Count >= AdmissionThresholdFor(item.Class))
+        if (_queue.Count >= _thresholds.ThresholdFor(item.Class))
         {
             // Watermark shed (DR-6): the queue has filled past this class's admission
             // threshold — refuse the item, reserving the remaining headroom for more
@@ -332,24 +316,4 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
             _signal.Release(waiters);
         }
     }
-
-    /// <summary>
-    /// Looks up the precomputed admission threshold count for the given work class
-    /// (DR-6). Branch-light hot-path helper: a single switch over the three classes,
-    /// no allocation, no floating point. Unrecognized values fall back to the Default
-    /// threshold, mirroring <see cref="PriorityKey.Boosts.BoostTicksFor"/>.
-    /// </summary>
-    /// <param name="workClass">The work class seeking admission.</param>
-    /// <returns>
-    /// The threshold count: the class is rejected while <see cref="Count"/> is greater
-    /// than or equal to this value.
-    /// </returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private long AdmissionThresholdFor(WorkClass workClass)
-        => workClass switch
-        {
-            WorkClass.Interactive => _interactiveAdmissionThreshold,
-            WorkClass.Batch => _batchAdmissionThreshold,
-            _ => _defaultAdmissionThreshold,
-        };
 }
