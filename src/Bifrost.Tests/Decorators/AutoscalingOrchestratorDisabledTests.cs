@@ -4,8 +4,6 @@
 // </copyright>
 // =============================================================================
 
-using System.Threading.Channels;
-
 using Bifrost.Autoscaling;
 using Bifrost.Core;
 using Bifrost.Decorators;
@@ -47,7 +45,6 @@ public class AutoscalingOrchestratorDisabledTests
         _inner.PendingCount.Returns(0);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
-        _inner.Writer.Returns(Channel.CreateUnbounded<string>().Writer);
         _registry.ActiveWorkerCount.Returns(0);
         _registry.IdleWorkerCount.Returns(0);
 
@@ -63,14 +60,14 @@ public class AutoscalingOrchestratorDisabledTests
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
-        _inner.EnqueueAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
+        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
         // Act
         await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
         // Assert
         _metrics.DidNotReceive().RecordEnqueue();
-        await _inner.Received(1).EnqueueAsync("work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -101,7 +98,7 @@ public class AutoscalingOrchestratorDisabledTests
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
-        _inner.EnqueueAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
+        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
         _inner.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         _inner.DisposeAsync().Returns(ValueTask.CompletedTask);
 
@@ -109,13 +106,12 @@ public class AutoscalingOrchestratorDisabledTests
         await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
         _ = orchestrator.PendingCount;
         _ = orchestrator.Capacity;
-        _ = orchestrator.Writer;
         await orchestrator.StopAsync().ConfigureAwait(false);
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
         // Assert - verify delegation without metrics
         _metrics.DidNotReceive().RecordEnqueue();
-        await _inner.Received(1).EnqueueAsync("work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
         await _inner.Received(1).StopAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
         await _inner.Received(1).DisposeAsync().ConfigureAwait(false);
     }

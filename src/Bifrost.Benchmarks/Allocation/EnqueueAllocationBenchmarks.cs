@@ -76,7 +76,7 @@ public class EnqueueAllocationBenchmarks
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> that completes synchronously when capacity is available.</returns>
     [Benchmark]
-    public ValueTask EnqueueAsync_ZeroAlloc()
+    public ValueTask<EnqueueResult> EnqueueAsync_ZeroAlloc()
     {
         return _orchestrator!.EnqueueAsync(42);
     }

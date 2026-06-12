@@ -24,17 +24,16 @@ namespace Bifrost;
 /// internal channel.
 /// </para>
 /// <para>
-/// Key design principles:
-/// <list type="bullet">
-///   <item><description>ValueTask-based API for zero-allocation hot path</description></item>
-///   <item><description>Non-allocating property access for observability</description></item>
-///   <item><description>Escape hatch via Writer property for advanced scenarios</description></item>
-/// </list>
+/// Work items are carried internally as <see cref="WorkEnvelope{TWork}"/> values
+/// pairing the item with its <see cref="WorkClass"/> and a monotonic enqueue
+/// timestamp. Admission outcomes surface as <see cref="EnqueueResult"/> values:
+/// shutdown and cancellation are reported as
+/// <see cref="RejectionReason.Shutdown"/> rejections, never as exceptions.
 /// </para>
 /// </remarks>
 public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 {
-    private readonly Channel<TWork> _channel;
+    private readonly Channel<WorkEnvelope<TWork>> _channel;
     private readonly IWorkHandler<TWork> _handler;
     private readonly ILogger<WorkOrchestrator<TWork>> _logger;
     private readonly Task[] _workers;
@@ -70,7 +69,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         var opts = options.Value;
         _capacity = opts.Capacity;
 
-        _channel = Channel.CreateBounded<TWork>(new BoundedChannelOptions(opts.Capacity)
+        _channel = Channel.CreateBounded<WorkEnvelope<TWork>>(new BoundedChannelOptions(opts.Capacity)
         {
             FullMode = BoundedChannelFullMode.Wait,
             SingleReader = false,
@@ -98,33 +97,44 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public int Capacity => _capacity;
 
     /// <inheritdoc/>
-    public ChannelWriter<TWork> Writer => _channel.Writer;
-
-    /// <inheritdoc/>
-    public ValueTask EnqueueAsync(TWork work, CancellationToken ct = default)
+    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
     {
-        return _channel.Writer.WriteAsync(work, ct);
+        try
+        {
+            await _channel.Writer
+                .WriteAsync(new WorkEnvelope<TWork>(work, workClass, _timeProvider.GetTimestamp()), ct)
+                .ConfigureAwait(false);
+            return EnqueueResult.Accepted;
+        }
+        catch (ChannelClosedException)
+        {
+            return EnqueueResult.Rejected(RejectionReason.Shutdown);
+        }
+        catch (OperationCanceledException)
+        {
+            return EnqueueResult.Rejected(RejectionReason.Shutdown);
+        }
     }
 
     /// <inheritdoc/>
-    public bool TryEnqueue(TWork work)
+    public bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        return _channel.Writer.TryWrite(work);
+        return _channel.Writer.TryWrite(new WorkEnvelope<TWork>(work, workClass, _timeProvider.GetTimestamp()));
     }
 
     /// <inheritdoc/>
-    public void Run(TWork work)
+    public void Run(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        if (!_channel.Writer.TryWrite(work))
+        if (!TryEnqueue(work, workClass))
         {
             throw new InvalidOperationException("Queue is full");
         }
     }
 
     /// <inheritdoc/>
-    public bool TryRun(TWork work)
+    public bool TryRun(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        return _channel.Writer.TryWrite(work);
+        return TryEnqueue(work, workClass);
     }
 
     /// <inheritdoc/>
@@ -140,12 +150,12 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
             try
             {
-                await foreach (var work in _channel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+                await foreach (var envelope in _channel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
                 {
                     stateCallback?.Invoke(true); // Mark busy
                     try
                     {
-                        await _handler.HandleAsync(work, ct).ConfigureAwait(false);
+                        await _handler.HandleAsync(envelope.Work, ct).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (ct.IsCancellationRequested)
                     {
@@ -153,7 +163,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Dynamic worker {WorkerId} failed to process work item: {WorkItem}", workerId, work);
+                        _logger.LogError(ex, "Dynamic worker {WorkerId} failed to process work item: {WorkItem}", workerId, envelope.Work);
                     }
                     finally
                     {
@@ -238,17 +248,27 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         _cts.Dispose();
     }
 
+    /// <summary>
+    /// Attempts to read the next queued <see cref="WorkEnvelope{TWork}"/> directly
+    /// from the internal channel. Test-only inspection hook (via InternalsVisibleTo)
+    /// for asserting envelope metadata without widening the public surface.
+    /// </summary>
+    /// <param name="envelope">The dequeued envelope, when one was available.</param>
+    /// <returns><see langword="true"/> if an envelope was read; otherwise <see langword="false"/>.</returns>
+    internal bool TryReadEnvelope(out WorkEnvelope<TWork> envelope)
+        => _channel.Reader.TryRead(out envelope);
+
     private async Task WorkerLoopAsync(string workerId, CancellationToken ct)
     {
         _logger.LogDebug("Worker {WorkerId} started", workerId);
 
         try
         {
-            await foreach (var work in _channel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            await foreach (var envelope in _channel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
             {
                 try
                 {
-                    await _handler.HandleAsync(work, ct).ConfigureAwait(false);
+                    await _handler.HandleAsync(envelope.Work, ct).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -256,7 +276,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Worker {WorkerId} failed to process work item: {WorkItem}", workerId, work);
+                    _logger.LogError(ex, "Worker {WorkerId} failed to process work item: {WorkItem}", workerId, envelope.Work);
                 }
             }
         }

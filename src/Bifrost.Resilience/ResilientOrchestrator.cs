@@ -4,8 +4,6 @@
 // </copyright>
 // =============================================================================
 
-using System.Threading.Channels;
-
 using Bifrost.Core;
 
 using Microsoft.Extensions.Logging;
@@ -74,16 +72,11 @@ public sealed class ResilientOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public int Capacity => _inner.Capacity;
 
     /// <inheritdoc/>
-    public ChannelWriter<TWork> Writer => _inner.Writer;
-
-    /// <inheritdoc/>
-    public async ValueTask EnqueueAsync(TWork work, CancellationToken ct = default)
+    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
     {
-        await _policy.ExecuteAsync(
+        return await _policy.ExecuteAsync(
             async (context, cancellationToken) =>
-            {
-                await _inner.EnqueueAsync(work, cancellationToken).ConfigureAwait(false);
-            },
+                await _inner.EnqueueAsync(work, workClass, cancellationToken).ConfigureAwait(false),
             new Context("EnqueueAsync"),
             ct).ConfigureAwait(false);
     }
@@ -101,9 +94,9 @@ public sealed class ResilientOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// Use <see cref="EnqueueAsync"/> for backpressure with resilience protection.
     /// </para>
     /// </remarks>
-    public bool TryEnqueue(TWork work)
+    public bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        return _inner.TryEnqueue(work);
+        return _inner.TryEnqueue(work, workClass);
     }
 
     /// <inheritdoc/>
@@ -119,8 +112,8 @@ public sealed class ResilientOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// Use <see cref="EnqueueAsync"/> for backpressure with resilience protection.
     /// </para>
     /// </remarks>
-    public void Run(TWork work)
-        => _inner.Run(work);
+    public void Run(TWork work, WorkClass workClass = WorkClass.Default)
+        => _inner.Run(work, workClass);
 
     /// <inheritdoc/>
     /// <remarks>
@@ -135,8 +128,8 @@ public sealed class ResilientOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// Use <see cref="EnqueueAsync"/> for backpressure with resilience protection.
     /// </para>
     /// </remarks>
-    public bool TryRun(TWork work)
-        => _inner.TryRun(work);
+    public bool TryRun(TWork work, WorkClass workClass = WorkClass.Default)
+        => _inner.TryRun(work, workClass);
 
     /// <inheritdoc/>
     public Func<string, CancellationToken, Task> CreateWorkerFunction()

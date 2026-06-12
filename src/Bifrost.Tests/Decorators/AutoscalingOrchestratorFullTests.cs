@@ -4,8 +4,6 @@
 // </copyright>
 // =============================================================================
 
-using System.Threading.Channels;
-
 using Bifrost.Autoscaling;
 using Bifrost.Core;
 using Bifrost.Decorators;
@@ -48,7 +46,6 @@ public class AutoscalingOrchestratorFullTests
         _inner.PendingCount.Returns(0);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
-        _inner.Writer.Returns(Channel.CreateUnbounded<string>().Writer);
         _registry.ActiveWorkerCount.Returns(0);
         _registry.IdleWorkerCount.Returns(0);
 
@@ -64,14 +61,14 @@ public class AutoscalingOrchestratorFullTests
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
-        _inner.EnqueueAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
+        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
         // Act
         await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
         // Assert
         _metrics.Received(1).RecordEnqueue();
-        await _inner.Received(1).EnqueueAsync("work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -304,22 +301,22 @@ public class AutoscalingOrchestratorFullTests
     }
 
     /// <summary>
-    /// Verifies Writer delegates to inner.
+    /// Verifies TryEnqueue forwards the work class to the inner orchestrator.
     /// </summary>
     [Test]
-    public async Task Writer_DelegatesToInner()
+    public async Task TryEnqueue_ForwardsWorkClassToInner()
     {
         // Arrange
-        var expectedWriter = Channel.CreateUnbounded<string>().Writer;
-        _inner.Writer.Returns(expectedWriter);
+        _inner.TryEnqueue("work", Arg.Any<WorkClass>()).Returns(true);
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
         // Act
-        var result = orchestrator.Writer;
+        var result = orchestrator.TryEnqueue("work", WorkClass.Batch);
 
         // Assert
-        await Assert.That(result).IsEqualTo(expectedWriter);
+        await Assert.That(result).IsTrue();
+        _inner.Received(1).TryEnqueue("work", WorkClass.Batch);
     }
 
     /// <summary>
