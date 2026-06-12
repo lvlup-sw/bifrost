@@ -228,8 +228,13 @@ public class QueueWaitMetricsTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert — the resolved orchestrator is the concrete type with the hook attached.
-        var concrete = orchestrator as WorkOrchestrator<string>;
+        // Assert — WithOpenTelemetry ensures the rejection-routing decorator (T23,
+        // DR-6: rejections are always counted) wraps the concrete orchestrator; the
+        // queue-wait hook still attaches to the bare WorkOrchestrator beneath it via
+        // the pass-through factory at the innermost order.
+        var routing = orchestrator as Bifrost.Decorators.RejectionRoutingOrchestrator<string>;
+        await Assert.That(routing).IsNotNull();
+        var concrete = routing!.Inner as WorkOrchestrator<string>;
         await Assert.That(concrete).IsNotNull();
         await Assert.That(concrete!.QueueWaitObserved).IsNotNull();
 

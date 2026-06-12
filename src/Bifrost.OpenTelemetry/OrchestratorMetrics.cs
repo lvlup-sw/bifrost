@@ -23,6 +23,7 @@ namespace Bifrost.OpenTelemetry;
 ///   <item><description><c>orchestrator.items.failed</c> - Counter for total items that failed processing</description></item>
 ///   <item><description><c>orchestrator.processing.duration</c> - Histogram for processing duration in milliseconds</description></item>
 ///   <item><description><c>bifrost.orchestrator.queue_wait</c> - Histogram for queue wait in milliseconds, tagged by <c>work.class</c></description></item>
+///   <item><description><c>bifrost.orchestrator.rejected</c> - Counter for items rejected at admission, tagged by <c>work.class</c> and <c>rejection.reason</c></description></item>
 ///   <item><description><c>orchestrator.items.deadlettered</c> - Counter for total items dead-lettered</description></item>
 ///   <item><description><c>orchestrator.queue.pending</c> - Observable gauge for pending items</description></item>
 ///   <item><description><c>orchestrator.workers.active</c> - Observable gauge for active workers</description></item>
@@ -42,6 +43,17 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
 
     private static readonly KeyValuePair<string, object?> BatchClassTag =
         new("work.class", nameof(WorkClass.Batch));
+
+    // Cached rejection.reason tag values: one per RejectionReason member, so the
+    // per-rejection record path never calls Enum.ToString() and never allocates.
+    private static readonly KeyValuePair<string, object?> CapacityExceededReasonTag =
+        new("rejection.reason", nameof(RejectionReason.CapacityExceeded));
+
+    private static readonly KeyValuePair<string, object?> WatermarkExceededReasonTag =
+        new("rejection.reason", nameof(RejectionReason.WatermarkExceeded));
+
+    private static readonly KeyValuePair<string, object?> ShutdownReasonTag =
+        new("rejection.reason", nameof(RejectionReason.Shutdown));
 
     private readonly Meter _meter;
     private bool _disposed;
@@ -90,6 +102,29 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
     /// </para>
     /// </remarks>
     public Histogram<double> QueueWait { get; }
+
+    /// <summary>
+    /// Gets the counter for work items rejected at admission (DR-6), tagged by
+    /// <c>work.class</c> and <c>rejection.reason</c>.
+    /// </summary>
+    /// <value>Counter tracking admission rejections, tagged by class and reason.</value>
+    /// <remarks>
+    /// <para>
+    /// Rejections are always counted, independent of dead-letter configuration;
+    /// dead-letter routing of rejected work additionally requires
+    /// <c>WithDeadLetterQueue()</c>. <see cref="RejectionReason.Shutdown"/>
+    /// rejections during teardown are counted (tagged by reason) but never
+    /// dead-lettered.
+    /// </para>
+    /// <para>
+    /// This counter is the rejection-side companion of the
+    /// <see cref="QueueWait"/> histogram in the Stage-2 evidence recipe for
+    /// priority dispatch (issue #17): sustained non-shutdown rejections alongside
+    /// an elevated interactive-class queue-wait p95 indicate admission pressure
+    /// rather than transient bursts.
+    /// </para>
+    /// </remarks>
+    public Counter<long> Rejected { get; }
 
     /// <summary>
     /// Gets the observable gauge for pending items.
@@ -168,6 +203,13 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
                 "Stage-2 evidence for priority dispatch (issue #17): interactive-class p95 " +
                 "queue wait > 500 ms while batch-class work is co-resident.");
 
+        Rejected = _meter.CreateCounter<long>(
+            "bifrost.orchestrator.rejected",
+            unit: "{item}",
+            description: "Total number of work items rejected at admission, tagged by " +
+                "work.class and rejection.reason (DR-6). Rejection-side companion of " +
+                "bifrost.orchestrator.queue_wait in the Stage-2 priority-dispatch evidence recipe.");
+
         PendingItems = _meter.CreateObservableGauge(
             "orchestrator.queue.pending",
             () => orchestratorProvider()?.PendingCount ?? 0,
@@ -229,6 +271,32 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
             WorkClass.Batch => BatchClassTag,
             _ => DefaultClassTag,
         });
+
+    /// <summary>
+    /// Records that a work item was rejected at admission (DR-6).
+    /// </summary>
+    /// <param name="workClass">The work class of the rejected item.</param>
+    /// <param name="reason">The admission rejection reason.</param>
+    /// <remarks>
+    /// Allocation-free per record: the <c>work.class</c> and
+    /// <c>rejection.reason</c> tag values are cached per enum member, so no
+    /// string or boxing allocation occurs on the rejection path.
+    /// </remarks>
+    public void RecordRejected(WorkClass workClass, RejectionReason reason)
+        => Rejected.Add(
+            1,
+            workClass switch
+            {
+                WorkClass.Interactive => InteractiveClassTag,
+                WorkClass.Batch => BatchClassTag,
+                _ => DefaultClassTag,
+            },
+            reason switch
+            {
+                RejectionReason.WatermarkExceeded => WatermarkExceededReasonTag,
+                RejectionReason.Shutdown => ShutdownReasonTag,
+                _ => CapacityExceededReasonTag,
+            });
 
     /// <summary>
     /// Records that a work item failed processing.
