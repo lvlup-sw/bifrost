@@ -149,6 +149,10 @@ ahead of an interactive item adds directly to user-visible latency — and a FIF
 reorder. Priority dispatch addresses this with class-aware ordering, but it is deliberately
 **default-off, behind evidence**: instrument first, enable only when the measurements say so.
 
+> For the theory behind the machinery — the MultiQueue algorithm, rank error, the virtual-time
+> key, and watermark admission, with animated diagrams and benchmark figures — see
+> [docs/research/2026-06-13-cpq-theoretical-background.md](docs/research/2026-06-13-cpq-theoretical-background.md).
+
 ### Stage 1 — instrument first (stay on FIFO)
 
 Tag work with a `WorkClass` (`Interactive`, `Default`, `Batch`) — per enqueue or via an

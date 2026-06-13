@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="ui-sans-serif, system-ui, sans-serif" role="img" aria-label="Animated illustration of class-aware watermark admission: Batch is shed at 90% occupancy, Default at 95%, Interactive admits to full capacity">
+  <!-- Looping SMIL, master cycle 12s. The capacity bar fills through three regimes:
+       ~55% (everything admitted), ~92% (Batch rejected), ~97% (Default rejected too),
+       100% (even Interactive rejected: CapacityExceeded). Enqueue is fail-fast — a
+       rejected token bounces immediately; nothing ever waits for space. -->
+
+  <text x="380" y="30" font-size="15" font-weight="bold" text-anchor="middle" fill="#8b949e">watermark admission — shed the lowest class first, fail fast</text>
+
+  <!-- phase captions -->
+  <g font-size="13" text-anchor="middle" fill="#8b949e">
+    <text x="380" y="56" opacity="0">below every watermark: all classes admitted
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.02;0.22;0.26;1"/>
+    </text>
+    <text x="380" y="56" opacity="0">above 0.90 × capacity: Batch is rejected — Default and Interactive still admitted
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.27;0.3;0.52;0.56;1"/>
+    </text>
+    <text x="380" y="56" opacity="0">above 0.95 × capacity: Default is rejected too — Interactive admits to the brim
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.57;0.6;0.78;0.82;1"/>
+    </text>
+    <text x="380" y="56" opacity="0">at capacity: even Interactive is rejected — EnqueueAsync NEVER waits for space
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0;0.83;0.86;0.97;1"/>
+    </text>
+  </g>
+
+  <!-- capacity bar: x 120..190, y 80 (cap=128) .. 320 (0); height = 240 * level/128 -->
+  <rect x="120" y="80" width="70" height="240" rx="6" fill="none" stroke="#8b949e" stroke-width="1.5"/>
+  <!-- fill: 70 -> 118 -> 124 -> 128, i.e. height 131->221->232->240, y 189->99->88->80 -->
+  <rect x="123" y="189" width="64" height="128" rx="4" fill="#58a6ff" fill-opacity="0.35">
+    <animate attributeName="y" dur="12s" repeatCount="indefinite"
+      values="189;189;99;99;88;88;80;80;189" keyTimes="0;0.18;0.3;0.5;0.6;0.78;0.86;0.97;1"/>
+    <animate attributeName="height" dur="12s" repeatCount="indefinite"
+      values="128;128;218;218;229;229;237;237;128" keyTimes="0;0.18;0.3;0.5;0.6;0.78;0.86;0.97;1"/>
+  </rect>
+  <!-- watermark lines: Batch 0.90 (level 115.2, y=104), Default 0.95 (121.6, y=92), Interactive 1.0 (y=80) -->
+  <line x1="112" y1="104" x2="198" y2="104" stroke="#f0883e" stroke-width="2" stroke-dasharray="5 3"/>
+  <text x="206" y="108" font-size="11" text-anchor="start" fill="#f0883e">Batch sheds at 0.90 × capacity</text>
+  <line x1="112" y1="92" x2="198" y2="92" stroke="#a371f7" stroke-width="2" stroke-dasharray="5 3"/>
+  <text x="206" y="88" font-size="11" text-anchor="start" fill="#a371f7">Default sheds at 0.95</text>
+  <line x1="112" y1="80" x2="198" y2="80" stroke="#58a6ff" stroke-width="2"/>
+  <text x="206" y="72" font-size="11" text-anchor="start" fill="#58a6ff">Interactive admits to full capacity (128)</text>
+  <text x="155" y="340" font-size="12" text-anchor="middle" fill="#8b949e">bounded queue</text>
+
+  <!-- ===== tokens: slide from x=600 toward the bar (x=240 edge), admitted or bounced =====
+       lanes: Interactive y=140, Default y=180, Batch y=240 -->
+  <g font-size="11" font-weight="bold" text-anchor="middle">
+    <!-- phase 1 (~1-3s): one of each, all admitted -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.06;0.08;0.2;0.24;1"/>
+      <animateTransform attributeName="transform" type="translate" dur="12s" repeatCount="indefinite"
+        values="0 0; 0 0; -360 0; -360 0" keyTimes="0;0.07;0.2;1"/>
+      <circle cx="600" cy="140" r="14" fill="#58a6ff"/><text x="600" y="144" fill="#ffffff">I</text>
+    </g>
+    <g opacity="0">
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.08;0.1;0.21;0.25;1"/>
+      <animateTransform attributeName="transform" type="translate" dur="12s" repeatCount="indefinite"
+        values="0 0; 0 0; -360 0; -360 0" keyTimes="0;0.09;0.21;1"/>
+      <circle cx="600" cy="180" r="14" fill="#a371f7"/><text x="600" y="184" fill="#ffffff">D</text>
+    </g>
+    <g opacity="0">
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.1;0.12;0.22;0.26;1"/>
+      <animateTransform attributeName="transform" type="translate" dur="12s" repeatCount="indefinite"
+        values="0 0; 0 0; -360 0; -360 0" keyTimes="0;0.11;0.22;1"/>
+      <circle cx="600" cy="240" r="14" fill="#f0883e"/><text x="600" y="244" fill="#ffffff">B</text>
+    </g>
+
+    <!-- phase 2 (~3.8-6s): Batch bounces, Interactive admitted -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.31;0.33;0.5;0.54;1"/>
+      <animateTransform attributeName="transform" type="translate" dur="12s" repeatCount="indefinite"
+        values="0 0; 0 0; -345 0; -255 0; -255 0" keyTimes="0;0.32;0.41;0.47;1"/>
+      <circle cx="600" cy="240" r="14" fill="#f0883e"/><text x="600" y="244" fill="#ffffff">B</text>
+    </g>
+    <text x="380" y="270" font-size="11" fill="#f85149" opacity="0">Rejected(WatermarkExceeded)
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.41;0.43;0.52;0.55;1"/>
+    </text>
+    <g opacity="0">
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.34;0.36;0.5;0.54;1"/>
+      <animateTransform attributeName="transform" type="translate" dur="12s" repeatCount="indefinite"
+        values="0 0; 0 0; -360 0; -360 0" keyTimes="0;0.35;0.49;1"/>
+      <circle cx="600" cy="140" r="14" fill="#58a6ff"/><text x="600" y="144" fill="#ffffff">I</text>
+    </g>
+
+    <!-- phase 3 (~7.2-9.2s): Default bounces, Interactive admitted -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.61;0.63;0.76;0.8;1"/>
+      <animateTransform attributeName="transform" type="translate" dur="12s" repeatCount="indefinite"
+        values="0 0; 0 0; -345 0; -255 0; -255 0" keyTimes="0;0.62;0.69;0.74;1"/>
+      <circle cx="600" cy="180" r="14" fill="#a371f7"/><text x="600" y="184" fill="#ffffff">D</text>
+    </g>
+    <text x="380" y="210" font-size="11" fill="#f85149" opacity="0">Rejected(WatermarkExceeded)
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.69;0.71;0.78;0.81;1"/>
+    </text>
+    <g opacity="0">
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.64;0.66;0.77;0.81;1"/>
+      <animateTransform attributeName="transform" type="translate" dur="12s" repeatCount="indefinite"
+        values="0 0; 0 0; -360 0; -360 0" keyTimes="0;0.65;0.77;1"/>
+      <circle cx="600" cy="140" r="14" fill="#58a6ff"/><text x="600" y="144" fill="#ffffff">I</text>
+    </g>
+
+    <!-- phase 4 (~10.2-11.6s): Interactive bounces at full capacity -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.85;0.87;0.95;0.97;1"/>
+      <animateTransform attributeName="transform" type="translate" dur="12s" repeatCount="indefinite"
+        values="0 0; 0 0; -345 0; -255 0; -255 0" keyTimes="0;0.86;0.91;0.94;1"/>
+      <circle cx="600" cy="140" r="14" fill="#58a6ff"/><text x="600" y="144" fill="#ffffff">I</text>
+    </g>
+    <text x="380" y="170" font-size="11" fill="#f85149" opacity="0">Rejected(CapacityExceeded)
+      <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0;0.91;0.93;0.97;1"/>
+    </text>
+  </g>
+
+  <!-- footer -->
+  <text x="455" y="312" font-size="12" text-anchor="middle" fill="#8b949e">a rejection is a value (EnqueueResult), never an exception — and it dead-letters with AttemptCount = 0 when a DLQ is wired</text>
+  <text x="455" y="332" font-size="12" font-weight="bold" text-anchor="middle" fill="#d29922">waiting at capacity would let queued Batch work block an Interactive producer — the inversion would just move to the admission boundary</text>
+</svg>
