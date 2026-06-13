@@ -11,18 +11,18 @@ using Bifrost.Concurrency.MultiQueue;
 namespace Bifrost.Concurrency;
 
 /// <content>
-/// The unordered collection surface (DR-14/DR-15): <see cref="ToArray"/> copies every element-and-
+/// The unordered collection surface: <see cref="ToArray"/> copies every element-and-
 /// priority pair into a new array, <see cref="GetEnumerator"/> iterates that snapshot through a
 /// public value-type <see cref="Enumerator"/>, and <see cref="Clear"/> empties the queue one
 /// sub-queue at a time. The type satisfies
 /// <see cref="IEnumerable{T}"/> and <see cref="IReadOnlyCollection{T}"/> over
 /// <c>(TElement Element, TPriority Priority)</c>; the collection's <see cref="IReadOnlyCollection{T}.Count"/>
-/// binds to the existing snapshot-semantics <see cref="Count"/> (task 014, DR-12), so no new count
+/// binds to the existing snapshot-semantics <see cref="Count"/>, so no new count
 /// member is introduced here.
 /// </content>
 /// <remarks>
 /// <para>
-/// Weakly consistent and unordered (DR-14): <see cref="ToArray"/> walks the lock-striped
+/// Weakly consistent and unordered: <see cref="ToArray"/> walks the lock-striped
 /// sub-queues <i>one at a time</i>, taking each sub-queue's lock only long enough to copy that
 /// sub-queue's heap segment and releasing it before moving to the next, with no global freeze
 /// and no claim of a single moment-in-time consistent view across sub-queues. A sub-queue copied
@@ -48,7 +48,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </returns>
     /// <remarks>
     /// <para>
-    /// Weakly consistent snapshot (DR-14): the sub-queues are copied one at a time, each
+    /// Weakly consistent snapshot: the sub-queues are copied one at a time, each
     /// under its own lock held only for the duration of that sub-queue's copy and released before
     /// the next. There is no global freeze and no cross-sub-queue consistency claim: the array is a
     /// momentary, weakly consistent view of a queue that other threads may be mutating concurrently
@@ -84,7 +84,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         var buffer = new List<(TElement Element, TPriority Priority)>(hint < 0 ? 0 : hint);
 
         // One sub-queue at a time: each SnapshotTo takes that sub-queue's lock, copies its heap
-        // segment, and releases before the next; no global freeze (DR-14).
+        // segment, and releases before the next; no global freeze.
         for (int i = 0; i < queues.Length; i++)
         {
             queues[i].SnapshotTo(buffer);
@@ -98,7 +98,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Weakly consistent (DR-14): like <see cref="ToArray"/>, the sub-queues are cleared one
+    /// Weakly consistent: like <see cref="ToArray"/>, the sub-queues are cleared one
     /// at a time, each under its own lock held only for that sub-queue's clear, with no global
     /// freeze. Elements enqueued concurrently into a sub-queue that was already cleared survive the
     /// call, so on a queue under concurrent mutation <see cref="Clear"/> guarantees only that every
@@ -143,7 +143,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </returns>
     /// <remarks>
     /// <para>
-    /// Snapshot semantics (DR-14): the enumerator is built over a <see cref="ToArray"/>
+    /// Snapshot semantics: the enumerator is built over a <see cref="ToArray"/>
     /// snapshot taken when this method is called, so it is unaffected by enqueues or dequeues that
     /// happen afterward; iteration sees exactly the elements captured by the snapshot, in no
     /// particular order. As with <see cref="ToArray"/>, the snapshot is weakly consistent across

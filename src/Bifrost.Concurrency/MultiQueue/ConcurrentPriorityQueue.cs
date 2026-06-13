@@ -12,7 +12,7 @@ using Bifrost.Concurrency.MultiQueue;
 namespace Bifrost.Concurrency;
 
 /// <summary>
-/// A thread-safe priority queue (bounded or unbounded) built as a <i>MultiQueue</i> (DR-1): an
+/// A thread-safe priority queue (bounded or unbounded) built as a <i>MultiQueue</i>: an
 /// array of lock-striped min-heaps (<see cref="SubQueue{TElement, TPriority}"/>) sized to a
 /// power-of-two multiple of the processor count. Enqueues scatter across sub-queues to spread
 /// lock contention; dequeues sample two random sub-queues and pop the better cached top, trading
@@ -40,7 +40,7 @@ namespace Bifrost.Concurrency;
 /// fixed constant.
 /// </para>
 /// <para>
-/// The queue stores the same DR-6-normalized comparer that each sub-queue stores
+/// The queue stores the same normalized comparer that each sub-queue stores
 /// (<see cref="PriorityComparerHelpers.InitializeComparer{TPriority}"/>): <see langword="null"/>
 /// for a value-type priority whose effective comparer is <see cref="Comparer{T}.Default"/>, which
 /// selects the devirtualized default-comparer path; any explicit comparer is kept as-is. The public
@@ -87,7 +87,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     private readonly int _subQueueMask;
 
     /// <summary>
-    /// The DR-6-normalized comparer shared with every sub-queue: <see langword="null"/> selects
+    /// The normalized comparer shared with every sub-queue: <see langword="null"/> selects
     /// the devirtualized default-comparer path for value-type priorities; otherwise the explicit
     /// comparer. Retained at the queue level so queue-side ordering code can dual-path as well.
     /// </summary>
@@ -113,7 +113,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     private readonly int _stickiness;
 
     /// <summary>
-    /// The shared atomic capacity gate (DR-13): the number of live reservations against
+    /// The shared atomic capacity gate: the number of live reservations against
     /// <see cref="_boundedCapacity"/>. An enqueue increments it before selecting a sub-queue and
     /// rejects the element when the result exceeds the bound; every successful removal decrements
     /// it. The field is <i>only ever touched on the bounded path</i> (guarded by
@@ -214,7 +214,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <param name="boundedCapacity">The bounded capacity, or <c>-1</c> for an unbounded queue.</param>
     /// <param name="comparer">
     /// The priority comparer, or <see langword="null"/> to use <see cref="Comparer{T}.Default"/>.
-    /// The value is DR-6-normalized for storage and passed unchanged to each sub-queue, which
+    /// The value is normalized for storage and passed unchanged to each sub-queue, which
     /// normalizes it the same way through the shared helper.
     /// </param>
     /// <param name="stickiness">
@@ -237,7 +237,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         // unchanged, so the internal-count contract honors them exactly.
         int count = (int)BitOperations.RoundUpToPowerOf2((uint)subQueueCount);
 
-        // DR-6 comparer normalization, shared with SubQueue so queue-level ordering code can also
+        // Comparer normalization, shared with SubQueue so queue-level ordering code can also
         // dual-path later (see PriorityComparerHelpers.InitializeComparer).
         _comparer = PriorityComparerHelpers.InitializeComparer(comparer);
 
@@ -246,7 +246,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         _queues = new SubQueue<TElement, TPriority>[count];
         for (int i = 0; i < count; i++)
         {
-            // Pass the ORIGINAL comparer: SubQueue performs the same DR-6 normalization itself.
+            // Pass the ORIGINAL comparer: SubQueue performs the same normalization itself.
             _queues[i] = new SubQueue<TElement, TPriority>(comparer);
         }
     }

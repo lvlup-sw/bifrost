@@ -12,8 +12,8 @@ namespace Bifrost.Concurrency.MultiQueue;
 
 /// <summary>
 /// A single MultiQueue sub-queue. This type owns the sub-queue's writer lock and the cached-top
-/// seqlock (DR-4), and the sequential arity-4 implicit min-heap with dual devirtualized comparer
-/// paths (DR-5/DR-6). The heap operations are sequential; composing them under the lock with a
+/// seqlock, and the sequential arity-4 implicit min-heap with dual devirtualized comparer
+/// paths. The heap operations are sequential; composing them under the lock with a
 /// top publication is a later task.
 /// </summary>
 /// <typeparam name="TElement">The element type stored alongside each priority.</typeparam>
@@ -58,7 +58,7 @@ internal sealed class SubQueue<TElement, TPriority>
     private const int InitialCapacity = 16;
 
     /// <summary>
-    /// The comparer used by heap ordering (DR-5/DR-6). The seqlock paths in this type never
+    /// The comparer used by heap ordering. The seqlock paths in this type never
     /// invoke it: the cached top is copied raw and emptiness is a flag word.
     /// </summary>
     private readonly IComparer<TPriority>? _comparer;
@@ -70,7 +70,7 @@ internal sealed class SubQueue<TElement, TPriority>
     private SubQueueHeader _header;
 
     /// <summary>
-    /// The implicit arity-4 min-heap storage (DR-5): an inline array of <c>(element, priority)</c>
+    /// The implicit arity-4 min-heap storage: an inline array of <c>(element, priority)</c>
     /// entries laid out exactly like <see cref="PriorityQueue{TElement, TPriority}"/> (which also
     /// names this array <c>_nodes</c>), where the children of node <c>i</c> live at
     /// <c>4i+1 .. 4i+4</c> and its parent at <c>(i-1) &gt;&gt; 2</c>. Starts empty and is allocated
@@ -89,11 +89,11 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     /// <param name="comparer">
     /// The priority comparer retained for the heap tasks; <see langword="null"/> selects the
-    /// devirtualized <see cref="Comparer{T}.Default"/> path at the queue level (DR-6).
+    /// devirtualized <see cref="Comparer{T}.Default"/> path at the queue level.
     /// </param>
     internal SubQueue(IComparer<TPriority>? comparer)
     {
-        // DR-6 comparer normalization, shared with the queue shell (see
+        // Comparer normalization, shared with the queue shell (see
         // PriorityComparerHelpers.InitializeComparer): a stored null selects the devirtualized
         // Comparer<TPriority>.Default path in the hot heap methods.
         _comparer = PriorityComparerHelpers.InitializeComparer(comparer);
@@ -119,7 +119,7 @@ internal sealed class SubQueue<TElement, TPriority>
 
     /// <summary>
     /// Gets a value indicating whether the heap dispatches to the devirtualized default-comparer
-    /// path (DR-6). True exactly when the stored comparer is null, which the constructor
+    /// path. True exactly when the stored comparer is null, which the constructor
     /// establishes only for value-type priorities whose effective comparer is
     /// <see cref="Comparer{T}.Default"/>. Exposed for the comparer-dispatch tests.
     /// </summary>
@@ -127,7 +127,7 @@ internal sealed class SubQueue<TElement, TPriority>
 
     /// <summary>
     /// Gets this sub-queue's striped element count via a volatile read. Cross-queue consumers
-    /// (DR-12 <c>Count</c>/<c>IsEmpty</c>) sum or short-circuit over these snapshots.
+    /// (<c>Count</c>/<c>IsEmpty</c>) sum or short-circuit over these snapshots.
     /// </summary>
     internal int VolatileCount => Volatile.Read(ref _header.Count);
 
@@ -272,7 +272,7 @@ internal sealed class SubQueue<TElement, TPriority>
     internal void DebugForceOddVersionForTest()
         => Volatile.Write(ref _header.TopVersion, _header.TopVersion | 1u);
 
-    // ---- Sequential arity-4 heap (DR-5/DR-6) ----
+    // ---- Sequential arity-4 heap ----
     //
     // Storage is an implicit arity-4 min-heap over an inline (element, priority)[], the exact
     // PriorityQueue<TElement, TPriority> layout. Arity 4 (rather than binary) makes the tree
@@ -282,7 +282,7 @@ internal sealed class SubQueue<TElement, TPriority>
     // the moving entry is held in a local while entries are shifted into the vacated hole, and the
     // moving entry is placed once when its final position is found.
     //
-    // Comparer dispatch is devirtualized per DR-6: hot methods branch on the JIT-constant
+    // Comparer dispatch is devirtualized: hot methods branch on the JIT-constant
     // `typeof(TPriority).IsValueType && _comparer is null` and call a *DefaultComparer variant
     // (Comparer<TPriority>.Default.Compare at the call site, inlined to an intrinsic for
     // int/long/etc.) or a *CustomComparer variant using the cached comparer field: one comparer
@@ -547,10 +547,10 @@ internal sealed class SubQueue<TElement, TPriority>
         nodes[index] = (element, priority);
     }
 
-    // ---- Locked composition: heap + seqlock + striped count (DR-4/DR-5 integration) ----
+    // ---- Locked composition: heap + seqlock + striped count ----
     //
     // These are the only mutation entry points callers should use. Each TryEnters SyncLock,
-    // never blocking on contention (DR-7's "wait-free locking": a contended sub-queue means
+    // never blocking on contention (the "wait-free locking" rule: a contended sub-queue means
     // another thread is making progress there, so the caller resamples instead of waiting), and
     // under the lock composes a heap operation with a CONDITIONAL top publication and a
     // volatile striped-count update.
@@ -565,7 +565,7 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <summary>
     /// Attempts to acquire the sub-queue lock and push an entry, maintaining the published top
     /// and the striped count. Never blocks: a contended lock yields an immediate
-    /// <see langword="false"/> so the caller can resample another sub-queue (DR-7).
+    /// <see langword="false"/> so the caller can resample another sub-queue.
     /// </summary>
     /// <param name="element">The element to store.</param>
     /// <param name="priority">The priority that orders the entry.</param>
@@ -690,7 +690,7 @@ internal sealed class SubQueue<TElement, TPriority>
     }
 
     /// <summary>
-    /// Compares two priorities through the DR-6 dual path: the devirtualized
+    /// Compares two priorities through the dual path: the devirtualized
     /// <see cref="Comparer{T}.Default"/> call when the stored comparer is null (value-type
     /// priorities with default ordering), otherwise the cached comparer field. Used only on
     /// lock-held paths, never by <see cref="TryReadTop"/>. Duplicated at the queue level too: the
@@ -705,11 +705,11 @@ internal sealed class SubQueue<TElement, TPriority>
             ? Comparer<TPriority>.Default.Compare(x, y)
             : _comparer!.Compare(x, y);
 
-    // ---- ToArray / enumeration support (DR-14) ----
+    // ---- ToArray / enumeration support ----
 
     /// <summary>
     /// Copies this sub-queue's entries under its lock into <paramref name="buffer"/>. ToArray and
-    /// enumeration support (DR-14): a brief per-queue lock, copied one sub-queue at a time with no
+    /// enumeration support: a brief per-queue lock, copied one sub-queue at a time with no
     /// global freeze and no cross-queue consistency claim. It uses a blocking <c>lock</c> rather
     /// than a <c>TryEnter</c> here: enumeration is not a hot path, the design specifies "taking each
     /// lock briefly", and the critical section is a pure array copy.

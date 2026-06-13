@@ -11,7 +11,7 @@ namespace Bifrost.Concurrency.MultiQueue;
 
 /// <summary>
 /// A single generic <typeparamref name="TPriority"/> slot isolated on its own 128-byte cache line
-/// using a padded backing array (DR-2).
+/// using a padded backing array.
 /// </summary>
 /// <typeparam name="TPriority">The priority type cached as a sub-queue's "top" value.</typeparam>
 /// <remarks>

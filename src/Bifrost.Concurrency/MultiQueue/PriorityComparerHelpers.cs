@@ -8,14 +8,14 @@
 namespace Bifrost.Concurrency.MultiQueue;
 
 /// <summary>
-/// Shared DR-6 comparer normalization, mirroring the private <c>InitializeComparer</c> helper
+/// Shared comparer normalization, mirroring the private <c>InitializeComparer</c> helper
 /// inside <see cref="PriorityQueue{TElement, TPriority}"/>. Extracted once so the queue shell and
 /// every sub-queue normalize identically instead of duplicating the rule.
 /// </summary>
 internal static class PriorityComparerHelpers
 {
     /// <summary>
-    /// Normalizes a priority comparer for storage (DR-6). For a value-type
+    /// Normalizes a priority comparer for storage. For a value-type
     /// <typeparamref name="TPriority"/> whose effective comparer is
     /// <see cref="Comparer{T}.Default"/>, returns <see langword="null"/> so hot paths can branch to
     /// the devirtualized <c>Comparer&lt;TPriority&gt;.Default.Compare</c> call (an inlined intrinsic

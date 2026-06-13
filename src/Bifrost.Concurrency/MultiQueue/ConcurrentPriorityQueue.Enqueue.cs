@@ -10,7 +10,7 @@ using Bifrost.Concurrency.MultiQueue;
 namespace Bifrost.Concurrency;
 
 /// <content>
-/// The enqueue surface (DR-7): random sub-queue selection with try-lock resampling that never
+/// The enqueue surface: random sub-queue selection with try-lock resampling that never
 /// blocks. A push draws a random sub-queue index from the thread-local RNG and attempts the
 /// sub-queue's writer lock; on contention it resamples a <i>fresh</i> random index and retries,
 /// rather than waiting on a held lock or spinning on the same queue. Because at most <c>p</c> of
@@ -36,14 +36,14 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <para>
     /// Bounded queues (constructed with a positive <c>boundedCapacity</c>) throw
     /// <see cref="InvalidOperationException"/> when the queue is full; use
-    /// <see cref="TryEnqueue"/> for the non-throwing variant. The bounded-capacity gate (DR-13)
+    /// <see cref="TryEnqueue"/> for the non-throwing variant. The bounded-capacity gate
     /// reserves a slot atomically before any sub-queue is touched, so a full queue is rejected
     /// without mutating any stripe.
     /// </para>
     /// <para>
     /// <b>Thread Safety:</b> This method is thread-safe and may be called concurrently from
     /// multiple threads. It scatters across the lock-striped sub-queues and never blocks on a
-    /// contended sub-queue: a contended lock triggers a fresh random resample (DR-7).
+    /// contended sub-queue: a contended lock triggers a fresh random resample.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
@@ -53,8 +53,8 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     {
         if (!TryEnqueue(element, priority))
         {
-            // Reachable only on a bounded, full queue: the reservation gate rejected the element
-            // (DR-13). On an unbounded queue TryEnqueue always returns true and this never throws.
+            // Reachable only on a bounded, full queue: the reservation gate rejected the element.
+            // On an unbounded queue TryEnqueue always returns true and this never throws.
             throw new InvalidOperationException("The queue is full and cannot accept additional elements.");
         }
     }
@@ -74,14 +74,14 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </returns>
     /// <remarks>
     /// <para>
-    /// Bounded queues reserve a slot through the shared atomic capacity gate (DR-13)
+    /// Bounded queues reserve a slot through the shared atomic capacity gate
     /// <i>before</i> any sub-queue is touched: a failed reservation returns <see langword="false"/>
     /// without mutating any stripe and never leaks capacity (the reservation is exactly undone).
     /// </para>
     /// <para>
     /// <b>Thread Safety:</b> This method is thread-safe and may be called concurrently from
     /// multiple threads. It scatters across the lock-striped sub-queues and never blocks on a
-    /// contended sub-queue: a contended lock triggers a fresh random resample (DR-7).
+    /// contended sub-queue: a contended lock triggers a fresh random resample.
     /// </para>
     /// </remarks>
     public bool TryEnqueue(TElement element, TPriority priority)
@@ -89,7 +89,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <summary>
     /// Scatters an element into a random sub-queue, resampling a fresh random index whenever the
-    /// chosen sub-queue's lock is contended (DR-7). This is the single mutation entry point that
+    /// chosen sub-queue's lock is contended. This is the single mutation entry point that
     /// both public enqueue methods funnel through.
     /// </summary>
     /// <param name="element">The element to store.</param>
@@ -101,7 +101,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </returns>
     /// <remarks>
     /// <para>
-    /// Bounded-capacity gate (DR-13): a single
+    /// Bounded-capacity gate: a single
     /// <see cref="System.Threading.Interlocked"/>-based reservation is taken <i>before</i> the
     /// resample loop: a successful reservation guarantees a slot and the loop proceeds unchanged; a
     /// failed reservation is exactly undone (so nothing leaks) and "full" is reported without
@@ -118,7 +118,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </remarks>
     private bool EnqueueCore(TElement element, TPriority priority)
     {
-        // Bounded-capacity reservation (DR-13), taken atomically ahead of the resample loop. Guarded
+        // Bounded-capacity reservation, taken atomically ahead of the resample loop. Guarded
         // by `_boundedCapacity > 0` so the unbounded path executes no Interlocked instruction at all.
         if (_boundedCapacity > 0)
         {
@@ -143,7 +143,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
             }
 
             // Contended: end the sticky period so the resample draws a fresh random index rather than
-            // re-trying the contended one; never wait on a held lock (DR-7). An unlocked sub-queue
+            // re-trying the contended one; never wait on a held lock. An unlocked sub-queue
             // always exists (at most p of n = 4p can be locked at once), so this loop terminates
             // probabilistically without an attempt bound. Resampling-on-contention is also what keeps
             // stickiness wait-free: a stuck selection never blocks, it yields to a fresh draw.

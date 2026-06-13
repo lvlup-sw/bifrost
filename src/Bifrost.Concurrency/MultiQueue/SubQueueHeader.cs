@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 namespace Bifrost.Concurrency.MultiQueue;
 
 /// <summary>
-/// The padded, lock-free-read "hot" header for a single MultiQueue sub-queue (DR-2).
+/// The padded, lock-free-read "hot" header for a single MultiQueue sub-queue.
 /// </summary>
 /// <remarks>
 /// <para>

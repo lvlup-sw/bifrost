@@ -10,7 +10,7 @@ using Bifrost.Concurrency.MultiQueue;
 namespace Bifrost.Concurrency;
 
 /// <content>
-/// The occupancy surface (DR-12): a snapshot-semantics <see cref="Count"/> and a short-circuiting
+/// The occupancy surface: a snapshot-semantics <see cref="Count"/> and a short-circuiting
 /// <see cref="IsEmpty"/> over the lock-striped sub-queue counts. Both read each stripe's
 /// <c>VolatileCount</c> snapshot without taking any sub-queue lock; they observe a momentary,
 /// possibly-stale picture of a queue that other threads may be mutating concurrently, the same
@@ -94,7 +94,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
             SubQueue<TElement, TPriority>[] queues = _queues;
             for (int i = 0; i < queues.Length; i++)
             {
-                // Short-circuit at the first non-empty stripe: cheaper than a full sum (DR-12).
+                // Short-circuit at the first non-empty stripe: cheaper than a full sum.
                 if (queues[i].VolatileCount != 0)
                 {
                     return false;

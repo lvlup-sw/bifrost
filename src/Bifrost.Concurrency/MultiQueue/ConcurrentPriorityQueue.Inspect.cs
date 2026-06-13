@@ -11,7 +11,7 @@ using Bifrost.Concurrency.MultiQueue;
 namespace Bifrost.Concurrency;
 
 /// <content>
-/// The non-destructive inspection surface (DR-11): <see cref="TryPeek"/> returns the minimum-priority
+/// The non-destructive inspection surface: <see cref="TryPeek"/> returns the minimum-priority
 /// element without removing it. The scan of every sub-queue's <i>published top</i> is lock-free:
 /// the seqlock (<see cref="SubQueue{TElement, TPriority}.TryReadTop"/>) publishes only the priority,
 /// so a single brief lock on the winning sub-queue retrieves the element. The method never blocks:
@@ -62,7 +62,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </returns>
     /// <remarks>
     /// <para>
-    /// Lock-free scan, single-lock retrieval (DR-11): the minimum priority is found by
+    /// Lock-free scan, single-lock retrieval: the minimum priority is found by
     /// scanning <i>all</i> sub-queues' published tops without taking any lock
     /// (<see cref="SubQueue{TElement, TPriority}.TryReadTop"/>; an "unknown" or "empty" snapshot is
     /// skipped), ordered by the queue-level effective comparer. Because the seqlock publishes only
@@ -141,7 +141,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <summary>
     /// Attempts to remove and return the element whose priority was the minimum among the sub-queue
-    /// tops observed during the call, the STRICT best-effort dequeue (DR-10).
+    /// tops observed during the call, the STRICT best-effort dequeue.
     /// </summary>
     /// <param name="element">
     /// When this method returns <see langword="true"/>, the removed minimum-priority element;
@@ -161,7 +161,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// Removes the element whose priority was the minimum among elements observed during the call; concurrent enqueues may be missed.
     /// </para>
     /// <para>
-    /// Strict and best-effort, an O(n) scan with no scalability claim (DR-10). Unlike the relaxed
+    /// Strict and best-effort, an O(n) scan with no scalability claim. Unlike the relaxed
     /// two-choice <c>TryDequeue</c>, this path scans <i>every</i> sub-queue's published top on each
     /// attempt (reusing the identical lock-free minimum scan as <see cref="TryPeek"/>) to find the
     /// global minimum exactly. That full O(n) scan is slower and carries no scalability claim: it is
@@ -297,7 +297,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <see langword="false"/>, i.e. a read that raced a writer) and an "empty" snapshot are both
     /// skipped. The returned <paramref name="winner"/> is only a hint: a concurrent writer may have
     /// changed that sub-queue by the time a caller locks it, so callers must re-validate under the
-    /// lock. Extracted so that task 013 (<c>TryDequeueMin</c>) reuses the identical minimum-scan
+    /// lock. Extracted so that <c>TryDequeueMin</c> reuses the identical minimum-scan
     /// before its locked pop.
     /// </remarks>
     private bool TryScanForMinimum(out int winner, out TPriority minimum)
@@ -388,6 +388,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         return found;
     }
 
-    // CompareEffective (the DR-6 dual-path queue-level comparer helper) is defined once for the
+    // CompareEffective (the dual-path queue-level comparer helper) is defined once for the
     // whole partial class in ConcurrentPriorityQueue.Dequeue.cs.
 }

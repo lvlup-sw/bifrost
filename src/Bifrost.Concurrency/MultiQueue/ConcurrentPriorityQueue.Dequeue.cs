@@ -13,7 +13,7 @@ using Bifrost.Concurrency.MultiQueue;
 namespace Bifrost.Concurrency;
 
 /// <content>
-/// The relaxed dequeue surface (DR-8): the two-choice rule. A dequeue samples two random sub-queues,
+/// The relaxed dequeue surface: the two-choice rule. A dequeue samples two random sub-queues,
 /// reads their cached tops <i>without locking</i>, and pops the one whose published minimum is
 /// smaller. This trades a bounded rank error (the popped element is one of the smallest priorities,
 /// not necessarily the global minimum) for near-linear read scaling; strict-minimum semantics are
@@ -71,7 +71,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </returns>
     /// <remarks>
     /// <para>
-    /// Relaxed contract (DR-8): this removes an element with <i>one of</i> the smallest
+    /// Relaxed contract: this removes an element with <i>one of</i> the smallest
     /// priorities, not necessarily the global minimum. The two-choice rule samples two sub-queues
     /// and pops the better-looking one. The expected rank of the removed element (0 = the true
     /// minimum) is approximately <c>(5/6)·n</c>, where <c>n</c> is the sub-queue count
@@ -100,8 +100,8 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <para>
     /// <b>Thread Safety:</b> This method is thread-safe and may be called concurrently from multiple
     /// threads. The sampling phase reads cached tops lock-free and pops under a try-lock that never
-    /// blocks on a contended sub-queue; contention resamples rather than waits (DR-8 mirrors DR-7's
-    /// wait-free locking).
+    /// blocks on a contended sub-queue; contention resamples rather than waits (the same wait-free
+    /// locking the enqueue path uses).
     /// </para>
     /// </remarks>
     public bool TryDequeue([MaybeNullWhen(false)] out TElement element, [MaybeNullWhen(false)] out TPriority priority)
@@ -165,7 +165,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     }
 
     /// <summary>
-    /// The authoritative empty verification scan (DR-9). Loops full passes over every sub-queue
+    /// The authoritative empty verification scan. Loops full passes over every sub-queue
     /// until it either pops an entry or completes one pass in which <i>every</i> sub-queue was
     /// observed empty, the only state in which returning <see langword="false"/> is legal.
     /// </summary>
@@ -252,7 +252,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// Attempts a non-blocking pop from a single sub-queue by index, shared by the two-choice
     /// sampling and the full-scan fallback. A thin pass-through over
     /// <see cref="SubQueue{TElement, TPriority}.TryLockedPop"/> that centralizes index-based popping
-    /// so the sampling and scan paths (and task 011's rigorous scan) stay consistent.
+    /// so the sampling and scan paths stay consistent.
     /// </summary>
     /// <param name="index">The sub-queue index to pop from.</param>
     /// <param name="element">The popped element on <see cref="SubQueuePopStatus.Success"/>; otherwise the default value.</param>
@@ -277,7 +277,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     }
 
     /// <summary>
-    /// Compares two priorities through the DR-6 dual path: the devirtualized
+    /// Compares two priorities through the dual path: the devirtualized
     /// <see cref="Comparer{T}.Default"/> call when the stored comparer is null (value-type priorities
     /// with default ordering), otherwise the cached comparer field. Mirrors
     /// <c>SubQueue.CompareEffective</c> so the queue-level two-choice ordering uses the same
