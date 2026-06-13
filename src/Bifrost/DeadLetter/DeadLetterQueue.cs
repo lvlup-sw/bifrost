@@ -93,16 +93,72 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
     }
 
     /// <inheritdoc/>
-    public async IAsyncEnumerable<DeadLetteredWork<TWork>> ReadAllAsync(
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    /// <remarks>
+    /// Yields the items buffered in the queue at the moment of enumeration and then completes;
+    /// it never waits for items that have not yet been enqueued, so the drain runs synchronously
+    /// and is surfaced through a lightweight enumerator rather than an <c>async</c> state machine.
+    /// Each item is removed (and <see cref="Count"/> decremented) as it is yielded, so abandoning
+    /// the enumeration early leaves the remaining items in the queue.
+    /// </remarks>
+    public IAsyncEnumerable<DeadLetteredWork<TWork>> ReadAllAsync(CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        return new DrainEnumerable(this, ct);
+    }
 
-        while (_channel.Reader.TryRead(out var item))
+    /// <summary>
+    /// Exposes a non-blocking, synchronous drain of the queue's currently-buffered items as an
+    /// <see cref="IAsyncEnumerable{T}"/>. Nothing here awaits: each step completes synchronously
+    /// because <see cref="ChannelReader{T}.TryRead(out T)"/> never waits for a future item.
+    /// </summary>
+    private sealed class DrainEnumerable : IAsyncEnumerable<DeadLetteredWork<TWork>>
+    {
+        private readonly DeadLetterQueue<TWork> _queue;
+        private readonly CancellationToken _ct;
+
+        public DrainEnumerable(DeadLetterQueue<TWork> queue, CancellationToken ct)
         {
-            ct.ThrowIfCancellationRequested();
-            Interlocked.Decrement(ref _count);
-            yield return item;
+            _queue = queue;
+            _ct = ct;
         }
+
+        public IAsyncEnumerator<DeadLetteredWork<TWork>> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+            => new DrainEnumerator(_queue, cancellationToken.CanBeCanceled ? cancellationToken : _ct);
+    }
+
+    /// <summary>
+    /// Reads the channel with <see cref="ChannelReader{T}.TryRead(out T)"/>, decrementing the
+    /// tracked count per item and completing as soon as the channel is empty. Every
+    /// <see cref="MoveNextAsync"/> returns an already-completed <see cref="ValueTask{TResult}"/>.
+    /// </summary>
+    private sealed class DrainEnumerator : IAsyncEnumerator<DeadLetteredWork<TWork>>
+    {
+        private readonly DeadLetterQueue<TWork> _queue;
+        private readonly CancellationToken _ct;
+
+        public DrainEnumerator(DeadLetterQueue<TWork> queue, CancellationToken ct)
+        {
+            _queue = queue;
+            _ct = ct;
+        }
+
+        public DeadLetteredWork<TWork> Current { get; private set; } = default!;
+
+        public ValueTask<bool> MoveNextAsync()
+        {
+            _ct.ThrowIfCancellationRequested();
+
+            if (_queue._channel.Reader.TryRead(out DeadLetteredWork<TWork> item))
+            {
+                Interlocked.Decrement(ref _queue._count);
+                Current = item;
+                return new ValueTask<bool>(true);
+            }
+
+            Current = default!;
+            return new ValueTask<bool>(false);
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }
