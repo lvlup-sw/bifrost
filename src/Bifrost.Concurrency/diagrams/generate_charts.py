@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Generate the benchmark figure SVGs for docs/research/2026-06-13-cpq-theoretical-background.md.
+"""Generate the benchmark figure SVGs for src/Bifrost.Concurrency/BACKGROUND.md.
 
 Pure stdlib — no matplotlib. Data values are transcribed from the committed benchmark
 documents (sources cited per chart below); re-run after updating those docs:
 
-    python3 docs/research/diagrams/generate_charts.py
+    python3 src/Bifrost.Concurrency/diagrams/generate_charts.py
 
 Colors follow the GitHub palette midtones so the transparent-background charts stay
 readable on both light and dark themes.

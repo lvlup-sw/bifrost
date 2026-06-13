@@ -151,7 +151,7 @@ reorder. Priority dispatch addresses this with class-aware ordering, but it is d
 
 > For the theory behind the machinery — the MultiQueue algorithm, rank error, the virtual-time
 > key, and watermark admission, with animated diagrams and benchmark figures — see
-> [docs/research/2026-06-13-cpq-theoretical-background.md](docs/research/2026-06-13-cpq-theoretical-background.md).
+> [src/Bifrost.Concurrency/BACKGROUND.md](src/Bifrost.Concurrency/BACKGROUND.md).
 
 ### Stage 1 — instrument first (stay on FIFO)
 
