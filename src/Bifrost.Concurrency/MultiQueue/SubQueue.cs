@@ -3,7 +3,6 @@
 // Copyright (c) Levelup Software. All rights reserved.
 // </copyright>
 // =============================================================================
-// Ported from lvlup-sw/DataFerry@2bf0456 (src/DataFerry/Concurrency/MultiQueue/SubQueue.cs)
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -199,7 +198,7 @@ internal sealed class SubQueue<TElement, TPriority>
         }
         else if (RuntimeHelpers.IsReferenceOrContainsReferences<TPriority>())
         {
-            // GC hygiene only; emptiness is signalled by the flag, never by the slot value.
+            // GC hygiene only; emptiness is signaled by the flag, never by the slot value.
             _cachedTop.Set(default!);
         }
 
@@ -271,24 +270,6 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     internal void DebugForceOddVersionForTest()
         => Volatile.Write(ref _header.TopVersion, _header.TopVersion | 1u);
-
-    // ---- Sequential arity-4 heap ----
-    //
-    // Storage is an implicit arity-4 min-heap over an inline (element, priority)[], the exact
-    // PriorityQueue<TElement, TPriority> layout. Arity 4 (rather than binary) makes the tree
-    // shallower: a pop-dominated workload is sift-down dominated, and each level traversed costs a
-    // potential cache miss, so fewer-but-wider levels touch fewer cache lines than a deeper binary
-    // tree of the same count. Sifting is hole-based: instead of swapping pairs (two writes each),
-    // the moving entry is held in a local while entries are shifted into the vacated hole, and the
-    // moving entry is placed once when its final position is found.
-    //
-    // Comparer dispatch is devirtualized: hot methods branch on the JIT-constant
-    // `typeof(TPriority).IsValueType && _comparer is null` and call a *DefaultComparer variant
-    // (Comparer<TPriority>.Default.Compare at the call site, inlined to an intrinsic for
-    // int/long/etc.) or a *CustomComparer variant using the cached comparer field: one comparer
-    // call per compare, no further indirection. The method names MoveUp*/MoveDown* mirror the BCL
-    // PriorityQueue sift methods. These methods are SEQUENTIAL: they take no lock and publish no
-    // top; the locked composition below pairs them with PublishTop under SyncLock.
 
     /// <summary>
     /// Pushes an <c>(element, priority)</c> entry onto the heap, growing the backing store when
@@ -388,21 +369,21 @@ internal sealed class SubQueue<TElement, TPriority>
         const int GrowFactor = 2;
         const int MinimumGrow = 4;
 
-        int newcapacity = GrowFactor * _nodes.Length;
+        int newCapacity = GrowFactor * _nodes.Length;
 
         // Allow the heap to grow to the maximum possible capacity before encountering overflow
-        // (the BCL PriorityQueue.Grow clamp): without this, doubling past 2^30 entries would
-        // overflow negative and surface as a wrong-typed ArgumentOutOfRangeException.
-        if ((uint)newcapacity > Array.MaxLength)
+        // Without this, doubling past 2^30 entries would overflow negative and
+        // surface as a wrong-typed ArgumentOutOfRangeException.
+        if ((uint)newCapacity > Array.MaxLength)
         {
-            newcapacity = Array.MaxLength;
+            newCapacity = Array.MaxLength;
         }
 
-        // Guarantee forward progress (BCL MinimumGrow); the first growth allocates
+        // Guarantee forward progress; the first growth allocates
         // InitialCapacity outright.
-        newcapacity = Math.Max(newcapacity, _nodes.Length == 0 ? InitialCapacity : _nodes.Length + MinimumGrow);
+        newCapacity = Math.Max(newCapacity, _nodes.Length == 0 ? InitialCapacity : _nodes.Length + MinimumGrow);
 
-        Array.Resize(ref _nodes, newcapacity);
+        Array.Resize(ref _nodes, newCapacity);
     }
 
     /// <summary>
@@ -483,11 +464,13 @@ internal sealed class SubQueue<TElement, TPriority>
             for (int child = firstChild + 1; child <= lastChild; child++)
             {
                 TPriority candidate = nodes[child].Priority;
-                if (Comparer<TPriority>.Default.Compare(candidate, minPriority) < 0)
+                if (Comparer<TPriority>.Default.Compare(candidate, minPriority) >= 0)
                 {
-                    minChild = child;
-                    minPriority = candidate;
+                    continue;
                 }
+
+                minChild = child;
+                minPriority = candidate;
             }
 
             if (Comparer<TPriority>.Default.Compare(minPriority, priority) >= 0)
@@ -528,11 +511,13 @@ internal sealed class SubQueue<TElement, TPriority>
             for (int child = firstChild + 1; child <= lastChild; child++)
             {
                 TPriority candidate = nodes[child].Priority;
-                if (cmp.Compare(candidate, minPriority) < 0)
+                if (cmp.Compare(candidate, minPriority) >= 0)
                 {
-                    minChild = child;
-                    minPriority = candidate;
+                    continue;
                 }
+
+                minChild = child;
+                minPriority = candidate;
             }
 
             if (cmp.Compare(minPriority, priority) >= 0)
@@ -546,21 +531,6 @@ internal sealed class SubQueue<TElement, TPriority>
 
         nodes[index] = (element, priority);
     }
-
-    // ---- Locked composition: heap + seqlock + striped count ----
-    //
-    // These are the only mutation entry points callers should use. Each TryEnters SyncLock,
-    // never blocking on contention (the "wait-free locking" rule: a contended sub-queue means
-    // another thread is making progress there, so the caller resamples instead of waiting), and
-    // under the lock composes a heap operation with a CONDITIONAL top publication and a
-    // volatile striped-count update.
-    //
-    // Publish elision is the point of the composition: the seqlock is rewritten only when the
-    // heap MINIMUM PRIORITY actually changes. A non-minimum push and a pop that exposes an
-    // equal-priority duplicate root both leave the published priority semantically correct, so
-    // they skip the version-bumping write entirely. Foreign samplers' cached copies of the
-    // version/top lines then stay valid, avoiding cache-line ping-pong in steady-state mixed and
-    // narrow-key-range workloads. The SubQueueTests version-counter assertions pin this.
 
     /// <summary>
     /// Attempts to acquire the sub-queue lock and push an entry, maintaining the published top
@@ -672,18 +642,21 @@ internal sealed class SubQueue<TElement, TPriority>
         lock (SyncLock)
         {
             int removed = _size;
-            if (removed > 0)
-            {
-                // Gated clear: only release references; value-type-only entries skip the writes.
-                if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
-                {
-                    Array.Clear(_nodes, 0, removed);
-                }
 
-                _size = 0;
-                PublishTop(default!, empty: true);
-                Volatile.Write(ref _header.Count, 0);
+            if (removed <= 0)
+            {
+                return removed;
             }
+
+            // Gated clear: only release references; value-type-only entries skip the writes.
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
+            {
+                Array.Clear(_nodes, 0, removed);
+            }
+
+            _size = 0;
+            PublishTop(default!, empty: true);
+            Volatile.Write(ref _header.Count, 0);
 
             return removed;
         }
@@ -704,8 +677,6 @@ internal sealed class SubQueue<TElement, TPriority>
         => typeof(TPriority).IsValueType && _comparer is null
             ? Comparer<TPriority>.Default.Compare(x, y)
             : _comparer!.Compare(x, y);
-
-    // ---- ToArray / enumeration support ----
 
     /// <summary>
     /// Copies this sub-queue's entries under its lock into <paramref name="buffer"/>. ToArray and

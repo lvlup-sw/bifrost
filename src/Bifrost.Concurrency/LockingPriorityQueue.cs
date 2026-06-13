@@ -3,7 +3,6 @@
 // Copyright (c) Levelup Software. All rights reserved.
 // </copyright>
 // =============================================================================
-// Ported from lvlup-sw/DataFerry@2bf0456 (src/DataFerry/Concurrency/NaiveConcurrentPriorityQueue.cs), renamed on port.
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;

@@ -3,7 +3,6 @@
 // Copyright (c) Levelup Software. All rights reserved.
 // </copyright>
 // =============================================================================
-// Ported from lvlup-sw/DataFerry@2bf0456 (src/DataFerry/Concurrency/MultiQueue/ConcurrentPriorityQueue.Inspect.cs)
 
 using System.Diagnostics.CodeAnalysis;
 using Bifrost.Concurrency.MultiQueue;
@@ -316,12 +315,14 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 continue;
             }
 
-            if (!found || CompareEffective(top, minimum) < 0)
+            if (found && CompareEffective(top, minimum) >= 0)
             {
-                winner = i;
-                minimum = top;
-                found = true;
+                continue;
             }
+
+            winner = i;
+            minimum = top;
+            found = true;
         }
 
         if (!found)
@@ -373,11 +374,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 continue;
             }
 
-            if (!found || CompareEffective(top, runnerUp) < 0)
+            if (found && CompareEffective(top, runnerUp) >= 0)
             {
-                runnerUp = top;
-                found = true;
+                continue;
             }
+
+            runnerUp = top;
+            found = true;
         }
 
         if (!found)

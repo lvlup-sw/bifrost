@@ -3,7 +3,6 @@
 // Copyright (c) Levelup Software. All rights reserved.
 // </copyright>
 // =============================================================================
-// Ported from lvlup-sw/DataFerry@2bf0456 (src/DataFerry/Concurrency/MultiQueue/ConcurrentPriorityQueue.Collection.cs)
 
 using System.Collections;
 using Bifrost.Concurrency.MultiQueue;
@@ -70,24 +69,18 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </remarks>
     public (TElement Element, TPriority Priority)[] ToArray()
     {
-        SubQueue<TElement, TPriority>[] queues = _queues;
-
         // A right-sized starting capacity from the unlocked striped counts avoids most regrowth;
         // the list is the authoritative size because concurrent mutation may change a sub-queue's
         // count between the capacity hint and its own locked copy.
-        int hint = 0;
-        for (int i = 0; i < queues.Length; i++)
-        {
-            hint += queues[i].VolatileCount;
-        }
+        int hint = _queues.Sum(t => t.VolatileCount);
 
         var buffer = new List<(TElement Element, TPriority Priority)>(hint < 0 ? 0 : hint);
 
         // One sub-queue at a time: each SnapshotTo takes that sub-queue's lock, copies its heap
         // segment, and releases before the next; no global freeze.
-        for (int i = 0; i < queues.Length; i++)
+        foreach (var t in _queues)
         {
-            queues[i].SnapshotTo(buffer);
+            t.SnapshotTo(buffer);
         }
 
         return buffer.ToArray();
@@ -118,11 +111,9 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </remarks>
     public void Clear()
     {
-        SubQueue<TElement, TPriority>[] queues = _queues;
-
-        for (int i = 0; i < queues.Length; i++)
+        foreach (var t in _queues)
         {
-            int removed = queues[i].LockedClear();
+            int removed = t.LockedClear();
 
             // Release the bounded reservations for everything this stripe held (no-op unbounded).
             if (_boundedCapacity > 0 && removed > 0)
@@ -227,13 +218,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         public bool MoveNext()
         {
             int next = _index + 1;
-            if (next < _snapshot.Length)
+            if (next >= _snapshot.Length)
             {
-                _index = next;
-                return true;
+                return false;
             }
 
-            return false;
+            _index = next;
+            return true;
         }
 
         /// <summary>

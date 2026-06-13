@@ -3,9 +3,6 @@
 // Copyright (c) Levelup Software. All rights reserved.
 // </copyright>
 // =============================================================================
-// Ported from lvlup-sw/DataFerry@2bf0456 (src/DataFerry/Concurrency/MultiQueue/ConcurrentPriorityQueue.Count.cs)
-
-using Bifrost.Concurrency.MultiQueue;
 
 namespace Bifrost.Concurrency;
 
@@ -51,11 +48,10 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     {
         get
         {
-            SubQueue<TElement, TPriority>[] queues = _queues;
             long sum = 0;
-            for (int i = 0; i < queues.Length; i++)
+            foreach (var t in _queues)
             {
-                sum += queues[i].VolatileCount;
+                sum += t.VolatileCount;
             }
 
             // Clamp at zero: the unlocked stripe reads can interleave with concurrent pops, so a
@@ -91,17 +87,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     {
         get
         {
-            SubQueue<TElement, TPriority>[] queues = _queues;
-            for (int i = 0; i < queues.Length; i++)
-            {
-                // Short-circuit at the first non-empty stripe: cheaper than a full sum.
-                if (queues[i].VolatileCount != 0)
-                {
-                    return false;
-                }
-            }
-
-            return true;
+            return _queues.All(t => t.VolatileCount == 0);
         }
     }
 }
