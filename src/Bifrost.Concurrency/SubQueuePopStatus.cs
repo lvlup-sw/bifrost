@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Bifrost.Concurrency.MultiQueue;
+namespace Bifrost.Concurrency;
 
 /// <summary>
 /// The three-way outcome of <c>SubQueue.TryLockedPop</c>. Callers must distinguish an empty

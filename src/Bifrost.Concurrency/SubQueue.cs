@@ -7,7 +7,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace Bifrost.Concurrency.MultiQueue;
+namespace Bifrost.Concurrency;
 
 /// <summary>
 /// A single MultiQueue sub-queue. This type owns the sub-queue's writer lock and the cached-top

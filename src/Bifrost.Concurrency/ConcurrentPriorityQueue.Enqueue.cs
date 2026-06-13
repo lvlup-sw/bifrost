@@ -4,8 +4,6 @@
 // </copyright>
 // =============================================================================
 
-using Bifrost.Concurrency.MultiQueue;
-
 namespace Bifrost.Concurrency;
 
 /// <content>

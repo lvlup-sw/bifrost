@@ -7,7 +7,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using Bifrost.Concurrency.MultiQueue;
 
 namespace Bifrost.Concurrency;
 

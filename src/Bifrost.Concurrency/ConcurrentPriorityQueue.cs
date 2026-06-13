@@ -6,7 +6,6 @@
 
 using System.Diagnostics;
 using System.Numerics;
-using Bifrost.Concurrency.MultiQueue;
 
 namespace Bifrost.Concurrency;
 

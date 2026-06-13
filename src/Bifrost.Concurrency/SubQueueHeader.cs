@@ -6,7 +6,7 @@
 
 using System.Runtime.InteropServices;
 
-namespace Bifrost.Concurrency.MultiQueue;
+namespace Bifrost.Concurrency;
 
 /// <summary>
 /// The padded, lock-free-read "hot" header for a single MultiQueue sub-queue.

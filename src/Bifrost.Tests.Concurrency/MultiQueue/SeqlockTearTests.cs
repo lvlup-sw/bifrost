@@ -5,7 +5,7 @@
 // =============================================================================
 // Ported from lvlup-sw/DataFerry@2bf0456 (src/DataFerry.Tests/Concurrency/MultiQueue/SeqlockTearTests.cs)
 
-using Bifrost.Concurrency.MultiQueue;
+using Bifrost.Concurrency;
 
 namespace Bifrost.Tests.Concurrency.MultiQueue;
 

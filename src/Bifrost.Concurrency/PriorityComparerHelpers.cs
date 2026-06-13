@@ -4,7 +4,7 @@
 // </copyright>
 // =============================================================================
 
-namespace Bifrost.Concurrency.MultiQueue;
+namespace Bifrost.Concurrency;
 
 /// <summary>
 /// Shared comparer normalization, mirroring the private <c>InitializeComparer</c> helper

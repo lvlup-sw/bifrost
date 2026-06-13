@@ -5,7 +5,6 @@
 // =============================================================================
 
 using System.Diagnostics.CodeAnalysis;
-using Bifrost.Concurrency.MultiQueue;
 
 namespace Bifrost.Concurrency;
 

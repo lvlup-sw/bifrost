@@ -6,7 +6,7 @@
 
 using System.Runtime.CompilerServices;
 
-namespace Bifrost.Concurrency.MultiQueue;
+namespace Bifrost.Concurrency;
 
 /// <summary>
 /// A single generic <typeparamref name="TPriority"/> slot isolated on its own 128-byte cache line
