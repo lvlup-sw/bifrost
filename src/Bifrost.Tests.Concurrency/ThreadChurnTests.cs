@@ -9,7 +9,7 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using Bifrost.Concurrency;
 
-namespace Bifrost.Tests.Concurrency.MultiQueue;
+namespace Bifrost.Tests.Concurrency;
 
 /// <summary>
 /// Thread-churn and thread-pool stress suites proving the queue's correctness never depends on

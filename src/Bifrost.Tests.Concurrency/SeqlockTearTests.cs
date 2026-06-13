@@ -7,7 +7,7 @@
 
 using Bifrost.Concurrency;
 
-namespace Bifrost.Tests.Concurrency.MultiQueue;
+namespace Bifrost.Tests.Concurrency;
 
 /// <summary>
 /// Write-storm stress test proving the cached-top seqlock never returns a torn

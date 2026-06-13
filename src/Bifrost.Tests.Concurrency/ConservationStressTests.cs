@@ -9,7 +9,7 @@ using System.Diagnostics;
 
 using Bifrost.Concurrency;
 
-namespace Bifrost.Tests.Concurrency.MultiQueue;
+namespace Bifrost.Tests.Concurrency;
 
 /// <summary>
 /// Conservation stress tests proving the MultiQueue is a <i>set-conserving</i> structure under

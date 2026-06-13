@@ -7,7 +7,7 @@
 
 using Bifrost.Concurrency;
 
-namespace Bifrost.Tests.Concurrency.MultiQueue;
+namespace Bifrost.Tests.Concurrency;
 
 /// <summary>
 /// Stress tests for the observed-empty contract of <c>TryDequeue</c> (DR-9) and the post-drain

@@ -7,7 +7,7 @@
 
 using Bifrost.Concurrency;
 
-namespace Bifrost.Tests.Concurrency.MultiQueue;
+namespace Bifrost.Tests.Concurrency;
 
 /// <summary>
 /// The empirical rank-error distribution gate (DR-16): the anti-F-7 regression test. It verifies
