@@ -22,16 +22,16 @@ namespace Bifrost.Concurrency;
 /// </content>
 /// <remarks>
 /// <para>
-/// <b>Weakly consistent, unordered (DR-14).</b> <see cref="ToArray"/> walks the lock-striped
+/// Weakly consistent and unordered (DR-14): <see cref="ToArray"/> walks the lock-striped
 /// sub-queues <i>one at a time</i>, taking each sub-queue's lock only long enough to copy that
-/// sub-queue's heap segment and releasing it before moving to the next — there is no global freeze
+/// sub-queue's heap segment and releasing it before moving to the next, with no global freeze
 /// and no claim of a single moment-in-time consistent view across sub-queues. A sub-queue copied
-/// early and one copied late may reflect different instants of concurrent mutation, exactly the
-/// weakly consistent enumeration guarantee of
+/// early and one copied late may reflect different instants of concurrent mutation, the weakly
+/// consistent enumeration guarantee of
 /// <see cref="System.Collections.Concurrent.ConcurrentQueue{T}"/> and
 /// <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey, TValue}"/>. The result is
-/// <b>unordered</b>: like <see cref="PriorityQueue{TElement, TPriority}.UnorderedItems"/>, it makes
-/// no priority-ordering guarantee — heap segments are concatenated in sub-queue order and each
+/// unordered: like <see cref="PriorityQueue{TElement, TPriority}.UnorderedItems"/>, it makes
+/// no priority-ordering guarantee; heap segments are concatenated in sub-queue order and each
 /// segment is in arbitrary heap-array order.
 /// </para>
 /// </remarks>
@@ -44,11 +44,11 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </summary>
     /// <returns>
     /// A new array containing one <c>(element, priority)</c> entry per element in the queue at the
-    /// time of the call. The array is <b>unordered</b> — no priority ordering is implied.
+    /// time of the call. The array is unordered; no priority ordering is implied.
     /// </returns>
     /// <remarks>
     /// <para>
-    /// <b>Weakly consistent snapshot (DR-14).</b> The sub-queues are copied one at a time, each
+    /// Weakly consistent snapshot (DR-14): the sub-queues are copied one at a time, each
     /// under its own lock held only for the duration of that sub-queue's copy and released before
     /// the next. There is no global freeze and no cross-sub-queue consistency claim: the array is a
     /// momentary, weakly consistent view of a queue that other threads may be mutating concurrently
@@ -58,7 +58,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// sub-queue it lands in and when that sub-queue is copied.
     /// </para>
     /// <para>
-    /// <b>Unordered result.</b> The returned entries carry no priority ordering, matching the
+    /// Unordered result: the returned entries carry no priority ordering, matching the
     /// <see cref="PriorityQueue{TElement, TPriority}.UnorderedItems"/> precedent. Callers that need
     /// ordered output must sort the result themselves.
     /// </para>
@@ -84,7 +84,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         var buffer = new List<(TElement Element, TPriority Priority)>(hint < 0 ? 0 : hint);
 
         // One sub-queue at a time: each SnapshotTo takes that sub-queue's lock, copies its heap
-        // segment, and releases before the next — no global freeze (DR-14).
+        // segment, and releases before the next; no global freeze (DR-14).
         for (int i = 0; i < queues.Length; i++)
         {
             queues[i].SnapshotTo(buffer);
@@ -98,8 +98,8 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Weakly consistent (DR-14).</b> Like <see cref="ToArray"/>, the sub-queues are cleared one
-    /// at a time, each under its own lock held only for that sub-queue's clear — there is no global
+    /// Weakly consistent (DR-14): like <see cref="ToArray"/>, the sub-queues are cleared one
+    /// at a time, each under its own lock held only for that sub-queue's clear, with no global
     /// freeze. Elements enqueued concurrently into a sub-queue that was already cleared survive the
     /// call, so on a queue under concurrent mutation <see cref="Clear"/> guarantees only that every
     /// element present in a sub-queue at the moment that sub-queue was cleared is removed. At
@@ -143,9 +143,9 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </returns>
     /// <remarks>
     /// <para>
-    /// <b>Snapshot semantics (DR-14).</b> The enumerator is built over a <see cref="ToArray"/>
+    /// Snapshot semantics (DR-14): the enumerator is built over a <see cref="ToArray"/>
     /// snapshot taken when this method is called, so it is unaffected by enqueues or dequeues that
-    /// happen afterward — iteration sees exactly the elements captured by the snapshot, in no
+    /// happen afterward; iteration sees exactly the elements captured by the snapshot, in no
     /// particular order. As with <see cref="ToArray"/>, the snapshot is weakly consistent across
     /// sub-queues and carries no priority ordering.
     /// </para>
@@ -159,7 +159,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <inheritdoc/>
     /// <remarks>
     /// This explicit implementation boxes the value-type <see cref="Enumerator"/> to satisfy the
-    /// interface — expected and harmless on the rare LINQ/interface enumeration path. A direct
+    /// interface, expected and harmless on the rare LINQ/interface enumeration path. A direct
     /// <c>foreach</c> binds <see cref="GetEnumerator"/> and avoids the box.
     /// </remarks>
     IEnumerator<(TElement Element, TPriority Priority)> IEnumerable<(TElement Element, TPriority Priority)>.GetEnumerator()
@@ -168,7 +168,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <inheritdoc/>
     /// <remarks>
     /// This explicit implementation boxes the value-type <see cref="Enumerator"/> to satisfy the
-    /// non-generic interface — expected and harmless. A direct <c>foreach</c> avoids the box.
+    /// non-generic interface, expected and harmless. A direct <c>foreach</c> avoids the box.
     /// </remarks>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
@@ -185,7 +185,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// boxing that the explicit <see cref="IEnumerable{T}"/> interface path incurs.
     /// </para>
     /// <para>
-    /// The entries are <b>unordered</b> (no priority ordering), matching the
+    /// The entries are unordered (no priority ordering), matching the
     /// <see cref="PriorityQueue{TElement, TPriority}.UnorderedItems"/> precedent.
     /// </para>
     /// </remarks>

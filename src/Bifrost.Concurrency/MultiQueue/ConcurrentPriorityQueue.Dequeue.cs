@@ -16,8 +16,8 @@ namespace Bifrost.Concurrency;
 /// The relaxed dequeue surface (DR-8): the two-choice rule. A dequeue samples two random sub-queues,
 /// reads their cached tops <i>without locking</i>, and pops the one whose published minimum is
 /// smaller. This trades a bounded rank error (the popped element is one of the smallest priorities,
-/// not necessarily the global minimum) for near-linear read scaling — strict-minimum semantics will
-/// arrive separately through <c>TryDequeueMin</c>.
+/// not necessarily the global minimum) for near-linear read scaling; strict-minimum semantics are
+/// available separately through <c>TryDequeueMin</c>.
 /// </content>
 /// <remarks>
 /// <para>
@@ -25,7 +25,7 @@ namespace Bifrost.Concurrency;
 /// <see cref="TryDequeueVerificationScan"/>. The scan is what makes <see langword="false"/> safe to
 /// return under concurrency: it concludes emptiness only after one full pass observes <i>every</i>
 /// sub-queue empty, restarting (with <see cref="SpinWait"/> backoff) whenever a pass hits a
-/// contended sub-queue — a held lock means another thread is mid-mutation there, so the pass's
+/// contended sub-queue: a held lock means another thread is mid-mutation there, so the pass's
 /// evidence is void. The returned <see langword="false"/> therefore carries the
 /// <c>ConcurrentQueue.TryDequeue</c>-precedent contract: "the queue was observed empty at some
 /// point during the call".
@@ -65,15 +65,14 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </param>
     /// <returns>
     /// <see langword="true"/> when an element was removed; <see langword="false"/> when the queue
-    /// was observed empty at some point during the call — a full verification pass saw every
+    /// was observed empty at some point during the call: a full verification pass saw every
     /// sub-queue empty (the <c>ConcurrentQueue.TryDequeue</c> precedent: concurrent enqueues that
-    /// complete after that observation window may of course be present by the time the caller
-    /// reacts).
+    /// complete after that observation window may be present by the time the caller reacts).
     /// </returns>
     /// <remarks>
     /// <para>
-    /// <b>Relaxed contract (DR-8).</b> This removes an element with <i>one of</i> the smallest
-    /// priorities, not necessarily the global minimum: the two-choice rule samples two sub-queues
+    /// Relaxed contract (DR-8): this removes an element with <i>one of</i> the smallest
+    /// priorities, not necessarily the global minimum. The two-choice rule samples two sub-queues
     /// and pops the better-looking one. The expected rank of the removed element (0 = the true
     /// minimum) is approximately <c>(5/6)·n</c>, where <c>n</c> is the sub-queue count
     /// (≈ 4 × processor count by default). Strict-minimum semantics are available through
@@ -82,23 +81,21 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// returns the exact minimum.
     /// </para>
     /// <para>
-    /// <b>Relaxation scales with core count — and with the stickiness factor <c>s</c> (read this
-    /// before deploying across hardware tiers).</b>
-    /// Because the sub-queue count is <c>n ≈ 4 × ProcessorCount</c> and the expected rank error is
-    /// <c>(5/6)·n</c>, the looseness of this dequeue is a function of the <i>host's</i> processor
-    /// count — not a fixed constant. The same binary that pops a top-≈27 element on an 8-core box
-    /// (<c>n = 32</c>) pops a top-≈213 element on a 64-core server (<c>n = 256</c>). This is by
-    /// design: more sub-queues are exactly what buys the reduced contention and throughput scaling,
-    /// so the relaxation the caller tolerates and the parallelism they gain rise <i>together</i>.
-    /// If a queue is constructed with a stickiness factor <c>s &gt; 1</c> (the optional throughput
-    /// dial — see the stickiness constructor), the expected rank error scales again, roughly linearly,
-    /// to <c>(5/6)·n·s</c>: the looseness then compounds across <i>both</i> the core count and <c>s</c>.
-    /// The default <c>s = 1</c> leaves this bound at <c>(5/6)·n</c>, unchanged.
-    /// Two consequences worth internalizing: (1) correctness must never depend on how close to the
-    /// true minimum a pop lands — any such dependency will surface only on larger machines or under a
-    /// larger <c>s</c>; and (2) if a fixed relaxation bound is required regardless of hardware, pin the
-    /// sub-queue count through the internal constructor, keep <c>s = 1</c>, use <c>TryDequeueMin</c>,
-    /// or wrap <see cref="PriorityQueue{TElement, TPriority}"/> in a lock.
+    /// Relaxation scales with the core count and with the stickiness factor <c>s</c>; read this
+    /// before deploying across hardware tiers. Because the sub-queue count is
+    /// <c>n ≈ 4 × ProcessorCount</c> and the expected rank error is <c>(5/6)·n</c>, the looseness
+    /// of this dequeue depends on the <i>host's</i> processor count, not a fixed constant. The same
+    /// binary that pops a top-≈27 element on an 8-core box (<c>n = 32</c>) pops a top-≈213 element
+    /// on a 64-core server (<c>n = 256</c>). That is by design: more sub-queues are what buy the
+    /// reduced contention and throughput scaling, so the relaxation a caller tolerates and the
+    /// parallelism they gain rise together. A stickiness factor <c>s &gt; 1</c> (the optional
+    /// throughput dial; see the stickiness constructor) scales the expected rank error again, roughly
+    /// linearly, to <c>(5/6)·n·s</c>, compounding across both the core count and <c>s</c>; the default
+    /// <c>s = 1</c> leaves the bound at <c>(5/6)·n</c>. Two consequences follow: correctness must
+    /// never depend on how close to the true minimum a pop lands (any such dependency surfaces only
+    /// on larger machines or under a larger <c>s</c>); and for a fixed relaxation bound regardless of
+    /// hardware, pin the sub-queue count through the internal constructor, keep <c>s = 1</c>, use
+    /// <c>TryDequeueMin</c>, or wrap <see cref="PriorityQueue{TElement, TPriority}"/> in a lock.
     /// </para>
     /// <para>
     /// <b>Thread Safety:</b> This method is thread-safe and may be called concurrently from multiple
@@ -112,7 +109,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         ThreadHandle handle = ThreadHandle.Current;
         int mask = _subQueueMask;
 
-        // Phase 1 — two-choice sampling: a few bounded rounds of "sample two, pop the better top".
+        // Phase 1 (two-choice sampling): a few bounded rounds of "sample two, pop the better top".
         for (int round = 0; round < SampleRounds; round++)
         {
             int i, j;
@@ -157,12 +154,12 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
             // Empty or Contended: end the sticky period so the next round re-rolls a FRESH pair
             // instead of re-sampling the same drained/contended selection (and so a contended pair
-            // never blocks — stickiness stays wait-free). Neither outcome concludes the queue is
-            // globally empty — only the authoritative scan does that.
+            // never blocks; stickiness stays wait-free). Neither outcome concludes the queue is
+            // globally empty; only the authoritative scan does that.
             handle.ResetStickyDequeue();
         }
 
-        // Phase 2 — the authoritative verification scan: sampling did not land a pop within its
+        // Phase 2 (the authoritative verification scan): sampling did not land a pop within its
         // budget, so settle the outcome (a real pop, or an authoritative observed-empty false).
         return TryDequeueVerificationScan(out element, out priority);
     }
@@ -170,7 +167,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <summary>
     /// The authoritative empty verification scan (DR-9). Loops full passes over every sub-queue
     /// until it either pops an entry or completes one pass in which <i>every</i> sub-queue was
-    /// observed empty — the only state in which returning <see langword="false"/> is legal.
+    /// observed empty, the only state in which returning <see langword="false"/> is legal.
     /// </summary>
     /// <param name="element">The popped element on success; otherwise the default value.</param>
     /// <param name="priority">The popped priority on success; otherwise the default value.</param>
@@ -182,15 +179,15 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <para>
     /// Per sub-queue, the pass first takes the cheap lock-free route: a stable seqlock read that
     /// reports empty counts as that sub-queue's emptiness observation without touching its lock.
-    /// Anything else — a published top, or an unreadable top (a writer mid-publication) — must be
+    /// Anything else (a published top, or an unreadable top from a writer mid-publication) must be
     /// settled under the lock via <see cref="TryPopFrom"/>: <see cref="SubQueuePopStatus.Success"/>
     /// returns the entry; <see cref="SubQueuePopStatus.Empty"/> is a lock-authoritative emptiness
-    /// observation; <see cref="SubQueuePopStatus.Contended"/> voids the pass — a held lock means
+    /// observation; <see cref="SubQueuePopStatus.Contended"/> voids the pass, since a held lock means
     /// another thread is mid-mutation there, so the pass restarts after a <see cref="SpinWait"/>
     /// step (whose escalation to yields keeps a long contention storm from burning a core).
     /// </para>
     /// <para>
-    /// There is deliberately no fixed pass cap: every restart requires an observed contention,
+    /// There is no fixed pass cap, by design: every restart requires an observed contention,
     /// i.e. another thread making progress on the same structure, which is the same system-wide
     /// progress argument the design's "wait-free locking" rests on. A false result without a clean
     /// all-empty pass would violate the observed-empty contract, so no bound may convert
@@ -227,13 +224,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 if (status == SubQueuePopStatus.Empty)
                 {
                     // Emptied between the read and the pop (or the read was "unknown" over an
-                    // empty queue) — observed empty under the lock, which is authoritative.
+                    // empty queue): observed empty under the lock, which is authoritative.
                     emptyObserved++;
                     continue;
                 }
 
                 // Contended: a writer holds this sub-queue's lock right now. The pass's evidence
-                // is void — restart it rather than ever counting a contended queue as empty.
+                // is void; restart it rather than ever counting a contended queue as empty.
                 passVoided = true;
                 break;
             }
@@ -263,7 +260,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <returns>The three-way pop outcome from the sub-queue.</returns>
     /// <remarks>
     /// On <see cref="SubQueuePopStatus.Success"/> this releases one bounded-capacity reservation
-    /// (<see cref="OnElementRemovedFromBounded"/>) — the single release site that covers <i>both</i>
+    /// (<see cref="OnElementRemovedFromBounded"/>), the single release site that covers <i>both</i>
     /// the two-choice sampling pop and the verification scan's pop, since both funnel through here.
     /// </remarks>
     private SubQueuePopStatus TryPopFrom(int index, out TElement element, out TPriority priority)
@@ -284,9 +281,9 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <see cref="Comparer{T}.Default"/> call when the stored comparer is null (value-type priorities
     /// with default ordering), otherwise the cached comparer field. Mirrors
     /// <c>SubQueue.CompareEffective</c> so the queue-level two-choice ordering uses the same
-    /// devirtualized dispatch as the sub-queue heaps. Deliberately duplicated rather than shared:
-    /// the BCL's <see cref="PriorityQueue{TElement, TPriority}"/> keeps its dual comparer paths
-    /// local to the type for the same JIT-constant-folding reason.
+    /// devirtualized dispatch as the sub-queue heaps. Duplicated rather than shared: the BCL's
+    /// <see cref="PriorityQueue{TElement, TPriority}"/> keeps its dual comparer paths local to the
+    /// type for the same JIT-constant-folding reason.
     /// </summary>
     /// <param name="x">The left priority.</param>
     /// <param name="y">The right priority.</param>

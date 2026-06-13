@@ -32,7 +32,7 @@ namespace Bifrost.Concurrency;
 /// countdown (<see cref="NextStickyIndex"/>, <see cref="NextStickyPair"/>) so a thread can
 /// reuse a sampled sub-queue for <c>s</c> consecutive operations (ESA 2021), amortizing the
 /// sampling cost. Like the RNG, this state is <i>only</i> a private bias on which sub-queue is
-/// sampled — never a key into shared state — so a stale countdown inherited across thread-pool
+/// sampled, never a key into shared state, so a stale countdown inherited across thread-pool
 /// churn is harmless (at worst one slightly-worse sample), needs no synchronization, and never
 /// affects correctness.
 /// </para>
@@ -60,7 +60,7 @@ internal sealed class ThreadHandle
 
     // Stickiness state (ESA 2021): reuse a sampled sub-queue selection for s consecutive
     // operations before re-sampling, amortizing the per-op sampling cost. These are HINTS
-    // only — like the RNG, stale values are harmless (they only ever bias which sub-queue is
+    // only: like the RNG, stale values are harmless (they only ever bias which sub-queue is
     // sampled, never key into shared state), so they need no synchronization and survive
     // thread-pool churn. The enqueue side sticks a single index; the dequeue side sticks the
     // sampled pair. A countdown of 0 means "re-sample on the next call", so s == 1 reproduces
@@ -69,10 +69,10 @@ internal sealed class ThreadHandle
     // The mask the selection was sampled for is stored alongside it: the [ThreadStatic] handle is
     // shared across EVERY queue instance on the thread, and those queues may have different sub-queue
     // counts. A stuck index sampled for a 16-sub-queue queue is out of range for a 4-sub-queue one, so
-    // reuse is gated on the mask matching — a different mask forces a fresh sample in the new range.
+    // reuse is gated on the mask matching: a different mask forces a fresh sample in the new range.
     // This is what keeps "stale stuck-state is harmless" literally true across heterogeneous queues.
     // Two queues with the SAME sub-queue count on one thread do share these fields, so their sticky
-    // periods interleave when a thread alternates between them — still only a sampling bias
+    // periods interleave when a thread alternates between them, still only a sampling bias
     // (correctness-neutral), it just dilutes the per-queue locality payoff in that pattern.
     private int _stuckEnqIndex;
     private int _stuckEnqMask;
@@ -202,14 +202,14 @@ internal sealed class ThreadHandle
     /// <param name="mask">A power-of-two-minus-one mask (<c>2^k - 1</c>) by construction.</param>
     /// <param name="stickiness">
     /// The sticky period length <c>s &gt;= 1</c>. <c>s == 1</c> arms a zero-length countdown, so
-    /// every call re-samples — behaviorally identical to <see cref="NextIndex(int)"/>; the residual
+    /// every call re-samples, behaviorally identical to <see cref="NextIndex(int)"/>; the residual
     /// hot-path cost is this method's predicted branch plus the period-refresh field stores.
     /// </param>
     /// <returns>The (possibly reused) sticky index in <c>[0, mask]</c>.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal int NextStickyIndex(int mask, int stickiness)
     {
-        // Reuse only while the period is live AND the cached index was sampled for THIS mask — a
+        // Reuse only while the period is live AND the cached index was sampled for THIS mask: a
         // different mask (a different-sized queue on the same thread) must re-sample in its own range.
         if (_stuckEnqRemaining > 0 && _stuckEnqMask == mask)
         {
@@ -231,7 +231,7 @@ internal sealed class ThreadHandle
     /// </summary>
     /// <param name="mask">A power-of-two-minus-one mask (<c>2^k - 1</c>) with <c>mask &gt;= 1</c>.</param>
     /// <param name="stickiness">
-    /// The sticky period length <c>s &gt;= 1</c>. <c>s == 1</c> re-samples every call — behaviorally
+    /// The sticky period length <c>s &gt;= 1</c>. <c>s == 1</c> re-samples every call, behaviorally
     /// identical to <see cref="NextTwoDistinct(int, out int, out int)"/>; the residual hot-path cost
     /// is this method's predicted branch plus the period-refresh field stores.
     /// </param>
@@ -240,7 +240,7 @@ internal sealed class ThreadHandle
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void NextStickyPair(int mask, int stickiness, out int i, out int j)
     {
-        // Reuse only while the period is live AND the cached pair was sampled for THIS mask — a
+        // Reuse only while the period is live AND the cached pair was sampled for THIS mask: a
         // different mask (a different-sized queue on the same thread) must re-sample its own pair.
         if (_stuckDeqRemaining > 0 && _stuckDeqMask == mask)
         {

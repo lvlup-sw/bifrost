@@ -15,7 +15,7 @@ namespace Bifrost.Concurrency;
 /// sub-queue's writer lock; on contention it resamples a <i>fresh</i> random index and retries,
 /// rather than waiting on a held lock or spinning on the same queue. Because at most <c>p</c> of
 /// the <c>n = 4p</c> sub-queues can be locked simultaneously, an unlocked queue always exists, so
-/// the resample loop terminates with an expected lock-acquisition count barely above one — no
+/// the resample loop terminates with an expected lock-acquisition count barely above one; no
 /// attempt bound is needed.
 /// </content>
 public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
@@ -25,16 +25,16 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </summary>
     /// <param name="element">
     /// The element to enqueue. May be <see langword="null"/> when <typeparamref name="TElement"/>
-    /// is a nullable type — elements flow through opaquely and only the priority is ordered
+    /// is a nullable type; elements flow through opaquely and only the priority is ordered
     /// (the <see cref="PriorityQueue{TElement, TPriority}"/> precedent).
     /// </param>
     /// <param name="priority">The priority that orders the element; passed to the queue's comparer.</param>
     /// <remarks>
     /// <para>
-    /// <b>Unbounded queues</b> always accept the element and this method always returns normally.
+    /// Unbounded queues always accept the element and this method always returns normally.
     /// </para>
     /// <para>
-    /// <b>Bounded queues</b> (constructed with a positive <c>boundedCapacity</c>) throw
+    /// Bounded queues (constructed with a positive <c>boundedCapacity</c>) throw
     /// <see cref="InvalidOperationException"/> when the queue is full; use
     /// <see cref="TryEnqueue"/> for the non-throwing variant. The bounded-capacity gate (DR-13)
     /// reserves a slot atomically before any sub-queue is touched, so a full queue is rejected
@@ -74,7 +74,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </returns>
     /// <remarks>
     /// <para>
-    /// <b>Bounded queues</b> reserve a slot through the shared atomic capacity gate (DR-13)
+    /// Bounded queues reserve a slot through the shared atomic capacity gate (DR-13)
     /// <i>before</i> any sub-queue is touched: a failed reservation returns <see langword="false"/>
     /// without mutating any stripe and never leaks capacity (the reservation is exactly undone).
     /// </para>
@@ -101,7 +101,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </returns>
     /// <remarks>
     /// <para>
-    /// <b>Bounded-capacity gate (DR-13).</b> A single
+    /// Bounded-capacity gate (DR-13): a single
     /// <see cref="System.Threading.Interlocked"/>-based reservation is taken <i>before</i> the
     /// resample loop: a successful reservation guarantees a slot and the loop proceeds unchanged; a
     /// failed reservation is exactly undone (so nothing leaks) and "full" is reported without
@@ -109,7 +109,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// funnel through.
     /// </para>
     /// <para>
-    /// <b>The unbounded path executes no atomic.</b> The reservation is guarded by
+    /// The unbounded path executes no atomic: the reservation is guarded by
     /// <c>_boundedCapacity &gt; 0</c> over the readonly <c>_boundedCapacity</c> field, so an
     /// unbounded queue (<c>_boundedCapacity &lt; 0</c>) runs no
     /// <see cref="System.Threading.Interlocked"/> instruction against the shared gate and the loop
@@ -143,7 +143,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
             }
 
             // Contended: end the sticky period so the resample draws a fresh random index rather than
-            // re-trying the contended one — never wait on a held lock (DR-7). An unlocked sub-queue
+            // re-trying the contended one; never wait on a held lock (DR-7). An unlocked sub-queue
             // always exists (at most p of n = 4p can be locked at once), so this loop terminates
             // probabilistically without an attempt bound. Resampling-on-contention is also what keeps
             // stickiness wait-free: a stuck selection never blocks, it yields to a fresh draw.

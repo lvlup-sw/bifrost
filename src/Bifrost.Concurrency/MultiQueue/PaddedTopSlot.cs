@@ -16,16 +16,16 @@ namespace Bifrost.Concurrency.MultiQueue;
 /// <typeparam name="TPriority">The priority type cached as a sub-queue's "top" value.</typeparam>
 /// <remarks>
 /// <para>
-/// <b>Why an array instead of explicit layout.</b> The cached top priority is generic, and the CLR
+/// The cached top priority is generic, and the CLR
 /// forbids <see cref="System.Runtime.InteropServices.LayoutKind.Explicit"/> on generic types, so
-/// the padding trick in <see cref="SubQueueHeader"/> cannot be reused here. Instead we exploit the
+/// the padding trick in <see cref="SubQueueHeader"/> cannot be reused here. Instead it exploits the
 /// one layout guarantee the CLR <i>does</i> give for generics: the elements of a single-dimension
 /// array are laid out contiguously in memory. By allocating a <typeparamref name="TPriority"/>[]
 /// with a full cache line of padding elements on each side of one live slot, the live element is
 /// guaranteed to sit on its own cache line, isolated from whatever objects neighbour the array.
 /// </para>
 /// <para>
-/// <b>Sizing rule.</b> <see cref="PadElementCount"/> is <c>ceil(128 / StoredElementSize)</c> so
+/// <see cref="PadElementCount"/> is <c>ceil(128 / StoredElementSize)</c> so
 /// that the padding on each side spans at least one full 128-byte cache line (the BCL's effective
 /// false-sharing unit; see <see cref="SubQueueHeader"/> for why 128 and not 64).
 /// <see cref="StoredElementSize"/> is the size of the element <i>as stored in the array</i>:
@@ -47,7 +47,7 @@ namespace Bifrost.Concurrency.MultiQueue;
 /// <para>
 /// The layout metadata (<see cref="StoredElementSize"/>, <see cref="PadElementCount"/>,
 /// <see cref="SlotIndex"/>) depends only on <typeparamref name="TPriority"/>, so it is computed
-/// once per generic instantiation into static properties — instances carry only the backing array
+/// once per generic instantiation into static properties; instances carry only the backing array
 /// reference, and the slot index folds to a JIT constant in <see cref="Get"/>/<see cref="Set"/>.
 /// </para>
 /// <para>
@@ -72,7 +72,7 @@ internal readonly struct PaddedTopSlot<TPriority>
 
     /// <summary>
     /// Gets the size, in bytes, of one array element as stored: <see cref="IntPtr.Size"/> for a
-    /// reference type, otherwise <see cref="Unsafe.SizeOf{T}"/>. We test
+    /// reference type, otherwise <see cref="Unsafe.SizeOf{T}"/>. It tests
     /// <see cref="Type.IsValueType"/> rather than
     /// <see cref="RuntimeHelpers.IsReferenceOrContainsReferences{T}"/>: a value type that
     /// <i>contains</i> a reference (e.g. a struct wrapping a string) is still stored inline as the

@@ -12,7 +12,7 @@ namespace Bifrost.Concurrency;
 
 /// <content>
 /// The non-destructive inspection surface (DR-11): <see cref="TryPeek"/> returns the minimum-priority
-/// element without removing it. The scan of every sub-queue's <i>published top</i> is lock-free —
+/// element without removing it. The scan of every sub-queue's <i>published top</i> is lock-free:
 /// the seqlock (<see cref="SubQueue{TElement, TPriority}.TryReadTop"/>) publishes only the priority,
 /// so a single brief lock on the winning sub-queue retrieves the element. The method never blocks:
 /// it uses <c>TryEnter</c> only, takes at most one lock per attempt, never locks a non-winning
@@ -37,14 +37,14 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// winner against the scanned runner-up, and (when revalidation holds) the pop. An attempt is
     /// consumed when the winner's lock is contended, the winner is now empty, the live root has
     /// become strictly worse than the runner-up (the scanned minimum was popped and a larger element
-    /// exposed — a better candidate may now live elsewhere), or the post-revalidation pop itself
+    /// exposed, so a better candidate may now live elsewhere), or the post-revalidation pop itself
     /// races to empty/contended. After the bound is exhausted the method settles on the best
     /// currently-observable winner rather than livelocking against churn.
     /// </summary>
     private const int DequeueMinRetryLimit = 3;
 
     /// <summary>
-    /// Attempts to return — without removing it — an element whose priority was the minimum among
+    /// Attempts to return (without removing it) an element whose priority was the minimum among
     /// the sub-queue tops observed during the call.
     /// </summary>
     /// <param name="element">
@@ -62,7 +62,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </returns>
     /// <remarks>
     /// <para>
-    /// <b>Lock-free scan, single-lock retrieval (DR-11).</b> The minimum priority is found by
+    /// Lock-free scan, single-lock retrieval (DR-11): the minimum priority is found by
     /// scanning <i>all</i> sub-queues' published tops without taking any lock
     /// (<see cref="SubQueue{TElement, TPriority}.TryReadTop"/>; an "unknown" or "empty" snapshot is
     /// skipped), ordered by the queue-level effective comparer. Because the seqlock publishes only
@@ -71,17 +71,17 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// priority is validated before the element is returned.
     /// </para>
     /// <para>
-    /// <b>Top validation — accept the root when it is no worse than the scanned minimum.</b> A
+    /// Top validation accepts the root when it is no worse than the scanned minimum. A
     /// concurrent writer may mutate the winner between the lock-free scan and the lock acquisition.
     /// Under the winner's lock the live root is re-read; if it compares less-than-or-equal to the
     /// scanned minimum it is accepted (it is still a valid "minimum among the tops observed"
-    /// answer — at worst it is an even smaller element that was just published). If the live root is
+    /// answer, at worst an even smaller element that was just published). If the live root is
     /// strictly greater than the scanned minimum (the scanned minimum was popped and a larger
     /// element exposed), or the heap is now empty, the attempt is abandoned and the queue is
     /// rescanned, because a better candidate may now live elsewhere.
     /// </para>
     /// <para>
-    /// <b>Never blocks; at most one lock per attempt.</b> Only the winning sub-queue is ever locked,
+    /// Never blocks, with at most one lock per attempt: only the winning sub-queue is ever locked,
     /// and only with <c>TryEnter</c>; a contended winner consumes an attempt and triggers a rescan.
     /// After <see cref="PeekRetryLimit"/> attempts the method returns <see langword="false"/> rather
     /// than waiting.
@@ -110,7 +110,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
             // At most ONE lock per attempt, on the winner only, never blocking.
             if (!subQueue.SyncLock.TryEnter())
             {
-                // Contended winner: do not wait — rescan (the picture may also have moved).
+                // Contended winner: do not wait; rescan (the picture may also have moved).
                 continue;
             }
 
@@ -141,7 +141,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <summary>
     /// Attempts to remove and return the element whose priority was the minimum among the sub-queue
-    /// tops observed during the call — the STRICT best-effort dequeue (DR-10).
+    /// tops observed during the call, the STRICT best-effort dequeue (DR-10).
     /// </summary>
     /// <param name="element">
     /// When this method returns <see langword="true"/>, the removed minimum-priority element;
@@ -161,17 +161,17 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// Removes the element whose priority was the minimum among elements observed during the call; concurrent enqueues may be missed.
     /// </para>
     /// <para>
-    /// <b>Strict, best-effort — O(n) scan, no scalability claim (DR-10).</b> Unlike the relaxed
+    /// Strict and best-effort, an O(n) scan with no scalability claim (DR-10). Unlike the relaxed
     /// two-choice <c>TryDequeue</c>, this path scans <i>every</i> sub-queue's published top on each
     /// attempt (reusing the identical lock-free minimum scan as <see cref="TryPeek"/>) to find the
-    /// global minimum exactly. That full O(n) scan is deliberately slower and carries <b>no
-    /// scalability claim</b>: it is the strict-semantics path callers reach for when the relaxed
-    /// rank error is unacceptable, not the throughput path.
+    /// global minimum exactly. That full O(n) scan is slower and carries no scalability claim: it is
+    /// the strict-semantics path callers reach for when the relaxed rank error is unacceptable, not
+    /// the throughput path.
     /// </para>
     /// <para>
-    /// <b>Scan, lock the winner, revalidate against the runner-up.</b> Each attempt scans the tops
-    /// for the winner (minimum) and the runner-up (second-smallest published top), then acquires the
-    /// winner with <c>TryEnter</c> — never blocking. Under the lock the live root is re-read
+    /// Each attempt scans the tops for the winner (minimum) and the runner-up
+    /// (second-smallest published top), then acquires the winner with <c>TryEnter</c>, never
+    /// blocking. Under the lock the live root is re-read
     /// (<see cref="SubQueue{TElement, TPriority}.TryHeapPeekRoot"/>): a concurrent writer may have
     /// changed the root since the scan. If the winner is now empty, or its live root is strictly
     /// greater than the runner-up's scanned top (the scanned minimum was popped and a larger element
@@ -180,19 +180,19 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// rescans.
     /// </para>
     /// <para>
-    /// <b>Pop semantics — observation window includes the pop.</b> Once revalidation holds, the lock
+    /// Pop semantics: the observation window includes the pop. Once revalidation holds, the lock
     /// is released and the winner is popped through its locked-pop entry point
     /// (<see cref="SubQueue{TElement, TPriority}.TryLockedPop"/>, which re-acquires the lock itself).
     /// Whatever that pop's <see cref="SubQueuePopStatus.Success"/> yields <i>is</i> the result: the
     /// contract is "the minimum among elements observed during the call", and the observation window
     /// includes the pop, so a smaller element that was published into the winner between revalidation
-    /// and the pop is an even-better, in-contract answer. Conservation stays exact — nothing is ever
+    /// and the pop is an even-better, in-contract answer. Conservation stays exact; nothing is ever
     /// reinserted. If the pop instead observes <see cref="SubQueuePopStatus.Empty"/> or
     /// <see cref="SubQueuePopStatus.Contended"/> (the root was taken or the lock re-contended in that
     /// tiny window), the attempt is consumed and the queue is rescanned.
     /// </para>
     /// <para>
-    /// <b>Never blocks; bounded retries then settle.</b> Only <c>TryEnter</c> is ever used. After
+    /// Never blocks; bounded retries, then settle. Only <c>TryEnter</c> is ever used. After
     /// <see cref="DequeueMinRetryLimit"/> attempts the method stops rescanning and returns the best
     /// element it could pop (or <see langword="false"/> if it could pop none), honoring the
     /// best-effort contract rather than livelocking against churn.
@@ -223,7 +223,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
             // At most ONE lock per attempt, on the winner only, never blocking.
             if (!subQueue.SyncLock.TryEnter())
             {
-                // Contended winner: do not wait — consume the attempt and rescan.
+                // Contended winner: do not wait; consume the attempt and rescan.
                 continue;
             }
 
@@ -242,7 +242,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
             finally
             {
                 // Release before popping: TryLockedPop re-acquires the lock itself. The window
-                // between Exit and the pop is part of the documented observation window — whatever
+                // between Exit and the pop is part of the documented observation window; whatever
                 // Success yields is, by contract, the minimum observed during the call.
                 subQueue.SyncLock.Exit();
             }
@@ -257,7 +257,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
             if (status == SubQueuePopStatus.Success)
             {
                 // This path pops the sub-queue DIRECTLY, bypassing TryPopFrom, so it must release
-                // the bounded reservation itself (no-op on an unbounded queue) — the same single
+                // the bounded reservation itself (no-op on an unbounded queue), the same single
                 // helper TryPopFrom uses, keeping one decrement site per successful removal.
                 OnElementRemovedFromBounded();
 
@@ -334,7 +334,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <summary>
     /// Scans every sub-queue's published top lock-free <i>except</i> the winner's, reporting the
-    /// minimum published top among the rest — the "runner-up" that <see cref="TryDequeueMin"/> uses
+    /// minimum published top among the rest, the "runner-up" that <see cref="TryDequeueMin"/> uses
     /// to revalidate the winner's live root under the lock.
     /// </summary>
     /// <param name="winner">The winning sub-queue index to exclude from this runner-up scan.</param>
@@ -345,13 +345,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <returns>
     /// <see langword="true"/> when at least one non-winner sub-queue published a non-empty top during
     /// the scan; <see langword="false"/> when the winner was the only candidate (no runner-up exists,
-    /// so the winner's root needs no upper bound — any reachable root is acceptable).
+    /// so the winner's root needs no upper bound; any reachable root is acceptable).
     /// </returns>
     /// <remarks>
     /// Like <see cref="TryScanForMinimum"/> this is a pure lock-free scan over the seqlock-published
     /// tops; it skips the winner and any "unknown" or "empty" snapshot. A returned
     /// <see langword="false"/> (no runner-up) lets <see cref="TryDequeueMin"/> accept whatever live
-    /// root the winner still holds — there is nowhere better to look.
+    /// root the winner still holds; there is nowhere better to look.
     /// </remarks>
     private bool TryScanRunnerUp(int winner, out TPriority runnerUp)
     {

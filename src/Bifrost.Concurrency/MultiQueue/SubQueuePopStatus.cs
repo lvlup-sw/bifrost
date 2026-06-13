@@ -10,7 +10,7 @@ namespace Bifrost.Concurrency.MultiQueue;
 /// <summary>
 /// The three-way outcome of <c>SubQueue.TryLockedPop</c>. Callers must distinguish an empty
 /// sub-queue (which counts toward an empty-verification pass) from a contended one (where a
-/// concurrent writer holds the lock — someone is making progress, so the caller resamples or
+/// concurrent writer holds the lock; someone is making progress, so the caller resamples or
 /// restarts its pass instead of concluding emptiness).
 /// </summary>
 internal enum SubQueuePopStatus

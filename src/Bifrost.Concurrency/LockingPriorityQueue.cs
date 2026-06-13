@@ -27,16 +27,16 @@ namespace Bifrost.Concurrency;
 /// <b>When to prefer this queue:</b>
 /// </para>
 /// <list type="bullet">
-/// <item>Low contention — roughly 1-8 workers, especially with seconds-long work items where
+/// <item>Low contention: roughly 1-8 workers, especially with seconds-long work items where
 /// queue operations are a negligible fraction of total work. In this regime the lock-based
 /// queue is competitive with or better than the MultiQueue-based alternative.</item>
-/// <item>Exact ordering is required — consumers must always receive the true minimum-priority
+/// <item>Exact ordering is required: consumers must always receive the true minimum-priority
 /// element, with no rank error tolerated.</item>
 /// </list>
 /// <para>
 /// <b>When to prefer the MultiQueue-based <c>ConcurrentPriorityQueue&lt;TElement, TPriority&gt;</c>:</b>
-/// high contention (many workers hammering the queue) where relaxed ordering — a bounded rank
-/// error on dequeue — is acceptable in exchange for scalable throughput. Pick per measurement:
+/// high contention (many workers hammering the queue) where relaxed ordering (a bounded rank
+/// error on dequeue) is acceptable in exchange for scalable throughput. Pick per measurement:
 /// benchmark both bindings under your workload's contention profile.
 /// </para>
 /// <para>

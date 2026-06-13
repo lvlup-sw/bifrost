@@ -20,25 +20,24 @@ namespace Bifrost.Concurrency.MultiQueue;
 /// <typeparam name="TPriority">The priority type ordered by the queue's comparer.</typeparam>
 /// <remarks>
 /// <para>
-/// <b>The cached-top seqlock.</b> The two-choice dequeue samples two random sub-queues and
-/// compares their minimum priorities <i>without locking</i>. <typeparamref name="TPriority"/> is
-/// an arbitrary generic — a multi-word struct cannot be read atomically, so an unsynchronized
-/// read could observe a torn value. Each sub-queue therefore publishes its top through a
-/// seqlock: writers stamp <see cref="SubQueueHeader.TopVersion"/> odd, mutate the cached top and
-/// empty flag, then stamp it even; readers validate that the version was even and unchanged
-/// around their copy, and otherwise retry or report "unknown".
+/// The two-choice dequeue samples two random sub-queues and compares their minimum priorities
+/// <i>without locking</i>. <typeparamref name="TPriority"/> is an arbitrary generic, and a
+/// multi-word struct cannot be read atomically, so an unsynchronized read could observe a torn
+/// value. Each sub-queue therefore publishes its top through a seqlock: writers stamp
+/// <see cref="SubQueueHeader.TopVersion"/> odd, mutate the cached top and empty flag, then stamp
+/// it even; readers validate that the version was even and unchanged around their copy, and
+/// otherwise retry or report "unknown".
 /// </para>
 /// <para>
-/// <b>Caller contract.</b> <see cref="TryReadTop"/> returns either a recent
-/// <c>(top, empty)</c> snapshot, or <c>false</c> meaning "unknown — resample another queue".
-/// Callers must never depend on <i>how</i> the snapshot is obtained (lock-free seqlock today;
-/// the documented fallback is a <c>TryEnter</c>-read that preserves this exact contract), only
-/// on the contract itself.
+/// <see cref="TryReadTop"/> returns either a recent <c>(top, empty)</c> snapshot or <c>false</c>,
+/// meaning "unknown, resample another queue". Callers must never depend on <i>how</i> the snapshot
+/// is obtained (a lock-free seqlock today; the documented fallback is a <c>TryEnter</c>-read that
+/// preserves the same contract), only on the contract itself.
 /// </para>
 /// <para>
-/// <b>Emptiness is a flag word, never a sentinel.</b> <see cref="SubQueueHeader.EmptyFlag"/>
-/// travels inside the seqlock-protected region, so emptiness needs no <c>default(TPriority)</c>
-/// sentinel and the read path never invokes <see cref="IComparer{T}"/> (pinned by the
+/// Emptiness is a flag word, never a sentinel: <see cref="SubQueueHeader.EmptyFlag"/> travels
+/// inside the seqlock-protected region, so emptiness needs no <c>default(TPriority)</c> sentinel
+/// and the read path never invokes <see cref="IComparer{T}"/> (pinned by the
 /// <c>TryReadTop_NeverInvokesComparer</c> test).
 /// </para>
 /// </remarks>
@@ -107,12 +106,12 @@ internal sealed class SubQueue<TElement, TPriority>
 #pragma warning disable SA1129
         _cachedTop = new PaddedTopSlot<TPriority>();
 #pragma warning restore SA1129
-        _header.EmptyFlag = 1; // TopVersion defaults to 0 — even, i.e. "stable".
+        _header.EmptyFlag = 1; // TopVersion defaults to 0 (even), i.e. "stable".
     }
 
     /// <summary>
-    /// Gets the lock that serializes writers of this sub-queue. Every mutation — heap operations
-    /// and <see cref="PublishTop"/> — must run while this lock is held; readers of the cached top
+    /// Gets the lock that serializes writers of this sub-queue. Every mutation (heap operations
+    /// and <see cref="PublishTop"/>) must run while this lock is held; readers of the cached top
     /// never take it. Exposed so callers can compose multi-step critical sections (push + publish)
     /// under a single acquisition.
     /// </summary>
@@ -150,16 +149,16 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <param name="empty">Whether the sub-queue is now empty.</param>
     /// <remarks>
     /// <para>
-    /// <b>Memory-model argument</b> (see <c>memmodel.md</c>):
+    /// Memory-model argument (see <c>memmodel.md</c>):
     /// </para>
     /// <list type="number">
-    /// <item><see cref="Volatile.Write{T}(ref T, T)"/> of the odd version has release semantics —
+    /// <item><see cref="Volatile.Write{T}(ref T, T)"/> of the odd version has release semantics:
     /// "the effects of a volatile write will not be observable before effects of all previous
     /// reads and writes". That alone, however, does <b>not</b> stop the <i>following</i> data
     /// writes from becoming observable before the odd stamp (store–store reordering is real on
     /// arm64).</item>
-    /// <item><see cref="Volatile.WriteBarrier"/> closes exactly that hole: it is a release fence
-    /// that "applies to all following writes" — the slot and flag writes below it cannot be
+    /// <item><see cref="Volatile.WriteBarrier"/> closes that hole: it is a release fence
+    /// that "applies to all following writes", so the slot and flag writes below it cannot be
     /// observed before the odd stamp above it. A reader that sees the pre-write (even) version
     /// after copying data therefore cannot have read any of this writer's partial data.</item>
     /// <item>The final <see cref="Volatile.Write{T}(ref T, T)"/> of the even version is a release:
@@ -167,7 +166,7 @@ internal sealed class SubQueue<TElement, TPriority>
     /// even stamp and then re-validates it unchanged has read fully published data.</item>
     /// </list>
     /// <para>
-    /// Torn intermediate states are permitted to exist — readers discard them via version
+    /// Torn intermediate states are permitted to exist; readers discard them via version
     /// validation. Object references inside <typeparamref name="TPriority"/> are themselves
     /// pointer-aligned and read/written atomically (<c>memmodel.md</c>, "Atomic memory accesses"),
     /// so a discarded torn read can mix <i>stale</i> field values but can never fabricate an
@@ -200,7 +199,7 @@ internal sealed class SubQueue<TElement, TPriority>
         }
         else if (RuntimeHelpers.IsReferenceOrContainsReferences<TPriority>())
         {
-            // GC hygiene only — emptiness is signalled by the flag, never by the slot value.
+            // GC hygiene only; emptiness is signalled by the flag, never by the slot value.
             _cachedTop.Set(default!);
         }
 
@@ -217,15 +216,15 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <param name="empty">Whether the sub-queue published itself as empty.</param>
     /// <returns>
     /// <see langword="true"/> with a recent <c>(top, empty)</c> snapshot; or <see langword="false"/>
-    /// meaning "unknown — resample another queue" after <see cref="ReadRetryLimit"/> attempts
+    /// meaning "unknown, resample another queue" after <see cref="ReadRetryLimit"/> attempts
     /// raced with writers. Never blocks and never invokes the comparer.
     /// </returns>
     /// <remarks>
-    /// <b>Memory-model argument</b> (see <c>memmodel.md</c>): the leading
-    /// <see cref="Volatile.Read{T}(ref readonly T)"/> has acquire semantics — "no read or write that is
-    /// later in the program order may be speculatively executed ahead of a volatile read" — so the
+    /// Memory-model argument (see <c>memmodel.md</c>): the leading
+    /// <see cref="Volatile.Read{T}(ref readonly T)"/> has acquire semantics ("no read or write that
+    /// is later in the program order may be speculatively executed ahead of a volatile read"), so the
     /// slot/flag copies cannot float above the first version check. <see cref="Volatile.ReadBarrier"/>
-    /// is an acquire fence that "applies to all prior reads" — the slot/flag copies cannot sink
+    /// is an acquire fence that "applies to all prior reads", so the slot/flag copies cannot sink
     /// below it, hence not below the second version check either. If both checks observe the same
     /// even version, no writer's window overlapped the copy, so the copy is untorn.
     /// </remarks>
@@ -240,7 +239,7 @@ internal sealed class SubQueue<TElement, TPriority>
 
             if ((before & 1u) == 0)
             {
-                // Plain copies: candidate may be torn if a writer overlaps — the version
+                // Plain copies: candidate may be torn if a writer overlaps; the version
                 // re-check below discards exactly those cases.
                 TPriority candidate = _cachedTop.Get();
                 int emptyFlag = _header.EmptyFlag;
@@ -275,21 +274,21 @@ internal sealed class SubQueue<TElement, TPriority>
 
     // ---- Sequential arity-4 heap (DR-5/DR-6) ----
     //
-    // Storage is an implicit arity-4 min-heap over an inline (element, priority)[] — the exact
+    // Storage is an implicit arity-4 min-heap over an inline (element, priority)[], the exact
     // PriorityQueue<TElement, TPriority> layout. Arity 4 (rather than binary) makes the tree
     // shallower: a pop-dominated workload is sift-down dominated, and each level traversed costs a
     // potential cache miss, so fewer-but-wider levels touch fewer cache lines than a deeper binary
-    // tree of the same count. Sifting is hole-based — instead of swapping pairs (two writes each),
+    // tree of the same count. Sifting is hole-based: instead of swapping pairs (two writes each),
     // the moving entry is held in a local while entries are shifted into the vacated hole, and the
-    // moving entry is placed exactly once when its final position is found.
+    // moving entry is placed once when its final position is found.
     //
     // Comparer dispatch is devirtualized per DR-6: hot methods branch on the JIT-constant
     // `typeof(TPriority).IsValueType && _comparer is null` and call a *DefaultComparer variant
-    // (Comparer<TPriority>.Default.Compare at the call site → inlined intrinsic for int/long/etc.)
-    // or a *CustomComparer variant using the cached comparer field — one comparer call per compare,
-    // no further indirection. The method names MoveUp*/MoveDown* mirror the BCL PriorityQueue
-    // sift methods. These methods are SEQUENTIAL: they take no lock and publish no top; the locked
-    // composition below pairs them with PublishTop under SyncLock.
+    // (Comparer<TPriority>.Default.Compare at the call site, inlined to an intrinsic for
+    // int/long/etc.) or a *CustomComparer variant using the cached comparer field: one comparer
+    // call per compare, no further indirection. The method names MoveUp*/MoveDown* mirror the BCL
+    // PriorityQueue sift methods. These methods are SEQUENTIAL: they take no lock and publish no
+    // top; the locked composition below pairs them with PublishTop under SyncLock.
 
     /// <summary>
     /// Pushes an <c>(element, priority)</c> entry onto the heap, growing the backing store when
@@ -353,7 +352,7 @@ internal sealed class SubQueue<TElement, TPriority>
             }
         }
 
-        // Gated slot clear: only release references — value-type-only entries skip the write.
+        // Gated slot clear: only release references; value-type-only entries skip the write.
         if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
         {
             nodes[last] = default;
@@ -381,7 +380,7 @@ internal sealed class SubQueue<TElement, TPriority>
 
     /// <summary>
     /// Grows the backing store by doubling (from <see cref="InitialCapacity"/> on the first
-    /// growth), clamped to <see cref="Array.MaxLength"/> with guaranteed forward progress —
+    /// growth), clamped to <see cref="Array.MaxLength"/> with guaranteed forward progress,
     /// the <see cref="PriorityQueue{TElement, TPriority}"/> <c>Grow</c> precedent.
     /// </summary>
     private void Grow()
@@ -550,17 +549,17 @@ internal sealed class SubQueue<TElement, TPriority>
 
     // ---- Locked composition: heap + seqlock + striped count (DR-4/DR-5 integration) ----
     //
-    // These are the only mutation entry points callers should use. Each TryEnters SyncLock —
+    // These are the only mutation entry points callers should use. Each TryEnters SyncLock,
     // never blocking on contention (DR-7's "wait-free locking": a contended sub-queue means
-    // another thread is making progress there; the caller resamples instead of waiting) — and,
-    // under the lock, composes a heap operation with a CONDITIONAL top publication and a
+    // another thread is making progress there, so the caller resamples instead of waiting), and
+    // under the lock composes a heap operation with a CONDITIONAL top publication and a
     // volatile striped-count update.
     //
     // Publish elision is the point of the composition: the seqlock is rewritten only when the
     // heap MINIMUM PRIORITY actually changes. A non-minimum push and a pop that exposes an
     // equal-priority duplicate root both leave the published priority semantically correct, so
-    // they skip the version-bumping write entirely — foreign samplers' cached copies of the
-    // version/top lines stay valid, avoiding cache-line ping-pong in steady-state mixed and
+    // they skip the version-bumping write entirely. Foreign samplers' cached copies of the
+    // version/top lines then stay valid, avoiding cache-line ping-pong in steady-state mixed and
     // narrow-key-range workloads. The SubQueueTests version-counter assertions pin this.
 
     /// <summary>
@@ -618,7 +617,7 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <see cref="SubQueuePopStatus.Empty"/> when the lock was acquired but the heap is empty
     /// (counts toward a caller's empty-verification pass); or
     /// <see cref="SubQueuePopStatus.Contended"/> when the lock was held elsewhere and nothing
-    /// was observed (the caller resamples — a contended queue means progress is being made).
+    /// was observed (the caller resamples; a contended queue means progress is being made).
     /// </returns>
     internal SubQueuePopStatus TryLockedPop(out TElement element, out TPriority priority)
     {
@@ -663,9 +662,9 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <summary>
     /// Empties this sub-queue under its lock, publishing the empty state and zeroing the striped
     /// count, and returns how many entries were removed so the caller can release that many
-    /// bounded-capacity reservations. The blocking <c>lock</c> (rather than a <c>TryEnter</c>) is
-    /// deliberate, as with <see cref="SnapshotTo"/>: <c>Clear</c> is not a hot path and the
-    /// critical section is a bounded array clear.
+    /// bounded-capacity reservations. It uses a blocking <c>lock</c> rather than a <c>TryEnter</c>,
+    /// as with <see cref="SnapshotTo"/>: <c>Clear</c> is not a hot path and the critical section is
+    /// a bounded array clear.
     /// </summary>
     /// <returns>The number of entries removed from this sub-queue.</returns>
     internal int LockedClear()
@@ -675,7 +674,7 @@ internal sealed class SubQueue<TElement, TPriority>
             int removed = _size;
             if (removed > 0)
             {
-                // Gated clear: only release references — value-type-only entries skip the writes.
+                // Gated clear: only release references; value-type-only entries skip the writes.
                 if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
                 {
                     Array.Clear(_nodes, 0, removed);
@@ -694,8 +693,8 @@ internal sealed class SubQueue<TElement, TPriority>
     /// Compares two priorities through the DR-6 dual path: the devirtualized
     /// <see cref="Comparer{T}.Default"/> call when the stored comparer is null (value-type
     /// priorities with default ordering), otherwise the cached comparer field. Used only on
-    /// lock-held paths — never by <see cref="TryReadTop"/>. Deliberately duplicated at the queue
-    /// level too: the BCL keeps dual comparer paths local to each type for JIT constant folding.
+    /// lock-held paths, never by <see cref="TryReadTop"/>. Duplicated at the queue level too: the
+    /// BCL keeps dual comparer paths local to each type for JIT constant folding.
     /// </summary>
     /// <param name="x">The left priority.</param>
     /// <param name="y">The right priority.</param>
@@ -711,9 +710,9 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <summary>
     /// Copies this sub-queue's entries under its lock into <paramref name="buffer"/>. ToArray and
     /// enumeration support (DR-14): a brief per-queue lock, copied one sub-queue at a time with no
-    /// global freeze and no cross-queue consistency claim. The blocking <c>lock</c> (rather than a
-    /// <c>TryEnter</c>) is deliberate here — enumeration is not a hot path, the design specifies
-    /// "taking each lock briefly", and the critical section is a pure array copy.
+    /// global freeze and no cross-queue consistency claim. It uses a blocking <c>lock</c> rather
+    /// than a <c>TryEnter</c> here: enumeration is not a hot path, the design specifies "taking each
+    /// lock briefly", and the critical section is a pure array copy.
     /// </summary>
     /// <param name="buffer">The destination list that receives this sub-queue's live entries.</param>
     internal void SnapshotTo(List<(TElement Element, TPriority Priority)> buffer)
