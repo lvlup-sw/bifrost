@@ -83,9 +83,23 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     private TaskCompletionSource dispatchesDrained =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    // Restart timestamps within the sliding fault-recovery window (DR-10). Touched
+    // only on the tick thread inside HandleTickLoopFault, so it needs no lock.
+    private readonly List<DateTimeOffset> restartTimes = [];
+
+    // Faulted-state barrier: WaitForFaultedAsync registers a TCS that the loop
+    // completes when it transitions to faulted, mirroring the idle barrier.
+    private readonly object faultedGate = new();
+    private readonly List<TaskCompletionSource> pendingFaulted = [];
+
     private long generationCounter;
     private int inFlightDispatches;
     private int stopState;
+    private int faultedState;
+
+    // The previous monotonic clock reading, in UTC ticks (long.MinValue = unset), used
+    // to detect a non-monotonic clock (DR-10).
+    private long previousNowTicks = long.MinValue;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScheduleTickLoop"/> class.
@@ -219,9 +233,152 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
 
         await this.SeedAsync(stoppingToken).ConfigureAwait(false);
 
+        // Fault-recovery loop (DR-10). A fault in the loop's own code — not an isolated
+        // dispatch, which the router catches — is logged critical, surfaced as a
+        // SchedulerFaultedEvent, and the tick loop restarts. Too many restarts in the
+        // window indicates a crash loop, not a transient fault, so the scheduler
+        // transitions to its faulted state and stops ticking.
+        while (!stoppingToken.IsCancellationRequested && !this.IsFaulted)
+        {
+            try
+            {
+                await this.RunTickLoopAsync(stoppingToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Normal shutdown.
+                break;
+            }
+#pragma warning disable CA1031 // The recovery policy must catch every loop fault.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                this.HandleTickLoopFault(ex);
+            }
+        }
+
+        // Unblock any test waiting on idle once the loop exits (faulted or stopped).
+        this.ReleaseIdleBarrier();
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the scheduler has transitioned to its faulted
+    /// state — its tick loop crashed too many times in the restart window and has
+    /// stopped ticking (DR-10). A later group's health check reads this.
+    /// </summary>
+    internal bool IsFaulted => Volatile.Read(ref this.faultedState) == 1;
+
+    /// <summary>
+    /// Runs the tick loop until cancelled, re-arming the loop's notion of "now" each
+    /// iteration so a non-monotonic clock is handled (DR-10).
+    /// </summary>
+    /// <param name="stoppingToken">The loop's stopping token.</param>
+    /// <returns>A task that completes when the loop is cancelled.</returns>
+    private async Task RunTickLoopAsync(CancellationToken stoppingToken)
+    {
         while (!stoppingToken.IsCancellationRequested)
         {
             await this.RunTickAsync(stoppingToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Handles a fault in the loop's own code: logs critical, publishes a
+    /// <see cref="SchedulerFaultedEvent"/>, and records the restart in the sliding
+    /// window. When the restart count exceeds <see cref="SchedulerOptions.MaxRestartsInWindow"/>
+    /// within <see cref="SchedulerOptions.RestartWindow"/>, the scheduler transitions to
+    /// its faulted state and stops ticking.
+    /// </summary>
+    /// <param name="ex">The fault that crashed the loop body.</param>
+    private void HandleTickLoopFault(Exception ex)
+    {
+        this.LogTickLoopFaulted(ex);
+
+        var now = this.timeProvider.GetUtcNow();
+        this.SafePublishFaultedEvent(ex, now);
+
+        // Slide the restart window: drop restarts older than the window, then record
+        // this one.
+        var windowStart = now - this.options.RestartWindow;
+        this.restartTimes.RemoveAll(t => t < windowStart);
+        this.restartTimes.Add(now);
+
+        if (this.restartTimes.Count > this.options.MaxRestartsInWindow)
+        {
+            Volatile.Write(ref this.faultedState, 1);
+            this.LogTickLoopGaveUp(this.options.MaxRestartsInWindow, this.options.RestartWindow.TotalSeconds);
+            this.ReleaseFaultedBarrier();
+        }
+    }
+
+    /// <summary>
+    /// Awaits the loop transitioning to its faulted state, completing immediately when
+    /// it is already faulted. Tests use this to deterministically observe the faulted
+    /// transition without a real sleep.
+    /// </summary>
+    /// <param name="timeout">The maximum time to wait for the faulted transition.</param>
+    /// <returns>A task that completes when the loop is faulted.</returns>
+    [SuppressMessage(
+        "Usage",
+        "VSTHRD003:Avoid awaiting foreign Tasks",
+        Justification = "The faulted barrier is an intentional cross-thread primitive " +
+            "completed by the tick thread on the faulted transition.")]
+    internal async Task WaitForFaultedAsync(TimeSpan timeout)
+    {
+        var request = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (this.faultedGate)
+        {
+            if (this.IsFaulted)
+            {
+                return;
+            }
+
+            this.pendingFaulted.Add(request);
+        }
+
+        var deadline = Task.Delay(timeout);
+        var completed = await Task.WhenAny(request.Task, deadline).ConfigureAwait(false);
+        if (completed == deadline)
+        {
+            throw new TimeoutException(
+                $"The tick loop did not transition to faulted within {timeout}.");
+        }
+    }
+
+    /// <summary>
+    /// Completes and clears every pending faulted-barrier request. Called on the
+    /// faulted transition.
+    /// </summary>
+    private void ReleaseFaultedBarrier()
+    {
+        lock (this.faultedGate)
+        {
+            foreach (var request in this.pendingFaulted)
+            {
+                request.TrySetResult();
+            }
+
+            this.pendingFaulted.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Publishes a <see cref="SchedulerFaultedEvent"/>, swallowing a secondary fault
+    /// from the sink so fault handling itself can never crash the recovery loop.
+    /// </summary>
+    /// <param name="ex">The fault to report.</param>
+    /// <param name="faultedAt">The instant the fault occurred.</param>
+    private void SafePublishFaultedEvent(Exception ex, DateTimeOffset faultedAt)
+    {
+        try
+        {
+            this.eventSink.Publish(new SchedulerFaultedEvent(ex, faultedAt));
+        }
+#pragma warning disable CA1031 // Fault reporting must not itself fault the recovery loop.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            // The sink itself faulted; nothing more we can safely do here.
         }
     }
 
@@ -332,6 +489,19 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     private async Task WaitForNextWakeAsync(CancellationToken stoppingToken)
     {
         var now = this.timeProvider.GetUtcNow();
+
+        // DR-10 clock-skew guard: if the clock moved backwards since the last reading,
+        // warn and continue. The loop always computes its sleep from a freshly read
+        // 'now' (below), never from a stale absolute deadline, so a backwards jump just
+        // re-arms a longer delay rather than losing or duplicating a fire.
+        var previous = Volatile.Read(ref this.previousNowTicks);
+        if (previous != long.MinValue && now.UtcTicks < previous)
+        {
+            this.LogClockSkew(new DateTimeOffset(previous, TimeSpan.Zero), now);
+        }
+
+        Volatile.Write(ref this.previousNowTicks, now.UtcTicks);
+
         var nextFire = this.PeekNextValidFire();
 
         // A due job (or a past-due one) means do not wait — loop straight back to
@@ -516,8 +686,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
             // on rather than skipping the backlog as a now-anchored interval would.
             var nextNext = handle.Cadence.ComputeNextFire(scheduledOccurrence, scheduledOccurrence);
 
-            this.Dispatch(handle.JobName, scheduledOccurrence, nextNext);
-
+            // Re-schedule BEFORE dispatching so the next fire is committed even if the
+            // dispatch or a fault in the dispatch path throws (DR-4/DR-10): a recurring
+            // job never loses its schedule to a failed fire.
             if (nextNext is null)
             {
                 // One-shot (or exhausted cadence): drop it from the live state.
@@ -527,6 +698,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
             {
                 this.Enqueue(handle.JobName, handle.Cadence, handle.MissedFirePolicy, nextNext.Value);
             }
+
+            this.Dispatch(handle.JobName, scheduledOccurrence, nextNext);
         }
     }
 
