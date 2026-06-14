@@ -4,6 +4,8 @@
 // </copyright>
 // =============================================================================
 
+using System.Reflection;
+
 using Bifrost.Core;
 using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.Core.Events;
@@ -48,7 +50,8 @@ public sealed class OrchestratorJobDispatcherTests
                 return new Payload("built");
             },
             orchestrator,
-            sink: new RecordingSchedulerEventSink());
+            WorkClass.Batch,
+            sink:new RecordingSchedulerEventSink());
 
         await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false);
 
@@ -75,7 +78,8 @@ public sealed class OrchestratorJobDispatcherTests
         var dispatcher = new OrchestratorJobDispatcher<Payload>(
             _ => new Payload("w"),
             orchestrator,
-            sink: new RecordingSchedulerEventSink());
+            WorkClass.Batch,
+            sink:new RecordingSchedulerEventSink());
 
         await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false);
 
@@ -132,7 +136,8 @@ public sealed class OrchestratorJobDispatcherTests
         var dispatcher = new OrchestratorJobDispatcher<Payload>(
             _ => new Payload("w"),
             orchestrator,
-            sink: sink);
+            WorkClass.Batch,
+            sink:sink);
 
         // Must complete normally — a rejected admission is not an exception.
         await dispatcher.DispatchAsync(Context("watermarked"), CancellationToken.None).ConfigureAwait(false);
@@ -159,7 +164,8 @@ public sealed class OrchestratorJobDispatcherTests
         var dispatcher = new OrchestratorJobDispatcher<Payload>(
             _ => throw boom,
             orchestrator,
-            sink: new RecordingSchedulerEventSink());
+            WorkClass.Batch,
+            sink:new RecordingSchedulerEventSink());
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false));
@@ -190,7 +196,8 @@ public sealed class OrchestratorJobDispatcherTests
         var dispatcher = new OrchestratorJobDispatcher<Payload>(
             _ => new Payload("w"),
             orchestrator,
-            sink: sink);
+            WorkClass.Batch,
+            sink:sink);
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false));
@@ -220,7 +227,8 @@ public sealed class OrchestratorJobDispatcherTests
                 return new Payload(ctx.JobName);
             },
             orchestrator,
-            sink: new RecordingSchedulerEventSink());
+            WorkClass.Batch,
+            sink:new RecordingSchedulerEventSink());
 
         var context = Context("contextual");
         await dispatcher.DispatchAsync(context, CancellationToken.None).ConfigureAwait(false);
@@ -229,6 +237,56 @@ public sealed class OrchestratorJobDispatcherTests
         await Assert.That(seen!.Value.JobName).IsEqualTo("contextual");
         await Assert.That(seen.Value.FireTime).IsEqualTo(FireTime);
         await Assert.That(seen.Value).IsEqualTo(context);
+    }
+
+    /// <summary>
+    /// Verifies the <c>sink</c> ctor parameter is required — it has no default value
+    /// (H1). Defaulting it to <c>null!</c> let <c>new OrchestratorJobDispatcher&lt;T&gt;(fire, orch)</c>
+    /// compile and then throw <see cref="ArgumentNullException"/> at runtime: a
+    /// required dependency that looked optional. Asserting the parameter is
+    /// non-optional locks in that omitting the sink is now a compile error.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task Ctor_SinkParameter_IsRequired_HasNoDefaultValue()
+    {
+        var ctor = typeof(OrchestratorJobDispatcher<Payload>)
+            .GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+            .Single();
+
+        var sinkParameter = ctor.GetParameters().Single(p => p.Name == "sink");
+
+        // A required dependency must not carry a compiler-supplied default, so an
+        // omitted sink fails to compile rather than throwing at runtime.
+        await Assert.That(sinkParameter.HasDefaultValue).IsFalse();
+        await Assert.That(sinkParameter.IsOptional).IsFalse();
+        await Assert.That(sinkParameter.ParameterType).IsEqualTo(typeof(ISchedulerEventSink));
+    }
+
+    /// <summary>
+    /// Verifies the public ctor with a real sink supplied constructs a working
+    /// dispatcher with no silent-null sink path (H1): a rejected admission reaches
+    /// the supplied sink as a <see cref="JobFireFailedEvent"/>.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task Ctor_WithRealSink_ConstructsWorkingDispatcher()
+    {
+        var orchestrator = Substitute.For<IWorkOrchestrator<Payload>>();
+        orchestrator
+            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .Returns(EnqueueResult.Rejected(RejectionReason.CapacityExceeded));
+
+        var sink = new RecordingSchedulerEventSink();
+        var dispatcher = new OrchestratorJobDispatcher<Payload>(
+            _ => new Payload("w"),
+            orchestrator,
+            WorkClass.Batch,
+            sink);
+
+        await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false);
+
+        await Assert.That(sink.Any<JobFireFailedEvent>()).IsTrue();
     }
 
     /// <summary>
