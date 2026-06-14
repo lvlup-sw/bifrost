@@ -377,6 +377,18 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     }
 
     /// <summary>
+    /// TEST-ONLY: forces sub-queue <paramref name="index"/>'s occupancy bit to <c>1</c> without
+    /// pushing an element, fabricating a <i>stale-set</i> bit (the bitmask reads occupied over an
+    /// actually-empty sub-queue). Used to prove the staleness-safety contract (DR-4): routing must
+    /// attempt the locked pop, observe <see cref="SubQueuePopStatus.Empty"/>, skip the bit and
+    /// continue — never returning a bogus <see langword="true"/>. Uses the same atomic
+    /// <see cref="Interlocked.Or(ref ulong, ulong)"/> the production transition write uses.
+    /// </summary>
+    /// <param name="index">The sub-queue index whose bit to force set.</param>
+    internal void DebugForceSetOccupancyBitForTest(int index)
+        => Interlocked.Or(ref _occupancy[OccupancyWord(index)], OccupancyBit(index));
+
+    /// <summary>
     /// Releases one bounded-capacity reservation after a successful removal: when the queue is
     /// bounded, atomically decrements the shared gate (<see cref="_boundedCount"/>). Every
     /// successful-removal path funnels through this single release point: <c>TryPopFrom</c>'s

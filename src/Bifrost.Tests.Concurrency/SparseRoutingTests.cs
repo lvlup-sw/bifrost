@@ -135,4 +135,53 @@ public class SparseRoutingTests
         await Assert.That(queue.DebugScanEntryCountForTest - scanEntriesBefore).IsEqualTo(0L).Because(
             "and the O(n) verification scan was never entered on the dense path either");
     }
+
+    /// <summary>
+    /// A stale-set bit (occupancy reads 1 over an actually-empty sub-queue) is asymmetric-safe under
+    /// Approach A (DR-4): routing attempts the locked pop, gets <c>Empty</c>, skips the bit and
+    /// continues — never trusting the bit as proof of an element. Over an otherwise-empty queue the
+    /// stale-set bit must therefore resolve to a <see langword="false"/> from the verification scan,
+    /// not a bogus <see langword="true"/>.
+    /// </summary>
+    [Test]
+    public async Task Routing_StaleSetBitOverEmptySubQueue_FallsThroughSafely()
+    {
+        var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
+
+        // Force a set bit over an empty sub-queue (a stale-set: no element backs it).
+        const int staleIndex = 70;
+        queue.DebugForceSetOccupancyBitForTest(staleIndex);
+        await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(1UL << 6).Because("the stale bit is forced set");
+
+        long scanEntriesBefore = queue.DebugScanEntryCountForTest;
+
+        bool popped = queue.TryDequeueRoutingOnlyForTest(out _, out _);
+
+        await Assert.That(popped).IsFalse().Because(
+            "the stale-set bit backs no element — routing gets Empty, never returns a bogus true");
+        await Assert.That(queue.DebugScanEntryCountForTest - scanEntriesBefore).IsEqualTo(1L).Because(
+            "after the stale bit resolves to Empty, routing falls through to the scan, which returns false");
+    }
+
+    /// <summary>
+    /// A stale-set bit at a lower index does not block routing from popping a genuinely populated
+    /// sub-queue at a higher index (DR-4): routing skips the stale (lowest-first) bit on
+    /// <c>Empty</c> and continues to the real one.
+    /// </summary>
+    [Test]
+    public async Task Routing_StaleSetBitBelowRealItem_SkipsStaleAndPopsReal()
+    {
+        var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
+
+        const int staleIndex = 10;  // lower — routed first, must be skipped.
+        const int realIndex = 200;  // higher — the genuine item.
+        queue.DebugForceSetOccupancyBitForTest(staleIndex);
+        await Assert.That(queue.SubQueuesForTest[realIndex].TryLockedPush(element: 7, priority: 7)).IsTrue();
+
+        bool popped = queue.TryDequeueRoutingOnlyForTest(out int element, out int priority);
+
+        await Assert.That(popped).IsTrue().Because("routing skips the stale-set bit and pops the real item");
+        await Assert.That(element).IsEqualTo(7);
+        await Assert.That(priority).IsEqualTo(7);
+    }
 }
