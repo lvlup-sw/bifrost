@@ -33,7 +33,7 @@ public class DeadLetterQueueBenchmarks
     /// Sets up the benchmarks.
     /// </summary>
     [GlobalSetup]
-    public async Task GlobalSetup()
+    public Task GlobalSetup()
     {
         _options = Options.Create(new DeadLetterQueueOptions { Capacity = 10000, MaxRetries = 3 });
 
@@ -56,6 +56,8 @@ public class DeadLetterQueueBenchmarks
         _failurePathHandler = new DeadLetterHandler<int>(
             failingHandler, new DeadLetterQueue<int>(_options, NullLogger<DeadLetterQueue<int>>.Instance), noopNotifier,
             Options.Create(new DeadLetterQueueOptions { Capacity = 10000, MaxRetries = 0 }), logger);
+
+        return Task.CompletedTask;
     }
 
     /// <summary>

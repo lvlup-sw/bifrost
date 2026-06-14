@@ -120,7 +120,7 @@ public class AutoscalingOrchestratorDisabledTests
     /// Verifies warning is logged when disabled.
     /// </summary>
     [Test]
-    public async Task WhenDisabled_LogsWarning()
+    public Task WhenDisabled_LogsWarning()
     {
         // Arrange & Act
         _ = new AutoscalingOrchestrator<string>(
@@ -133,6 +133,8 @@ public class AutoscalingOrchestratorDisabledTests
             Arg.Is<object>(o => o.ToString()!.Contains("disabled", StringComparison.OrdinalIgnoreCase)),
             Arg.Any<Exception?>(),
             Arg.Any<Func<object, Exception?, string>>());
+
+        return Task.CompletedTask;
     }
 
     /// <summary>
