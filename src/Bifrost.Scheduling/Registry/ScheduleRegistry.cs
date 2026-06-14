@@ -142,6 +142,13 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
             throw new DuplicateJobNameException(name);
         }
 
+        // Resolve a relative one-shot to an absolute instant using the registry's
+        // injected TimeProvider (R1/DR-2): the static factory Cadence.After performs
+        // no clock access; resolution happens here, once, at registration time.
+        cadence = cadence is RelativeOneShotCadence relative
+            ? new OneShotCadence(this.timeProvider.GetUtcNow() + relative.Delay)
+            : cadence;
+
         var nextFireAt = cadence.ComputeNextFire(lastFiredAt: null, now: this.timeProvider.GetUtcNow());
         var record = new JobRecord(
             Name: name,
