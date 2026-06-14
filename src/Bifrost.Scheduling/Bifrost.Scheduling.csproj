@@ -12,6 +12,10 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <!-- Banned-API gate (RS0030): clock-API and bare Task.Delay regressions fail the build (DR-7/R1) -->
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <!-- Single shared BannedSymbols.txt linked from Bifrost.Scheduling.Core -->
+    <AdditionalFiles Include="..\Bifrost.Scheduling.Core\BannedSymbols.txt" Link="BannedSymbols.txt" />
   </ItemGroup>
 
   <ItemGroup>

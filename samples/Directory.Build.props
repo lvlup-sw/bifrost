@@ -1,0 +1,5 @@
+<Project>
+  <!-- Import the repo-root src/ build props so samples inherit TargetFramework,
+       LangVersion, Nullable, and other project defaults. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../src/'))" />
+</Project>

@@ -64,6 +64,26 @@ jobs:
         continue-on-error: true
         run: dotnet run --project src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj -c Release -- --job Dry --filter "*"
 
+      - name: AOT smoke — install native toolchain
+        # NativeAOT publish requires clang and zlib-dev on Ubuntu 22.04.
+        run: sudo apt-get install -y clang zlib1g-dev
+
+      - name: AOT smoke — publish native binary (DR-13)
+        # Publishes samples/Bifrost.Scheduling.AotSmoke as a fully ahead-of-time
+        # compiled native binary. PublishAot=true is passed on the command line rather
+        # than hardcoded in the project so a regular `dotnet build` of the solution
+        # does not require the native toolchain (and can run on any developer machine).
+        run: |
+          dotnet publish samples/Bifrost.Scheduling.AotSmoke/Bifrost.Scheduling.AotSmoke.csproj \
+            -c Release \
+            /p:PublishAot=true \
+            -o ./aot-publish
+
+      - name: AOT smoke — run native binary
+        # The binary exits 0 on success, non-zero on failure. A non-zero exit here
+        # fails the build, which is the intended behaviour for DR-13 gating.
+        run: ./aot-publish/Bifrost.Scheduling.AotSmoke
+
       - name: Merge coverage reports
         if: always()
         run: |
