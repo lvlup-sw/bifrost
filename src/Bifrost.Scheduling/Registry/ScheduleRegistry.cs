@@ -124,16 +124,57 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
     }
 
     /// <inheritdoc/>
-    public ValueTask PauseAsync(string name, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    public async ValueTask PauseAsync(string name, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        if (!this.jobs.TryGetValue(name, out var record))
+        {
+            throw new JobNotFoundException(name);
+        }
+
+        // Already paused: nothing to persist or signal.
+        if (record.State == JobState.Paused)
+        {
+            return;
+        }
+
+        await this.TransitionAsync(record, JobState.Paused, RegistryCommandKind.Pause, ct).ConfigureAwait(false);
+    }
 
     /// <inheritdoc/>
-    public ValueTask ResumeAsync(string name, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    public async ValueTask ResumeAsync(string name, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        if (!this.jobs.TryGetValue(name, out var record))
+        {
+            throw new JobNotFoundException(name);
+        }
+
+        // Already running: nothing to persist or signal.
+        if (record.State == JobState.Running)
+        {
+            return;
+        }
+
+        await this.TransitionAsync(record, JobState.Running, RegistryCommandKind.Resume, ct).ConfigureAwait(false);
+    }
 
     /// <inheritdoc/>
-    public ValueTask TriggerAsync(string name, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    public async ValueTask TriggerAsync(string name, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        if (!this.jobs.ContainsKey(name))
+        {
+            throw new JobNotFoundException(name);
+        }
+
+        // Trigger does not itself dispatch or mutate state: it posts a command and
+        // the tick loop performs the out-of-band fire.
+        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name), ct).ConfigureAwait(false);
+    }
 
     /// <inheritdoc/>
     public IReadOnlyList<JobDescriptor> GetJobs()
@@ -181,6 +222,31 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
     /// <param name="dispatcher">The dispatcher being registered.</param>
     /// <returns>The dispatch-kind tag.</returns>
     private static string DeriveDispatchKind(IJobDispatcher dispatcher) => "custom";
+
+    /// <summary>
+    /// Transitions a job to a new lifecycle state: persists the updated record,
+    /// updates the in-memory metadata, and posts the corresponding wake command. The
+    /// store write precedes the in-memory update so a persistence failure leaves the
+    /// registry and store consistent (DR-1).
+    /// </summary>
+    /// <param name="record">The current job record being transitioned.</param>
+    /// <param name="state">The state to transition to.</param>
+    /// <param name="kind">The wake command to post after the transition.</param>
+    /// <param name="ct">A token to cancel the operation.</param>
+    /// <returns>A task that completes when the transition is persisted and signalled.</returns>
+    private async ValueTask TransitionAsync(
+        JobRecord record,
+        JobState state,
+        RegistryCommandKind kind,
+        CancellationToken ct)
+    {
+        var updated = record with { State = state };
+
+        await this.store.SaveAsync(updated, ct).ConfigureAwait(false);
+
+        this.jobs[updated.Name] = updated;
+        await this.PostAsync(new RegistryCommand(kind, updated.Name), ct).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Validates a job name against the lowercase identity pattern, throwing when it
