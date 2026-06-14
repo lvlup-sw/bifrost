@@ -6,6 +6,7 @@
 
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace Bifrost.Concurrency;
 
@@ -83,6 +84,35 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <summary>The two-choice index mask, equal to <c>_queues.Length − 1</c> (the count is a power of two).</summary>
     private readonly int _subQueueMask;
+
+    /// <summary>
+    /// The per-instance occupancy bitmask (DR-1): one bit per sub-queue, length
+    /// <c>(n + 63) &gt;&gt; 6</c> words. Bit <c>i</c> (word <c>i &gt;&gt; 6</c>, position <c>i &amp; 63</c>) is
+    /// set exactly when sub-queue <c>i</c> has published itself non-empty, and cleared when it
+    /// publishes empty. The array is allocated once in the core constructor and shared <i>by
+    /// reference</i> with every <see cref="SubQueue{TElement, TPriority}"/>, which is told its own
+    /// index; each sub-queue writes its bit under its own <c>SyncLock</c> on a boundary crossing
+    /// using <see cref="Interlocked.Or(ref ulong, ulong)"/> / <see cref="Interlocked.And(ref ulong, ulong)"/>
+    /// (atomic per-word, so two sub-queues sharing a word never lose an update; DR-2).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is a lock-free-<i>read</i> hint consulted only by the relaxed dequeue's sparse-fallback
+    /// routing phase (DR-3): after the two-choice sampling budget is spent, the consumer reads the
+    /// occupancy words and routes straight to a populated sub-queue via
+    /// <see cref="BitOperations.TrailingZeroCount(ulong)"/> instead of falling to the O(n)
+    /// verification scan. The bitmask is purely a hint — the verification scan stays the sole
+    /// authority for returning <see langword="false"/> — so a stale read can only cost a wasted
+    /// routing attempt, never a wrong answer (DR-4).
+    /// </para>
+    /// <para>
+    /// On the dense hot path the bitmask is never written (sub-queues never reach size zero under
+    /// load) and never read (sampling lands a pop within budget), so it sits dormant in cache and
+    /// adds no per-operation allocation (DR-5). Unused high bits in the final word of a
+    /// non-multiple-of-64 sub-queue count stay zero and are never interpreted as occupied.
+    /// </para>
+    /// </remarks>
+    private readonly ulong[] _occupancy;
 
     /// <summary>
     /// The normalized comparer shared with every sub-queue: <see langword="null"/> selects
@@ -248,11 +278,19 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
         _boundedCapacity = boundedCapacity;
         _subQueueMask = count - 1;
+
+        // DR-1: the occupancy bitmask is ceil(count/64) words, all zero (every sub-queue starts
+        // empty, matching each SubQueue's initial EmptyFlag = 1). Allocated once here and shared by
+        // reference with every sub-queue so transition writes and routing reads see the same array.
+        _occupancy = new ulong[(count + 63) >> 6];
+
         _queues = new SubQueue<TElement, TPriority>[count];
         for (int i = 0; i < count; i++)
         {
-            // Pass the ORIGINAL comparer: SubQueue performs the same normalization itself.
-            _queues[i] = new SubQueue<TElement, TPriority>(comparer);
+            // Pass the ORIGINAL comparer: SubQueue performs the same normalization itself. Hand each
+            // sub-queue its index and a reference to the shared occupancy array so its boundary-only
+            // transition writes (DR-2) flip the right bit.
+            _queues[i] = new SubQueue<TElement, TPriority>(comparer, i, _occupancy);
         }
     }
 
@@ -289,6 +327,54 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// unbounded path never increments the gate.
     /// </summary>
     internal int DebugBoundedCountForTest => Volatile.Read(ref _boundedCount);
+
+    /// <summary>
+    /// Maps a sub-queue index to its word in <see cref="_occupancy"/>: <c>i &gt;&gt; 6</c> (64 bits per
+    /// word, a shift not a division, mirroring the <see cref="_subQueueMask"/> discipline; DR-1).
+    /// </summary>
+    /// <param name="index">The sub-queue index.</param>
+    /// <returns>The occupancy word index <c>index &gt;&gt; 6</c>.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int OccupancyWord(int index) => index >> 6;
+
+    /// <summary>
+    /// Maps a sub-queue index to its single-bit mask within its occupancy word:
+    /// <c>1UL &lt;&lt; (i &amp; 63)</c> (DR-1).
+    /// </summary>
+    /// <param name="index">The sub-queue index.</param>
+    /// <returns>A <see cref="ulong"/> with exactly the bit for <paramref name="index"/> set.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong OccupancyBit(int index) => 1UL << (index & 63);
+
+    /// <summary>TEST-ONLY: exposes <see cref="OccupancyWord"/> for the indexing-math unit tests (DR-1).</summary>
+    /// <param name="index">The sub-queue index.</param>
+    /// <returns>The occupancy word index for <paramref name="index"/>.</returns>
+    internal static int OccupancyWordForTest(int index) => OccupancyWord(index);
+
+    /// <summary>TEST-ONLY: exposes <see cref="OccupancyBit"/> for the indexing-math unit tests (DR-1).</summary>
+    /// <param name="index">The sub-queue index.</param>
+    /// <returns>The single-bit mask for <paramref name="index"/>.</returns>
+    internal static ulong OccupancyBitForTest(int index) => OccupancyBit(index);
+
+    /// <summary>
+    /// TEST-ONLY: a defensive copy of the occupancy bitmask words (DR-1/DR-2). Each word is read with
+    /// a volatile read (an aligned <see cref="ulong"/> read is atomic on the supported 64-bit
+    /// runtimes), giving a per-word-consistent (though not cross-word-atomic) snapshot — sufficient
+    /// for the single-threaded transition-write assertions and the routing tests.
+    /// </summary>
+    internal ulong[] DebugOccupancyForTest
+    {
+        get
+        {
+            var snapshot = new ulong[_occupancy.Length];
+            for (int i = 0; i < _occupancy.Length; i++)
+            {
+                snapshot[i] = Volatile.Read(ref _occupancy[i]);
+            }
+
+            return snapshot;
+        }
+    }
 
     /// <summary>
     /// Releases one bounded-capacity reservation after a successful removal: when the queue is

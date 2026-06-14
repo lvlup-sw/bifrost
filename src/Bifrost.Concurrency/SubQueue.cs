@@ -62,6 +62,21 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     private readonly IComparer<TPriority>? _comparer;
 
+    /// <summary>
+    /// This sub-queue's index in the owning queue's sub-queue array, used to address its bit in the
+    /// shared occupancy bitmask: word <c>_index &gt;&gt; 6</c>, position <c>_index &amp; 63</c> (DR-1).
+    /// </summary>
+    private readonly int _index;
+
+    /// <summary>
+    /// A reference to the owning queue's shared occupancy bitmask (DR-1). This sub-queue flips
+    /// <i>only its own bit</i> (<c>_occupancy[_index &gt;&gt; 6]</c>, mask <c>1UL &lt;&lt; (_index &amp; 63)</c>)
+    /// and only on an empty&#8596;non-empty boundary crossing while <see cref="SyncLock"/> is held,
+    /// via <see cref="Interlocked.Or(ref ulong, ulong)"/> / <see cref="Interlocked.And(ref ulong, ulong)"/>
+    /// so a neighbouring sub-queue sharing the same 64-bit word never loses an update (DR-2).
+    /// </summary>
+    private readonly ulong[] _occupancy;
+
     /// <summary>The cached top priority, isolated on its own cache line (see <see cref="PaddedTopSlot{TPriority}"/>).</summary>
     private readonly PaddedTopSlot<TPriority> _cachedTop;
 
@@ -90,12 +105,24 @@ internal sealed class SubQueue<TElement, TPriority>
     /// The priority comparer retained for the heap tasks; <see langword="null"/> selects the
     /// devirtualized <see cref="Comparer{T}.Default"/> path at the queue level.
     /// </param>
-    internal SubQueue(IComparer<TPriority>? comparer)
+    /// <param name="index">
+    /// This sub-queue's index in the owning queue's sub-queue array; addresses its bit in
+    /// <paramref name="occupancy"/> (DR-1).
+    /// </param>
+    /// <param name="occupancy">
+    /// The owning queue's shared occupancy bitmask. This sub-queue flips only its own bit, under its
+    /// lock, on an empty&#8596;non-empty crossing (DR-2). The array is shared by reference, never
+    /// copied.
+    /// </param>
+    internal SubQueue(IComparer<TPriority>? comparer, int index, ulong[] occupancy)
     {
         // Comparer normalization, shared with the queue shell (see
         // PriorityComparerHelpers.InitializeComparer): a stored null selects the devirtualized
         // Comparer<TPriority>.Default path in the hot heap methods.
         _comparer = PriorityComparerHelpers.InitializeComparer(comparer);
+
+        _index = index;
+        _occupancy = occupancy;
 
         _nodes = [];
 
