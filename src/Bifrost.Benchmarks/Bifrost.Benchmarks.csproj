@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
 
   <ItemGroup>
@@ -15,6 +16,8 @@
     <ProjectReference Include="..\Bifrost.Concurrency\Bifrost.Concurrency.csproj" />
     <ProjectReference Include="..\Bifrost.HealthChecks\Bifrost.HealthChecks.csproj" />
     <ProjectReference Include="..\Bifrost.Resilience\Bifrost.Resilience.csproj" />
+    <ProjectReference Include="..\Bifrost.Scheduling\Bifrost.Scheduling.csproj" />
+    <ProjectReference Include="..\Bifrost.Scheduling.Core\Bifrost.Scheduling.Core.csproj" />
   </ItemGroup>
 
 </Project>

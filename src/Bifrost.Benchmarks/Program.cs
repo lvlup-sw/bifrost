@@ -15,6 +15,7 @@ using Bifrost.Benchmarks.DeadLetter;
 using Bifrost.Benchmarks.Decorators;
 using Bifrost.Benchmarks.HealthChecks;
 using Bifrost.Benchmarks.Orchestrator;
+using Bifrost.Benchmarks.Scheduling;
 
 // Use BenchmarkSwitcher for flexible benchmark selection
 // Run with --filter to select specific benchmarks, e.g.:
@@ -26,6 +27,9 @@ using Bifrost.Benchmarks.Orchestrator;
 //
 // CI smoke test (minimal run):
 //   dotnet run -c Release -- --job Dry --filter "*"
+//
+// Scheduling benchmarks (Group L, Task 41-44):
+//   dotnet run -c Release -- --job Dry -f "*Scheduling*"
 //
 // CPQ contended-throughput verbs (ported from DataFerry@2bf0456): BenchmarkDotNet deliberately
 // does not measure cross-thread throughput, so the custom fixed-window harness runs behind
@@ -81,6 +85,11 @@ var switcher = new BenchmarkSwitcher(
     typeof(DeadLetterQueueBenchmarks),
     typeof(OrchestratorBaselineBenchmarks),
     typeof(CpqSingleThreadedLatencyBenchmarks),
+    // Group L — Scheduling benchmarks (Tasks 41-44)
+    typeof(RegistryRegistrationBenchmarks),
+    typeof(TickEngineBenchmarks),
+    typeof(CadenceComputeBenchmarks),
+    typeof(DispatchBenchmarks),
 ]);
 
 switcher.Run(args, config);
