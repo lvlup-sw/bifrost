@@ -26,6 +26,7 @@
     <ProjectReference Include="..\Bifrost.Scheduling.Core\Bifrost.Scheduling.Core.csproj" />
     <ProjectReference Include="..\Bifrost.Scheduling.Testing\Bifrost.Scheduling.Testing.csproj" />
     <ProjectReference Include="..\Bifrost\Bifrost.csproj" />
+    <ProjectReference Include="..\Bifrost.Resilience\Bifrost.Resilience.csproj" />
   </ItemGroup>
 
 </Project>
