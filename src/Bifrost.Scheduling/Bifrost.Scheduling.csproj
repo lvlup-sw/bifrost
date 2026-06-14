@@ -18,4 +18,9 @@
     <ProjectReference Include="..\Bifrost\Bifrost.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bifrost.Tests.Scheduling" />
+    <InternalsVisibleTo Include="Bifrost.Scheduling.Testing" />
+  </ItemGroup>
+
 </Project>
