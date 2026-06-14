@@ -145,4 +145,25 @@ public class OccupancyBitmaskTests
         await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(0UL).Because(
             "the last pop drains the sub-queue — the non-empty→empty crossing clears the bit");
     }
+
+    /// <summary>
+    /// Clearing a non-empty sub-queue via <c>LockedClear</c> (the <c>Clear()</c> path) clears its
+    /// occupancy bit alongside the empty publish (DR-2).
+    /// </summary>
+    [Test]
+    public async Task LockedClear_NonEmptySubQueue_ClearsOccupancyBit()
+    {
+        var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
+        const int targetIndex = 70; // word 1, bit 6.
+        SubQueue<int, int> sub = queue.SubQueuesForTest[targetIndex];
+
+        await Assert.That(sub.TryLockedPush(element: 1, priority: 1)).IsTrue();
+        await Assert.That(sub.TryLockedPush(element: 2, priority: 2)).IsTrue();
+        await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(1UL << 6).Because("two items in: bit set");
+
+        int removed = sub.LockedClear();
+        await Assert.That(removed).IsEqualTo(2).Because("LockedClear reports the entries it removed");
+        await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(0UL).Because(
+            "LockedClear empties the sub-queue and must clear its occupancy bit");
+    }
 }

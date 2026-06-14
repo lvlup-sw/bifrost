@@ -734,6 +734,12 @@ internal sealed class SubQueue<TElement, TPriority>
 
             _size = 0;
             PublishTop(default!, empty: true);
+
+            // DR-2: this clear is reached only when `removed > 0`, i.e. the sub-queue was non-empty —
+            // the non-empty→empty crossing — so clear its occupancy bit alongside the empty publish.
+            // The `removed <= 0` early-return above means an already-empty Clear writes nothing.
+            ClearOccupancyBit();
+
             Volatile.Write(ref _header.Count, 0);
 
             return removed;
