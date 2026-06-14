@@ -270,6 +270,34 @@ public sealed class FluentBuilderTests
     }
 
     /// <summary>
+    /// Verifies <c>.DispatchVia&lt;TDispatcher&gt;()</c> registers
+    /// <c>TDispatcher</c> in the service collection at configuration time (F1, Task 50),
+    /// so the dispatcher factory resolves it at fire time WITHOUT the consumer
+    /// having to pre-register it with <c>AddSingleton&lt;TDispatcher&gt;()</c>. Before
+    /// the fix the type was resolved but never registered, so building a provider
+    /// from the builder's own service collection threw at fire time.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task DispatchVia_RegistersDispatcherInDi_ResolvesWithoutManualRegistration()
+    {
+        var services = new ServiceCollection();
+        var builder = new SchedulerBuilder(services);
+
+        builder.AddJob<TestWork>("custom-job")
+            .Every(TimeSpan.FromMinutes(5))
+            .DispatchVia<CustomDispatcher>();
+
+        var definition = SingleDefinition(builder);
+
+        // The consumer does NOT register CustomDispatcher; DispatchVia must have.
+        var provider = services.BuildServiceProvider();
+
+        var dispatcher = definition.DispatcherFactory(provider);
+        await Assert.That(dispatcher).IsTypeOf<CustomDispatcher>();
+    }
+
+    /// <summary>
     /// Verifies a fluent chain that mixes cadence, jitter, policy, and dispatch
     /// produces a single coherent definition.
     /// </summary>

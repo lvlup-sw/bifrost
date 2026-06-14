@@ -65,13 +65,15 @@ public sealed class OrchestratorJobDispatcher<TWork> : IJobDispatcher
     /// </param>
     /// <param name="sink">
     /// The sink an admission rejection is published through as a
-    /// <see cref="JobFireFailedEvent"/>.
+    /// <see cref="JobFireFailedEvent"/>. Required — it carries no default so an
+    /// omitted sink is a compile error rather than a runtime
+    /// <see cref="ArgumentNullException"/> (H1).
     /// </param>
     public OrchestratorJobDispatcher(
         Func<JobFireContext, TWork> fireFunc,
         IWorkOrchestrator<TWork> orchestrator,
-        WorkClass workClass = WorkClass.Batch,
-        ISchedulerEventSink sink = null!)
+        WorkClass workClass,
+        ISchedulerEventSink sink)
     {
         ArgumentNullException.ThrowIfNull(fireFunc);
         ArgumentNullException.ThrowIfNull(orchestrator);
