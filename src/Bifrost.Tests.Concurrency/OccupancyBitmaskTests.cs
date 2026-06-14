@@ -92,4 +92,28 @@ public class OccupancyBitmaskTests
             await Assert.That(word).IsEqualTo(0UL).Because("no sub-queue has published non-empty on a fresh queue");
         }
     }
+
+    /// <summary>
+    /// Pushing the first item into an empty sub-queue (the empty&#8594;non-empty crossing) sets that
+    /// sub-queue's occupancy bit, and only that bit (DR-2). The bit lives in word <c>i &gt;&gt; 6</c> at
+    /// position <c>i &amp; 63</c>; here a sub-queue index that lands in word 1 is chosen so the test
+    /// also exercises the multi-word addressing.
+    /// </summary>
+    [Test]
+    public async Task TryLockedPush_FirstItemIntoEmptySubQueue_SetsOccupancyBit()
+    {
+        // 256 sub-queues → 4 occupancy words. Drive a specific sub-queue directly so the assertion
+        // is deterministic (the public Enqueue scatters across sub-queues).
+        var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
+        const int targetIndex = 70; // word 1 (70 >> 6 == 1), bit 6 (70 & 63 == 6).
+
+        bool pushed = queue.SubQueuesForTest[targetIndex].TryLockedPush(element: 42, priority: 42);
+        await Assert.That(pushed).IsTrue().Because("an uncontended push into a fresh sub-queue succeeds");
+
+        ulong[] occupancy = queue.DebugOccupancyForTest;
+        await Assert.That(occupancy[1]).IsEqualTo(1UL << 6).Because("the first push sets exactly sub-queue 70's bit");
+        await Assert.That(occupancy[0]).IsEqualTo(0UL).Because("no other word is touched");
+        await Assert.That(occupancy[2]).IsEqualTo(0UL).Because("no other word is touched");
+        await Assert.That(occupancy[3]).IsEqualTo(0UL).Because("no other word is touched");
+    }
 }

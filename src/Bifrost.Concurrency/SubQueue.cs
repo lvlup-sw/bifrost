@@ -608,6 +608,15 @@ internal sealed class SubQueue<TElement, TPriority>
                 PublishTop(priority, empty: false);
             }
 
+            // DR-2: boundary-only occupancy transition. The empty→non-empty crossing is exactly
+            // `wasEmpty`; set this sub-queue's bit alongside the seqlock publish, under the held
+            // lock. A push onto an already-populated sub-queue leaves `wasEmpty` false and never
+            // touches the bitmask, which is what keeps it dormant on the dense hot path.
+            if (wasEmpty)
+            {
+                SetOccupancyBit();
+            }
+
             Volatile.Write(ref _header.Count, _size);
             return true;
         }
@@ -739,6 +748,20 @@ internal sealed class SubQueue<TElement, TPriority>
         => typeof(TPriority).IsValueType && _comparer is null
             ? Comparer<TPriority>.Default.Compare(x, y)
             : _comparer!.Compare(x, y);
+
+    /// <summary>
+    /// Sets this sub-queue's bit in the shared occupancy bitmask on an empty→non-empty crossing
+    /// (DR-2). Must be called with <see cref="SyncLock"/> held. The write is
+    /// <see cref="Interlocked.Or(ref ulong, ulong)"/> rather than a plain store because distinct
+    /// sub-queues share a 64-bit word under <i>different</i> per-stripe locks; an atomic OR is the
+    /// only way two neighbours can flip their bits in the same word without losing an update.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void SetOccupancyBit()
+    {
+        Debug.Assert(SyncLock.IsHeldByCurrentThread, "SetOccupancyBit requires the sub-queue lock.");
+        Interlocked.Or(ref _occupancy[_index >> 6], 1UL << (_index & 63));
+    }
 
     /// <summary>
     /// Copies this sub-queue's entries under its lock into <paramref name="buffer"/>. ToArray and
