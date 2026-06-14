@@ -70,55 +70,25 @@ public class BannedTimeApiTests
     /// overloads — which use the system clock — are banned.
     /// </summary>
     /// <remarks>
-    /// KNOWN VIOLATION (tracked for DR-7 follow-up):
-    /// <c>ScheduleTickLoop.WaitForIdleAsync</c> and <c>ScheduleTickLoop.WaitForFaultedAsync</c>
-    /// use <c>Task.Delay(timeout)</c> as a real-wall-clock guard against test hangs; these
-    /// are internal test-barrier primitives that intentionally bypass the fake clock. They
-    /// are listed in <see cref="KnownTaskDelayViolations"/> and must be fixed by passing
-    /// a CancellationToken wired to a real-wall-clock deadline so the call can remain
-    /// discoverable without failing this gate. Tracked as: ScheduleTickLoop violation
-    /// (lines 203, 368).
+    /// All shipping scheduling code uses the <see cref="TimeProvider"/>-accepting
+    /// overload. The two real-wall-clock barrier guards in <c>ScheduleTickLoop</c>
+    /// (<c>WaitForIdleAsync</c>/<c>WaitForFaultedAsync</c>) pass
+    /// <see cref="TimeProvider.System"/> explicitly — a real clock by design, but still a
+    /// <see cref="TimeProvider"/> overload — so they are compliant. There are no
+    /// pre-approved exceptions: this gate fails on ANY bare-overload reference.
     /// </remarks>
     [Test]
     public async Task SchedulingAssemblies_ContainNoNonTimeProviderTaskDelay()
     {
-        // The known violations are pre-approved barrier-timeout guards in
-        // ScheduleTickLoop (internal testing primitives). Once fixed, removing them
-        // from this list will tighten the gate automatically.
-        //
-        // TRACKED DEFECT: Bifrost.Scheduling.dll — ScheduleTickLoop.WaitForIdleAsync (line 203)
-        //   and ScheduleTickLoop.WaitForFaultedAsync (line 368) both call Task.Delay(timeout)
-        //   without a TimeProvider. These should use a CancellationToken with a real-wall-clock
-        //   deadline instead.
         var violations = FindNonTimeProviderTaskDelayViolations(SchedulingAssemblyPaths);
 
-        // Subtract the known, pre-approved violations so the test only fails on NEW
-        // regressions introduced after this baseline.
-        var unexpectedViolations = violations
-            .Except(KnownTaskDelayViolations, StringComparer.Ordinal)
-            .ToList();
-
-        await Assert.That(unexpectedViolations).IsEmpty()
+        await Assert.That(violations).IsEmpty()
             .Because(
                 "Task.Delay in shipping scheduling code must use the TimeProvider overload " +
                 "(DR-7) so tests can control time deterministically. " +
-                "Found unexpected (not pre-approved) bare Task.Delay calls:\n" +
-                string.Join("\n", unexpectedViolations));
+                "Found bare Task.Delay calls:\n" +
+                string.Join("\n", violations));
     }
-
-    /// <summary>
-    /// Pre-approved <c>Task.Delay</c> violations that are known defects tracked
-    /// for a follow-up fix. The test excludes these from the failure gate so it
-    /// does not fail on every build while the defects are open.
-    /// Remove an entry once the underlying violation is fixed.
-    /// </summary>
-    private static readonly string[] KnownTaskDelayViolations =
-    [
-        // ScheduleTickLoop.WaitForIdleAsync (line 203) and
-        // ScheduleTickLoop.WaitForFaultedAsync (line 368):
-        // internal test-barrier primitives that use a real-wall-clock guard timeout.
-        "Bifrost.Scheduling.dll: System.Threading.Tasks.Task.Delay (overload without TimeProvider, param count=1)",
-    ];
 
     /// <summary>
     /// Self-test: verifies that the IL scanner catches a deliberate violation

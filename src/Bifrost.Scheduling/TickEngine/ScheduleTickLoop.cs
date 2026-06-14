@@ -200,7 +200,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             previousWake.TrySetResult();
         }
 
-        var deadline = Task.Delay(timeout);
+        // Real-wall-clock guard against a test hang — NOT a scheduled tick. The
+        // barrier completes on the tick thread; this deadline only bounds the wait, so
+        // it must advance on the system clock (TimeProvider.System) regardless of any
+        // injected fake clock. The TimeProvider overload also keeps this off the
+        // banned-API list (RS0030), which bars the bare Task.Delay(TimeSpan).
+        var deadline = Task.Delay(timeout, TimeProvider.System);
         var completed = await Task.WhenAny(request.Task, deadline).ConfigureAwait(false);
         if (completed == deadline)
         {
@@ -365,7 +370,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             this.pendingFaulted.Add(request);
         }
 
-        var deadline = Task.Delay(timeout);
+        // Real-wall-clock guard against a test hang — NOT a scheduled tick. The
+        // barrier completes on the tick thread; this deadline only bounds the wait, so
+        // it must advance on the system clock (TimeProvider.System) regardless of any
+        // injected fake clock. The TimeProvider overload also keeps this off the
+        // banned-API list (RS0030), which bars the bare Task.Delay(TimeSpan).
+        var deadline = Task.Delay(timeout, TimeProvider.System);
         var completed = await Task.WhenAny(request.Task, deadline).ConfigureAwait(false);
         if (completed == deadline)
         {
