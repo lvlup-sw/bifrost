@@ -49,7 +49,7 @@ public sealed class InlineJobDispatcherTests
     [Test]
     public async Task DispatchAsync_RunsDelegateOnPoolThread_NotCallingThread()
     {
-        var callerThreadId = Environment.CurrentManagedThreadId;
+        var callerThreadId = 0;
         var ranOnThreadId = 0;
         var ranOnPoolThread = false;
 
@@ -60,10 +60,22 @@ public sealed class InlineJobDispatcherTests
             return ValueTask.CompletedTask;
         });
 
-        await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false);
+        // Drive the dispatch from a dedicated NON-pool thread so the "ran on a
+        // different thread than the caller" assertion is deterministic. If the caller
+        // were itself a pool thread (as the test runner is in Release), the runtime is
+        // free to recycle it to run the queued delegate, making the two thread ids
+        // coincide by chance — a real flake observed ~2/3 of Release runs. A foreground
+        // Thread is never a pool thread, so its id can never equal the pool thread's.
+        var driver = new Thread(() =>
+        {
+            callerThreadId = Environment.CurrentManagedThreadId;
+            dispatcher.DispatchAsync(Context(), CancellationToken.None).AsTask().GetAwaiter().GetResult();
+        });
+        driver.Start();
+        driver.Join();
 
-        await Assert.That(ranOnThreadId).IsNotEqualTo(callerThreadId);
         await Assert.That(ranOnPoolThread).IsTrue();
+        await Assert.That(ranOnThreadId).IsNotEqualTo(callerThreadId);
     }
 
     /// <summary>
