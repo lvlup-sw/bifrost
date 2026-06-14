@@ -202,4 +202,44 @@ public class OccupancyBitmaskTests
         await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(2L).Because(
             "the non-empty→empty last pop is the second and only other boundary crossing");
     }
+
+    /// <summary>
+    /// The <c>n = 1</c> collapse behaves identically to today (DR-4): the single-word bitmask's one
+    /// bit mirrors the sole sub-queue's <c>EmptyFlag</c>, the relaxed dequeue returns the exact
+    /// minimum (no relaxation when there is only one sub-queue), and a drained queue reports honest
+    /// emptiness. The bitmask is purely additive — it must not perturb the collapsed exact-ordering
+    /// case.
+    /// </summary>
+    [Test]
+    public async Task TryDequeue_SingleSubQueue_ReturnsExactMinAndHonestEmpty()
+    {
+        var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 1, boundedCapacity: -1, comparer: null);
+        await Assert.That(queue.DebugOccupancyForTest.Length).IsEqualTo(1).Because("n = 1 → one occupancy word");
+        await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(0UL).Because("fresh single sub-queue: bit clear");
+
+        // Enqueue out of priority order; with one sub-queue the dequeue is exact (the true minimum).
+        queue.Enqueue(element: 30, priority: 30);
+        queue.Enqueue(element: 10, priority: 10);
+        queue.Enqueue(element: 20, priority: 20);
+        await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(1UL).Because(
+            "the single sub-queue is non-empty, so its one bit mirrors EmptyFlag = 0");
+
+        await Assert.That(queue.TryDequeue(out int e1, out int p1)).IsTrue();
+        await Assert.That(p1).IsEqualTo(10).Because("a single sub-queue yields the exact minimum");
+        await Assert.That(e1).IsEqualTo(10);
+
+        await Assert.That(queue.TryDequeue(out _, out int p2)).IsTrue();
+        await Assert.That(p2).IsEqualTo(20).Because("exact ordering continues");
+
+        await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(1UL).Because("one item left: bit still set");
+
+        await Assert.That(queue.TryDequeue(out _, out int p3)).IsTrue();
+        await Assert.That(p3).IsEqualTo(30);
+
+        // Drained: the single bit mirrors EmptyFlag = 1 again, and TryDequeue is honestly empty.
+        await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(0UL).Because(
+            "the drained single sub-queue's bit clears, mirroring EmptyFlag = 1");
+        await Assert.That(queue.TryDequeue(out _, out _)).IsFalse().Because("a drained queue is honestly empty");
+        await Assert.That(queue.IsEmpty).IsTrue();
+    }
 }
