@@ -40,7 +40,7 @@ namespace Bifrost.Scheduling.TickEngine;
 /// <see cref="Bifrost.Scheduling.Core.Events.JobFireFailedEvent"/>.
 /// </para>
 /// </remarks>
-public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
+public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, ISchedulerFaultSource
 {
     /// <summary>
     /// The maximum number of missed occurrences reconciled at startup — mirrors the
@@ -63,6 +63,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     private readonly ILogger<ScheduleTickLoop> logger;
     private readonly SchedulerOptions options;
     private readonly SchedulerMetrics metrics;
+    private readonly ITickHealthMonitor healthMonitor;
 
     // The min-heap of pending fires keyed by scheduled occurrence. Owned by — and
     // only ever touched on — the single tick thread, so it needs no lock.
@@ -128,6 +129,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     /// <see langword="null"/>, a private meter is created; production passes the
     /// shared instance the registry also records against.
     /// </param>
+    /// <param name="healthMonitor">
+    /// The tick/fire liveness monitor the loop updates so the
+    /// <see cref="SchedulerHealthCheck"/> can read it (DR-8): the loop records a tick
+    /// each wait and a fire outcome (success or failure) per dispatch. When
+    /// <see langword="null"/>, a private monitor is created; production passes the
+    /// shared instance the health check reads.
+    /// </param>
     internal ScheduleTickLoop(
         ScheduleRegistry registry,
         IScheduleStore store,
@@ -136,7 +144,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
         ISchedulerEventSink eventSink,
         ILogger<ScheduleTickLoop> logger,
         SchedulerOptions options,
-        SchedulerMetrics? metrics = null)
+        SchedulerMetrics? metrics = null,
+        ITickHealthMonitor? healthMonitor = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(store);
@@ -154,6 +163,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
         this.logger = logger;
         this.options = options;
         this.metrics = metrics ?? new SchedulerMetrics();
+        this.healthMonitor = healthMonitor ?? new TickHealthMonitor();
     }
 
     /// <summary>
@@ -283,6 +293,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     /// stopped ticking (DR-10). A later group's health check reads this.
     /// </summary>
     internal bool IsFaulted => Volatile.Read(ref this.faultedState) == 1;
+
+    /// <inheritdoc/>
+    bool ISchedulerFaultSource.IsFaulted => this.IsFaulted;
 
     /// <summary>
     /// Runs the tick loop until cancelled, re-arming the loop's notion of "now" each
@@ -481,6 +494,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     /// <returns>A task that completes when the tick has been processed.</returns>
     private async Task RunTickAsync(CancellationToken stoppingToken)
     {
+        // Record liveness each iteration so the health check can detect a stalled
+        // loop (DR-8). The instant is read from the injected clock (DR-7).
+        this.healthMonitor.RecordTick(this.timeProvider.GetUtcNow());
+
         this.DrainCommands();
         this.DispatchDueJobs(stoppingToken);
         await this.WaitForNextWakeAsync(stoppingToken).ConfigureAwait(false);
@@ -1065,6 +1082,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
             try
             {
                 await inner.DispatchAsync(context, ct).ConfigureAwait(false);
+                owner.healthMonitor.RecordFireOutcome(success: true);
             }
 #pragma warning disable CA1031 // A throwing dispatcher is isolated as a failed-fire event.
             catch (Exception ex)
@@ -1077,6 +1095,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
                     context.FireTime,
                     ex));
                 owner.metrics.RecordDispatchFailure(context.JobName, ex.GetType().Name);
+                owner.healthMonitor.RecordFireOutcome(success: false);
             }
             finally
             {
