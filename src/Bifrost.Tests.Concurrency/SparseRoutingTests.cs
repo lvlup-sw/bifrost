@@ -99,4 +99,40 @@ public class SparseRoutingTests
         await Assert.That(queue.DebugScanEntryCountForTest - scanEntriesBefore).IsEqualTo(1L).Because(
             "the public TryDequeue reaches the scan on an empty queue (sampling and routing both miss)");
     }
+
+    /// <summary>
+    /// When the two-choice sampling phase lands a pop within budget (the dense fast path), the dequeue
+    /// returns before Phase 1.5, so the routing phase is never entered (DR-3/DR-5). Verified by a
+    /// densely-populated queue: every sub-queue holds items, so the very first sample round pops
+    /// successfully and neither the routing-hit nor the scan-entry counter moves.
+    /// </summary>
+    [Test]
+    public async Task TryDequeue_SamplingSucceeds_DoesNotEnterRoutingPhase()
+    {
+        // 16 sub-queues, every one populated, so any sampled pair is non-empty and the first round
+        // pops. Many items per sub-queue so a few thousand dequeues stay dense.
+        var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 16, boundedCapacity: -1, comparer: null);
+        for (int i = 0; i < queue.SubQueueCountForTest; i++)
+        {
+            for (int j = 0; j < 1000; j++)
+            {
+                await Assert.That(queue.SubQueuesForTest[i].TryLockedPush(element: (i * 1000) + j, priority: j)).IsTrue();
+            }
+        }
+
+        long routingHitsBefore = queue.DebugRoutingHitCountForTest;
+        long scanEntriesBefore = queue.DebugScanEntryCountForTest;
+
+        // Far fewer dequeues than total items, so the queue stays dense throughout and sampling always
+        // lands within budget.
+        for (int n = 0; n < 2000; n++)
+        {
+            await Assert.That(queue.TryDequeue(out _, out _)).IsTrue().Because("a dense queue always yields a pop");
+        }
+
+        await Assert.That(queue.DebugRoutingHitCountForTest - routingHitsBefore).IsEqualTo(0L).Because(
+            "sampling succeeded every time, so Phase 1.5 routing was never entered on the dense path");
+        await Assert.That(queue.DebugScanEntryCountForTest - scanEntriesBefore).IsEqualTo(0L).Because(
+            "and the O(n) verification scan was never entered on the dense path either");
+    }
 }
