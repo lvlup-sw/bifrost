@@ -39,4 +39,19 @@ public interface IBifrostScheduleInspector
     /// </summary>
     /// <returns>The current metrics snapshot.</returns>
     ScheduleMetricsSnapshot GetMetricsSnapshot();
+
+    /// <summary>
+    /// Returns the next <paramref name="count"/> future fire instants for the named
+    /// job, in ascending order (DR-8/R10). Uses the same cadence engine as the tick
+    /// loop (coravel#250, Hangfire#899) — the previewed instants are exactly the
+    /// instants the tick loop would fire, given no further mutations.
+    /// </summary>
+    /// <param name="name">The name of the job to project.</param>
+    /// <param name="count">The number of future occurrences to return; must be at least 1.</param>
+    /// <returns>
+    /// An ordered list of <paramref name="count"/> future fire instants, or fewer
+    /// when the cadence is exhausted (for example, a one-shot). Returns an empty list
+    /// when no job with the supplied <paramref name="name"/> is registered.
+    /// </returns>
+    IReadOnlyList<DateTimeOffset> GetNextOccurrences(string name, int count);
 }

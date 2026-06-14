@@ -47,6 +47,28 @@ public static class SchedulerServiceCollectionExtensions
     /// <see cref="SchedulerMetrics"/>, and <see cref="TickHealthMonitor"/> so the
     /// registry, tick loop, and router all observe one unified timeline.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Ergonomics (R10):</strong> Mutating operations on <see cref="IScheduleRegistry"/>
+    /// (<c>RegisterAsync</c>, <c>UpdateAsync</c>, <c>PauseAsync</c>, <c>ResumeAsync</c>)
+    /// never cause immediate execution as a side effect. <c>TriggerAsync</c> is the
+    /// only API that fires a job on demand.
+    /// </para>
+    /// <para>
+    /// <strong>IIS / Azure App Service idle-timeout:</strong> On hosting environments that
+    /// recycle the process after a period of inactivity (IIS idle timeout, Azure App Service
+    /// "Always On" disabled), the scheduler health check provides a liveness signal. Integrate
+    /// the <c>bifrost.scheduling</c> health check into the platform's liveness probe to keep
+    /// the process warm — or enable "Always On" in Azure App Service to prevent recycling
+    /// entirely. A recycled process loses in-memory schedule state; pair with a durable
+    /// <see cref="IScheduleStore"/> (<c>UseStore&lt;T&gt;</c>) so schedules survive restart.
+    /// </para>
+    /// <para>
+    /// Calling <c>AddScheduler</c> more than once on the same <see cref="IServiceCollection"/>
+    /// throws <see cref="InvalidOperationException"/> — use the <paramref name="configure"/>
+    /// callback to add additional jobs or swap the store (NCronJob#138).
+    /// </para>
+    /// </remarks>
     /// <param name="services">The service collection to add to.</param>
     /// <param name="configure">
     /// An optional callback to add DI-time jobs and select a durable store through
@@ -54,11 +76,28 @@ public static class SchedulerServiceCollectionExtensions
     /// </param>
     /// <returns>The service collection, for chaining.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// <c>AddScheduler</c> has already been called on <paramref name="services"/>.
+    /// </exception>
     public static IServiceCollection AddScheduler(
         this IServiceCollection services,
         Action<ISchedulerBuilder>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        // Guard against double registration: calling AddScheduler twice on the same
+        // IServiceCollection is a configuration error that hides conflicts and
+        // produces undefined behavior (NCronJob#138, R10). The marker is a private
+        // sealed class so it cannot be registered by accident from outside this method.
+        if (services.Any(static sd => sd.ServiceType == typeof(SchedulerRegisteredMarker)))
+        {
+            throw new InvalidOperationException(
+                "AddScheduler has already been called on this IServiceCollection. " +
+                "Calling it more than once is not supported — use the configure callback " +
+                "to add additional jobs or swap the store instead of calling AddScheduler twice.");
+        }
+
+        services.AddSingleton<SchedulerRegisteredMarker>();
 
         // Defaults registered with TryAdd so a caller-supplied TimeProvider is kept
         // and UseStore can replace the default store.
@@ -149,4 +188,13 @@ public static class SchedulerServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// A private marker type registered as a singleton the first time
+    /// <see cref="AddScheduler"/> is called. Its presence is the double-registration
+    /// guard: a second call sees the descriptor and throws
+    /// <see cref="InvalidOperationException"/> before any further setup runs
+    /// (NCronJob#138, R10).
+    /// </summary>
+    private sealed class SchedulerRegisteredMarker;
 }

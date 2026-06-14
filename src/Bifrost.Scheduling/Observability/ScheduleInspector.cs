@@ -48,4 +48,8 @@ public sealed class ScheduleInspector : IBifrostScheduleInspector
         => new(
             JobCount: this.registry.GetJobs().Count,
             RecentFireCount: this.fireSource?.RecentFireCount ?? 0);
+
+    /// <inheritdoc/>
+    public IReadOnlyList<DateTimeOffset> GetNextOccurrences(string name, int count)
+        => this.registry.GetNextOccurrences(name, count);
 }
