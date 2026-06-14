@@ -12,7 +12,8 @@ namespace Bifrost.Scheduling.DependencyInjection;
 
 /// <summary>
 /// The fluent surface for configuring the scheduler at registration time (DR-1).
-/// Returned to the <c>configure</c> callback of <c>AddScheduler</c>, it adds DI-time
+/// Returned to the <c>configure</c> callback of
+/// <see cref="SchedulerServiceCollectionExtensions.AddScheduler"/>, it adds DI-time
 /// jobs and selects the durable store.
 /// </summary>
 /// <remarks>

@@ -17,10 +17,10 @@ namespace Bifrost.Scheduling.DependencyInjection;
 /// </summary>
 /// <remarks>
 /// The definition is the seam between the build-time DSL and the runtime registry:
-/// <c>AddScheduler</c> wires a tiny hosted service that, for each accumulated
-/// definition, resolves <see cref="DispatcherFactory"/> against the application
-/// service provider and calls <see cref="IScheduleRegistry.RegisterAsync"/>.
-/// Holding a factory rather
+/// <see cref="SchedulerServiceCollectionExtensions.AddScheduler"/> wires a tiny
+/// hosted service that, for each accumulated definition, resolves
+/// <see cref="DispatcherFactory"/> against the application service provider and
+/// calls <see cref="IScheduleRegistry.RegisterAsync"/>. Holding a factory rather
 /// than a constructed dispatcher keeps DI resolution deferred to startup, after the
 /// service provider exists and is fully built.
 /// </remarks>

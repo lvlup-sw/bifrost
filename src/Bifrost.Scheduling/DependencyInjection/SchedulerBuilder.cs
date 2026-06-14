@@ -16,7 +16,8 @@ namespace Bifrost.Scheduling.DependencyInjection;
 
 /// <summary>
 /// The default <see cref="ISchedulerBuilder"/> (DR-1): accumulates the DI-time job
-/// builders and the durable-store selection during the <c>AddScheduler</c> callback.
+/// builders and the durable-store selection during the
+/// <see cref="SchedulerServiceCollectionExtensions.AddScheduler"/> callback.
 /// </summary>
 /// <remarks>
 /// Job builders are held rather than eagerly materialized, so a definition reflects
