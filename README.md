@@ -248,7 +248,8 @@ public interface IWorkOrchestrator<TWork> : IAsyncDisposable
 {
     // Core operations - zero-allocation hot path.
     // Admission outcomes are values, never exceptions: a rejected enqueue
-    // returns EnqueueResult.Rejected(reason), it does not throw.
+    // returns EnqueueResult.Rejected(reason), it does not throw. (Canceling ct
+    // still throws OperationCanceledException, as with any async API.)
     ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default);
     bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default);
 
