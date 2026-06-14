@@ -53,14 +53,9 @@ public abstract record Cadence
     /// The time zone the expression is evaluated in, or <see langword="null"/> to
     /// evaluate in UTC.
     /// </param>
-    /// <returns>A cron cadence for the supplied expression.</returns>
-    /// <remarks>
-    /// Temporarily unimplemented: the <c>CronCadence</c> type and this wiring are
-    /// introduced in Task 12. This stub exists only so the one-shot factories can
-    /// compile in Task 9 and is replaced when cron support lands.
-    /// </remarks>
+    /// <returns>A <see cref="CronCadence"/> for the supplied expression.</returns>
     public static Cadence Cron(string expression, TimeZoneInfo? timeZone = null)
-        => throw new NotImplementedException();
+        => new CronCadence(expression, timeZone);
 
     /// <summary>
     /// Builds a one-shot cadence that fires once at the supplied absolute instant.
