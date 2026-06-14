@@ -383,10 +383,6 @@ public class ThreadChurnTests
         // Act — start the observer and consumers, then run 8 batches of 8 short-lived producers that
         // hammer TryEnqueue (many failures expected once the gate is saturated).
         observer.Start();
-        foreach (var consumer in consumers)
-        {
-            consumer.Start();
-        }
 
         for (int batch = 0; batch < 8; batch++)
         {
@@ -428,6 +424,22 @@ public class ThreadChurnTests
             foreach (var producer in producers)
             {
                 producer.Join();
+            }
+
+            if (batch == 0)
+            {
+                // Start the consumers only AFTER the first batch has hammered the still-undrained
+                // queue. With no draining, 8 producers × 200 attempts against the 32-slot gate
+                // guarantee saturation (≈1568 rejections) regardless of scheduler timing — under
+                // coverage on a few-core CI runner the two consumers could otherwise keep pace and
+                // leave failedEnqueues at 0, never exercising the bound. Batches 1–7 then run with
+                // consumers draining, producing the concurrent boundary churn the overshoot
+                // assertions need. Batch 0's max in-flight gate overshoot (≤ BatchSize = 8) stays
+                // within TransientOvershootAllowance (10), so the overshoot assertions still hold.
+                foreach (var consumer in consumers)
+                {
+                    consumer.Start();
+                }
             }
         }
 
