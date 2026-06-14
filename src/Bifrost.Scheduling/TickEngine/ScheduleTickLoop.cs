@@ -178,6 +178,14 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     /// <inheritdoc/>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // DR-6: the loop is unconditionally always-leader — there is no leadership,
+        // lease, or coordination path. Opting into multi-instance against the default
+        // non-exclusive store therefore produces duplicate fires; warn prominently.
+        if (this.options.MultiInstanceExpected)
+        {
+            this.LogMultiInstanceWarning();
+        }
+
         await this.SeedAsync(stoppingToken).ConfigureAwait(false);
 
         while (!stoppingToken.IsCancellationRequested)
