@@ -166,4 +166,40 @@ public class OccupancyBitmaskTests
         await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(0UL).Because(
             "LockedClear empties the sub-queue and must clear its occupancy bit");
     }
+
+    /// <summary>
+    /// Only boundary crossings write the bitmask (DR-2): a push onto an already-populated sub-queue
+    /// and a pop that leaves entries behind perform no <c>Interlocked</c> write to the occupancy
+    /// word. Verified by the instrumented per-sub-queue transition-write counter — the mechanism
+    /// that keeps the bitmask dormant on the dense hot path.
+    /// </summary>
+    [Test]
+    public async Task Occupancy_PushToPopulatedAndNonLastPop_PerformsNoBitmaskWrite()
+    {
+        var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
+        const int targetIndex = 70;
+        SubQueue<int, int> sub = queue.SubQueuesForTest[targetIndex];
+
+        // First push is a boundary crossing: exactly one write (the set).
+        await Assert.That(sub.TryLockedPush(element: 5, priority: 5)).IsTrue();
+        await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(1L).Because(
+            "the empty→non-empty push is the only boundary crossing so far");
+
+        // Subsequent pushes onto the populated sub-queue are NOT boundary crossings: counter frozen.
+        await Assert.That(sub.TryLockedPush(element: 6, priority: 6)).IsTrue();
+        await Assert.That(sub.TryLockedPush(element: 7, priority: 7)).IsTrue();
+        await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(1L).Because(
+            "pushes onto a populated sub-queue must not touch the bitmask");
+
+        // Non-last pops (3 in → pop 2, leaving 1) are NOT boundary crossings: counter frozen.
+        await Assert.That(sub.TryLockedPop(out _, out _)).IsEqualTo(SubQueuePopStatus.Success);
+        await Assert.That(sub.TryLockedPop(out _, out _)).IsEqualTo(SubQueuePopStatus.Success);
+        await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(1L).Because(
+            "non-last pops leave entries behind and must not touch the bitmask");
+
+        // The last pop IS a boundary crossing: exactly one more write (the clear).
+        await Assert.That(sub.TryLockedPop(out _, out _)).IsEqualTo(SubQueuePopStatus.Success);
+        await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(2L).Because(
+            "the non-empty→empty last pop is the second and only other boundary crossing");
+    }
 }

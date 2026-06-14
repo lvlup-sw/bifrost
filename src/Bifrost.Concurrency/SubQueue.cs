@@ -77,6 +77,16 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     private readonly ulong[] _occupancy;
 
+    /// <summary>
+    /// TEST-ONLY instrumentation: the number of times this sub-queue wrote its occupancy bit (a set
+    /// or a clear). Boundary-only writes (DR-2) mean this increments exactly once per
+    /// empty&#8596;non-empty crossing and never on a push onto a populated heap or a non-last pop.
+    /// It is incremented inside <see cref="SetOccupancyBit"/>/<see cref="ClearOccupancyBit"/>, both
+    /// of which run under <see cref="SyncLock"/>, so the writes are serialized; a single-threaded
+    /// test reads it directly via <see cref="DebugOccupancyWriteCountForTest"/>.
+    /// </summary>
+    private long _debugOccupancyWriteCount;
+
     /// <summary>The cached top priority, isolated on its own cache line (see <see cref="PaddedTopSlot{TPriority}"/>).</summary>
     private readonly PaddedTopSlot<TPriority> _cachedTop;
 
@@ -165,6 +175,13 @@ internal sealed class SubQueue<TElement, TPriority>
     /// (or deliberately did not) republish the cached top.
     /// </summary>
     internal uint DebugTopVersionForTest => Volatile.Read(ref _header.TopVersion);
+
+    /// <summary>
+    /// TEST-ONLY: the count of occupancy-bit writes (set + clear) this sub-queue has performed.
+    /// Boundary-only (DR-2): it increments exactly once per empty&#8596;non-empty crossing and stays
+    /// frozen across pushes onto a populated heap and non-last pops.
+    /// </summary>
+    internal long DebugOccupancyWriteCountForTest => Volatile.Read(ref _debugOccupancyWriteCount);
 
     /// <summary>
     /// Publishes a new cached top (or the empty state) through the seqlock. Must be called with
@@ -774,6 +791,7 @@ internal sealed class SubQueue<TElement, TPriority>
     {
         Debug.Assert(SyncLock.IsHeldByCurrentThread, "SetOccupancyBit requires the sub-queue lock.");
         Interlocked.Or(ref _occupancy[_index >> 6], 1UL << (_index & 63));
+        CountOccupancyWrite();
     }
 
     /// <summary>
@@ -787,7 +805,19 @@ internal sealed class SubQueue<TElement, TPriority>
     {
         Debug.Assert(SyncLock.IsHeldByCurrentThread, "ClearOccupancyBit requires the sub-queue lock.");
         Interlocked.And(ref _occupancy[_index >> 6], ~(1UL << (_index & 63)));
+        CountOccupancyWrite();
     }
+
+    /// <summary>
+    /// TEST-ONLY instrumentation hook: counts one occupancy-bit write (set or clear). Always called
+    /// under <see cref="SyncLock"/>, so the plain increment is race-free. The increment is
+    /// unconditional (the <c>InternalsVisibleTo</c> tests build against this same Release binary), but
+    /// it runs <i>only on a boundary crossing</i> — never on the dense hot path where the bitmask is
+    /// already dormant — and touches only this sub-queue's own cold field, never the shared hot
+    /// bitmask word, so it adds no contention.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CountOccupancyWrite() => _debugOccupancyWriteCount++;
 
     /// <summary>
     /// Copies this sub-queue's entries under its lock into <paramref name="buffer"/>. ToArray and
