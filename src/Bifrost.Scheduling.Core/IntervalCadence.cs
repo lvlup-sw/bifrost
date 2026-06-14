@@ -12,7 +12,7 @@ namespace Bifrost.Scheduling.Core;
 /// <param name="Interval">The spacing between occurrences; must be strictly positive.</param>
 /// <param name="Jitter">
 /// The optional jitter fraction in <c>[0, 1]</c> applied to each computed fire to
-/// spread load; <c>0</c> disables jitter.
+/// spread load; <c>0</c> disables jitter. See <see cref="WithJitter(double)"/>.
 /// </param>
 /// <remarks>
 /// Occurrences are aligned to whole-interval steps from the last fire. When one or
@@ -57,6 +57,19 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
         var baseFire = ComputeBaseFire(lastFiredAt, now);
         return ApplyJitter(baseFire);
     }
+
+    /// <summary>
+    /// Returns a copy of this cadence with the supplied jitter fraction applied.
+    /// </summary>
+    /// <param name="fraction">
+    /// The jitter fraction in <c>[0, 1]</c>: each computed fire is spread by up to
+    /// <see cref="Interval"/> × <paramref name="fraction"/> on either side.
+    /// </param>
+    /// <returns>A new <see cref="IntervalCadence"/> carrying the jitter fraction.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="fraction"/> is outside <c>[0, 1]</c>.
+    /// </exception>
+    public IntervalCadence WithJitter(double fraction) => this with { Jitter = fraction };
 
     private static TimeSpan ValidateInterval(TimeSpan value)
     {
