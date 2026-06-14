@@ -78,13 +78,23 @@ public sealed class JobDispatcherRouterTests
         var dispatcher = new RecordingDispatcher();
         var router = new JobDispatcherRouter(sink);
 
-        var callerThreadId = Environment.CurrentManagedThreadId;
-        router.Dispatch(dispatcher, Context(), CancellationToken.None);
+        // Issue the (fire-and-forget) dispatch from a dedicated NON-pool thread so the
+        // "ran on a different thread than the caller" assertion is deterministic. A pool
+        // thread caller (the TUnit runner in Release) can be recycled to run the queued
+        // dispatch, making the two ids coincide by chance; a foreground Thread cannot.
+        var callerThreadId = 0;
+        var driver = new Thread(() =>
+        {
+            callerThreadId = Environment.CurrentManagedThreadId;
+            router.Dispatch(dispatcher, Context(), CancellationToken.None);
+        });
+        driver.Start();
+        driver.Join();
 
         var observed = await WaitUntilAsync(() => dispatcher.Invocations > 0).ConfigureAwait(false);
         await Assert.That(observed).IsTrue();
-        await Assert.That(dispatcher.RanOnThreadId).IsNotEqualTo(callerThreadId);
         await Assert.That(dispatcher.RanOnPoolThread).IsTrue();
+        await Assert.That(dispatcher.RanOnThreadId).IsNotEqualTo(callerThreadId);
     }
 
     /// <summary>
