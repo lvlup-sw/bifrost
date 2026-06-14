@@ -1,5 +1,5 @@
 // =============================================================================
-// <copyright file="SingleProcessBehaviorTests.cs" company="Levelup Software">
+// <copyright file="CommandWakeTests.cs" company="Levelup Software">
 // Copyright (c) Levelup Software. All rights reserved.
 // </copyright>
 // =============================================================================
@@ -13,79 +13,86 @@ using Bifrost.Scheduling.TickEngine;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
 namespace Bifrost.Tests.Scheduling.TickEngine;
 
 /// <summary>
-/// Tests for the <see cref="ScheduleTickLoop"/>'s always-leader single-process
-/// behaviour and multi-instance warning (Task 27, DR-6): the loop unconditionally
-/// ticks every registered job, and warns prominently at startup when the host opts
-/// into multi-instance against the default non-exclusive store.
+/// No-lost-wakeup tests for the cached command-readiness wait (core-2): the loop
+/// reuses a single <c>WaitToReadAsync</c> task across non-command wakes to avoid a
+/// per-wake allocation. These tests prove a registry command still wakes the loop in
+/// the situations the reuse must handle — when the loop is parked on a delay timer
+/// (heap non-empty) and across a sequence of commands that each complete-and-recreate
+/// the cached wait.
 /// </summary>
 [ParallelLimiter<TickEngineParallelLimit>]
-public sealed class SingleProcessBehaviorTests
+public sealed class CommandWakeTests
 {
     private static readonly DateTimeOffset Start =
         new(2026, 6, 13, 12, 0, 0, TimeSpan.Zero);
 
-    // A real root provider so each fire opens (and disposes) a genuine per-fire scope
-    // (F2/M2) — exercises the per-fire scope lifecycle in this fixture's tick loop.
+    // A real root provider so each fire opens a genuine per-fire scope (F2/M2).
     private static readonly ServiceProvider Services = new ServiceCollection().BuildServiceProvider();
 
     private static TimeSpan TestTimeout => TimeSpan.FromSeconds(10);
 
     /// <summary>
-    /// Verifies the default single-process loop ticks every registered job.
+    /// Verifies a registry command (a second registration) wakes the loop even while it
+    /// is parked on a delay timer for a previously-armed job — the cached command wait,
+    /// pending from the first job's park, must complete on the new command. The newly
+    /// registered job then fires at its occurrence.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
-    public async Task SingleProcessDefault_TicksEveryRegisteredJob()
+    public async Task CommandArrivesWhileParkedOnTimer_WakesLoop_NoLostWakeup()
     {
-        await using var fx = await Fixture.StartAsync(new SchedulerOptions()).ConfigureAwait(false);
-        var a = await fx.RegisterAsync("a", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
-        var b = await fx.RegisterAsync("b", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
 
-        fx.Time.Advance(TimeSpan.FromMinutes(5));
+        // First job: arms a far-future timer, so the loop parks on the delay task while
+        // the cached command wait stays pending.
+        var first = await fx.RegisterAsync("first", Cadence.Interval(TimeSpan.FromHours(1))).ConfigureAwait(false);
+
+        // Second registration is a registry command that must wake the loop off its
+        // delay park via the (reused) command wait.
+        var second = await fx.RegisterAsync("second", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
+
+        // The second job's occurrence comes due first; it must fire (proving the command
+        // armed it and the loop re-parked on the nearer timer).
+        fx.Time.Advance(TimeSpan.FromMinutes(1));
+        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+
+        await Assert.That(second.FireCount).IsEqualTo(1);
+        await Assert.That(first.FireCount).IsEqualTo(0);
+    }
+
+    /// <summary>
+    /// Verifies a sequence of registry commands each wakes the loop. After the first
+    /// command completes the cached wait, the loop must recreate a fresh wait that the
+    /// next command completes in turn — exercising the complete-then-recreate path.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task SequentialCommands_EachWakesLoop_NoLostWakeup()
+    {
+        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
+
+        // Three registrations in a row; each is a distinct command wake. The fixture's
+        // RegisterAsync waits for idle after each, so a lost wakeup would hang the test.
+        var a = await fx.RegisterAsync("a", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
+        var b = await fx.RegisterAsync("b", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
+        var c = await fx.RegisterAsync("c", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
+
+        fx.Time.Advance(TimeSpan.FromMinutes(1));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
         await Assert.That(a.FireCount).IsEqualTo(1);
         await Assert.That(b.FireCount).IsEqualTo(1);
+        await Assert.That(c.FireCount).IsEqualTo(1);
     }
 
     /// <summary>
-    /// Verifies opting into multi-instance with the default store logs a prominent
-    /// startup warning that duplicate fires occur.
-    /// </summary>
-    /// <returns>A task representing the asynchronous test.</returns>
-    [Test]
-    public async Task MultiInstanceExpected_LogsStartupWarning()
-    {
-        var logger = new CapturingLogger<ScheduleTickLoop>();
-        await using var fx = await Fixture.StartAsync(
-            new SchedulerOptions { MultiInstanceExpected = true }, logger).ConfigureAwait(false);
-
-        await Assert.That(logger.Any(LogLevel.Warning)).IsTrue();
-        await Assert.That(logger.Contains(LogLevel.Warning, "duplicate")).IsTrue();
-    }
-
-    /// <summary>
-    /// Verifies the default options log no multi-instance warning.
-    /// </summary>
-    /// <returns>A task representing the asynchronous test.</returns>
-    [Test]
-    public async Task DefaultOptions_LogsNoMultiInstanceWarning()
-    {
-        var logger = new CapturingLogger<ScheduleTickLoop>();
-        await using var fx = await Fixture.StartAsync(new SchedulerOptions(), logger).ConfigureAwait(false);
-
-        await Assert.That(logger.Contains(LogLevel.Warning, "duplicate")).IsFalse();
-    }
-
-    /// <summary>
-    /// A test harness owning a started <see cref="ScheduleTickLoop"/> with a
-    /// configurable <see cref="SchedulerOptions"/> and optional capturing logger.
+    /// A test harness owning a started <see cref="ScheduleTickLoop"/>.
     /// </summary>
     private sealed class Fixture : IAsyncDisposable
     {
@@ -102,9 +109,7 @@ public sealed class SingleProcessBehaviorTests
 
         public ScheduleTickLoop Loop { get; }
 
-        public static async Task<Fixture> StartAsync(
-            SchedulerOptions options,
-            ILogger<ScheduleTickLoop>? logger = null)
+        public static async Task<Fixture> StartAsync()
         {
             var time = new FakeTimeProvider(Start);
             var store = new InMemoryScheduleStore();
@@ -113,7 +118,7 @@ public sealed class SingleProcessBehaviorTests
             var router = new JobDispatcherRouter(sink);
             var loop = new ScheduleTickLoop(
                 registry, store, time, router, sink,
-                logger ?? new CapturingLogger<ScheduleTickLoop>(), options,
+                NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
                 serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop);

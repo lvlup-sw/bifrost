@@ -12,6 +12,7 @@ using Bifrost.Scheduling.Registry;
 using Bifrost.Scheduling.Stores;
 using Bifrost.Scheduling.TickEngine;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -29,6 +30,10 @@ public sealed class ScheduleTickLoopBasicTests
 {
     private static readonly DateTimeOffset Start =
         new(2026, 6, 13, 0, 0, 0, TimeSpan.Zero);
+
+    // A real root provider so each fire opens (and disposes) a genuine per-fire scope
+    // (F2/M2) — exercises the per-fire scope lifecycle in this fixture's tick loop.
+    private static readonly ServiceProvider Services = new ServiceCollection().BuildServiceProvider();
 
     /// <summary>
     /// Verifies an empty registry never dispatches even after time advances.
@@ -240,7 +245,8 @@ public sealed class ScheduleTickLoopBasicTests
                 router,
                 sink,
                 NullLogger<ScheduleTickLoop>.Instance,
-                new SchedulerOptions());
+                new SchedulerOptions(),
+                serviceProvider: Services);
 
             var fx = new Fixture(time, registry, store, loop, sink);
             await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);

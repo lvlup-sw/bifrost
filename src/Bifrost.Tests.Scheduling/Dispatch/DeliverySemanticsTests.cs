@@ -12,6 +12,7 @@ using Bifrost.Scheduling.Registry;
 using Bifrost.Scheduling.Stores;
 using Bifrost.Scheduling.TickEngine;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -35,6 +36,11 @@ public sealed class DeliverySemanticsTests
 {
     private static readonly DateTimeOffset Start =
         new(2026, 6, 13, 12, 0, 0, TimeSpan.Zero);
+
+    // A real root provider so the loop opens (and disposes) a genuine per-fire scope on
+    // every fire (F2/M2). Empty: these tests assert the FireTime invariants, not scoped
+    // resolution, so the scope path is exercised end-to-end without extra services.
+    private static readonly ServiceProvider Services = new ServiceCollection().BuildServiceProvider();
 
     private static TimeSpan TestTimeout => TimeSpan.FromSeconds(10);
 
@@ -114,7 +120,8 @@ public sealed class DeliverySemanticsTests
         var router = new JobDispatcherRouter(sink);
         var loop = new ScheduleTickLoop(
             registry, store, time, router, sink,
-            NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions());
+            NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
+            serviceProvider: Services);
 
         // Register the dispatcher so the loop can resolve it at dispatch time.
         // The SeedingStore ignores the SaveAsync call and preserves the stale record
@@ -218,7 +225,8 @@ public sealed class DeliverySemanticsTests
             var router = new JobDispatcherRouter(sink);
             var loop = new ScheduleTickLoop(
                 registry, store, time, router, sink,
-                NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions());
+                NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
+                serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop);
             await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
