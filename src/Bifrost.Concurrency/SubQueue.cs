@@ -684,6 +684,13 @@ internal sealed class SubQueue<TElement, TPriority>
         if (_size == 0)
         {
             PublishTop(priority, empty: true);
+
+            // DR-2: boundary-only occupancy transition. The non-empty→empty crossing is exactly
+            // `_size == 0` after the pop; clear this sub-queue's bit alongside the empty publish,
+            // under the held lock. A pop that leaves entries behind takes the else-branch and never
+            // touches the bitmask. PopHeldRoot is the single drain funnel, so TryLockedPop inherits
+            // this clear.
+            ClearOccupancyBit();
         }
         else
         {
@@ -761,6 +768,19 @@ internal sealed class SubQueue<TElement, TPriority>
     {
         Debug.Assert(SyncLock.IsHeldByCurrentThread, "SetOccupancyBit requires the sub-queue lock.");
         Interlocked.Or(ref _occupancy[_index >> 6], 1UL << (_index & 63));
+    }
+
+    /// <summary>
+    /// Clears this sub-queue's bit in the shared occupancy bitmask on a non-empty→empty crossing
+    /// (DR-2). Must be called with <see cref="SyncLock"/> held. Uses
+    /// <see cref="Interlocked.And(ref ulong, ulong)"/> with the complemented bit mask for the same
+    /// word-sharing reason as <see cref="SetOccupancyBit"/>.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ClearOccupancyBit()
+    {
+        Debug.Assert(SyncLock.IsHeldByCurrentThread, "ClearOccupancyBit requires the sub-queue lock.");
+        Interlocked.And(ref _occupancy[_index >> 6], ~(1UL << (_index & 63)));
     }
 
     /// <summary>

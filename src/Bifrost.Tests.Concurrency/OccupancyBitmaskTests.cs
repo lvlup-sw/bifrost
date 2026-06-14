@@ -116,4 +116,33 @@ public class OccupancyBitmaskTests
         await Assert.That(occupancy[2]).IsEqualTo(0UL).Because("no other word is touched");
         await Assert.That(occupancy[3]).IsEqualTo(0UL).Because("no other word is touched");
     }
+
+    /// <summary>
+    /// Popping the last item from a sub-queue (the non-empty&#8594;empty crossing) clears its
+    /// occupancy bit. The pop funnels through <c>PopHeldRoot</c>, so this also covers
+    /// <c>TryLockedPop</c> (DR-2).
+    /// </summary>
+    [Test]
+    public async Task PopHeldRoot_LastItemRemoved_ClearsOccupancyBit()
+    {
+        var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
+        const int targetIndex = 70; // word 1, bit 6.
+        SubQueue<int, int> sub = queue.SubQueuesForTest[targetIndex];
+
+        // Push two, pop one (bit must STAY set — a non-last pop is not a boundary crossing), then
+        // pop the last (bit must clear).
+        await Assert.That(sub.TryLockedPush(element: 1, priority: 1)).IsTrue();
+        await Assert.That(sub.TryLockedPush(element: 2, priority: 2)).IsTrue();
+        await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(1UL << 6).Because("two items in: bit set");
+
+        SubQueuePopStatus first = sub.TryLockedPop(out _, out _);
+        await Assert.That(first).IsEqualTo(SubQueuePopStatus.Success);
+        await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(1UL << 6).Because(
+            "a non-last pop leaves an entry behind — not a boundary crossing, bit stays set");
+
+        SubQueuePopStatus second = sub.TryLockedPop(out _, out _);
+        await Assert.That(second).IsEqualTo(SubQueuePopStatus.Success);
+        await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(0UL).Because(
+            "the last pop drains the sub-queue — the non-empty→empty crossing clears the bit");
+    }
 }
