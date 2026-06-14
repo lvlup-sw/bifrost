@@ -9,6 +9,8 @@ using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
 using Bifrost.Scheduling.Core;
+using Bifrost.Scheduling.Core.Events;
+using Bifrost.Scheduling.Observability;
 
 namespace Bifrost.Scheduling.Registry;
 
@@ -29,6 +31,8 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
 {
     private readonly IScheduleStore store;
     private readonly TimeProvider timeProvider;
+    private readonly SchedulerMetrics metrics;
+    private readonly ISchedulerEventSink events;
     private readonly ConcurrentDictionary<string, JobRecord> jobs = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, IJobDispatcher> dispatchers = new(StringComparer.Ordinal);
     private readonly Channel<RegistryCommand> commands =
@@ -46,13 +50,33 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
     /// The clock used to compute a job's initial next-fire instant at registration
     /// (DR-7); the registry never reads a clock of its own.
     /// </param>
-    public ScheduleRegistry(IScheduleStore store, TimeProvider timeProvider)
+    /// <param name="metrics">
+    /// The scheduler metrics the registry records job registration and removal
+    /// against (DR-8). When <see langword="null"/>, a private meter is created so the
+    /// registry can be constructed without observability wiring; production passes the
+    /// shared instance the tick loop also records against.
+    /// </param>
+    /// <param name="events">
+    /// The event sink the registry publishes lifecycle events through (DR-8):
+    /// <see cref="JobRegisteredEvent"/>, <see cref="JobUnregisteredEvent"/>,
+    /// <see cref="JobPausedEvent"/>, and <see cref="JobResumedEvent"/>. When
+    /// <see langword="null"/>, a no-op sink is used; production passes the same
+    /// <see cref="SchedulerEventStream"/> the tick loop publishes fire and fault
+    /// events through, so a subscriber observes one unified timeline.
+    /// </param>
+    public ScheduleRegistry(
+        IScheduleStore store,
+        TimeProvider timeProvider,
+        SchedulerMetrics? metrics = null,
+        ISchedulerEventSink? events = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.store = store;
         this.timeProvider = timeProvider;
+        this.metrics = metrics ?? new SchedulerMetrics();
+        this.events = events ?? NullSchedulerEventSink.Instance;
     }
 
     /// <summary>
@@ -142,6 +166,8 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         }
 
         this.dispatchers[name] = dispatcher;
+        this.metrics.RecordRegistered();
+        this.events.Publish(new JobRegisteredEvent(name));
         await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), ct).ConfigureAwait(false);
     }
 
@@ -159,6 +185,8 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
 
         this.jobs.TryRemove(name, out _);
         this.dispatchers.TryRemove(name, out _);
+        this.metrics.RecordUnregistered();
+        this.events.Publish(new JobUnregisteredEvent(name));
         await this.PostAsync(new RegistryCommand(RegistryCommandKind.Unregister, name), ct).ConfigureAwait(false);
         return true;
     }
@@ -285,7 +313,30 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         await this.store.SaveAsync(updated, ct).ConfigureAwait(false);
 
         this.jobs[updated.Name] = updated;
+        this.PublishTransition(kind, updated.Name);
         await this.PostAsync(new RegistryCommand(kind, updated.Name), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Publishes the lifecycle event corresponding to a pause or resume transition.
+    /// </summary>
+    /// <param name="kind">The transition command kind.</param>
+    /// <param name="name">The job that transitioned.</param>
+    private void PublishTransition(RegistryCommandKind kind, string name)
+    {
+        switch (kind)
+        {
+            case RegistryCommandKind.Pause:
+                this.events.Publish(new JobPausedEvent(name));
+                break;
+
+            case RegistryCommandKind.Resume:
+                this.events.Publish(new JobResumedEvent(name));
+                break;
+
+            default:
+                break;
+        }
     }
 
     /// <summary>
