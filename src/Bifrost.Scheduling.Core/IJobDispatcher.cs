@@ -16,6 +16,25 @@ public interface IJobDispatcher
     /// <summary>
     /// Dispatches a single job fire.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>At-least-once delivery.</strong> Execution is at-least-once per
+    /// scheduled occurrence. A process crash between the dispatch handoff and the
+    /// subsequent <c>RecordFiredAsync</c> checkpoint leaves the durable
+    /// <c>LastFiredAt</c> unchanged, so the scheduler treats the occurrence as
+    /// missed on the next startup and re-fires it via the job's
+    /// <see cref="MissedFirePolicy"/> (typically <c>Coalesce</c>). Make your
+    /// handler idempotent. Use the pair
+    /// (<see cref="JobFireContext.JobName"/>, <see cref="JobFireContext.FireTime"/>)
+    /// as the deduplication key: the re-fire presents the same pair, so a handler
+    /// that records or checks against that key will not double-process (DR-12).
+    /// </para>
+    /// <para>
+    /// <strong>Duplicate window.</strong> The duplicate window is bounded: a
+    /// <c>Coalesce</c> policy produces at most one catch-up fire per missed-fire
+    /// gap, so a single crash yields at most one duplicate per occurrence.
+    /// </para>
+    /// </remarks>
     /// <param name="context">
     /// The fire context, carrying the job name, the scheduled occurrence time
     /// (the idempotency key with the job name), the next occurrence, and the
