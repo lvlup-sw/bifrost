@@ -65,6 +65,18 @@ internal sealed class TickHealthMonitor : ITickHealthMonitor
     }
 
     /// <inheritdoc/>
+    public int RecentFireCount
+    {
+        get
+        {
+            lock (this.gate)
+            {
+                return this.count;
+            }
+        }
+    }
+
+    /// <inheritdoc/>
     public void RecordTick(DateTimeOffset at)
     {
         lock (this.gate)

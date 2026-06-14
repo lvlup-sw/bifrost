@@ -34,6 +34,13 @@ internal interface ITickHealthMonitor
     double FailureRate { get; }
 
     /// <summary>
+    /// Gets the number of fire outcomes currently held in the rolling window — at most
+    /// the window size. The schedule inspector surfaces this as the recent fire count
+    /// in its metrics snapshot.
+    /// </summary>
+    int RecentFireCount { get; }
+
+    /// <summary>
     /// Records that the loop ticked at the given instant, updating
     /// <see cref="LastTickAt"/>.
     /// </summary>
