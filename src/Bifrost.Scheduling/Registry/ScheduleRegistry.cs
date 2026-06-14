@@ -61,6 +61,46 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
     /// </summary>
     internal ChannelReader<RegistryCommand> Commands => this.commands.Reader;
 
+    /// <summary>
+    /// Returns the current persisted <see cref="JobRecord"/> for a job, or
+    /// <see langword="null"/> when no job is registered under that name. The tick
+    /// loop reads this to learn a job's cadence, missed-fire policy, and state when
+    /// it processes a wake command. This is an internal read accessor — it is not
+    /// part of the public <see cref="IScheduleRegistry"/> surface.
+    /// </summary>
+    /// <param name="name">The job name to look up.</param>
+    /// <returns>The job's current record, or <see langword="null"/> if absent.</returns>
+    internal JobRecord? TryGetRecord(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        return this.jobs.TryGetValue(name, out var record) ? record : null;
+    }
+
+    /// <summary>
+    /// Returns the live <see cref="IJobDispatcher"/> registered for a job, or
+    /// <see langword="null"/> when none is attached. The tick loop resolves a job's
+    /// dispatcher through this accessor at the moment of dispatch, so a re-registered
+    /// dispatcher is always honoured. This is an internal read accessor.
+    /// </summary>
+    /// <param name="name">The job name whose dispatcher to resolve.</param>
+    /// <returns>The job's live dispatcher, or <see langword="null"/> if absent.</returns>
+    internal IJobDispatcher? TryGetDispatcher(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        return this.dispatchers.TryGetValue(name, out var dispatcher) ? dispatcher : null;
+    }
+
+    /// <summary>
+    /// Enumerates a snapshot of every currently registered job's record. The tick
+    /// loop uses this when seeding its heap at startup to reconcile store-loaded jobs
+    /// against the live, dispatcher-bearing registry. This is an internal read
+    /// accessor.
+    /// </summary>
+    /// <returns>A snapshot of all registered job records.</returns>
+    internal IReadOnlyList<JobRecord> SnapshotRecords() => [.. this.jobs.Values];
+
     /// <inheritdoc/>
     public async ValueTask RegisterAsync(
         string name,
