@@ -4,6 +4,8 @@
 // </copyright>
 // =============================================================================
 
+using System.Diagnostics.CodeAnalysis;
+
 using Bifrost.Core;
 using Bifrost.Scheduling.Core;
 
@@ -96,10 +98,13 @@ public interface IJobBuilder<TWork>
 
     /// <summary>
     /// Dispatches each fire through a custom <see cref="IJobDispatcher"/> resolved
-    /// from DI.
+    /// from DI. The dispatcher type is registered in the service collection at
+    /// configuration time (F1, Task 50), so it resolves at fire time without the
+    /// consumer pre-registering it; <typeparamref name="TDispatcher"/> must be a
+    /// concrete type DI can construct.
     /// </summary>
     /// <typeparam name="TDispatcher">The custom dispatcher type, resolved from DI.</typeparam>
     /// <returns>This builder, for chaining.</returns>
-    IJobBuilder<TWork> DispatchVia<TDispatcher>()
+    IJobBuilder<TWork> DispatchVia<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TDispatcher>()
         where TDispatcher : class, IJobDispatcher;
 }

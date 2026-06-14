@@ -55,7 +55,7 @@ internal sealed class SchedulerBuilder : ISchedulerBuilder
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        var builder = new JobBuilder<TWork>(name);
+        var builder = new JobBuilder<TWork>(name, this.services);
         this.jobSources.Add(builder);
         return builder;
     }

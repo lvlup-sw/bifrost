@@ -4,11 +4,14 @@
 // </copyright>
 // =============================================================================
 
+using System.Diagnostics.CodeAnalysis;
+
 using Bifrost.Core;
 using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Bifrost.Scheduling.DependencyInjection;
 
@@ -21,6 +24,7 @@ namespace Bifrost.Scheduling.DependencyInjection;
 internal sealed class JobBuilder<TWork> : IJobBuilder<TWork>, IJobDefinitionSource
 {
     private readonly string name;
+    private readonly IServiceCollection services;
 
     private Cadence? cadence;
     private MissedFirePolicy missedFirePolicy = MissedFirePolicy.Coalesce;
@@ -32,11 +36,18 @@ internal sealed class JobBuilder<TWork> : IJobBuilder<TWork>, IJobDefinitionSour
     /// Initializes a new instance of the <see cref="JobBuilder{TWork}"/> class.
     /// </summary>
     /// <param name="name">The unique job name; the registry's identity key.</param>
-    public JobBuilder(string name)
+    /// <param name="services">
+    /// The service collection a custom <see cref="DispatchVia{TDispatcher}"/>
+    /// dispatcher is registered into at configuration time (F1), so it resolves at
+    /// fire time without the consumer pre-registering it.
+    /// </param>
+    public JobBuilder(string name, IServiceCollection services)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(services);
 
         this.name = name;
+        this.services = services;
     }
 
     /// <inheritdoc/>
@@ -105,10 +116,17 @@ internal sealed class JobBuilder<TWork> : IJobBuilder<TWork>, IJobDefinitionSour
     }
 
     /// <inheritdoc/>
-    public IJobBuilder<TWork> DispatchVia<TDispatcher>()
+    public IJobBuilder<TWork> DispatchVia<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TDispatcher>()
         where TDispatcher : class, IJobDispatcher
     {
         this.dispatchKind = JobDispatchKinds.Custom;
+
+        // Register the dispatcher at configuration time (F1, Task 50) so the factory
+        // resolves it at fire time without the consumer having to AddSingleton it
+        // manually. TryAddSingleton keeps any registration the consumer supplied —
+        // e.g. a custom factory or a different lifetime. The generic registration is
+        // AOT/trim-safe: no reflection-from-string, the type is statically known.
+        this.services.TryAddSingleton<TDispatcher>();
         this.dispatcherFactory = static provider => provider.GetRequiredService<TDispatcher>();
         return this;
     }
