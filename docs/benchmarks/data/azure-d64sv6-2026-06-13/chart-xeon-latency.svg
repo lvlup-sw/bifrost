@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 440" font-family="ui-sans-serif, system-ui, sans-serif" role="img" aria-label="Single-thread Enqueue+Dequeue latency">
+<text x="380.0" y="26.0" font-size="16" text-anchor="middle" fill="#8b949e" font-weight="bold">Single-thread Enqueue+Dequeue latency</text>
+<text x="380.0" y="45.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">All paths 0 B/op · relaxed within 1.4–2.2× of a lock-wrapped PriorityQueue at population 1k+</text>
+<line x1="76" y1="372.0" x2="730" y2="372.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="68.0" y="376.0" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">0</text>
+<line x1="76" y1="311.6" x2="730" y2="311.6" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="68.0" y="315.6" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">40</text>
+<line x1="76" y1="251.2" x2="730" y2="251.2" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="68.0" y="255.2" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">80</text>
+<line x1="76" y1="190.8" x2="730" y2="190.8" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="68.0" y="194.8" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">120</text>
+<line x1="76" y1="130.4" x2="730" y2="130.4" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="68.0" y="134.4" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">160</text>
+<line x1="76" y1="70.0" x2="730" y2="70.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="68.0" y="74.0" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">200</text>
+<text x="22.0" y="221.0" font-size="12" text-anchor="middle" fill="#8b949e" transform="rotate(-90 22.0 221.0)">ns / op</text>
+<text x="76.0" y="390.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">1k</text>
+<text x="403.0" y="390.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">100k</text>
+<text x="730.0" y="390.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">1M</text>
+<text x="403.0" y="410.0" font-size="12" text-anchor="middle" fill="#8b949e" font-weight="normal">population (log)</text>
+<polyline points="76.0,251.1 403.0,181.7 730.0,106.4" fill="none" stroke="#f0883e" stroke-width="2.5"/>
+<circle cx="76.0" cy="251.1" r="3.5" fill="#f0883e"/>
+<text x="76.0" y="242.1" font-size="9" text-anchor="middle" fill="#f0883e" font-weight="normal">80</text>
+<circle cx="403.0" cy="181.7" r="3.5" fill="#f0883e"/>
+<text x="403.0" y="172.7" font-size="9" text-anchor="middle" fill="#f0883e" font-weight="normal">126</text>
+<circle cx="730.0" cy="106.4" r="3.5" fill="#f0883e"/>
+<text x="730.0" y="97.4" font-size="9" text-anchor="middle" fill="#f0883e" font-weight="normal">176</text>
+<polyline points="76.0,277.6 403.0,252.7 730.0,236.9" fill="none" stroke="#58a6ff" stroke-width="2.5"/>
+<circle cx="76.0" cy="277.6" r="3.5" fill="#58a6ff"/>
+<text x="76.0" y="268.6" font-size="9" text-anchor="middle" fill="#58a6ff" font-weight="normal">63</text>
+<circle cx="403.0" cy="252.7" r="3.5" fill="#58a6ff"/>
+<text x="403.0" y="243.7" font-size="9" text-anchor="middle" fill="#58a6ff" font-weight="normal">79</text>
+<circle cx="730.0" cy="236.9" r="3.5" fill="#58a6ff"/>
+<text x="730.0" y="227.9" font-size="9" text-anchor="middle" fill="#58a6ff" font-weight="normal">89</text>
+<polyline points="76.0,285.2 403.0,268.2 730.0,251.6" fill="none" stroke="#8b949e" stroke-width="2.5"/>
+<circle cx="76.0" cy="285.2" r="3.5" fill="#8b949e"/>
+<text x="76.0" y="276.2" font-size="9" text-anchor="middle" fill="#8b949e" font-weight="normal">57</text>
+<circle cx="403.0" cy="268.2" r="3.5" fill="#8b949e"/>
+<text x="403.0" y="259.2" font-size="9" text-anchor="middle" fill="#8b949e" font-weight="normal">69</text>
+<circle cx="730.0" cy="251.6" r="3.5" fill="#8b949e"/>
+<text x="730.0" y="242.6" font-size="9" text-anchor="middle" fill="#8b949e" font-weight="normal">80</text>
+<rect x="412" y="83" width="12" height="12" rx="2" fill="#f0883e"/>
+<text x="430.0" y="93.0" font-size="12" text-anchor="start" fill="#8b949e" font-weight="normal">ConcurrentPriorityQueue (relaxed)</text>
+<rect x="412" y="103" width="12" height="12" rx="2" fill="#58a6ff"/>
+<text x="430.0" y="113.0" font-size="12" text-anchor="start" fill="#8b949e" font-weight="normal">Naive (LockingPriorityQueue)</text>
+<rect x="412" y="123" width="12" height="12" rx="2" fill="#8b949e"/>
+<text x="430.0" y="133.0" font-size="12" text-anchor="start" fill="#8b949e" font-weight="normal">lock-wrapped PriorityQueue</text>
+</svg>
