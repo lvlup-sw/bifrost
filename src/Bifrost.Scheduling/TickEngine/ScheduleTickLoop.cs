@@ -431,32 +431,42 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             return;
         }
 
+        // Arm the shutdown-window deadline BEFORE the first await. Ordering is
+        // load-bearing (it mirrors the wake-timer rule in WaitForNextWakeAsync): a test
+        // advances the FakeTimeProvider only after StopAsync has yielded, and an advance
+        // fires only timers that already exist. Creating the deadline synchronously here
+        // — before base.StopAsync unwinds the loop — guarantees it is registered before
+        // the clock can be advanced, so the timeout reliably elapses instead of racing
+        // the loop teardown (otherwise the drain wait can park on a timer that is never
+        // fired, hanging StopAsync indefinitely under a fake clock).
+        var deadline = Task.Delay(this.options.ShutdownTimeout, this.timeProvider, cancellationToken);
+
         // Signal the loop to stop scheduling and let the base unwind ExecuteAsync. The
         // base call is guarded: it is a no-op when ExecuteAsync never started.
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
 
         // Wait up to the shutdown window for in-flight dispatches handed to the pool to
         // finish; abandon any still running when the window elapses.
-        await this.WaitForInFlightToDrainAsync(cancellationToken).ConfigureAwait(false);
+        await this.WaitForInFlightToDrainAsync(deadline).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Waits up to <see cref="SchedulerOptions.ShutdownTimeout"/> for the in-flight
     /// dispatch count to reach zero, returning early when it drains and after the
-    /// timeout otherwise (abandoning the stragglers). Time flows through the injected
-    /// <see cref="TimeProvider"/> (DR-7).
+    /// timeout otherwise (abandoning the stragglers). The timeout deadline is armed by
+    /// the caller before its first await (see <see cref="StopAsync"/>) so it is
+    /// registered on the injected <see cref="TimeProvider"/> (DR-7) before a test can
+    /// advance a fake clock past it.
     /// </summary>
-    /// <param name="cancellationToken">A token to cancel the wait.</param>
+    /// <param name="deadline">The pre-armed shutdown-window deadline task.</param>
     /// <returns>A task that completes when in-flight drains or the timeout elapses.</returns>
     [SuppressMessage(
         "Usage",
         "VSTHRD003:Avoid awaiting foreign Tasks",
         Justification = "The drain signal is an intentional cross-thread primitive " +
             "completed when the last pool-thread dispatch finishes.")]
-    private async Task WaitForInFlightToDrainAsync(CancellationToken cancellationToken)
+    private async Task WaitForInFlightToDrainAsync(Task deadline)
     {
-        var deadline = Task.Delay(this.options.ShutdownTimeout, this.timeProvider, cancellationToken);
-
         while (Volatile.Read(ref this.inFlightDispatches) > 0)
         {
             var drain = this.CurrentDrainTask();
