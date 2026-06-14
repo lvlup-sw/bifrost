@@ -666,17 +666,28 @@ Implements **DR-2: Cadence primitives**. All cadence variants — interval, cron
 **Test Layer:** integration
 **Implements:** DR-4
 
+> **Post-CPQ validation (2026-06-14, before delegation):** #18 shipped the enqueue contract as
+> `ValueTask<EnqueueResult> EnqueueAsync(TWork, WorkClass = Default, CancellationToken)`. Admission
+> failures (capacity / watermark / shutdown) are returned as `EnqueueResult.Rejected(reason)` — they
+> do **not** throw; only caller-token cancellation throws (`OperationCanceledException`, R1 — see the
+> CPQ CHANGELOG). Per the CPQ design's #16 integration (resolves Q6): scheduled ticks enqueue at
+> `WorkClass.Batch` by default (so batch jobs never starve interactive work), overridable per job, and
+> a `Rejected` admission is a *failed fire* → `JobFireFailedEvent` (the next occurrence is unaffected).
+> The original tasks assumed the pre-CPQ no-result `ValueTask` + throw-on-failure shape; corrected below.
+
 1. **[RED]** `src/Bifrost.Tests.Scheduling/Dispatch/OrchestratorJobDispatcherTests.cs`
    - `DispatchAsync_CallsFireFuncToProduceWork`
-   - `DispatchAsync_CallsOrchestratorEnqueueAsync`
+   - `DispatchAsync_CallsOrchestratorEnqueueAsync_WithConfiguredWorkClass` — defaults to `WorkClass.Batch`; honors a per-job override
+   - `DispatchAsync_EnqueueRejected_EmitsJobFireFailedEvent_NextOccurrenceUnaffected` — a `Rejected` result (NOT an exception) is the failed-fire path
    - `DispatchAsync_FireFuncThrows_BubblesException`
-   - `DispatchAsync_OrchestratorEnqueueThrows_BubblesException`
+   - `DispatchAsync_EnqueueThrowsOperationCanceled_BubblesException` — only cancellation throws (R1); admission failure does not
    - `DispatchAsync_FireFuncReceivesJobFireContext` — verify `FireTime` propagated
 
 2. **[GREEN]** `src/Bifrost.Scheduling/Dispatch/OrchestratorJobDispatcher.cs`
    - Generic over `TWork`
-   - Takes `Func<JobFireContext, TWork>` fire function and `IWorkOrchestrator<TWork>`
+   - Takes `Func<JobFireContext, TWork>` fire function, an `IWorkOrchestrator<TWork>`, and a `WorkClass` (default `WorkClass.Batch`)
    - Implements `IJobDispatcher`
+   - Awaits `EnqueueAsync(work, workClass, ct)`; on `!result.IsAccepted`, takes the failed-fire path (→ `JobFireFailedEvent` carrying `result.Reason`) rather than treating rejection as an exception
 
 3. **[REFACTOR]** XML docs
 
@@ -1057,7 +1068,8 @@ Implements **DR-8: Observability — metrics, events, and health checks**. Metri
    - `After_TimeSpan_SetsRelativeOneShotCadence` — resolved to an absolute `OneShotCadence` by the registry at registration time (R1; Task 45)
    - `WithJitter_Fraction_UpdatesIntervalCadence`
    - `WithMissedFirePolicy_Policy_SetsPolicy`
-   - `DispatchTo_OrchestratorType_SetsOrchestratorDispatch` — chained `.DispatchTo<IWorkOrchestrator<TWork>>(fire)`
+   - `DispatchTo_OrchestratorType_SetsOrchestratorDispatch` — chained `.DispatchTo<IWorkOrchestrator<TWork>>(fire)`; defaults the tick's `WorkClass` to `Batch` (post-CPQ; #16-Q6)
+   - `DispatchTo_OrchestratorType_OverridesWorkClass` — `.DispatchTo<…>(fire, WorkClass.Interactive)` for the rare interactive tick
    - `AddInlineJob_WithRunDelegate_SetsInlineDispatch`
    - `DispatchVia_CustomType_SetsCustomDispatch`
    - `Builder_BuildsJobRecord_OnRegistration`
