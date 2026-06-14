@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>LevelUp.Bifrost.Scheduling.Testing</PackageId>
+    <RootNamespace>Bifrost.Scheduling.Testing</RootNamespace>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bifrost.Scheduling\Bifrost.Scheduling.csproj" />
+  </ItemGroup>
+
+</Project>
