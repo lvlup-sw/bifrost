@@ -152,7 +152,10 @@ public static class SchedulerServiceCollectionExtensions
             sp.GetService<ILogger<ScheduleTickLoop>>() ?? NullLogger<ScheduleTickLoop>.Instance,
             sp.GetRequiredService<SchedulerOptions>(),
             sp.GetRequiredService<SchedulerMetrics>(),
-            sp.GetRequiredService<TickHealthMonitor>()));
+            sp.GetRequiredService<TickHealthMonitor>(),
+            // Pass the root provider so each fire opens a real per-fire IServiceScope and
+            // a dispatcher can resolve scoped work via JobFireContext.Services (F2/M2).
+            serviceProvider: sp));
         services.TryAddSingleton<ISchedulerFaultSource>(
             static sp => sp.GetRequiredService<ScheduleTickLoop>());
 
