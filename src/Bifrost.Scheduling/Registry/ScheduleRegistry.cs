@@ -145,6 +145,57 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         this.jobs[name] = record with { State = JobState.Faulted };
     }
 
+    /// <summary>
+    /// Returns the next <paramref name="count"/> future fire instants for the named
+    /// job by iterating the cadence's <see cref="Cadence.ComputeNextFire"/> — the
+    /// same engine the tick loop uses (DR-8/R10). The registry's injected
+    /// <see cref="TimeProvider"/> supplies <c>now</c> so that the preview is
+    /// consistent with what the loop would compute at this moment.
+    /// </summary>
+    /// <param name="name">The job name to project.</param>
+    /// <param name="count">The number of occurrences to return.</param>
+    /// <returns>
+    /// An ascending list of future instants; may be shorter than <paramref name="count"/>
+    /// when the cadence is exhausted, and empty when no job is registered under
+    /// <paramref name="name"/>.
+    /// </returns>
+    internal IReadOnlyList<DateTimeOffset> GetNextOccurrences(string name, int count)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentOutOfRangeException.ThrowIfLessThan(count, 1, nameof(count));
+
+        if (!this.jobs.TryGetValue(name, out var record))
+        {
+            return [];
+        }
+
+        var result = new List<DateTimeOffset>(count);
+        var cadence = record.Cadence;
+        // Seed: use the job's current last-fire as the starting point, then advance
+        // through future occurrences by treating each computed instant as "lastFiredAt"
+        // for the next iteration. "now" is pinned to the current instant from the
+        // injected TimeProvider so the preview is consistent with the tick loop.
+        DateTimeOffset? lastFiredAt = record.LastFiredAt;
+        var now = this.timeProvider.GetUtcNow();
+
+        for (int i = 0; i < count; i++)
+        {
+            var next = cadence.ComputeNextFire(lastFiredAt, now);
+            if (next is null)
+            {
+                break;
+            }
+
+            result.Add(next.Value);
+            // The next iteration's "lastFiredAt" is this occurrence, and we advance
+            // "now" past it so that ComputeNextFire always projects strictly forward.
+            lastFiredAt = next.Value;
+            now = next.Value;
+        }
+
+        return result;
+    }
+
     /// <inheritdoc/>
     public async ValueTask RegisterAsync(
         string name,
@@ -160,6 +211,27 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         if (this.jobs.ContainsKey(name))
         {
             throw new DuplicateJobNameException(name);
+        }
+
+        // Resolve a relative one-shot to an absolute instant using the registry's
+        // injected TimeProvider (R1/DR-2): the static factory Cadence.After performs
+        // no clock access; resolution happens here, once, at registration time.
+        cadence = cadence is RelativeOneShotCadence relative
+            ? new OneShotCadence(this.timeProvider.GetUtcNow() + relative.Delay)
+            : cadence;
+
+        // Reject a one-shot whose fire instant is in the past: a past one-shot would
+        // fire immediately or be silently swallowed by the missed-fire policy, both of
+        // which are ergonomics traps (quartznet#636/#2180, Hangfire#1637, R10).
+        // "Past" is judged against the registry's injected TimeProvider (DR-7).
+        if (cadence is OneShotCadence absoluteOneShot
+            && absoluteOneShot.FireAt < this.timeProvider.GetUtcNow())
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(cadence),
+                $"A one-shot cadence with FireAt '{absoluteOneShot.FireAt:O}' is in the past " +
+                $"(now: '{this.timeProvider.GetUtcNow():O}'). Register a future instant to " +
+                "avoid a silent immediate fire or a missed-fire-policy decision at registration.");
         }
 
         var nextFireAt = cadence.ComputeNextFire(lastFiredAt: null, now: this.timeProvider.GetUtcNow());
@@ -247,6 +319,57 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         }
 
         await this.TransitionAsync(record, JobState.Running, RegistryCommandKind.Resume, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask UpdateAsync(
+        string name,
+        Cadence cadence,
+        MissedFirePolicy missedFirePolicy,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(cadence);
+
+        if (!this.jobs.TryGetValue(name, out var record))
+        {
+            throw new JobNotFoundException(name);
+        }
+
+        // Apply the same resolution and validation as registration: relative one-shots
+        // are resolved against the registry clock; past one-shots are rejected (R10).
+        cadence = cadence is RelativeOneShotCadence relative
+            ? new OneShotCadence(this.timeProvider.GetUtcNow() + relative.Delay)
+            : cadence;
+
+        if (cadence is OneShotCadence absoluteOneShot
+            && absoluteOneShot.FireAt < this.timeProvider.GetUtcNow())
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(cadence),
+                $"A one-shot cadence with FireAt '{absoluteOneShot.FireAt:O}' is in the past " +
+                $"(now: '{this.timeProvider.GetUtcNow():O}'). Updating to a past instant would " +
+                "cause a silent immediate fire or a missed-fire-policy decision.");
+        }
+
+        // Recompute NextFireAt from the new cadence. Mutating operations must never
+        // cause immediate execution as a side effect (R10); TriggerAsync is the only
+        // fire-on-demand API.
+        var nextFireAt = cadence.ComputeNextFire(lastFiredAt: null, now: this.timeProvider.GetUtcNow());
+        var updated = record with
+        {
+            Cadence = cadence,
+            MissedFirePolicy = missedFirePolicy,
+            NextFireAt = nextFireAt,
+        };
+
+        await this.store.SaveAsync(updated, ct).ConfigureAwait(false);
+
+        this.jobs[name] = updated;
+        // Post a Register command so the tick loop re-arms the job from the updated
+        // record immediately, computing the new NextFireAt without any immediate fire
+        // side effect. The Register command calls Arm which reads the updated registry.
+        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>

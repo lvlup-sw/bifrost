@@ -67,10 +67,20 @@ public abstract record Cadence
     /// <summary>
     /// Builds an unresolved one-shot cadence that fires once after the supplied
     /// delay. This factory performs no clock access (R1): it merely captures the
-    /// delay. The registry resolves it to an absolute <see cref="OneShotCadence"/>
-    /// against the scheduler clock at registration time.
+    /// delay and returns a <see cref="RelativeOneShotCadence"/>. The registry
+    /// resolves it to an absolute <see cref="OneShotCadence"/> against the
+    /// registry's injected <see cref="TimeProvider"/> at registration time —
+    /// <c>FireAt = timeProvider.GetUtcNow() + delay</c>.
     /// </summary>
-    /// <param name="delay">The delay before the single fire.</param>
+    /// <remarks>
+    /// R1 contract: the static factory performs no clock access. Resolution happens
+    /// exactly once, in <see cref="IScheduleRegistry.RegisterAsync"/>, using the
+    /// registry's injected <see cref="TimeProvider"/>. An unresolved
+    /// <see cref="RelativeOneShotCadence"/> must never reach the tick loop —
+    /// <see cref="RelativeOneShotCadence.ComputeNextFire"/> throws
+    /// <see cref="InvalidOperationException"/> as a fast-fail sentinel if it does.
+    /// </remarks>
+    /// <param name="delay">The delay before the single fire; may be any non-negative value.</param>
     /// <returns>A <see cref="RelativeOneShotCadence"/> wrapping the delay.</returns>
     public static Cadence After(TimeSpan delay) => new RelativeOneShotCadence(delay);
 }
