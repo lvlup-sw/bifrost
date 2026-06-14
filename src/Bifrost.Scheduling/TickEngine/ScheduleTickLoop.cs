@@ -956,7 +956,26 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // falls back to the no-op provider, so scoped resolution returns null rather
         // than throwing. The scope is disposed by the tracking decorator after the
         // pool-thread dispatch completes (see InFlightTrackingDispatcher).
-        var scope = this.scopeFactory?.CreateScope();
+        IServiceScope? scope;
+        try
+        {
+            scope = this.scopeFactory?.CreateScope();
+        }
+#pragma warning disable CA1031 // A scope-creation fault is surfaced as a failed fire, not a loop fault.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            // Scope creation can fault only when the root provider is already disposed
+            // (e.g. mid-shutdown). The handoff JobFiredEvent was already published, so
+            // publish a compensating JobFireFailedEvent to keep the (JobName, FireTime)
+            // timeline complete — Fired then Failed — rather than leaving an orphan Fired
+            // with no outcome. No scope or in-flight count exists yet, so nothing to unwind,
+            // and the loop is not faulted by an otherwise-benign shutdown race.
+            this.eventSink.Publish(new JobFireFailedEvent(jobName, scheduledOccurrence, ex));
+            this.metrics.RecordDispatchFailure(jobName, ex.GetType().Name);
+            return;
+        }
+
         var services = scope?.ServiceProvider ?? EmptyServiceProvider.Instance;
 
         var context = new JobFireContext(
@@ -984,11 +1003,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 #pragma warning restore CA1031
         {
             // The router never throws in practice, but if the handoff faults the wrapped
-            // dispatcher will never run its finally, so undo the count and dispose the
-            // scope here to keep the in-flight bookkeeping exact and the idle barrier
-            // unstranded, then re-raise so the loop's fault recovery still sees it.
-            scope?.Dispose();
-            this.OnDispatchCompleted();
+            // dispatcher may never run its finally, so complete the fire here to keep the
+            // in-flight bookkeeping exact and the idle barrier unstranded, then re-raise so
+            // the loop's fault recovery still sees it. CompleteFromHandoffFault shares the
+            // decorator's single-shot guard, so even a non-conforming router that both
+            // started the dispatch AND threw cannot double-decrement the count.
+            tracked.CompleteFromHandoffFault(jobName);
             throw;
         }
     }
@@ -1288,6 +1308,15 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private sealed class InFlightTrackingDispatcher(ScheduleTickLoop owner, IJobDispatcher inner, IServiceScope? scope)
         : IJobDispatcher
     {
+        // Single-shot completion guard (0 = not completed). Both the pool-thread finally
+        // below and the synchronous handoff-fault path in Dispatch funnel through it, so
+        // the per-fire scope is disposed and the in-flight count cleared EXACTLY once even
+        // if a non-conforming IJobDispatcherRouter both starts the dispatch and then throws
+        // synchronously. Without this a double completion would underflow inFlightDispatches
+        // and strand the idle/drain barrier. The in-tree router never throws synchronously,
+        // so only one path ever runs in practice.
+        private int completed;
+
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
             try
@@ -1313,9 +1342,44 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 // Dispose the per-fire scope first so scoped IAsyncDisposable/IDisposable
                 // services are released before the fire is reported drained, then clear
                 // the in-flight count. A scope dispose must never crash the fire path.
-                await this.DisposeScopeAsync(context.JobName).ConfigureAwait(false);
-                owner.OnDispatchCompleted();
+                // Guarded so completion runs exactly once across this finally and the
+                // handoff-fault path (see the field comment).
+                if (Interlocked.Exchange(ref this.completed, 1) == 0)
+                {
+                    await this.DisposeScopeAsync(context.JobName).ConfigureAwait(false);
+                    owner.OnDispatchCompleted();
+                }
             }
+        }
+
+        /// <summary>
+        /// Completes the fire synchronously from the handoff-fault path in
+        /// <see cref="Dispatch"/> — disposes the per-fire scope and clears the in-flight
+        /// count — when the router throws before the pool dispatch could run (or a
+        /// non-conforming router throws after starting it). Idempotent with the
+        /// pool-thread <c>finally</c> via the single-shot guard, so the count is
+        /// decremented exactly once regardless of which path observes completion first.
+        /// </summary>
+        /// <param name="jobName">The job whose fire is being completed.</param>
+        public void CompleteFromHandoffFault(string jobName)
+        {
+            if (Interlocked.Exchange(ref this.completed, 1) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                scope?.Dispose();
+            }
+#pragma warning disable CA1031 // A scope-dispose fault must not mask the handoff fault.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                owner.LogScopeDisposeFailed(jobName, ex);
+            }
+
+            owner.OnDispatchCompleted();
         }
 
         /// <summary>
