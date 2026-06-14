@@ -5,7 +5,6 @@
 // =============================================================================
 
 using System.Diagnostics.CodeAnalysis;
-using System.Threading.Channels;
 
 using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.Core.Events;
@@ -66,18 +65,17 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     // hold stale entries that this map invalidates (lazy deletion).
     private readonly Dictionary<string, ScheduledJob> scheduled = new(StringComparer.Ordinal);
 
-    // Quiescence barrier: WaitForIdleAsync posts a TaskCompletionSource here, which
-    // also wakes the loop. Each time the loop reaches a fully-quiescent park — all
-    // commands drained, all due jobs dispatched, no dispatch in flight — it completes
-    // every pending barrier request. A request posted before that park is therefore
-    // guaranteed to be completed by it, with no dependence on channel counting. Group
-    // J's public test harness wraps WaitForIdleAsync.
-    private readonly Channel<TaskCompletionSource> idleBarrier =
-        Channel.CreateUnbounded<TaskCompletionSource>(new UnboundedChannelOptions
-        {
-            SingleReader = true,
-            SingleWriter = false,
-        });
+    // Quiescence barrier. WaitForIdleAsync adds a TaskCompletionSource to the pending
+    // list and completes the wake signal so the parked loop re-evaluates. Each time the
+    // loop reaches a fully-quiescent park — all commands drained, all due jobs
+    // dispatched, no dispatch in flight — it completes and clears every pending
+    // request. A request added before that park is therefore guaranteed to be completed
+    // by it, with no dependence on channel counting or reader semantics. Group J's
+    // public test harness wraps WaitForIdleAsync.
+    private readonly object barrierGate = new();
+    private readonly List<TaskCompletionSource> pendingBarriers = [];
+    private TaskCompletionSource barrierWake =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // Wakes the wait when the last in-flight dispatch completes, so the loop can
     // re-evaluate its idle state once a pool-thread fire it handed off has finished.
@@ -87,6 +85,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
 
     private long generationCounter;
     private int inFlightDispatches;
+    private int stopState;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScheduleTickLoop"/> class.
@@ -145,13 +144,21 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
             "park; awaiting it here is the point.")]
     internal async Task WaitForIdleAsync(TimeSpan timeout)
     {
-        // Post a barrier request and wake the loop. Because the loop drains every
+        // Register a barrier request and wake the loop. Because the loop drains every
         // command and dispatches every due job before it parks, and completes all
-        // pending barrier requests at that quiescent park, a request posted now is
+        // pending barrier requests at that quiescent park, a request registered now is
         // guaranteed to be completed at the loop's next quiescent point — after it has
         // absorbed whatever command or clock advance preceded this call.
         var request = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await this.idleBarrier.Writer.WriteAsync(request).ConfigureAwait(false);
+        lock (this.barrierGate)
+        {
+            this.pendingBarriers.Add(request);
+
+            // Wake a parked loop so it re-evaluates and reaches its quiescent park.
+            var previousWake = this.barrierWake;
+            this.barrierWake = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            previousWake.TrySetResult();
+        }
 
         var deadline = Task.Delay(timeout);
         var completed = await Task.WhenAny(request.Task, deadline).ConfigureAwait(false);
@@ -163,15 +170,39 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     }
 
     /// <summary>
-    /// Completes every pending quiescence-barrier request. Called by the tick thread
-    /// only at a fully-quiescent park — all commands drained, all due jobs dispatched,
-    /// no dispatch in flight — so a completed request is a true idle signal.
+    /// Returns the current barrier wake task, completed when a new barrier request is
+    /// registered so the parked loop re-evaluates its quiescence.
+    /// </summary>
+    /// <returns>The current barrier wake task.</returns>
+    [SuppressMessage(
+        "Usage",
+        "VSTHRD003:Avoid awaiting foreign Tasks",
+        Justification = "Returns the intentional cross-thread barrier wake signal for " +
+            "the tick loop's wait to observe; it is completed when WaitForIdleAsync " +
+            "registers a request.")]
+    private Task CurrentBarrierWakeTask()
+    {
+        lock (this.barrierGate)
+        {
+            return this.barrierWake.Task;
+        }
+    }
+
+    /// <summary>
+    /// Completes and clears every pending quiescence-barrier request. Called by the
+    /// tick thread only at a fully-quiescent park — all commands drained, all due jobs
+    /// dispatched, no dispatch in flight — so a completed request is a true idle signal.
     /// </summary>
     private void ReleaseIdleBarrier()
     {
-        while (this.idleBarrier.Reader.TryRead(out var request))
+        lock (this.barrierGate)
         {
-            request.TrySetResult();
+            foreach (var request in this.pendingBarriers)
+            {
+                request.TrySetResult();
+            }
+
+            this.pendingBarriers.Clear();
         }
     }
 
@@ -191,6 +222,80 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
         while (!stoppingToken.IsCancellationRequested)
         {
             await this.RunTickAsync(stoppingToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Gracefully stops the loop (DR-10): stops scheduling new fires, then waits up to
+    /// <see cref="SchedulerOptions.ShutdownTimeout"/> for the dispatches already handed
+    /// off to the pool to complete, abandoning any that exceed the window so shutdown
+    /// is never blocked indefinitely.
+    /// </summary>
+    /// <remarks>
+    /// Idempotent and safe to call before the loop has fully started (NCronJob#172):
+    /// stopping a never-started loop is a no-op, and a second stop returns immediately.
+    /// </remarks>
+    /// <param name="cancellationToken">A token to cancel the stop.</param>
+    /// <returns>A task that completes when the loop has stopped.</returns>
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        // Idempotent: a second stop (or a stop of a never-started loop) is a no-op.
+        if (Interlocked.Exchange(ref this.stopState, 1) == 1)
+        {
+            return;
+        }
+
+        // Signal the loop to stop scheduling and let the base unwind ExecuteAsync. The
+        // base call is guarded: it is a no-op when ExecuteAsync never started.
+        await base.StopAsync(cancellationToken).ConfigureAwait(false);
+
+        // Wait up to the shutdown window for in-flight dispatches handed to the pool to
+        // finish; abandon any still running when the window elapses.
+        await this.WaitForInFlightToDrainAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Waits up to <see cref="SchedulerOptions.ShutdownTimeout"/> for the in-flight
+    /// dispatch count to reach zero, returning early when it drains and after the
+    /// timeout otherwise (abandoning the stragglers). Time flows through the injected
+    /// <see cref="TimeProvider"/> (DR-7).
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the wait.</param>
+    /// <returns>A task that completes when in-flight drains or the timeout elapses.</returns>
+    [SuppressMessage(
+        "Usage",
+        "VSTHRD003:Avoid awaiting foreign Tasks",
+        Justification = "The drain signal is an intentional cross-thread primitive " +
+            "completed when the last pool-thread dispatch finishes.")]
+    private async Task WaitForInFlightToDrainAsync(CancellationToken cancellationToken)
+    {
+        var deadline = Task.Delay(this.options.ShutdownTimeout, this.timeProvider, cancellationToken);
+
+        while (Volatile.Read(ref this.inFlightDispatches) > 0)
+        {
+            var drain = this.CurrentDrainTask();
+
+            // Re-check after capturing the drain task to avoid a lost wakeup: a
+            // dispatch that drained between the count read and here completed a
+            // previous drain task, but the count is now zero so we exit.
+            if (Volatile.Read(ref this.inFlightDispatches) == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                var completed = await Task.WhenAny(drain, deadline).ConfigureAwait(false);
+                if (completed == deadline)
+                {
+                    // Timed out: abandon the still-running dispatches.
+                    return;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
         }
     }
 
@@ -236,42 +341,46 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
             return;
         }
 
-        var inFlight = Volatile.Read(ref this.inFlightDispatches) > 0;
-
-        // Fully quiescent: nothing due and no dispatch in flight. Release the idle
-        // barrier so any waiting test observes the settled state. (When a dispatch is
-        // in flight the loop is not yet idle; the barrier is released at the next park
-        // after the dispatch drains.)
-        if (!inFlight)
-        {
-            this.ReleaseIdleBarrier();
-        }
-
-        // Arm every wait source so the loop wakes on the earliest of: a registry
-        // command, the next fire's timer, a dispatch draining, or a barrier request.
-        // The Task.Delay is created before awaiting so that a test which advances the
-        // FakeTimeProvider after observing idle reliably fires it (no missed wakeup).
+        // Arm every wait source BEFORE releasing the idle barrier. Ordering is
+        // load-bearing: a test advances the FakeTimeProvider only after its
+        // WaitForIdleAsync returns (which the barrier release completes), and the
+        // advance fires only timers that already exist. Creating the Task.Delay first
+        // guarantees the next-fire timer is armed before the test can advance the
+        // clock, so the advance reliably wakes the loop (no missed wakeup).
         var drainTask = this.CurrentDrainTask();
         var commandReady = this.registry.Commands.WaitToReadAsync(stoppingToken).AsTask();
-        var barrierReady = this.idleBarrier.Reader.WaitToReadAsync(stoppingToken).AsTask();
-
-        try
+        var barrierWakeTask = this.CurrentBarrierWakeTask();
+        Task? delayTask = null;
+        if (nextFire is not null)
         {
-            if (nextFire is null)
-            {
-                // Empty heap: wait on the command stream, dispatch drain, and barrier.
-                await Task.WhenAny(commandReady, drainTask, barrierReady).ConfigureAwait(false);
-                return;
-            }
-
             var delay = nextFire.Value - now;
             if (delay < TimeSpan.Zero)
             {
                 delay = TimeSpan.Zero;
             }
 
-            var delayTask = Task.Delay(delay, this.timeProvider, stoppingToken);
-            await Task.WhenAny(commandReady, delayTask, drainTask, barrierReady).ConfigureAwait(false);
+            delayTask = Task.Delay(delay, this.timeProvider, stoppingToken);
+        }
+
+        // Fully quiescent: nothing due and no dispatch in flight. Release the idle
+        // barrier (after the timer is armed) so any waiting test observes the settled
+        // state and can safely advance the clock. When a dispatch is in flight the loop
+        // is not yet idle; the barrier is released at the next park after it drains.
+        if (Volatile.Read(ref this.inFlightDispatches) == 0)
+        {
+            this.ReleaseIdleBarrier();
+        }
+
+        try
+        {
+            if (delayTask is null)
+            {
+                // Empty heap: wait on the command stream, dispatch drain, and barrier.
+                await Task.WhenAny(commandReady, drainTask, barrierWakeTask).ConfigureAwait(false);
+                return;
+            }
+
+            await Task.WhenAny(commandReady, delayTask, drainTask, barrierWakeTask).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

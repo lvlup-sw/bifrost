@@ -6,6 +6,7 @@
 
 using Bifrost.Scheduling;
 using Bifrost.Scheduling.Core;
+using Bifrost.Scheduling.Core.Events;
 using Bifrost.Scheduling.Dispatch;
 using Bifrost.Scheduling.Registry;
 using Bifrost.Scheduling.Stores;
@@ -23,6 +24,7 @@ namespace Bifrost.Tests.Scheduling.TickEngine;
 /// drops one-shots, honours pause/resume, and fires triggers out of band — all on
 /// a <see cref="FakeTimeProvider"/> with no real wall-clock waits.
 /// </summary>
+[ParallelLimiter<TickEngineParallelLimit>]
 public sealed class ScheduleTickLoopBasicTests
 {
     private static readonly DateTimeOffset Start =
@@ -40,7 +42,8 @@ public sealed class ScheduleTickLoopBasicTests
         fx.Time.Advance(TimeSpan.FromHours(1));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        await Assert.That(fx.Dispatcher.FireCount).IsEqualTo(0);
+        // No job registered: nothing fired.
+        await Assert.That(fx.Events.OfType<JobFiredEvent>().Any()).IsFalse();
     }
 
     /// <summary>
@@ -100,7 +103,11 @@ public sealed class ScheduleTickLoopBasicTests
     }
 
     /// <summary>
-    /// Verifies multiple jobs fire in ascending next-fire order.
+    /// Verifies multiple jobs fire in ascending next-fire order: advancing past only
+    /// the earlier job's instant fires it alone, and advancing past the later job's
+    /// instant then fires it too. (Order is asserted via which job is due when, not
+    /// the pool-thread completion order, which races between two fire-and-forget
+    /// dispatches.)
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
@@ -110,14 +117,18 @@ public sealed class ScheduleTickLoopBasicTests
         var late = await fx.RegisterAsync("late", Cadence.At(Start.AddMinutes(10))).ConfigureAwait(false);
         var early = await fx.RegisterAsync("early", Cadence.At(Start.AddMinutes(2))).ConfigureAwait(false);
 
-        fx.Time.Advance(TimeSpan.FromMinutes(20));
+        // Advance past only the early job: it fires, the late one does not.
+        fx.Time.Advance(TimeSpan.FromMinutes(2));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
-
         await Assert.That(early.FireCount).IsEqualTo(1);
-        await Assert.That(late.FireCount).IsEqualTo(1);
+        await Assert.That(late.FireCount).IsEqualTo(0);
+        await Assert.That(early.LastFireTime).IsEqualTo(Start.AddMinutes(2));
 
-        // Ordering: the earlier job's recorded order index precedes the later one's.
-        await Assert.That(early.LastFireOrder).IsLessThan(late.LastFireOrder);
+        // Advance past the late job: it now fires too.
+        fx.Time.Advance(TimeSpan.FromMinutes(8));
+        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await Assert.That(late.FireCount).IsEqualTo(1);
+        await Assert.That(late.LastFireTime).IsEqualTo(Start.AddMinutes(10));
     }
 
     /// <summary>
@@ -203,7 +214,6 @@ public sealed class ScheduleTickLoopBasicTests
             this.Store = store;
             this.Loop = loop;
             this.sink = sink;
-            this.Dispatcher = new CountingDispatcher();
         }
 
         public FakeTimeProvider Time { get; }
@@ -213,8 +223,6 @@ public sealed class ScheduleTickLoopBasicTests
         public InMemoryScheduleStore Store { get; }
 
         public ScheduleTickLoop Loop { get; }
-
-        public CountingDispatcher Dispatcher { get; }
 
         public IReadOnlyList<object> Events => this.sink.Published;
 
@@ -257,27 +265,22 @@ public sealed class ScheduleTickLoopBasicTests
     }
 
     /// <summary>
-    /// A dispatcher that counts fires and records the scheduled occurrence time of
-    /// the most recent fire. Thread-safe: the router dispatches on a pool thread.
+    /// A dispatcher that counts fires and records the scheduled occurrence time of the
+    /// most recent fire. Thread-safe: the router dispatches on a pool thread.
     /// </summary>
     private sealed class CountingDispatcher : IJobDispatcher
     {
-        private static int globalOrder;
         private int fireCount;
         private long lastFireTimeTicks;
-        private int lastFireOrder;
 
         public int FireCount => Volatile.Read(ref this.fireCount);
 
         public DateTimeOffset LastFireTime =>
             new(Interlocked.Read(ref this.lastFireTimeTicks), TimeSpan.Zero);
 
-        public int LastFireOrder => Volatile.Read(ref this.lastFireOrder);
-
         public ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
             Interlocked.Exchange(ref this.lastFireTimeTicks, context.FireTime.UtcTicks);
-            Volatile.Write(ref this.lastFireOrder, Interlocked.Increment(ref globalOrder));
             Interlocked.Increment(ref this.fireCount);
             return ValueTask.CompletedTask;
         }

@@ -23,6 +23,7 @@ namespace Bifrost.Tests.Scheduling.TickEngine;
 /// ticks every registered job, and warns prominently at startup when the host opts
 /// into multi-instance against the default non-exclusive store.
 /// </summary>
+[ParallelLimiter<TickEngineParallelLimit>]
 public sealed class SingleProcessBehaviorTests
 {
     private static readonly DateTimeOffset Start =

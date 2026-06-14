@@ -31,6 +31,7 @@ namespace Bifrost.Tests.Scheduling.TickEngine;
 /// store's record (durable timing state) and resolves the dispatcher from the
 /// registry.
 /// </remarks>
+[ParallelLimiter<TickEngineParallelLimit>]
 public sealed class MissedFireStartupTests
 {
     private static readonly DateTimeOffset Start =
