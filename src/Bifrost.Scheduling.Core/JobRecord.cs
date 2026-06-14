@@ -8,7 +8,7 @@ namespace Bifrost.Scheduling.Core;
 
 /// <summary>
 /// The durable, persisted representation of a scheduled job — the unit loaded
-/// from and saved to the schedule store by the scheduler.
+/// from and saved to an <see cref="IScheduleStore"/> by the scheduler.
 /// </summary>
 /// <param name="Name">
 /// The unique job name; the identity key under which the job is stored, looked
