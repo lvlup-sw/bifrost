@@ -745,20 +745,71 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
         this.eventSink.Publish(new JobFiredEvent(jobName, scheduledOccurrence, nextFireAt));
 
         // Best-effort checkpoint: the fire already happened, so a checkpoint failure
-        // must not undo it or stall the loop.
-        this.Checkpoint(jobName, scheduledOccurrence, nextFireAt);
+        // must not undo it, fault the loop, or stall it.
+        this.SafeCheckpoint(jobName, scheduledOccurrence, nextFireAt);
     }
 
     /// <summary>
-    /// Checkpoints a fire to the store, fire-and-forget. The fire has already been
-    /// dispatched, so this is best-effort: a store fault is swallowed here and the
-    /// loop continues.
+    /// Checkpoints a fire to the store, best-effort (DR-4/DR-10). The fire and the
+    /// next-fire schedule are already committed, so a checkpoint failure — whether the
+    /// store throws synchronously or returns a faulted task — is logged at warning and
+    /// swallowed. It never faults the loop or stalls it: the checkpoint is observed
+    /// asynchronously off the tick thread so a slow store does not block scheduling.
     /// </summary>
     /// <param name="jobName">The job that fired.</param>
     /// <param name="firedAt">The fire instant.</param>
     /// <param name="nextFireAt">The next occurrence, or <see langword="null"/>.</param>
-    private void Checkpoint(string jobName, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
-        => _ = this.store.RecordFiredAsync(jobName, firedAt, nextFireAt, CancellationToken.None);
+    [SuppressMessage(
+        "Usage",
+        "VSTHRD110:Observe result of async calls",
+        Justification = "The checkpoint is intentionally best-effort and observed via " +
+            "the ObserveCheckpointAsync continuation, which swallows failures.")]
+    private void SafeCheckpoint(string jobName, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
+    {
+        ValueTask checkpoint;
+        try
+        {
+            checkpoint = this.store.RecordFiredAsync(jobName, firedAt, nextFireAt, CancellationToken.None);
+        }
+#pragma warning disable CA1031 // Best-effort: a synchronous store throw must not fault the loop.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            this.LogCheckpointFailed(jobName, ex);
+            return;
+        }
+
+        if (checkpoint.IsCompletedSuccessfully)
+        {
+            return;
+        }
+
+        // The checkpoint is in flight (or already faulted): observe it off the tick
+        // thread so an async store fault is logged rather than left unobserved, and a
+        // slow store never blocks scheduling.
+        _ = this.ObserveCheckpointAsync(jobName, checkpoint);
+    }
+
+    /// <summary>
+    /// Observes an in-flight checkpoint task, logging a warning if it faults so the
+    /// failure is never silently unobserved.
+    /// </summary>
+    /// <param name="jobName">The job whose checkpoint is observed.</param>
+    /// <param name="checkpoint">The in-flight checkpoint task.</param>
+    /// <returns>A task that always completes successfully.</returns>
+    private async Task ObserveCheckpointAsync(string jobName, ValueTask checkpoint)
+    {
+        try
+        {
+            await checkpoint.ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // Best-effort: an async store fault must not propagate.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            this.LogCheckpointFailed(jobName, ex);
+        }
+    }
 
     /// <summary>
     /// Enqueues (or re-enqueues) a job at a scheduled occurrence under a fresh
@@ -971,11 +1022,14 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     }
 
     /// <summary>
-    /// Wraps the job's live dispatcher so the loop can count the dispatch as
-    /// in-flight for the duration of the fire. The <c>finally</c> runs even when the
-    /// inner dispatcher throws — the router catches the throw, but the await unwinds
-    /// through this method first — so the in-flight count is always cleared exactly
-    /// once per fire.
+    /// Wraps the job's live dispatcher so the loop can count the dispatch as in-flight
+    /// for the duration of the fire, and so a throwing dispatcher is surfaced as a
+    /// <see cref="JobFireFailedEvent"/> here — <em>before</em> the in-flight count is
+    /// cleared. Publishing the failure inside the <c>catch</c> (rather than letting it
+    /// propagate to the router) guarantees the failed-fire event is observable by the
+    /// time the loop next reports idle, and avoids a double publish. The decorator then
+    /// completes normally, so the router sees success. The <c>finally</c> clears the
+    /// in-flight count exactly once per fire.
     /// </summary>
     /// <param name="owner">The loop tracking the in-flight count.</param>
     /// <param name="inner">The job's live dispatcher.</param>
@@ -986,6 +1040,17 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
             try
             {
                 await inner.DispatchAsync(context, ct).ConfigureAwait(false);
+            }
+#pragma warning disable CA1031 // A throwing dispatcher is isolated as a failed-fire event.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                // Isolate the dispatcher (DR-4): surface the throw as a failed fire
+                // carrying the exception, published before the in-flight count clears.
+                owner.eventSink.Publish(new JobFireFailedEvent(
+                    context.JobName,
+                    context.FireTime,
+                    ex));
             }
             finally
             {
