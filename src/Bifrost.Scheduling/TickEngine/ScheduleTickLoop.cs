@@ -10,6 +10,7 @@ using System.Threading.Channels;
 using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.Core.Events;
 using Bifrost.Scheduling.Dispatch;
+using Bifrost.Scheduling.Internal;
 using Bifrost.Scheduling.Registry;
 
 using Microsoft.Extensions.Hosting;
@@ -41,6 +42,13 @@ namespace Bifrost.Scheduling.TickEngine;
 /// </remarks>
 public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
 {
+    /// <summary>
+    /// The maximum number of missed occurrences reconciled at startup — mirrors the
+    /// default cap of <see cref="MissedFirePolicyApplier.ComputeMissedFires"/>, used to
+    /// detect and log a capped <see cref="MissedFirePolicy.FireAllMissed"/> backlog.
+    /// </summary>
+    private const int MissedFirePolicyApplierCatchUpCap = 100;
+
     private readonly ScheduleRegistry registry;
     private readonly IScheduleStore store;
     private readonly TimeProvider timeProvider;
@@ -511,29 +519,115 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     }
 
     /// <summary>
-    /// Loads persisted jobs and arms each currently registered, running one. The
-    /// store supplies timing state (cadence, last/next fire, policy); the registry
-    /// supplies the live dispatcher. A job present in the store but absent from the
-    /// live registry has no dispatcher and is not armed.
+    /// Loads persisted jobs and seeds the heap. For each durable record that has a
+    /// live dispatcher in the registry, the loop first reconciles the occurrences
+    /// missed while the process was down — applying the record's
+    /// <see cref="MissedFirePolicy"/> against its durable <c>LastFiredAt</c> (DR-3) —
+    /// then arms the normal next fire.
     /// </summary>
+    /// <remarks>
+    /// The store supplies the durable timing state — cadence, <c>LastFiredAt</c>, and
+    /// policy — and the registry supplies the live dispatcher; a record present in the
+    /// store but absent from the registry has no dispatcher and is skipped. A job
+    /// registered live this process (no prior fires, no durable record) is seeded
+    /// from its registry record by <see cref="Arm"/> via the pre-start command drain.
+    /// </remarks>
     /// <param name="stoppingToken">The loop's stopping token.</param>
     /// <returns>A task that completes when seeding is done.</returns>
     private async Task SeedAsync(CancellationToken stoppingToken)
     {
-        // Drain any commands posted before the loop started (registrations made
-        // during host construction) so the heap reflects them.
+        var now = this.timeProvider.GetUtcNow();
+        var persisted = await this.store.LoadAllAsync(stoppingToken).ConfigureAwait(false);
+
+        var seeded = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var record in persisted)
+        {
+            // Only running jobs with a live dispatcher are seedable from durable state.
+            if (record.State != JobState.Running || this.registry.TryGetDispatcher(record.Name) is null)
+            {
+                continue;
+            }
+
+            this.ApplyStartupMissedFirePolicies(record, now);
+            this.ArmFromRecord(record, now);
+            seeded.Add(record.Name);
+        }
+
+        // Drain any commands posted before the loop started (live registrations made
+        // during host construction) and arm any registered running job the store did
+        // not already cover.
         this.DrainCommands();
-
-        _ = await this.store.LoadAllAsync(stoppingToken).ConfigureAwait(false);
-
-        // Arm every currently registered running job from its live record.
         foreach (var record in this.registry.SnapshotRecords())
         {
-            if (record.State == JobState.Running)
+            if (record.State == JobState.Running && !seeded.Contains(record.Name))
             {
                 this.Arm(record.Name);
             }
         }
+    }
+
+    /// <summary>
+    /// Reconciles the occurrences a job missed while the process was down, per its
+    /// <see cref="MissedFirePolicy"/> (DR-3). Each catch-up occurrence is dispatched
+    /// in order; when any were missed a <see cref="JobMissedFireEvent"/> reports the
+    /// count and policy. The capacity cap bounds the backlog, and a capped
+    /// <see cref="MissedFirePolicy.FireAllMissed"/> backlog is logged.
+    /// </summary>
+    /// <param name="record">The durable record carrying the job's last-fired instant.</param>
+    /// <param name="now">The startup instant (DR-7).</param>
+    private void ApplyStartupMissedFirePolicies(JobRecord record, DateTimeOffset now)
+    {
+        // The catch-up occurrences actually dispatched, per the configured policy:
+        // the full (capped) backlog for FireAllMissed, a single coalesced fire for
+        // Coalesce, and none for SkipMissed.
+        var catchUp = MissedFirePolicyApplier.ComputeMissedFires(
+            record.Cadence, record.LastFiredAt, now, record.MissedFirePolicy);
+
+        // The true number of occurrences missed, independent of how the policy
+        // reconciles them — so the event reports "5 missed, coalesced" rather than the
+        // single dispatched fire.
+        var missedCount = MissedFirePolicyApplier.ComputeMissedFires(
+            record.Cadence, record.LastFiredAt, now, MissedFirePolicy.FireAllMissed).Count;
+
+        if (missedCount == 0)
+        {
+            return;
+        }
+
+        if (missedCount >= MissedFirePolicyApplierCatchUpCap)
+        {
+            this.LogMissedFireCapReached(record.Name, MissedFirePolicyApplierCatchUpCap);
+        }
+
+        this.eventSink.Publish(new JobMissedFireEvent(record.Name, missedCount, record.MissedFirePolicy));
+
+        // Dispatch each catch-up occurrence in order. The next fire after each is
+        // computed strictly from the occurrence (not the wall clock), matching the
+        // running-loop dispatch path.
+        foreach (var occurrence in catchUp)
+        {
+            var nextAfter = record.Cadence.ComputeNextFire(occurrence, occurrence);
+            this.Dispatch(record.Name, occurrence, nextAfter);
+        }
+    }
+
+    /// <summary>
+    /// Arms a job from a durable record: computes its next fire from the cadence and
+    /// the durable last-fired instant and enqueues it, dropping it when no further
+    /// occurrence is scheduled.
+    /// </summary>
+    /// <param name="record">The durable record.</param>
+    /// <param name="now">The startup instant (DR-7).</param>
+    private void ArmFromRecord(JobRecord record, DateTimeOffset now)
+    {
+        var nextFire = record.Cadence.ComputeNextFire(record.LastFiredAt, now);
+        if (nextFire is null)
+        {
+            this.scheduled.Remove(record.Name);
+            return;
+        }
+
+        this.Enqueue(record.Name, record.Cadence, record.MissedFirePolicy, nextFire.Value);
     }
 
     /// <summary>
