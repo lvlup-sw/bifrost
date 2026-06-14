@@ -15,10 +15,15 @@ namespace Bifrost.Tests.Scheduling.Core;
 public sealed class JobRecordTests
 {
     /// <summary>
-    /// A concrete <see cref="Cadence"/> double — the stub is abstract, so tests
+    /// A concrete <see cref="Cadence"/> double — the base is abstract, so tests
     /// need a trivially subclassable record to construct a <see cref="JobRecord"/>.
     /// </summary>
-    private sealed record FakeCadence : Cadence;
+    private sealed record FakeCadence : Cadence
+    {
+        /// <inheritdoc/>
+        public override DateTimeOffset? ComputeNextFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)
+            => null;
+    }
 
     private static JobRecord NewRecord(
         JobState state = JobState.Running,

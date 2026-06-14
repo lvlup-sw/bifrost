@@ -174,5 +174,10 @@ public sealed class IScheduleRegistryTests
     /// <summary>
     /// A trivially subclassable <see cref="Cadence"/> double for descriptor tests.
     /// </summary>
-    private sealed record FakeCadence : Cadence;
+    private sealed record FakeCadence : Cadence
+    {
+        /// <inheritdoc/>
+        public override DateTimeOffset? ComputeNextFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)
+            => null;
+    }
 }

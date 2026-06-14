@@ -29,6 +29,9 @@
     <!-- Resilience -->
     <PackageVersion Include="Polly" Version="8.6.4" />
 
+    <!-- Scheduling -->
+    <PackageVersion Include="Cronos" Version="0.13.0" />
+
     <!-- Benchmarking -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
 
