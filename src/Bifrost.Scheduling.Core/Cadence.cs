@@ -42,13 +42,8 @@ public abstract record Cadence
     /// Builds a recurring cadence that fires once per <paramref name="interval"/>.
     /// </summary>
     /// <param name="interval">The spacing between occurrences; must be positive.</param>
-    /// <returns>An interval cadence for the supplied interval.</returns>
-    /// <remarks>
-    /// Temporarily unimplemented: the <c>IntervalCadence</c> type and this wiring
-    /// are introduced in Task 10. This stub exists only so the one-shot factories
-    /// can compile in Task 9 and is replaced when interval support lands.
-    /// </remarks>
-    public static Cadence Interval(TimeSpan interval) => throw new NotImplementedException();
+    /// <returns>An <see cref="IntervalCadence"/> for the supplied interval.</returns>
+    public static Cadence Interval(TimeSpan interval) => new IntervalCadence(interval);
 
     /// <summary>
     /// Builds a cadence from a cron expression.
