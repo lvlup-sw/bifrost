@@ -9,6 +9,9 @@
   <ItemGroup>
     <PackageReference Include="Cronos" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <!-- Banned-API gate (RS0030): clock-API and bare Task.Delay regressions fail the build (DR-7/R1) -->
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="BannedSymbols.txt" />
   </ItemGroup>
 
 </Project>

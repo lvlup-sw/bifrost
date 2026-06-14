@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- TargetFramework, Nullable, ImplicitUsings, LangVersion, IsAotCompatible
+         are all inherited from samples/Directory.Build.props → src/Directory.Build.props. -->
+    <RootNamespace>Bifrost.Scheduling.AotSmoke</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>true</IsPublishable>
+    <!-- NativeAOT: only active during `dotnet publish`, not `dotnet build`.
+         Set via /p:PublishAot=true on the publish command line, or via the CI step
+         that uses `dotnet publish -c Release /p:PublishAot=true`. This way a
+         regular `dotnet build` still compiles and validates trim-analyzer warnings
+         without requiring the native toolchain (LLVM / linker) locally. -->
+    <!-- AOT/trim safety: IsAotCompatible=true is inherited from Directory.Build.props;
+         trim warnings flow into warnings-as-errors via TreatWarningsAsErrors. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Silence the xml-doc warning (no doc file for a console host) -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Description>AOT smoke test for Bifrost.Scheduling — verifies the scheduler, dispatcher, and store run under NativeAOT without reflection-based activation.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference the scheduling projects by relative path (sample lives in samples/,
+         solution is in src/ — paths are relative to this csproj). -->
+    <ProjectReference Include="..\..\src\Bifrost.Scheduling.Core\Bifrost.Scheduling.Core.csproj" />
+    <ProjectReference Include="..\..\src\Bifrost.Scheduling\Bifrost.Scheduling.csproj" />
+  </ItemGroup>
+
+</Project>
