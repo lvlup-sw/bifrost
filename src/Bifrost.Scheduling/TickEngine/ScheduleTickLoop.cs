@@ -10,6 +10,7 @@ using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.Core.Events;
 using Bifrost.Scheduling.Dispatch;
 using Bifrost.Scheduling.Internal;
+using Bifrost.Scheduling.Observability;
 using Bifrost.Scheduling.Registry;
 
 using Microsoft.Extensions.Hosting;
@@ -48,6 +49,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     /// </summary>
     private const int MissedFirePolicyApplierCatchUpCap = 100;
 
+    /// <summary>
+    /// The <c>exception.type</c> tag value used for a dispatch failure that carries
+    /// no exception — the job had no live dispatcher at the moment of fire.
+    /// </summary>
+    private const string NoDispatcherFailureType = "NoDispatcher";
+
     private readonly ScheduleRegistry registry;
     private readonly IScheduleStore store;
     private readonly TimeProvider timeProvider;
@@ -55,6 +62,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     private readonly ISchedulerEventSink eventSink;
     private readonly ILogger<ScheduleTickLoop> logger;
     private readonly SchedulerOptions options;
+    private readonly SchedulerMetrics metrics;
 
     // The min-heap of pending fires keyed by scheduled occurrence. Owned by — and
     // only ever touched on — the single tick thread, so it needs no lock.
@@ -114,6 +122,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
     /// <param name="eventSink">The seam fire and fault events are published through.</param>
     /// <param name="logger">The loop's logger.</param>
     /// <param name="options">The scheduler options.</param>
+    /// <param name="metrics">
+    /// The scheduler metrics the loop records fires, fire latency, missed-fire
+    /// reconciliation, and dispatch failures against (DR-8). When
+    /// <see langword="null"/>, a private meter is created; production passes the
+    /// shared instance the registry also records against.
+    /// </param>
     internal ScheduleTickLoop(
         ScheduleRegistry registry,
         IScheduleStore store,
@@ -121,7 +135,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
         IJobDispatcherRouter router,
         ISchedulerEventSink eventSink,
         ILogger<ScheduleTickLoop> logger,
-        SchedulerOptions options)
+        SchedulerOptions options,
+        SchedulerMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(store);
@@ -138,6 +153,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
         this.eventSink = eventSink;
         this.logger = logger;
         this.options = options;
+        this.metrics = metrics ?? new SchedulerMetrics();
     }
 
     /// <summary>
@@ -725,6 +741,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
                 scheduledOccurrence,
                 Exception: null,
                 Reason: "No dispatcher is registered for the job."));
+            this.metrics.RecordDispatchFailure(jobName, NoDispatcherFailureType);
             return;
         }
 
@@ -743,6 +760,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
         this.router.Dispatch(tracked, context, CancellationToken.None);
 
         this.eventSink.Publish(new JobFiredEvent(jobName, scheduledOccurrence, nextFireAt));
+
+        // Fire latency is the gap between the scheduled occurrence (the logical fire
+        // instant) and the actual dispatch instant. A fire dispatched on time or
+        // early (a manual trigger) yields a non-positive gap the metric clamps to
+        // zero. Time flows through the injected TimeProvider (DR-7).
+        var dispatchedAt = this.timeProvider.GetUtcNow();
+        this.metrics.RecordFired(jobName, dispatchedAt - scheduledOccurrence);
 
         // Best-effort checkpoint: the fire already happened, so a checkpoint failure
         // must not undo it, fault the loop, or stall it.
@@ -941,6 +965,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
         }
 
         this.eventSink.Publish(new JobMissedFireEvent(record.Name, missedCount, record.MissedFirePolicy));
+        this.metrics.RecordMissedFires(record.Name, missedCount, record.MissedFirePolicy);
 
         // Dispatch each catch-up occurrence in order. The next fire after each is
         // computed strictly from the occurrence (not the wall clock), matching the
@@ -1051,6 +1076,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable
                     context.JobName,
                     context.FireTime,
                     ex));
+                owner.metrics.RecordDispatchFailure(context.JobName, ex.GetType().Name);
             }
             finally
             {

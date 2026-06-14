@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
 using Bifrost.Scheduling.Core;
+using Bifrost.Scheduling.Observability;
 
 namespace Bifrost.Scheduling.Registry;
 
@@ -29,6 +30,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
 {
     private readonly IScheduleStore store;
     private readonly TimeProvider timeProvider;
+    private readonly SchedulerMetrics metrics;
     private readonly ConcurrentDictionary<string, JobRecord> jobs = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, IJobDispatcher> dispatchers = new(StringComparer.Ordinal);
     private readonly Channel<RegistryCommand> commands =
@@ -46,13 +48,23 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
     /// The clock used to compute a job's initial next-fire instant at registration
     /// (DR-7); the registry never reads a clock of its own.
     /// </param>
-    public ScheduleRegistry(IScheduleStore store, TimeProvider timeProvider)
+    /// <param name="metrics">
+    /// The scheduler metrics the registry records job registration and removal
+    /// against (DR-8). When <see langword="null"/>, a private meter is created so the
+    /// registry can be constructed without observability wiring; production passes the
+    /// shared instance the tick loop also records against.
+    /// </param>
+    public ScheduleRegistry(
+        IScheduleStore store,
+        TimeProvider timeProvider,
+        SchedulerMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.store = store;
         this.timeProvider = timeProvider;
+        this.metrics = metrics ?? new SchedulerMetrics();
     }
 
     /// <summary>
@@ -142,6 +154,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         }
 
         this.dispatchers[name] = dispatcher;
+        this.metrics.RecordRegistered();
         await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), ct).ConfigureAwait(false);
     }
 
@@ -159,6 +172,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
 
         this.jobs.TryRemove(name, out _);
         this.dispatchers.TryRemove(name, out _);
+        this.metrics.RecordUnregistered();
         await this.PostAsync(new RegistryCommand(RegistryCommandKind.Unregister, name), ct).ConfigureAwait(false);
         return true;
     }
