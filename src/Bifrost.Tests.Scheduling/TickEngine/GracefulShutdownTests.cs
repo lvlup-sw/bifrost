@@ -11,6 +11,7 @@ using Bifrost.Scheduling.Registry;
 using Bifrost.Scheduling.Stores;
 using Bifrost.Scheduling.TickEngine;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -29,6 +30,10 @@ public sealed class GracefulShutdownTests
 {
     private static readonly DateTimeOffset Start =
         new(2026, 6, 13, 12, 0, 0, TimeSpan.Zero);
+
+    // A real root provider so each fire opens (and disposes) a genuine per-fire scope
+    // (F2/M2) — exercises the scope lifecycle against the in-flight drain path.
+    private static readonly ServiceProvider Services = new ServiceCollection().BuildServiceProvider();
 
     private static TimeSpan TestTimeout => TimeSpan.FromSeconds(10);
 
@@ -154,7 +159,8 @@ public sealed class GracefulShutdownTests
         var router = new JobDispatcherRouter(sink);
         var loop = new ScheduleTickLoop(
             registry, store, time, router, sink,
-            NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions());
+            NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
+            serviceProvider: Services);
 
         await Assert.That(async () =>
                 await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false))
@@ -189,7 +195,8 @@ public sealed class GracefulShutdownTests
             var router = new JobDispatcherRouter(sink);
             var loop = new ScheduleTickLoop(
                 registry, store, time, router, sink,
-                NullLogger<ScheduleTickLoop>.Instance, options ?? new SchedulerOptions());
+                NullLogger<ScheduleTickLoop>.Instance, options ?? new SchedulerOptions(),
+                serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop);
             await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);

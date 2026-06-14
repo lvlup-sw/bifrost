@@ -13,6 +13,7 @@ using Bifrost.Scheduling.Internal;
 using Bifrost.Scheduling.Observability;
 using Bifrost.Scheduling.Registry;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -65,6 +66,14 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private readonly SchedulerMetrics metrics;
     private readonly ITickHealthMonitor healthMonitor;
 
+    // The root scope factory every fire opens a per-fire IServiceScope from, so a
+    // dispatcher can resolve scoped work via JobFireContext.Services (F2/M2). Null when
+    // no root provider was supplied (a few low-level fixtures); such a fire falls back
+    // to EmptyServiceProvider. The scope outlives the tick-thread handoff: it is
+    // disposed in the dispatch continuation once the pool-thread fire completes, never
+    // synchronously on the tick thread.
+    private readonly IServiceScopeFactory? scopeFactory;
+
     // The min-heap of pending fires keyed by scheduled occurrence. Owned by — and
     // only ever touched on — the single tick thread, so it needs no lock.
     private readonly PriorityQueue<JobHandle, DateTimeOffset> heap = new();
@@ -110,6 +119,15 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     // to detect a non-monotonic clock (DR-10).
     private long previousNowTicks = long.MinValue;
 
+    // The cached command-readiness wait, reused across wakes to avoid a per-wake
+    // WaitToReadAsync().AsTask() allocation on the hot non-command wake path (core-2).
+    // The channel is SingleReader (only the tick thread reads it), so a single
+    // outstanding waiter is correct. It is recreated only once it has completed — i.e.
+    // a command became available — so a non-command wake (delay/drain/barrier) reuses
+    // the same still-pending task. A fresh WaitToReadAsync observes any command already
+    // queued and completes immediately, so no wakeup is ever lost.
+    private Task<bool>? commandReadyTask;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ScheduleTickLoop"/> class.
     /// </summary>
@@ -136,6 +154,15 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <see langword="null"/>, a private monitor is created; production passes the
     /// shared instance the health check reads.
     /// </param>
+    /// <param name="serviceProvider">
+    /// The root service provider each fire opens a per-fire <see cref="IServiceScope"/>
+    /// from, surfaced to the dispatcher as
+    /// <see cref="Bifrost.Scheduling.Core.JobFireContext.Services"/> (F2/M2). DI resolves
+    /// the application root provider here; the loop creates one scope per fire and
+    /// disposes it once the (pool-thread) dispatch completes. When <see langword="null"/>
+    /// — a few low-level fixtures with no provider — a fire falls back to a no-op
+    /// provider so scoped resolution returns <see langword="null"/> rather than throwing.
+    /// </param>
     internal ScheduleTickLoop(
         ScheduleRegistry registry,
         IScheduleStore store,
@@ -145,7 +172,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         ILogger<ScheduleTickLoop> logger,
         SchedulerOptions options,
         SchedulerMetrics? metrics = null,
-        ITickHealthMonitor? healthMonitor = null)
+        ITickHealthMonitor? healthMonitor = null,
+        IServiceProvider? serviceProvider = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(store);
@@ -164,6 +192,11 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         this.options = options;
         this.metrics = metrics ?? new SchedulerMetrics();
         this.healthMonitor = healthMonitor ?? new TickHealthMonitor();
+
+        // Resolve the scope factory once from the root provider so every fire can open a
+        // cheap per-fire scope without re-resolving. Falls back to null when no provider
+        // is supplied or the factory is absent (a bare provider in a fixture).
+        this.scopeFactory = serviceProvider?.GetService<IServiceScopeFactory>();
     }
 
     /// <summary>
@@ -571,7 +604,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // guarantees the next-fire timer is armed before the test can advance the
         // clock, so the advance reliably wakes the loop (no missed wakeup).
         var drainTask = this.CurrentDrainTask();
-        var commandReady = this.registry.Commands.WaitToReadAsync(stoppingToken).AsTask();
+        var commandReady = this.CommandReadyTask(stoppingToken);
         var barrierWakeTask = this.CurrentBarrierWakeTask();
         Task? delayTask = null;
         if (nextFire is not null)
@@ -609,6 +642,31 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             // Shutdown requested.
         }
+    }
+
+    /// <summary>
+    /// Returns the command-readiness wait, reused across wakes to avoid a per-wake
+    /// <c>WaitToReadAsync().AsTask()</c> allocation on the hot non-command wake path
+    /// (core-2). A fresh wait is created only when the cached one is absent or has
+    /// already completed — meaning a command became available since it was created. The
+    /// channel is single-reader (only the tick thread reads it), so one outstanding
+    /// waiter is correct; a non-command wake (delay/drain/barrier) leaves the wait
+    /// pending and reuses it next iteration. A freshly created <c>WaitToReadAsync</c>
+    /// observes any command already queued and completes synchronously, so a command
+    /// posted between a drain and this call still wakes the loop — no lost wakeup.
+    /// </summary>
+    /// <param name="stoppingToken">The loop's stopping token.</param>
+    /// <returns>The cached or freshly created command-readiness task.</returns>
+    private Task<bool> CommandReadyTask(CancellationToken stoppingToken)
+    {
+        var cached = this.commandReadyTask;
+        if (cached is null || cached.IsCompleted)
+        {
+            cached = this.registry.Commands.WaitToReadAsync(stoppingToken).AsTask();
+            this.commandReadyTask = cached;
+        }
+
+        return cached;
     }
 
     /// <summary>
@@ -832,12 +890,29 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 #pragma warning restore CA1031
 
     /// <summary>
-    /// Performs a single fire: resolves the live dispatcher, hands the fire to the
-    /// router (fire-and-forget), publishes <see cref="JobFiredEvent"/>, and
-    /// checkpoints the fire to the store best-effort. The fire instant is the
-    /// scheduled occurrence — never a wall-clock read — so it is stable across
-    /// re-evaluation and serves as the idempotency key.
+    /// Performs a single fire: resolves the live dispatcher, publishes
+    /// <see cref="JobFiredEvent"/> — the dispatch-handoff signal — and checkpoints the
+    /// fire best-effort, then opens a per-fire <see cref="IServiceScope"/> (F2/M2) and
+    /// hands the fire to the router. The fire instant is the scheduled occurrence — never
+    /// a wall-clock read — so it is stable across re-evaluation and serves as the
+    /// idempotency key.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Event ordering (core-1): <see cref="JobFiredEvent"/> is published before
+    /// <c>router.Dispatch</c> so the handoff signal always precedes any per-fire outcome
+    /// event a fast-failing dispatcher emits (a synchronous throw or an admission
+    /// rejection), keeping the <c>(JobName, FireTime)</c> timeline monotonic for a
+    /// correlating subscriber.
+    /// </para>
+    /// <para>
+    /// Scope lifetime (F2/M2): the per-fire scope is created here on the tick thread but
+    /// handed to the in-flight tracking decorator, which disposes it in its <c>finally</c>
+    /// once the pool-thread dispatch completes — so the scope outlives the fire-and-forget
+    /// handoff and a dispatcher can resolve scoped services through
+    /// <see cref="JobFireContext.Services"/> for the full duration of the fire.
+    /// </para>
+    /// </remarks>
     /// <param name="jobName">The job firing.</param>
     /// <param name="scheduledOccurrence">The occurrence's logical instant.</param>
     /// <param name="nextFireAt">The next occurrence, or <see langword="null"/>.</param>
@@ -857,20 +932,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             return;
         }
 
-        var context = new JobFireContext(
-            jobName,
-            scheduledOccurrence,
-            nextFireAt,
-            EmptyServiceProvider.Instance);
-
-        // Track the dispatch as in-flight before handing it to the router, and clear
-        // the count when the wrapped dispatcher completes (success or throw). The
-        // router runs the dispatch on the pool; the decorator's finally still runs
-        // even when the router catches a throwing dispatcher, so the count is exact.
-        Interlocked.Increment(ref this.inFlightDispatches);
-        var tracked = new InFlightTrackingDispatcher(this, dispatcher);
-        this.router.Dispatch(tracked, context, CancellationToken.None);
-
+        // Publish the handoff signal FIRST (core-1): a fast-failing dispatcher publishing
+        // JobFireFailedEvent must never precede this event for the same occurrence. This
+        // runs before the in-flight count is incremented and before any scope is created,
+        // so if the publish itself faults the loop body there is no in-flight leak and no
+        // orphaned scope (the original ordering incremented in-flight first, which would
+        // strand the count and hang the idle barrier when the publish threw).
         this.eventSink.Publish(new JobFiredEvent(jobName, scheduledOccurrence, nextFireAt));
 
         // Fire latency is the gap between the scheduled occurrence (the logical fire
@@ -883,6 +950,47 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // Best-effort checkpoint: the fire already happened, so a checkpoint failure
         // must not undo it, fault the loop, or stall it.
         this.SafeCheckpoint(jobName, scheduledOccurrence, nextFireAt);
+
+        // Open a per-fire DI scope (F2/M2), now that the handoff signal has been
+        // published. When no root provider was supplied the scope is null and the fire
+        // falls back to the no-op provider, so scoped resolution returns null rather
+        // than throwing. The scope is disposed by the tracking decorator after the
+        // pool-thread dispatch completes (see InFlightTrackingDispatcher).
+        var scope = this.scopeFactory?.CreateScope();
+        var services = scope?.ServiceProvider ?? EmptyServiceProvider.Instance;
+
+        var context = new JobFireContext(
+            jobName,
+            scheduledOccurrence,
+            nextFireAt,
+            services);
+
+        // Track the dispatch as in-flight before handing it to the router, and clear
+        // the count when the wrapped dispatcher completes (success or throw). The
+        // router runs the dispatch on the pool; the decorator's finally still runs
+        // even when the router catches a throwing dispatcher, so the count is exact and
+        // the per-fire scope is disposed exactly once after the fire finishes. The
+        // increment is paired with the handoff: if the handoff itself were to throw
+        // (it does not in practice), the catch undoes the count and disposes the scope
+        // so the idle barrier can never strand.
+        Interlocked.Increment(ref this.inFlightDispatches);
+        var tracked = new InFlightTrackingDispatcher(this, dispatcher, scope);
+        try
+        {
+            this.router.Dispatch(tracked, context, CancellationToken.None);
+        }
+#pragma warning disable CA1031 // Undo the in-flight bookkeeping on any handoff fault.
+        catch
+#pragma warning restore CA1031
+        {
+            // The router never throws in practice, but if the handoff faults the wrapped
+            // dispatcher will never run its finally, so undo the count and dispose the
+            // scope here to keep the in-flight bookkeeping exact and the idle barrier
+            // unstranded, then re-raise so the loop's fault recovery still sees it.
+            scope?.Dispose();
+            this.OnDispatchCompleted();
+            throw;
+        }
     }
 
     /// <summary>
@@ -1148,8 +1256,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
     /// <summary>
     /// A no-op <see cref="IServiceProvider"/> used as the fire context's service
-    /// scope until a per-fire scope is wired in a later group. Returns
-    /// <see langword="null"/> for every service.
+    /// provider when no root provider is available to open a per-fire scope from (a few
+    /// low-level fixtures). Returns <see langword="null"/> for every service, so a
+    /// dispatcher's scoped resolution degrades to null rather than throwing.
     /// </summary>
     private sealed class EmptyServiceProvider : IServiceProvider
     {
@@ -1165,12 +1274,19 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// cleared. Publishing the failure inside the <c>catch</c> (rather than letting it
     /// propagate to the router) guarantees the failed-fire event is observable by the
     /// time the loop next reports idle, and avoids a double publish. The decorator then
-    /// completes normally, so the router sees success. The <c>finally</c> clears the
-    /// in-flight count exactly once per fire.
+    /// completes normally, so the router sees success. The <c>finally</c> disposes the
+    /// per-fire scope and clears the in-flight count exactly once per fire — both on the
+    /// pool thread after the dispatch finishes, so the scope outlives the fire-and-forget
+    /// handoff (F2/M2).
     /// </summary>
     /// <param name="owner">The loop tracking the in-flight count.</param>
     /// <param name="inner">The job's live dispatcher.</param>
-    private sealed class InFlightTrackingDispatcher(ScheduleTickLoop owner, IJobDispatcher inner) : IJobDispatcher
+    /// <param name="scope">
+    /// The per-fire DI scope to dispose after the fire completes, or
+    /// <see langword="null"/> when no scope was created.
+    /// </param>
+    private sealed class InFlightTrackingDispatcher(ScheduleTickLoop owner, IJobDispatcher inner, IServiceScope? scope)
+        : IJobDispatcher
     {
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
@@ -1194,7 +1310,39 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             }
             finally
             {
+                // Dispose the per-fire scope first so scoped IAsyncDisposable/IDisposable
+                // services are released before the fire is reported drained, then clear
+                // the in-flight count. A scope dispose must never crash the fire path.
+                await this.DisposeScopeAsync(context.JobName).ConfigureAwait(false);
                 owner.OnDispatchCompleted();
+            }
+        }
+
+        /// <summary>
+        /// Disposes the per-fire scope, preferring async disposal so a scoped
+        /// <see cref="IAsyncDisposable"/> service releases cleanly. A dispose fault is
+        /// logged and swallowed so cleanup never crashes the isolated fire path.
+        /// </summary>
+        /// <param name="jobName">The job whose fire scope is being disposed.</param>
+        /// <returns>A task that completes when the scope is disposed.</returns>
+        private async ValueTask DisposeScopeAsync(string jobName)
+        {
+            try
+            {
+                if (scope is IAsyncDisposable asyncScope)
+                {
+                    await asyncScope.DisposeAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    scope?.Dispose();
+                }
+            }
+#pragma warning disable CA1031 // A scope-dispose fault must not crash the isolated fire path.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                owner.LogScopeDisposeFailed(jobName, ex);
             }
         }
     }

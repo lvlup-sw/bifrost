@@ -25,12 +25,6 @@ internal enum RegistryCommandKind
 
     /// <summary>A job was triggered and should fire immediately, out of band.</summary>
     Trigger,
-
-    /// <summary>
-    /// A job's cadence or policy was updated; the tick loop should re-evaluate
-    /// the job's next fire time from the new cadence without an immediate fire.
-    /// </summary>
-    Update,
 }
 
 /// <summary>

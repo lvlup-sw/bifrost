@@ -12,6 +12,7 @@ using Bifrost.Scheduling.Registry;
 using Bifrost.Scheduling.Stores;
 using Bifrost.Scheduling.TickEngine;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
@@ -30,6 +31,10 @@ public sealed class DispatchFailureTests
 {
     private static readonly DateTimeOffset Start =
         new(2026, 6, 13, 12, 0, 0, TimeSpan.Zero);
+
+    // A real root provider so each fire opens (and disposes) a genuine per-fire scope
+    // (F2/M2) — exercises the per-fire scope lifecycle in this fixture's tick loop.
+    private static readonly ServiceProvider Services = new ServiceCollection().BuildServiceProvider();
 
     private static TimeSpan TestTimeout => TimeSpan.FromSeconds(10);
 
@@ -130,7 +135,8 @@ public sealed class DispatchFailureTests
             var router = new JobDispatcherRouter(sink);
             var loop = new ScheduleTickLoop(
                 registry, effectiveStore, time, router, sink,
-                logger ?? new CapturingLogger<ScheduleTickLoop>(), new SchedulerOptions());
+                logger ?? new CapturingLogger<ScheduleTickLoop>(), new SchedulerOptions(),
+                serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop, sink);
             await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);

@@ -28,7 +28,11 @@ namespace Bifrost.Scheduling.Core;
 /// </param>
 /// <param name="Services">
 /// The service provider scoped to this fire, from which the dispatcher resolves
-/// the work it runs.
+/// the work it runs. The scheduler opens a fresh <c>IServiceScope</c> per fire and
+/// disposes it once the dispatch completes, so any scoped service resolved here lives
+/// for exactly the duration of the fire. When the scheduler has no root provider to
+/// scope from (a few low-level test fixtures) this is a no-op provider that returns
+/// <see langword="null"/> for every service rather than throwing.
 /// </param>
 public readonly record struct JobFireContext(
     string JobName,

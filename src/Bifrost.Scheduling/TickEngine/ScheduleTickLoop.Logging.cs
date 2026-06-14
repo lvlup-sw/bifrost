@@ -64,4 +64,11 @@ public sealed partial class ScheduleTickLoop
             "marked Faulted and will not fire again until it is re-registered " +
             "(DR-10, Task 48).")]
     private partial void LogCadenceComputeNextFireFailed(string jobName, Exception exception);
+
+    [LoggerMessage(
+        EventId = 8,
+        Level = LogLevel.Warning,
+        Message = "Disposing the per-fire service scope for job '{JobName}' failed; the " +
+            "fire already completed and scheduling is unaffected (best-effort).")]
+    private partial void LogScopeDisposeFailed(string jobName, Exception exception);
 }
