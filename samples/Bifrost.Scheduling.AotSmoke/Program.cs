@@ -1,7 +1,7 @@
 // =============================================================================
 // Bifrost.Scheduling.AotSmoke — NativeAOT compatibility smoke test (DR-13)
 //
-// Exercises three dispatch modes under a NativeAOT-published binary to verify:
+// Exercises four dispatch modes under a NativeAOT-published binary to verify:
 //   • No reflection-based job activation
 //   • No type-name serialization as an activation key
 //   • No expression-tree compilation
@@ -15,6 +15,8 @@
 //     direct method calls
 // =============================================================================
 
+using Bifrost.Core;
+using Bifrost.DependencyInjection;
 using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.DependencyInjection;
 
@@ -25,7 +27,7 @@ using Microsoft.Extensions.Logging;
 Console.WriteLine("Bifrost.Scheduling AOT smoke — starting.");
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. Build the host with all three dispatch modes exercised at DI-config time.
+// 1. Build the host with all four dispatch modes exercised at DI-config time.
 // ─────────────────────────────────────────────────────────────────────────────
 
 var host = Host.CreateDefaultBuilder(args)
@@ -37,12 +39,31 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .ConfigureServices(services =>
     {
-        // Register a custom dispatcher for mode 3 (resolved by generic DI, not
+        // Mode 1 (orchestrator) — register IWorkOrchestrator<SmokeWork> via the
+        // standard Bifrost DI builder. This is the most generics-heavy / highest
+        // AOT-risk dispatcher: GetRequiredService<IWorkOrchestrator<TWork>>() at
+        // config time resolves a fully open generic through closed-generic DI
+        // without any runtime type lookup or Activator.CreateInstance.
+        services.AddWorkOrchestrator<SmokeWork>()
+                .WithHandler<SmokeWork, SmokeWorkHandler>()
+                .Build();
+
+        // Register a custom dispatcher for mode 4 (resolved by generic DI, not
         // by type name — this is the key AOT-safety proof).
         services.AddSingleton<PrintingDispatcher>();
 
         services.AddScheduler(b =>
         {
+            // Mode 1 — orchestrator dispatch: DispatchTo<IWorkOrchestrator<TWork>>
+            // resolves the orchestrator from DI at config time via a fully closed
+            // generic GetRequiredService<IWorkOrchestrator<SmokeWork>>() call.
+            // This exercises the highest-AOT-risk code path (OrchestratorJobDispatcher<T>
+            // + generic DI) without any reflection-based type lookup.
+            b.AddJob<SmokeWork>("smoke-orchestrator")
+             .Every(TimeSpan.FromHours(24))
+             .DispatchTo<IWorkOrchestrator<SmokeWork>>(
+                 static _ => new SmokeWork("smoke-orchestrator"));
+
             // Mode 2 — inline dispatch: a delegate runs on the scheduler pool thread.
             // No orchestrator, no reflective activation.
             b.AddInlineJob("smoke-inline")
@@ -53,7 +74,7 @@ var host = Host.CreateDefaultBuilder(args)
                  return ValueTask.CompletedTask;
              });
 
-            // Mode 3 — custom dispatcher resolved from DI at config time via
+            // Mode 4 — custom dispatcher resolved from DI at config time via
             // DispatchVia<PrintingDispatcher>() → GetRequiredService<PrintingDispatcher>().
             // No type-name lookup, no Activator.CreateInstance.
             b.AddJob<object>("smoke-custom")
@@ -64,7 +85,7 @@ var host = Host.CreateDefaultBuilder(args)
     .Build();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. Register a job at runtime (after DI is built) — mode 1 (in-memory store).
+// 2. Register a job at runtime (after DI is built) — mode 3 (in-memory store).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Start the host (starts SchedulerJobRegistrationService + ScheduleTickLoop).
@@ -99,33 +120,66 @@ foreach (var job in jobs)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. Verify all three dispatch modes registered successfully.
+// 4. Verify all four dispatch modes registered successfully.
 // ─────────────────────────────────────────────────────────────────────────────
 
 var jobNames = jobs.Select(j => j.Name).ToHashSet(StringComparer.Ordinal);
+if (!jobNames.Contains("smoke-orchestrator"))
+{
+    Console.Error.WriteLine("FAIL: 'smoke-orchestrator' (mode 1 — orchestrator dispatch) not registered.");
+    return 1;
+}
+
 if (!jobNames.Contains("smoke-inline"))
 {
     Console.Error.WriteLine("FAIL: 'smoke-inline' (mode 2 — inline dispatch) not registered.");
     return 1;
 }
 
-if (!jobNames.Contains("smoke-custom"))
-{
-    Console.Error.WriteLine("FAIL: 'smoke-custom' (mode 3 — custom dispatcher) not registered.");
-    return 1;
-}
-
 if (!jobNames.Contains("smoke-runtime"))
 {
-    Console.Error.WriteLine("FAIL: 'smoke-runtime' (mode 1 — runtime registration) not registered.");
+    Console.Error.WriteLine("FAIL: 'smoke-runtime' (mode 3 — runtime registration) not registered.");
     return 1;
 }
 
-Console.WriteLine("All three dispatch modes registered and resolved cleanly.");
+if (!jobNames.Contains("smoke-custom"))
+{
+    Console.Error.WriteLine("FAIL: 'smoke-custom' (mode 4 — custom dispatcher) not registered.");
+    return 1;
+}
+
+Console.WriteLine("All four dispatch modes registered and resolved cleanly.");
 Console.WriteLine("Bifrost.Scheduling AOT smoke — PASS.");
 
 await host.StopAsync().ConfigureAwait(false);
 return 0;
+
+// =============================================================================
+// Work type and handler for the orchestrator dispatch path (mode 1).
+// =============================================================================
+
+/// <summary>
+/// A minimal work item enqueued by the orchestrator dispatcher.
+/// The type is a simple record — no reflection, no codegen.
+/// </summary>
+/// <param name="Source">Tag identifying the job that enqueued this item.</param>
+internal sealed record SmokeWork(string Source);
+
+/// <summary>
+/// A no-op work handler for <see cref="SmokeWork"/>. Registered in DI as
+/// <c>IWorkHandler&lt;SmokeWork&gt;</c> so the <c>IWorkOrchestrator&lt;SmokeWork&gt;</c>
+/// can be constructed by the Bifrost builder. AOT-safe: no reflection, no
+/// <c>Activator.CreateInstance</c> — resolved by generic DI at startup.
+/// </summary>
+internal sealed class SmokeWorkHandler : IWorkHandler<SmokeWork>
+{
+    /// <inheritdoc/>
+    public ValueTask HandleAsync(SmokeWork work, CancellationToken ct)
+    {
+        Console.WriteLine($"[orchestrator] {work.Source} handled");
+        return ValueTask.CompletedTask;
+    }
+}
 
 // =============================================================================
 // Custom dispatcher — resolved via generic DI (AOT-safe, no reflection).
