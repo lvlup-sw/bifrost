@@ -371,3 +371,6 @@ FodyWeavers.xsd
 *.userosscache
 *.sln.docstates
 .worktrees/
+
+# Claude Code agent worktrees — stale full-repo copies, never commit
+.claude/worktrees/
