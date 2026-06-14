@@ -4,8 +4,6 @@
 // </copyright>
 // =============================================================================
 
-using System.Threading.Channels;
-
 using Bifrost.Core;
 using Bifrost.Resilience;
 
@@ -43,7 +41,6 @@ public class ResilientOrchestratorTests
         _inner.PendingCount.Returns(0);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
-        _inner.Writer.Returns(Channel.CreateUnbounded<string>().Writer);
 
         return Task.CompletedTask;
     }
@@ -89,13 +86,14 @@ public class ResilientOrchestratorTests
     {
         // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
-        _inner.EnqueueAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
+        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
         // Act
-        await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
+        var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
         // Assert
-        await _inner.Received(1).EnqueueAsync("work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
+        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -116,7 +114,7 @@ public class ResilientOrchestratorTests
         var options = Options.Create(settings);
         var orchestrator = new ResilientOrchestrator<string>(_inner, options, _logger);
 
-        _inner.EnqueueAsync("work", Arg.Any<CancellationToken>())
+        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
             .Returns(x =>
             {
                 callCount++;
@@ -125,13 +123,14 @@ public class ResilientOrchestratorTests
                     throw new HttpRequestException("Transient failure");
                 }
 
-                return ValueTask.CompletedTask;
+                return new ValueTask<EnqueueResult>(EnqueueResult.Accepted);
             });
 
         // Act
-        await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
+        var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
         // Assert
+        await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(callCount).IsEqualTo(2);
     }
 
@@ -222,21 +221,22 @@ public class ResilientOrchestratorTests
     }
 
     /// <summary>
-    /// Verifies Writer delegates to inner.
+    /// Verifies a rejected admission outcome propagates through the resilience wrapper.
     /// </summary>
     [Test]
-    public async Task Writer_DelegatesToInner()
+    public async Task EnqueueAsync_Rejected_PropagatesResult()
     {
         // Arrange
-        var expectedWriter = Channel.CreateUnbounded<string>().Writer;
-        _inner.Writer.Returns(expectedWriter);
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
+        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .Returns(EnqueueResult.Rejected(RejectionReason.Shutdown));
 
         // Act
-        var result = orchestrator.Writer;
+        var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
         // Assert
-        await Assert.That(result).IsEqualTo(expectedWriter);
+        await Assert.That(result.IsAccepted).IsFalse();
+        await Assert.That(result.Reason).IsEqualTo(RejectionReason.Shutdown);
     }
 
     /// <summary>

@@ -4,8 +4,6 @@
 // </copyright>
 // =============================================================================
 
-using System.Threading.Channels;
-
 using Bifrost.Autoscaling;
 using Bifrost.Core;
 
@@ -86,23 +84,22 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public int Capacity => _inner.Capacity;
 
     /// <inheritdoc/>
-    public ChannelWriter<TWork> Writer => _inner.Writer;
-
-    /// <inheritdoc/>
-    public async ValueTask EnqueueAsync(TWork work, CancellationToken ct = default)
+    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
     {
-        await _inner.EnqueueAsync(work, ct).ConfigureAwait(false);
+        var result = await _inner.EnqueueAsync(work, workClass, ct).ConfigureAwait(false);
 
-        if (_options.Enabled)
+        if (result.IsAccepted && _options.Enabled)
         {
             _metrics.RecordEnqueue();
         }
+
+        return result;
     }
 
     /// <inheritdoc/>
-    public bool TryEnqueue(TWork work)
+    public bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        var result = _inner.TryEnqueue(work);
+        var result = _inner.TryEnqueue(work, workClass);
 
         if (result && _options.Enabled)
         {
@@ -195,9 +192,9 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     }
 
     /// <inheritdoc/>
-    public void Run(TWork work)
+    public void Run(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        _inner.Run(work);
+        _inner.Run(work, workClass);
 
         if (_options.Enabled)
         {
@@ -206,9 +203,9 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     }
 
     /// <inheritdoc/>
-    public bool TryRun(TWork work)
+    public bool TryRun(TWork work, WorkClass workClass = WorkClass.Default)
     {
-        var result = _inner.TryRun(work);
+        var result = _inner.TryRun(work, workClass);
 
         if (result && _options.Enabled)
         {

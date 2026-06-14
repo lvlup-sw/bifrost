@@ -137,8 +137,13 @@ public class ResilienceDlqInteractionTests
     }
 
     /// <summary>
-    /// Verifies that enqueue failures do NOT trigger DLQ retry.
-    /// DLQ only wraps handler execution, not enqueue operations.
+    /// Verifies that enqueue failures do NOT trigger DLQ retry: the DLQ retry
+    /// machinery wraps handler execution only. Under rejection routing (T23,
+    /// DR-6) the rejected enqueue IS recorded in the dead-letter pathway as
+    /// observability — a single entry with <c>AttemptCount = 0</c> and a
+    /// <see cref="WorkRejectedException"/> marker, proof that the configured
+    /// <c>MaxRetries</c> never engaged (never admitted, never attempted,
+    /// never retried) — and the caller still receives the rejection.
     /// </summary>
     [Test]
     public async Task DLQ_DoesNotRetryEnqueueFailures()
@@ -172,13 +177,28 @@ public class ResilienceDlqInteractionTests
         await Task.Delay(100).ConfigureAwait(false);
         orchestrator.TryEnqueue("fill-channel");
 
-        // Act - try to enqueue when full. This is an enqueue-level failure,
-        // DLQ should NOT retry this because DLQ operates on handler execution only
+        // Act - try to enqueue when full. This is an enqueue-level failure:
+        // the DLQ retry machinery must NOT engage (it wraps handler execution
+        // only), but rejection routing (DR-6) records the shed item as a
+        // dead-letter entry for observability.
         var enqueueResult = orchestrator.TryEnqueue("overflow-item");
 
-        // Assert
+        // Assert — the caller still receives the rejection, and the routed
+        // entry proves no retry happened: AttemptCount 0 (never admitted,
+        // never attempted) with the rejection marker, despite MaxRetries = 3.
         await Assert.That(enqueueResult).IsFalse();
-        await Assert.That(dlq.Count).IsEqualTo(0); // DLQ is not involved in enqueue failures
+        await Assert.That(dlq.Count).IsEqualTo(1);
+
+        var entries = new List<DeadLetteredWork<string>>();
+        await foreach (var entry in dlq.ReadAllAsync().ConfigureAwait(false))
+        {
+            entries.Add(entry);
+        }
+
+        await Assert.That(entries.Count).IsEqualTo(1);
+        await Assert.That(entries[0].Work).IsEqualTo("overflow-item");
+        await Assert.That(entries[0].AttemptCount).IsEqualTo(0);
+        await Assert.That(entries[0].Exception is WorkRejectedException).IsTrue();
 
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }

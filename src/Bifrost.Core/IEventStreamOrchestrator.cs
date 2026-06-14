@@ -22,8 +22,8 @@ namespace Bifrost.Core;
 /// </para>
 /// <para>
 /// Multiple subscribers are supported via the broadcast pattern. Each subscriber
-/// gets their own channel with <see cref="System.Threading.Channels.BoundedChannelFullMode.DropOldest"/>
-/// behavior to prevent slow consumers from blocking others.
+/// gets their own bounded buffer with drop-oldest behavior to prevent slow
+/// consumers from blocking others.
 /// </para>
 /// <para>
 /// Typical events include:
@@ -86,15 +86,26 @@ public interface IEventStreamOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// </summary>
     /// <param name="work">The work item to enqueue.</param>
     /// <param name="correlationId">Optional correlation ID for the work item.</param>
+    /// <param name="workClass">
+    /// The <see cref="WorkClass"/> the item is enqueued under. Defaults to
+    /// <see cref="WorkClass.Default"/>.
+    /// </param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>A task that completes when the work is enqueued.</returns>
-    ValueTask EnqueueAsync(TWork work, string? correlationId, CancellationToken ct = default);
+    /// <returns>
+    /// The <see cref="EnqueueResult"/> admission outcome. An enqueued event is
+    /// published only when the work item was admitted.
+    /// </returns>
+    ValueTask<EnqueueResult> EnqueueAsync(TWork work, string? correlationId, WorkClass workClass = WorkClass.Default, CancellationToken ct = default);
 
     /// <summary>
     /// Tries to enqueue work with an optional correlation ID without blocking.
     /// </summary>
     /// <param name="work">The work item to enqueue.</param>
     /// <param name="correlationId">Optional correlation ID for the work item.</param>
-    /// <returns><c>true</c> if the work was enqueued; <c>false</c> if the queue was full.</returns>
-    bool TryEnqueue(TWork work, string? correlationId);
+    /// <param name="workClass">
+    /// The <see cref="WorkClass"/> the item is enqueued under. Defaults to
+    /// <see cref="WorkClass.Default"/>.
+    /// </param>
+    /// <returns><c>true</c> if the work was admitted; <c>false</c> if the queue was full.</returns>
+    bool TryEnqueue(TWork work, string? correlationId, WorkClass workClass = WorkClass.Default);
 }

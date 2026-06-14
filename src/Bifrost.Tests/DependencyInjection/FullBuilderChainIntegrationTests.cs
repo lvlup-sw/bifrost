@@ -153,19 +153,28 @@ public class FullBuilderChainIntegrationTests
 
         await Assert.That(eventOrchestrator).IsNotNull();
 
-        // Subscribe to events before enqueuing
+        // Subscribe to events before enqueuing. GetEventStreamAsync registers each
+        // subscriber channel EAGERLY at call time (not lazily at first enumeration), so
+        // creating the streams here — on the test thread, before the enqueue — guarantees
+        // no published event can be missed. The bounded subscriber channels buffer events
+        // until the collector tasks below begin draining, so the hand-off is race-free and
+        // needs no timing delay (the previous Task.Delay was the source of CI flakiness:
+        // under load the Task.Run bodies had not yet reached their GetEventStreamAsync call,
+        // so they registered after the enqueue and missed the events).
         var enqueuedEvents = new ConcurrentBag<WorkEnqueuedEvent<string>>();
         var completedEvents = new ConcurrentBag<WorkCompletedEvent<string>>();
         var deadLetteredEvents = new ConcurrentBag<WorkDeadLetteredEvent<string>>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
+        var enqueuedStream = eventOrchestrator!.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token);
+        var completedStream = eventOrchestrator.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token);
+        var deadLetteredStream = eventOrchestrator.GetEventStreamAsync<WorkDeadLetteredEvent<string>>(cancellationToken: cts.Token);
+
         var enqueueTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var evt in eventOrchestrator!
-                    .GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token)
-                    .ConfigureAwait(false))
+                await foreach (var evt in enqueuedStream.ConfigureAwait(false))
                 {
                     enqueuedEvents.Add(evt);
                 }
@@ -180,9 +189,7 @@ public class FullBuilderChainIntegrationTests
         {
             try
             {
-                await foreach (var evt in eventOrchestrator!
-                    .GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token)
-                    .ConfigureAwait(false))
+                await foreach (var evt in completedStream.ConfigureAwait(false))
                 {
                     completedEvents.Add(evt);
                 }
@@ -197,9 +204,7 @@ public class FullBuilderChainIntegrationTests
         {
             try
             {
-                await foreach (var evt in eventOrchestrator!
-                    .GetEventStreamAsync<WorkDeadLetteredEvent<string>>(cancellationToken: cts.Token)
-                    .ConfigureAwait(false))
+                await foreach (var evt in deadLetteredStream.ConfigureAwait(false))
                 {
                     deadLetteredEvents.Add(evt);
                 }
@@ -210,10 +215,9 @@ public class FullBuilderChainIntegrationTests
             }
         });
 
-        // Allow subscribers to start
-        await Task.Delay(200).ConfigureAwait(false);
-
-        // Act - enqueue a successful item and a failing item
+        // Act - enqueue a successful item and a failing item. The subscribers are already
+        // registered, so these events are captured even if the collector tasks have not yet
+        // begun draining their (buffered) channels.
         await orchestrator.EnqueueAsync("success-item").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("fail-doomed").ConfigureAwait(false);
 

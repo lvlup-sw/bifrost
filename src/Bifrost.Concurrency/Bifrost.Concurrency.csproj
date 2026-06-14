@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>LevelUp.Bifrost.Concurrency</PackageId>
+    <RootNamespace>Bifrost.Concurrency</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>true</IsPackable>
+    <!-- Cache-line padding structs require unsafe blocks -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- NativeAOT compatibility -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- Generate documentation -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>Concurrency primitives for Bifrost: a MultiQueue ConcurrentPriorityQueue (lock-striped sub-queue heaps, two-choice relaxed dequeue with a quantified rank-error contract) and a lock-based exact-ordering LockingPriorityQueue.</Description>
+    <PackageTags>Concurrency;PriorityQueue;ConcurrentPriorityQueue;MultiQueue;ThreadSafe</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bifrost.Tests.Concurrency" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Banned-API gate (RS0030): reflection/runtime-codegen regressions fail the build (DR-9) -->
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="BannedSymbols.txt" />
+  </ItemGroup>
+
+</Project>

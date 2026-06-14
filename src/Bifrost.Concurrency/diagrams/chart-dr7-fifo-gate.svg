@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" font-family="ui-sans-serif, system-ui, sans-serif" role="img" aria-label="DR-7 FIFO gate: baseline vs rewrite vs fix">
+<text x="360.0" y="24.0" font-size="15" text-anchor="middle" fill="#8b949e" font-weight="bold">DR-7 FIFO no-regression gate — 10k-item round trip (ShortRun means)</text>
+<text x="360.0" y="42.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">Lower is better · docs/benchmarks/2026-06-cpq-orchestrator-baseline.md</text>
+<line x1="70" y1="330.0" x2="690" y2="330.0" stroke="#8b949e" stroke-opacity="0.25" stroke-width="1"/>
+<text x="62.0" y="334.0" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">0ms</text>
+<line x1="70" y1="280.2" x2="690" y2="280.2" stroke="#8b949e" stroke-opacity="0.25" stroke-width="1"/>
+<text x="62.0" y="284.2" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">4ms</text>
+<line x1="70" y1="230.4" x2="690" y2="230.4" stroke="#8b949e" stroke-opacity="0.25" stroke-width="1"/>
+<text x="62.0" y="234.4" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">8ms</text>
+<line x1="70" y1="180.5" x2="690" y2="180.5" stroke="#8b949e" stroke-opacity="0.25" stroke-width="1"/>
+<text x="62.0" y="184.5" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">12ms</text>
+<line x1="70" y1="130.7" x2="690" y2="130.7" stroke="#8b949e" stroke-opacity="0.25" stroke-width="1"/>
+<text x="62.0" y="134.7" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">16ms</text>
+<line x1="70" y1="80.9" x2="690" y2="80.9" stroke="#8b949e" stroke-opacity="0.25" stroke-width="1"/>
+<text x="62.0" y="84.9" font-size="11" text-anchor="end" fill="#8b949e" font-weight="normal">20ms</text>
+<rect x="87.3" y="303.7" width="52" height="26.3" rx="3" fill="#8b949e"/>
+<text x="113.3" y="295.7" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">2.11</text>
+<rect x="147.3" y="273.3" width="52" height="56.7" rx="3" fill="#f85149"/>
+<text x="173.3" y="265.3" font-size="10" text-anchor="middle" fill="#f85149" font-weight="normal">4.55</text>
+<rect x="207.3" y="293.2" width="52" height="36.8" rx="3" fill="#3fb950"/>
+<text x="233.3" y="285.2" font-size="10" text-anchor="middle" fill="#3fb950" font-weight="normal">2.96</text>
+<text x="173.3" y="352.0" font-size="13" text-anchor="middle" fill="#8b949e" font-weight="normal">1 worker</text>
+<rect x="294.0" y="291.0" width="52" height="39.0" rx="3" fill="#8b949e"/>
+<text x="320.0" y="283.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">3.13</text>
+<rect x="354.0" y="255.8" width="52" height="74.2" rx="3" fill="#f85149"/>
+<text x="380.0" y="247.8" font-size="10" text-anchor="middle" fill="#f85149" font-weight="normal">5.96</text>
+<rect x="414.0" y="291.0" width="52" height="39.0" rx="3" fill="#3fb950"/>
+<text x="440.0" y="283.0" font-size="10" text-anchor="middle" fill="#3fb950" font-weight="normal">3.13</text>
+<text x="380.0" y="352.0" font-size="13" text-anchor="middle" fill="#8b949e" font-weight="normal">2 workers</text>
+<rect x="500.7" y="201.2" width="52" height="128.8" rx="3" fill="#8b949e"/>
+<text x="526.7" y="193.2" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">10.34</text>
+<rect x="560.7" y="85.5" width="52" height="244.5" rx="3" fill="#f85149"/>
+<text x="586.7" y="77.5" font-size="10" text-anchor="middle" fill="#f85149" font-weight="normal">19.63</text>
+<rect x="620.7" y="177.1" width="52" height="152.9" rx="3" fill="#3fb950"/>
+<text x="646.7" y="169.1" font-size="10" text-anchor="middle" fill="#3fb950" font-weight="normal">12.28</text>
+<text x="586.7" y="352.0" font-size="13" text-anchor="middle" fill="#8b949e" font-weight="normal">8 workers</text>
+<rect x="84" y="63" width="12" height="12" rx="2" fill="#8b949e"/>
+<text x="102.0" y="73.0" font-size="12" text-anchor="start" fill="#8b949e" font-weight="normal">Baseline before port (T1)</text>
+<rect x="84" y="83" width="12" height="12" rx="2" fill="#f85149"/>
+<text x="102.0" y="93.0" font-size="12" text-anchor="start" fill="#8b949e" font-weight="normal">After IWorkQueue rewrite (T28) — gate FAIL</text>
+<rect x="84" y="103" width="12" height="12" rx="2" fill="#3fb950"/>
+<text x="102.0" y="113.0" font-size="12" text-anchor="start" fill="#8b949e" font-weight="normal">After T28-fix remediation — gate PASS</text>
+<text x="360.0" y="388.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">T28-fix also restored the deterministic 0 B/op allocation profile at 1 worker (0 B in both runs)</text>
+</svg>

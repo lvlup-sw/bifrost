@@ -4,8 +4,6 @@
 // </copyright>
 // =============================================================================
 
-using System.Threading.Channels;
-
 using Bifrost.Autoscaling;
 using Bifrost.Core;
 using Bifrost.Decorators;
@@ -43,7 +41,6 @@ public class AutoscalingOrchestratorTests
         _inner.PendingCount.Returns(0);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
-        _inner.Writer.Returns(Channel.CreateUnbounded<string>().Writer);
         _registry.ActiveWorkerCount.Returns(0);
         _registry.IdleWorkerCount.Returns(0);
 
@@ -69,14 +66,34 @@ public class AutoscalingOrchestratorTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        _inner.EnqueueAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
+        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
         // Act
-        await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
+        var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
         // Assert
+        await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         _metrics.Received(1).RecordEnqueue();
-        await _inner.Received(1).EnqueueAsync("work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies EnqueueAsync does not track metrics when admission is rejected.
+    /// </summary>
+    [Test]
+    public async Task EnqueueAsync_Rejected_DoesNotTrackMetrics()
+    {
+        // Arrange
+        var orchestrator = CreateOrchestrator();
+        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .Returns(EnqueueResult.Rejected(RejectionReason.Shutdown));
+
+        // Act
+        var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
+
+        // Assert
+        await Assert.That(result.IsAccepted).IsFalse();
+        _metrics.DidNotReceive().RecordEnqueue();
     }
 
     /// <summary>
@@ -167,21 +184,20 @@ public class AutoscalingOrchestratorTests
     }
 
     /// <summary>
-    /// Verifies Writer delegates to inner.
+    /// Verifies the work class flows through to the inner orchestrator.
     /// </summary>
     [Test]
-    public async Task Writer_DelegatesToInner()
+    public async Task EnqueueAsync_ForwardsWorkClassToInner()
     {
         // Arrange
-        var expectedWriter = Channel.CreateUnbounded<string>().Writer;
-        _inner.Writer.Returns(expectedWriter);
         var orchestrator = CreateOrchestrator();
+        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
         // Act
-        var result = orchestrator.Writer;
+        await orchestrator.EnqueueAsync("work", WorkClass.Interactive).ConfigureAwait(false);
 
         // Assert
-        await Assert.That(result).IsEqualTo(expectedWriter);
+        await _inner.Received(1).EnqueueAsync("work", WorkClass.Interactive, Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     /// <summary>

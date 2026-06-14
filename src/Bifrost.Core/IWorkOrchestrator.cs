@@ -4,27 +4,33 @@
 // </copyright>
 // =============================================================================
 
-using System.Threading.Channels;
-
 namespace Bifrost.Core;
 
 /// <summary>
-/// Orchestrates work processing through a bounded channel with configurable workers.
+/// Orchestrates work processing through a bounded queue with configurable workers.
 /// </summary>
 /// <typeparam name="TWork">The type of work item to process.</typeparam>
 /// <remarks>
 /// <para>
 /// The work orchestrator provides a high-performance, zero-allocation hot path for
 /// enqueueing work items. It manages a pool of workers that process items from the
-/// internal channel.
+/// internal queue.
 /// </para>
 /// <para>
 /// Key design principles:
 /// <list type="bullet">
 ///   <item><description>ValueTask-based API for zero-allocation hot path</description></item>
 ///   <item><description>Non-allocating property access for observability</description></item>
-///   <item><description>Escape hatch via Writer property for advanced scenarios</description></item>
+///   <item><description>Admission outcomes surfaced as <see cref="EnqueueResult"/> values, never exceptions</description></item>
 /// </list>
+/// </para>
+/// <para>
+/// Admission semantics: enqueue operations report whether the work item was
+/// admitted to the queue. Rejection happens at admission — before the item
+/// enters the queue — so the at-least-once execution contract is unaffected:
+/// admitted work is executed at least once, rejected work was never admitted.
+/// Idempotency (e.g., JobName-style deduplication) is a consumer concern; the
+/// orchestrator does not deduplicate admitted work.
 /// </para>
 /// </remarks>
 public interface IWorkOrchestrator<TWork> : IAsyncDisposable
@@ -42,43 +48,70 @@ public interface IWorkOrchestrator<TWork> : IAsyncDisposable
     int ActiveWorkers { get; }
 
     /// <summary>
-    /// Gets the maximum capacity of the internal channel.
+    /// Gets the maximum capacity of the internal queue.
     /// </summary>
-    /// <value>The channel capacity.</value>
+    /// <value>The queue capacity.</value>
     int Capacity { get; }
-
-    /// <summary>
-    /// Gets the underlying channel writer for advanced scenarios.
-    /// </summary>
-    /// <value>The channel writer for direct access.</value>
-    /// <remarks>
-    /// Use this escape hatch when you need direct access to the channel writer
-    /// for specialized scenarios like batch operations or custom backpressure handling.
-    /// </remarks>
-    ChannelWriter<TWork> Writer { get; }
 
     /// <summary>
     /// Enqueues a work item for processing asynchronously.
     /// </summary>
     /// <param name="work">The work item to enqueue.</param>
-    /// <param name="ct">Cancellation token to cancel the enqueue operation.</param>
-    /// <returns>A ValueTask that completes when the item is enqueued.</returns>
+    /// <param name="workClass">
+    /// The <see cref="WorkClass"/> the item is enqueued under. Defaults to
+    /// <see cref="WorkClass.Default"/>.
+    /// </param>
+    /// <param name="ct">
+    /// Cancellation token for the enqueue operation. If it is canceled, the
+    /// operation is canceled and surfaces an <see cref="OperationCanceledException"/>
+    /// (the returned task completes in the canceled state) — it is not folded into a
+    /// rejected result. See the remarks.
+    /// </param>
+    /// <returns>
+    /// The <see cref="EnqueueResult"/> admission outcome:
+    /// <see cref="EnqueueResult.Accepted"/> when the item was admitted, or a
+    /// rejected result carrying the <see cref="RejectionReason"/> otherwise.
+    /// </returns>
     /// <remarks>
-    /// This method may block asynchronously if the channel is at capacity,
+    /// <para>
+    /// This method may wait asynchronously if the queue is at capacity,
     /// implementing backpressure behavior.
+    /// </para>
+    /// <para>
+    /// <b>Admission vs. cancellation.</b> Admission <i>decisions</i> are values, not
+    /// exceptions: a full queue, a tripped per-class watermark, or an orchestrator
+    /// shutting down all return <see cref="EnqueueResult.Rejected(RejectionReason)"/>
+    /// (with <see cref="RejectionReason.CapacityExceeded"/>,
+    /// <see cref="RejectionReason.WatermarkExceeded"/>, or
+    /// <see cref="RejectionReason.Shutdown"/> respectively). The method never throws
+    /// for an admission failure. <i>Caller cancellation</i> is a different concern:
+    /// canceling <paramref name="ct"/> surfaces an
+    /// <see cref="OperationCanceledException"/>, matching the Task-based Asynchronous
+    /// Pattern and the <see cref="System.Threading.Channels.ChannelWriter{T}"/>
+    /// precedent (completion returns "no writes permitted"; cancellation throws). A
+    /// canceled enqueue is therefore distinguishable from a shut-down queue and is
+    /// never dead-lettered.
+    /// </para>
     /// </remarks>
-    ValueTask EnqueueAsync(TWork work, CancellationToken ct = default);
+    /// <exception cref="OperationCanceledException">
+    /// <paramref name="ct"/> was canceled before or during the enqueue.
+    /// </exception>
+    ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default);
 
     /// <summary>
     /// Attempts to enqueue a work item without blocking.
     /// </summary>
     /// <param name="work">The work item to enqueue.</param>
-    /// <returns>True if the item was enqueued; false if the channel is full.</returns>
+    /// <param name="workClass">
+    /// The <see cref="WorkClass"/> the item is enqueued under. Defaults to
+    /// <see cref="WorkClass.Default"/>.
+    /// </param>
+    /// <returns>True if the item was admitted; false if the queue is full or shut down.</returns>
     /// <remarks>
     /// Use this method when you need non-blocking enqueue behavior and can
     /// handle rejection gracefully.
     /// </remarks>
-    bool TryEnqueue(TWork work);
+    bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default);
 
     /// <summary>
     /// Gracefully stops the orchestrator, allowing pending work to complete.
@@ -91,36 +124,44 @@ public interface IWorkOrchestrator<TWork> : IAsyncDisposable
     /// Enqueues a work item for processing synchronously.
     /// </summary>
     /// <param name="work">The work item to enqueue.</param>
+    /// <param name="workClass">
+    /// The <see cref="WorkClass"/> the item is enqueued under. Defaults to
+    /// <see cref="WorkClass.Default"/>.
+    /// </param>
     /// <exception cref="InvalidOperationException">Thrown when the queue is full.</exception>
     /// <remarks>
-    /// This method throws if the channel is at capacity. For non-throwing
+    /// This method throws if the queue is at capacity. For non-throwing
     /// behavior, use <see cref="TryRun"/>.
     /// </remarks>
-    void Run(TWork work);
+    void Run(TWork work, WorkClass workClass = WorkClass.Default);
 
     /// <summary>
     /// Attempts to enqueue a work item synchronously without throwing.
     /// </summary>
     /// <param name="work">The work item to enqueue.</param>
-    /// <returns>True if the item was enqueued; false if the queue is full.</returns>
+    /// <param name="workClass">
+    /// The <see cref="WorkClass"/> the item is enqueued under. Defaults to
+    /// <see cref="WorkClass.Default"/>.
+    /// </param>
+    /// <returns>True if the item was admitted; false if the queue is full or shut down.</returns>
     /// <remarks>
     /// Use this method when you need non-throwing synchronous enqueue behavior
     /// and can handle rejection gracefully.
     /// </remarks>
-    bool TryRun(TWork work);
+    bool TryRun(TWork work, WorkClass workClass = WorkClass.Default);
 
     /// <summary>
-    /// Creates a worker function that processes work from the internal channel.
+    /// Creates a worker function that processes work from the internal queue.
     /// </summary>
     /// <returns>A function that can be used to start a worker loop.</returns>
     /// <remarks>
     /// The returned function takes a worker ID and cancellation token, and processes
-    /// work items until the channel is completed or cancellation is requested.
+    /// work items until the queue is completed or cancellation is requested.
     /// </remarks>
     Func<string, CancellationToken, Task> CreateWorkerFunction();
 
     /// <summary>
-    /// Creates a worker function that processes work from the internal channel
+    /// Creates a worker function that processes work from the internal queue
     /// with state tracking callback support.
     /// </summary>
     /// <param name="stateCallback">
@@ -178,8 +219,8 @@ public interface IWorkOrchestrator<TWork> : IAsyncDisposable
     /// <remarks>
     /// <para>
     /// Unlike <see cref="StopAsync"/>, which cancels workers immediately,
-    /// <c>DrainAsync</c> completes the channel writer (preventing new enqueues)
-    /// and waits for workers to finish processing all remaining items naturally.
+    /// <c>DrainAsync</c> stops admission (preventing new enqueues) and waits
+    /// for workers to finish processing all remaining items naturally.
     /// </para>
     /// <para>
     /// This is useful for zero-downtime deployments where in-flight work should
@@ -188,7 +229,7 @@ public interface IWorkOrchestrator<TWork> : IAsyncDisposable
     /// <para>
     /// After <c>DrainAsync</c> completes:
     /// <list type="bullet">
-    ///   <item><description><see cref="EnqueueAsync"/> will throw <see cref="ChannelClosedException"/></description></item>
+    ///   <item><description><see cref="EnqueueAsync"/> will return a rejected result with <see cref="RejectionReason.Shutdown"/></description></item>
     ///   <item><description><see cref="TryEnqueue"/> will return <c>false</c></description></item>
     ///   <item><description><see cref="PendingCount"/> will be 0</description></item>
     /// </list>

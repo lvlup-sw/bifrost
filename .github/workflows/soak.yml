@@ -1,0 +1,63 @@
+name: CPQ Soak (DR-8)
+
+# Consumer-shaped soak — release-gate/nightly artifact, NOT a per-PR gate (design DR-8).
+# Runs the 'soak' verb against BOTH priority bindings at workers {2,8} and uploads the
+# CSV/MD artifacts. See docs/benchmarks/2026-06-cpq-soak.md for the harness description
+# and how to read the results.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Per-run soak window in seconds (4 runs total)'
+        required: false
+        default: '600'
+  schedule:
+    # Nightly at 03:17 UTC.
+    - cron: '17 3 * * *'
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_QUALITY: 'preview'
+
+jobs:
+  soak:
+    name: Consumer-shaped soak (both bindings)
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          # This job only builds + uploads artifacts; it never pushes back to the repo,
+          # so do not persist the auth token into .git/config where the full-depth
+          # checkout could leak it into the uploaded artifacts (zizmor: artipacked).
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Run soak (both bindings, workers 2 and 8)
+        env:
+          # Pass the dispatch input through the environment, never interpolated directly
+          # into the shell — a crafted 'seconds' value cannot break quoting / inject
+          # commands (zizmor: template-injection).
+          WINDOW: ${{ github.event.inputs.seconds || '600' }}
+        run: |
+          if ! [[ "$WINDOW" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Invalid 'seconds' input: must be a positive integer" >&2
+            exit 1
+          fi
+          dotnet run -c Release --project src/Bifrost.Benchmarks -- \
+            soak --seconds "$WINDOW" --out soak-results
+
+      - name: Upload soak artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cpq-soak-results
+          path: soak-results/
+          retention-days: 30

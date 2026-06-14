@@ -149,19 +149,33 @@ public class DeadLetterNotifierTests
         var callCount1 = 0;
         var callCount2 = 0;
         var callCount3 = 0;
-        notifier.Subscribe(_ => callCount1++);
-        notifier.Subscribe(_ => callCount2++);
-        notifier.Subscribe(_ => callCount3++);
+        var done1 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var done2 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var done3 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        notifier.Subscribe(_ =>
+        {
+            callCount1++;
+            done1.TrySetResult();
+        });
+        notifier.Subscribe(_ =>
+        {
+            callCount2++;
+            done2.TrySetResult();
+        });
+        notifier.Subscribe(_ =>
+        {
+            callCount3++;
+            done3.TrySetResult();
+        });
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
         // Act
         notifier.Notify(evt);
 
-        // Allow fire-and-forget tasks to complete
-        await Task.Delay(100).ConfigureAwait(false);
-
-        // Assert
+        // Assert — await all three fire-and-forget callbacks deterministically rather than racing a
+        // fixed delay.
+        await Task.WhenAll(done1.Task, done2.Task, done3.Task).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(callCount1).IsEqualTo(1);
         await Assert.That(callCount2).IsEqualTo(1);
         await Assert.That(callCount3).IsEqualTo(1);
@@ -178,19 +192,28 @@ public class DeadLetterNotifierTests
         var beforeCallCount = 0;
         var afterCallCount = 0;
 
-        notifier.Subscribe(_ => beforeCallCount++);
+        var beforeDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var afterDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        notifier.Subscribe(_ =>
+        {
+            beforeCallCount++;
+            beforeDone.TrySetResult();
+        });
         notifier.SubscribeAsync(_ => throw new InvalidOperationException("subscriber error"));
-        notifier.Subscribe(_ => afterCallCount++);
+        notifier.Subscribe(_ =>
+        {
+            afterCallCount++;
+            afterDone.TrySetResult();
+        });
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
         // Act
         notifier.Notify(evt);
 
-        // Allow fire-and-forget tasks to complete
-        await Task.Delay(100).ConfigureAwait(false);
-
-        // Assert - both non-throwing subscribers should have been called
+        // Assert - both non-throwing subscribers run even though the middle one throws; await them
+        // deterministically rather than racing a fixed delay.
+        await Task.WhenAll(beforeDone.Task, afterDone.Task).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(beforeCallCount).IsEqualTo(1);
         await Assert.That(afterCallCount).IsEqualTo(1);
     }
@@ -226,11 +249,11 @@ public class DeadLetterNotifierTests
     {
         // Arrange
         var notifier = CreateNotifier();
-        WorkDeadLetteredEvent<string>? received = null;
+        var received = new TaskCompletionSource<WorkDeadLetteredEvent<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
         notifier.SubscribeAsync(async evt =>
         {
             await Task.Yield();
-            received = evt;
+            received.TrySetResult(evt);
         });
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
@@ -238,10 +261,9 @@ public class DeadLetterNotifierTests
         // Act
         notifier.Notify(evt);
 
-        // Allow fire-and-forget tasks to complete
-        await Task.Delay(100).ConfigureAwait(false);
-
-        // Assert
-        await Assert.That(received).IsEqualTo(evt);
+        // Assert — await the fire-and-forget callback deterministically rather than racing a fixed
+        // delay (the fixed Task.Delay was the source of CI flakiness under load).
+        var observed = await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await Assert.That(observed).IsEqualTo(evt);
     }
 }

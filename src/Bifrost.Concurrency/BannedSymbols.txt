@@ -1,0 +1,5 @@
+M:System.Type.GetType(System.String); Banned for AOT/trim safety: runtime type lookup by string defeats the trimmer (IL2057). Use typeof(T) or generic parameters.
+M:System.Activator.CreateInstance(System.Type); Banned for AOT/trim safety: reflection-based activation is not trim-analyzable. Use new T() via a generic new() constraint or explicit factories.
+T:System.Reflection.Emit.DynamicMethod; Banned for AOT safety: runtime IL generation is unsupported under NativeAOT.
+T:System.Reflection.Emit.ILGenerator; Banned for AOT safety: runtime IL generation is unsupported under NativeAOT.
+M:System.Reflection.Assembly.Load(System.String); Banned for AOT/trim safety: dynamic assembly loading by name is not trim/AOT compatible.

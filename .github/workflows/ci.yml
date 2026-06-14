@@ -37,10 +37,13 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          # .NET 10 + TUnit (Microsoft.Testing.Platform): run each test project individually
+          # .NET 10 + TUnit (Microsoft.Testing.Platform): run each test project individually.
+          # The glob must match every test project, NOT just src/Bifrost.Tests/ — the trailing
+          # '*' also picks up sibling dirs like src/Bifrost.Tests.Concurrency/ (otherwise those
+          # tests never run in CI and their coverage is never measured).
           mkdir -p ./TestResults
           failed=0
-          for proj in src/Bifrost.Tests/*.csproj; do
+          for proj in src/Bifrost.Tests*/*.csproj; do
             echo "=========================================="
             echo "Running tests for $proj"
             echo "=========================================="

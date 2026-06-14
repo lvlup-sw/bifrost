@@ -5,7 +5,6 @@
 // =============================================================================
 
 using System.Reflection;
-using System.Threading.Channels;
 
 using Bifrost.Core;
 
@@ -44,7 +43,9 @@ public class IWorkOrchestratorTests
         await Assert.That(properties.Any(p => p.Name == "PendingCount")).IsTrue();
         await Assert.That(properties.Any(p => p.Name == "ActiveWorkers")).IsTrue();
         await Assert.That(properties.Any(p => p.Name == "Capacity")).IsTrue();
-        await Assert.That(properties.Any(p => p.Name == "Writer")).IsTrue();
+
+        // The Writer escape hatch was removed in v0.5.0
+        await Assert.That(properties.Any(p => p.Name == "Writer")).IsFalse();
     }
 
     /// <summary>
@@ -59,14 +60,17 @@ public class IWorkOrchestratorTests
 
         // Assert
         await Assert.That(method).IsNotNull();
-        await Assert.That(method!.ReturnType).IsEqualTo(typeof(ValueTask));
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(ValueTask<EnqueueResult>));
 
         var parameters = method.GetParameters();
-        await Assert.That(parameters).HasCount(2);
+        await Assert.That(parameters).HasCount(3);
         await Assert.That(parameters[0].Name).IsEqualTo("work");
-        await Assert.That(parameters[1].Name).IsEqualTo("ct");
-        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(CancellationToken));
+        await Assert.That(parameters[1].Name).IsEqualTo("workClass");
+        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(WorkClass));
         await Assert.That(parameters[1].HasDefaultValue).IsTrue();
+        await Assert.That(parameters[2].Name).IsEqualTo("ct");
+        await Assert.That(parameters[2].ParameterType).IsEqualTo(typeof(CancellationToken));
+        await Assert.That(parameters[2].HasDefaultValue).IsTrue();
     }
 
     /// <summary>
@@ -84,8 +88,11 @@ public class IWorkOrchestratorTests
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(bool));
 
         var parameters = method.GetParameters();
-        await Assert.That(parameters).HasCount(1);
+        await Assert.That(parameters).HasCount(2);
         await Assert.That(parameters[0].Name).IsEqualTo("work");
+        await Assert.That(parameters[1].Name).IsEqualTo("workClass");
+        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(WorkClass));
+        await Assert.That(parameters[1].HasDefaultValue).IsTrue();
     }
 
     /// <summary>
@@ -161,21 +168,17 @@ public class IWorkOrchestratorTests
     }
 
     /// <summary>
-    /// Verifies Writer property signature.
+    /// Verifies the Writer escape hatch has been removed (v0.5.0 break).
     /// </summary>
     [Test]
-    public async Task Writer_HasCorrectSignature()
+    public async Task Writer_PropertyRemoved()
     {
         // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var property = interfaceType.GetProperty("Writer");
 
         // Assert
-        await Assert.That(property).IsNotNull();
-        await Assert.That(property!.PropertyType.IsGenericType).IsTrue();
-        await Assert.That(property.PropertyType.GetGenericTypeDefinition()).IsEqualTo(typeof(ChannelWriter<>));
-        await Assert.That(property.CanRead).IsTrue();
-        await Assert.That(property.CanWrite).IsFalse();
+        await Assert.That(property).IsNull();
     }
 
     /// <summary>
@@ -193,8 +196,10 @@ public class IWorkOrchestratorTests
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(void));
 
         var parameters = method.GetParameters();
-        await Assert.That(parameters).HasCount(1);
+        await Assert.That(parameters).HasCount(2);
         await Assert.That(parameters[0].Name).IsEqualTo("work");
+        await Assert.That(parameters[1].Name).IsEqualTo("workClass");
+        await Assert.That(parameters[1].HasDefaultValue).IsTrue();
     }
 
     /// <summary>
@@ -212,8 +217,10 @@ public class IWorkOrchestratorTests
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(bool));
 
         var parameters = method.GetParameters();
-        await Assert.That(parameters).HasCount(1);
+        await Assert.That(parameters).HasCount(2);
         await Assert.That(parameters[0].Name).IsEqualTo("work");
+        await Assert.That(parameters[1].Name).IsEqualTo("workClass");
+        await Assert.That(parameters[1].HasDefaultValue).IsTrue();
     }
 
     /// <summary>

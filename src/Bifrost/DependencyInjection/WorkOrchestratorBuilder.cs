@@ -62,6 +62,16 @@ public sealed class WorkOrchestratorBuilder<TWork>
     internal List<Action<IServiceProvider>> PostBuildActions { get; } = [];
 
     /// <summary>
+    /// Gets or sets the work classifier delegate (DR-2) threaded to the
+    /// orchestrator constructor. Precedence rule: a per-call class other than
+    /// <see cref="WorkClass.Default"/> wins; a per-call
+    /// <see cref="WorkClass.Default"/> defers to the classifier; with no classifier
+    /// the class stays <see cref="WorkClass.Default"/>.
+    /// </summary>
+    /// <value>The classifier delegate, or <c>null</c> when none is configured.</value>
+    internal Func<TWork, WorkClass>? Classifier { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestratorBuilder{TWork}"/> class.
     /// </summary>
     /// <param name="services">The service collection to register services with.</param>
@@ -110,6 +120,7 @@ public sealed class WorkOrchestratorBuilder<TWork>
         // Capture post-build actions for execution inside the factory
         var postBuildActions = PostBuildActions.ToList();
         var handlerLifetime = HandlerLifetime;
+        var classifier = Classifier;
 
         Services.AddSingleton<IWorkOrchestrator<TWork>>(sp =>
         {
@@ -137,7 +148,8 @@ public sealed class WorkOrchestratorBuilder<TWork>
             IWorkOrchestrator<TWork> orchestrator = new WorkOrchestrator<TWork>(
                 handler,
                 sp.GetRequiredService<IOptions<WorkOrchestratorOptions>>(),
-                sp.GetRequiredService<ILogger<WorkOrchestrator<TWork>>>());
+                sp.GetRequiredService<ILogger<WorkOrchestrator<TWork>>>(),
+                classifier: classifier);
 
             // Apply orchestrator decorators in order
             foreach (var registration in orderedDecorators)
