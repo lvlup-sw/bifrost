@@ -139,8 +139,13 @@ public interface IWorkQueue<T>
   `Count < 0.9 × Capacity` (configurable), `Default` while `< 0.95`, `Interactive` to full
   capacity. Sheds lowest class first at admission — WRED/priority-load-shedding precedent —
   with no eviction machinery. Approximate striped counts are acceptable for watermark checks.
-- FIFO strategy: preserves Wait-mode internally and returns `Accepted` after the wait completes
-  (or `Rejected(Shutdown)` on cancellation) — no behavioral change beyond the signature.
+- FIFO strategy: preserves Wait-mode internally and returns `Accepted` after the wait completes,
+  or `Rejected(Shutdown)` on queue completion. Caller-token cancellation is surfaced as
+  `OperationCanceledException`, not a rejected result: cancellation is not an admission outcome, so
+  it follows the TAP / `ChannelWriter.WriteAsync` convention (completion ⇒ value, cancellation ⇒
+  exception), keeping caller-abort distinguishable from shutdown. (This refines the earlier
+  "Rejected(Shutdown) on cancellation" sketch, which conflated the two; the three `RejectionReason`
+  values are unchanged.)
 - Rejected work routes to the DLQ decorator when present (already-idiomatic path); always counted
   in `bifrost.orchestrator.rejected`.
 - Migration note in CHANGELOG: this is the deliberate v0.5.0 breaking change; compiler does the

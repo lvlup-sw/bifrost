@@ -1,4 +1,4 @@
-```
+```text
 
 BenchmarkDotNet v0.14.0, Ubuntu 24.04.4 LTS (Noble Numbat)
 INTEL XEON PLATINUM 8573C, 1 CPU, 64 logical and 32 physical cores
@@ -10,6 +10,7 @@ Job=ShortRun  IterationCount=3  LaunchCount=1
 WarmupCount=3  
 
 ```
+
 | Method                           | Population | Mean        | Error        | StdDev    | Allocated |
 |--------------------------------- |----------- |------------:|-------------:|----------:|----------:|
 | **MultiQueue_EnqueueDequeue_Int**    | **10**         |   **259.73 ns** |    **22.693 ns** |  **1.244 ns** |         **-** |

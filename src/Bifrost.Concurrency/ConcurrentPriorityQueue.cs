@@ -228,6 +228,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     internal ConcurrentPriorityQueue(int subQueueCount, int boundedCapacity, IComparer<TPriority>? comparer, int stickiness = DefaultStickiness)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(subQueueCount, 1);
+
+        // Funnel invariant: this internal ctor is the single point every overload chains through, but
+        // some internal callers pass `boundedCapacity` unvalidated. Enforce the bound here too so a
+        // contradictory value (0, or any value below the -1 unbounded sentinel) can never construct an
+        // instance, regardless of caller. Public overloads already validated; this is idempotent.
+        boundedCapacity = ValidateBoundedCapacityOrUnbounded(boundedCapacity);
+
         _stickiness = ResolveStickiness(stickiness);
 
         // Round up to a power of two so two-choice index selection is `rng & (count - 1)`. Values

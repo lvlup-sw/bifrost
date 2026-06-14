@@ -35,9 +35,12 @@ namespace Bifrost;
 /// <para>
 /// Work items are carried internally as <see cref="WorkEnvelope{TWork}"/> values
 /// pairing the item with its <see cref="WorkClass"/> and a monotonic enqueue
-/// timestamp. Admission outcomes surface as <see cref="EnqueueResult"/> values:
-/// shutdown and cancellation are reported as
-/// <see cref="RejectionReason.Shutdown"/> rejections, never as exceptions.
+/// timestamp. Admission <i>decisions</i> surface as <see cref="EnqueueResult"/>
+/// values: capacity, watermark, and shutdown are
+/// <see cref="EnqueueResult.Rejected(RejectionReason)"/>, never exceptions. Caller
+/// cancellation is the exception to that rule — a canceled enqueue token surfaces an
+/// <see cref="OperationCanceledException"/> (TAP / <c>ChannelWriter</c> precedent),
+/// keeping caller-abort distinct from a shut-down queue.
 /// </para>
 /// </remarks>
 public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
@@ -172,8 +175,9 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     ///     <description>
     ///     Producer-wait: awaits space when the queue is full, then
     ///     <see cref="EnqueueResult.Accepted"/>. Rejects only with
-    ///     <see cref="RejectionReason.Shutdown"/> — on queue completion or
-    ///     cancellation of <c>ct</c>. Never rejects for capacity.
+    ///     <see cref="RejectionReason.Shutdown"/>, on queue completion. Never rejects
+    ///     for capacity; a canceled <c>ct</c> throws
+    ///     <see cref="OperationCanceledException"/> rather than rejecting.
     ///     </description>
     ///   </item>
     ///   <item>
@@ -211,10 +215,13 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         {
             if (ct.IsCancellationRequested)
             {
-                // Matches the channel's own WriteAsync ordering: a cancelled token is
-                // reported before admission is attempted — as Rejected(Shutdown),
-                // never as an exception.
-                return new ValueTask<EnqueueResult>(EnqueueResult.Rejected(RejectionReason.Shutdown));
+                // Cancellation contract (R1): a canceled caller token surfaces as
+                // OperationCanceledException, distinct from orchestrator shutdown
+                // (Rejected(Shutdown)). This matches the channel's own WriteAsync /
+                // WaitToWriteAsync split — completion returns "no writes permitted",
+                // cancellation throws — and the TAP convention. Returning a canceled
+                // ValueTask keeps this non-async fast path allocation-light.
+                return ValueTask.FromCanceled<EnqueueResult>(ct);
             }
 
             // Try-write-first fast path (DR-7): while space is available, admission
@@ -232,7 +239,14 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
         // Priority strategies: fail-fast admission (DR-6) — fully synchronous, the
         // ValueTask below is always already completed.
-        if (_queueCompleted || ct.IsCancellationRequested)
+        if (ct.IsCancellationRequested)
+        {
+            // Cancellation contract (R1): caller cancellation is an exception, never
+            // an admission outcome — kept distinct from shutdown below.
+            return ValueTask.FromCanceled<EnqueueResult>(ct);
+        }
+
+        if (_queueCompleted)
         {
             return new ValueTask<EnqueueResult>(EnqueueResult.Rejected(RejectionReason.Shutdown));
         }
@@ -393,15 +407,17 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// The FIFO producer-wait slow path, entered only when the fast-path try-write
     /// failed (queue full or completed): awaits the channel's own
     /// <see cref="FifoChannelWorkQueue{T}.WriteAsync(T, CancellationToken)"/> — the
-    /// SINGLE async layer on the enqueue path (DR-7) — and maps the channel's native
-    /// faults to <see cref="RejectionReason.Shutdown"/>: completion surfaces as
-    /// <see cref="ChannelClosedException"/> and cancellation as
-    /// <see cref="OperationCanceledException"/>; neither escapes to callers.
+    /// SINGLE async layer on the enqueue path (DR-7). Queue completion surfaces as
+    /// <see cref="ChannelClosedException"/> and is mapped to
+    /// <see cref="RejectionReason.Shutdown"/>; caller cancellation surfaces as
+    /// <see cref="OperationCanceledException"/> and is allowed to propagate (R1), so
+    /// the canceled task reaches the caller rather than a rejected result.
     /// </summary>
     /// <param name="fifo">The FIFO binding (devirtualized via the caller's pattern match).</param>
     /// <param name="envelope">The envelope to enqueue.</param>
     /// <param name="ct">Token whose cancellation abandons the wait.</param>
     /// <returns>The admission outcome.</returns>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was canceled during the wait.</exception>
     private static async ValueTask<EnqueueResult> EnqueueFifoSlowAsync(
         FifoChannelWorkQueue<WorkEnvelope<TWork>> fifo,
         WorkEnvelope<TWork> envelope,
@@ -412,14 +428,16 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             await fifo.WriteAsync(envelope, ct).ConfigureAwait(false);
             return EnqueueResult.Accepted;
         }
-        catch (OperationCanceledException)
-        {
-            return EnqueueResult.Rejected(RejectionReason.Shutdown);
-        }
         catch (ChannelClosedException)
         {
+            // Queue completed mid-wait: an admission outcome (shutdown), not a
+            // cancellation, so it surfaces as a rejected result.
             return EnqueueResult.Rejected(RejectionReason.Shutdown);
         }
+
+        // OperationCanceledException from a canceled caller token is intentionally
+        // NOT caught (R1): it propagates so cancellation surfaces as the exception,
+        // matching ChannelWriter.WriteAsync and the TAP convention.
     }
 
     /// <summary>

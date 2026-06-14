@@ -379,9 +379,23 @@ internal sealed class SubQueue<TElement, TPriority>
             newCapacity = Array.MaxLength;
         }
 
-        // Guarantee forward progress; the first growth allocates
-        // InitialCapacity outright.
-        newCapacity = Math.Max(newCapacity, _nodes.Length == 0 ? InitialCapacity : _nodes.Length + MinimumGrow);
+        // Guarantee forward progress; the first growth allocates InitialCapacity outright. The
+        // forward-progress floor itself can exceed Array.MaxLength near the boundary, so re-clamp it
+        // before the Math.Max — otherwise the earlier clamp is undone and the resize throws a
+        // wrong-typed exception at the exact limit this block exists to handle.
+        int minCapacity = _nodes.Length == 0 ? InitialCapacity : _nodes.Length + MinimumGrow;
+        if ((uint)minCapacity > Array.MaxLength)
+        {
+            minCapacity = Array.MaxLength;
+        }
+
+        newCapacity = Math.Max(newCapacity, minCapacity);
+        if (newCapacity <= _nodes.Length)
+        {
+            // Already at Array.MaxLength with no room to grow: surface a clear, typed failure rather
+            // than resizing to a non-increasing length.
+            throw new InvalidOperationException("Sub-queue reached its maximum capacity and cannot grow further.");
+        }
 
         Array.Resize(ref _nodes, newCapacity);
     }
@@ -600,33 +614,54 @@ internal sealed class SubQueue<TElement, TPriority>
 
         try
         {
-            if (!TryHeapPop(out element, out priority))
-            {
-                return SubQueuePopStatus.Empty;
-            }
-
-            if (_size == 0)
-            {
-                PublishTop(priority, empty: true);
-            }
-            else
-            {
-                // Republish only when the exposed root's priority differs from the popped one;
-                // a duplicate minimum leaves the published priority value already correct.
-                TPriority newRoot = _nodes[0].Priority;
-                if (CompareEffective(newRoot, priority) != 0)
-                {
-                    PublishTop(newRoot, empty: false);
-                }
-            }
-
-            Volatile.Write(ref _header.Count, _size);
-            return SubQueuePopStatus.Success;
+            return PopHeldRoot(out element, out priority);
         }
         finally
         {
             SyncLock.Exit();
         }
+    }
+
+    /// <summary>
+    /// Pops the minimum entry assuming <see cref="SyncLock"/> is <i>already held by the caller</i>,
+    /// maintaining the published top and the striped count. The caller owns acquiring and releasing
+    /// the lock; this lets a caller that revalidated the live root under the lock pop that exact root
+    /// without an intervening unlock window in which another thread could swap it (the strict-min
+    /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryDequeueMin"/> path relies on this).
+    /// </summary>
+    /// <param name="element">The removed element, on <see cref="SubQueuePopStatus.Success"/>.</param>
+    /// <param name="priority">The removed priority, on <see cref="SubQueuePopStatus.Success"/>.</param>
+    /// <returns>
+    /// <see cref="SubQueuePopStatus.Success"/> with the former root, or
+    /// <see cref="SubQueuePopStatus.Empty"/> when the heap is empty. Never returns
+    /// <see cref="SubQueuePopStatus.Contended"/>: the caller already holds the lock.
+    /// </returns>
+    internal SubQueuePopStatus PopHeldRoot(out TElement element, out TPriority priority)
+    {
+        Debug.Assert(SyncLock.IsHeldByCurrentThread, "PopHeldRoot requires the sub-queue lock held by the caller.");
+
+        if (!TryHeapPop(out element, out priority))
+        {
+            return SubQueuePopStatus.Empty;
+        }
+
+        if (_size == 0)
+        {
+            PublishTop(priority, empty: true);
+        }
+        else
+        {
+            // Republish only when the exposed root's priority differs from the popped one;
+            // a duplicate minimum leaves the published priority value already correct.
+            TPriority newRoot = _nodes[0].Priority;
+            if (CompareEffective(newRoot, priority) != 0)
+            {
+                PublishTop(newRoot, empty: false);
+            }
+        }
+
+        Volatile.Write(ref _header.Count, _size);
+        return SubQueuePopStatus.Success;
     }
 
     /// <summary>

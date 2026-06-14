@@ -266,6 +266,7 @@ public class QueueWaitMetricsTests
         {
             _listener.SetMeasurementEventCallback<double>(OnMeasurement);
             _listener.EnableMeasurementEvents(instrument);
+            _listener.Start(); // Required to activate the listener so OnMeasurement fires.
         }
 
         /// <summary>

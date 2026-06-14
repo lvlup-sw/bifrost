@@ -30,6 +30,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # This job only builds + uploads artifacts; it never pushes back to the repo,
+          # so do not persist the auth token into .git/config where the full-depth
+          # checkout could leak it into the uploaded artifacts (zizmor: artipacked).
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -38,8 +42,16 @@ jobs:
           dotnet-quality: ${{ env.DOTNET_QUALITY }}
 
       - name: Run soak (both bindings, workers 2 and 8)
+        env:
+          # Pass the dispatch input through the environment, never interpolated directly
+          # into the shell — a crafted 'seconds' value cannot break quoting / inject
+          # commands (zizmor: template-injection).
+          WINDOW: ${{ github.event.inputs.seconds || '600' }}
         run: |
-          WINDOW='${{ github.event.inputs.seconds || '600' }}'
+          if ! [[ "$WINDOW" =~ ^[0-9]+$ ]]; then
+            echo "Invalid 'seconds' input: must be a positive integer" >&2
+            exit 1
+          fi
           dotnet run -c Release --project src/Bifrost.Benchmarks -- \
             soak --seconds "$WINDOW" --out soak-results
 

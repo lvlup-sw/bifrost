@@ -15,8 +15,11 @@ the finding — every `EnqueueAsync` call site that consumed the old `ValueTask`
 - **`EnqueueAsync` returns `ValueTask<EnqueueResult>` and gains an optional `WorkClass`** —
   was `ValueTask EnqueueAsync(TWork work, CancellationToken ct = default)`; now
   `ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)`.
-  Admission failures never throw: shutdown and cancellation surface as a rejected result with
-  `RejectionReason.Shutdown`. Migration:
+  Admission failures never throw: capacity, watermark, and shutdown surface as a rejected result
+  (`RejectionReason.CapacityExceeded` / `WatermarkExceeded` / `Shutdown`). Caller-token
+  cancellation is *not* an admission failure — it surfaces as `OperationCanceledException`, the
+  TAP / `ChannelWriter.WriteAsync` convention, so a caller abort stays distinct from a shut-down
+  queue and is never dead-lettered. Migration:
 
   ```csharp
   // before (0.4.x)
@@ -28,6 +31,7 @@ the finding — every `EnqueueAsync` call site that consumed the old `ValueTask`
   {
       // result.Reason: CapacityExceeded, WatermarkExceeded, or Shutdown
   }
+  // a canceled ct throws OperationCanceledException, as with any async API
   ```
 
   Note the parameter order: a positional token (`EnqueueAsync(work, ct)`) no longer compiles

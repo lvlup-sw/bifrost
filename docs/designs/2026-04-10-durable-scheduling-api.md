@@ -488,8 +488,8 @@ internal sealed class ScheduleTickLoop : BackgroundService
             // Compute from the SCHEDULED occurrence time (nextFire), not the wall clock —
             // DR-7 early-wake clamp / DR-12 stable FireTime.
             var nextNext = handle.Cadence.ComputeNextFire(lastFiredAt: nextFire, now);
-            _ = _router.DispatchAsync(handle, now);        // fire-and-forget to pool
-            _ = _store.RecordFiredAsync(handle.Name, now, nextNext, default);
+            _ = _router.DispatchAsync(handle, nextFire);   // fire-and-forget to pool
+            _ = _store.RecordFiredAsync(handle.Name, nextFire, nextNext, default);
 
             if (nextNext is { } n)
                 _heap.Enqueue(handle, n);

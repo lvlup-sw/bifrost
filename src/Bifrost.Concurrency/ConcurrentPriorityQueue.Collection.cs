@@ -70,10 +70,16 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     {
         // A right-sized starting capacity from the unlocked striped counts avoids most regrowth;
         // the list is the authoritative size because concurrent mutation may change a sub-queue's
-        // count between the capacity hint and its own locked copy.
-        int hint = _queues.Sum(t => t.VolatileCount);
+        // count between the capacity hint and its own locked copy. Accumulate in a `long` and clamp:
+        // an `int` Sum over many large sub-queues can overflow and throw before any snapshot is taken.
+        long hint = 0;
+        foreach (var t in _queues)
+        {
+            hint += t.VolatileCount;
+        }
 
-        var buffer = new List<(TElement Element, TPriority Priority)>(hint < 0 ? 0 : hint);
+        int capacityHint = hint <= 0 ? 0 : hint >= int.MaxValue ? int.MaxValue : (int)hint;
+        var buffer = new List<(TElement Element, TPriority Priority)>(capacityHint);
 
         // One sub-queue at a time: each SnapshotTo takes that sub-queue's lock, copies its heap
         // segment, and releases before the next; no global freeze.

@@ -115,6 +115,8 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </remarks>
     private bool EnqueueCore(TElement element, TPriority priority)
     {
+        bool reserved = false;
+
         // Bounded-capacity reservation, taken atomically ahead of the resample loop. Guarded
         // by `_boundedCapacity > 0` so the unbounded path executes no Interlocked instruction at all.
         if (_boundedCapacity > 0)
@@ -126,25 +128,42 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 Interlocked.Decrement(ref _boundedCount);
                 return false;
             }
+
+            reserved = true;
         }
 
         ThreadHandle handle = ThreadHandle.Current;
         SubQueue<TElement, TPriority>[] queues = _queues;
 
-        while (true)
+        try
         {
-            int index = handle.NextStickyIndex(_subQueueMask, _stickiness);
-            if (queues[index].TryLockedPush(element, priority))
+            while (true)
             {
-                return true;
+                int index = handle.NextStickyIndex(_subQueueMask, _stickiness);
+                if (queues[index].TryLockedPush(element, priority))
+                {
+                    return true;
+                }
+
+                // Contended: end the sticky period so the resample draws a fresh random index rather than
+                // re-trying the contended one; never wait on a held lock. An unlocked sub-queue
+                // always exists (at most p of n = 4p can be locked at once), so this loop terminates
+                // probabilistically without an attempt bound. Resampling-on-contention is also what keeps
+                // stickiness wait-free: a stuck selection never blocks, it yields to a fresh draw.
+                handle.ResetStickyEnqueue();
+            }
+        }
+        catch
+        {
+            // A reservation was taken but the element never landed in a sub-queue (e.g. a comparer or
+            // heap-path throw inside TryLockedPush). Release it so a transient failure can't permanently
+            // shrink a bounded queue's usable capacity by leaking `_boundedCount`.
+            if (reserved)
+            {
+                Interlocked.Decrement(ref _boundedCount);
             }
 
-            // Contended: end the sticky period so the resample draws a fresh random index rather than
-            // re-trying the contended one; never wait on a held lock. An unlocked sub-queue
-            // always exists (at most p of n = 4p can be locked at once), so this loop terminates
-            // probabilistically without an attempt bound. Resampling-on-contention is also what keeps
-            // stickiness wait-free: a stuck selection never blocks, it yields to a fresh draw.
-            handle.ResetStickyEnqueue();
+            throw;
         }
     }
 }

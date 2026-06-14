@@ -168,7 +168,7 @@ public sealed class ClassifierOptionTests
         .WithClassifier(work => WorkClass.Batch)
         .Build();
 
-        await using var provider = services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         await Assert.That(orchestrator).IsTypeOf<WorkOrchestrator<string>>();
         var concrete = (WorkOrchestrator<string>)orchestrator;
@@ -183,6 +183,10 @@ public sealed class ClassifierOptionTests
         await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         var dequeuedClass = await observed.Task.WaitAsync(WaitTimeout).ConfigureAwait(false);
         await Assert.That(dequeuedClass).IsEqualTo(WorkClass.Batch);
+
+        // Cleanup is owned by WorkOrchestrator.DisposeAsync — dispose the orchestrator
+        // rather than the provider to avoid the double-dispose path.
+        await concrete.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>

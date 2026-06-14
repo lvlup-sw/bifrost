@@ -55,7 +55,7 @@ public class OrchestratorEnqueueSurfaceTests
     /// <summary>
     /// Verifies that enqueueing after shutdown returns
     /// <see cref="EnqueueResult.Rejected"/> with <see cref="RejectionReason.Shutdown"/>
-    /// and never throws — including caller-token cancellation.
+    /// and never throws <see cref="System.Threading.Channels.ChannelClosedException"/>.
     /// </summary>
     [Test]
     public async Task EnqueueAsync_AfterShutdown_ReturnsRejectedShutdown()
@@ -65,29 +65,41 @@ public class OrchestratorEnqueueSurfaceTests
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 }); // No default workers
         var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
 
-        var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
+        await using var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
         await orchestrator.StopAsync().ConfigureAwait(false);
 
         // Act — must not throw ChannelClosedException
         var afterStop = await orchestrator.EnqueueAsync("after-stop").ConfigureAwait(false);
 
-        // Assert
+        // Assert — a shut-down queue refusing work is an admission outcome (a value),
+        // distinct from caller cancellation (an exception — see the next test).
         await Assert.That(afterStop.IsAccepted).IsFalse();
         await Assert.That(afterStop.Reason).IsEqualTo(RejectionReason.Shutdown);
+    }
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+    /// <summary>
+    /// Verifies the R1 cancellation contract: a canceled caller token surfaces an
+    /// <see cref="OperationCanceledException"/> — distinct from
+    /// <see cref="RejectionReason.Shutdown"/> — matching the TAP / <c>ChannelWriter</c>
+    /// precedent. The orchestrator here is live (not shut down), so the only reason
+    /// the enqueue does not succeed is the caller's cancellation.
+    /// </summary>
+    [Test]
+    public async Task EnqueueAsync_CallerTokenCanceled_ThrowsOperationCanceled()
+    {
+        // Arrange — a live orchestrator with capacity to spare.
+        var handler = Substitute.For<IWorkHandler<string>>();
+        var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
+        var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
 
-        // Act — caller-token cancellation surfaces as Rejected(Shutdown),
-        // never as OperationCanceledException.
-        await using var second = new WorkOrchestrator<string>(handler, options, logger);
+        await using var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync().ConfigureAwait(false);
 
-        var cancelled = await second.EnqueueAsync("cancelled", ct: cts.Token).ConfigureAwait(false);
-
-        // Assert
-        await Assert.That(cancelled.IsAccepted).IsFalse();
-        await Assert.That(cancelled.Reason).IsEqualTo(RejectionReason.Shutdown);
+        // Act & Assert — cancellation propagates as OperationCanceledException, not a
+        // rejected result.
+        await Assert.That(() => orchestrator.EnqueueAsync("cancelled", ct: cts.Token).AsTask())
+            .Throws<OperationCanceledException>();
     }
 
     /// <summary>

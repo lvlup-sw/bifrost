@@ -171,19 +171,25 @@ public sealed class ThroughputRunner
             // Drain workers exit on their own when the queue is observed empty — usually well
             // before the window. Measure the ACTUAL elapsed drain time: dividing by the full
             // window would pin every target at population/window and erase the comparison. The
-            // window still serves as a per-worker watchdog bound for a drain that never empties.
+            // workers all drain the same shared queue concurrently, so the watchdog is a SINGLE
+            // wall-clock window across all of them (not threadCount × window): a drain that never
+            // empties is bounded by one window total, then fails fast rather than hanging.
+            var drainWatchdog = Stopwatch.StartNew();
             foreach (Thread worker in workers)
             {
-                worker.Join(window);
+                TimeSpan remaining = window - drainWatchdog.Elapsed;
+                if (remaining <= TimeSpan.Zero || !worker.Join(remaining))
+                {
+                    stop.Stop = true;
+                    throw new TimeoutException(
+                        $"Drain workload exceeded its {window.TotalSeconds:0.#}s watchdog window before all workers emptied the queue.");
+                }
             }
 
             stop.Stop = true; // Watchdog: stop any straggler that never observed empty.
             sw.Stop();
 
-            foreach (Thread worker in workers)
-            {
-                worker.Join();
-            }
+            JoinAllOrThrow(workers);
         }
         else
         {
@@ -192,10 +198,7 @@ public sealed class ThroughputRunner
             stop.Stop = true;
             sw.Stop();
 
-            foreach (Thread worker in workers)
-            {
-                worker.Join();
-            }
+            JoinAllOrThrow(workers);
         }
 
         // Gather the padded slots back into a compact, contiguous per-thread array for the result.
@@ -212,6 +215,30 @@ public sealed class ThroughputRunner
         double opsPerSecond = seconds > 0 ? total / seconds : 0d;
 
         return new ThroughputResult(target, workload, threadCount, stickiness, window, total, opsPerSecond, perThreadOps);
+    }
+
+    /// <summary>
+    /// The bound on the post-stop join: once the stop flag is set, a cooperative worker loop
+    /// re-reads it and exits within a single iteration, so any worker still running after this
+    /// grace period is stuck — fail fast rather than block the harness indefinitely.
+    /// </summary>
+    private static readonly TimeSpan StopJoinTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Joins every worker after the stop flag has been set, bounding each join so a stuck worker
+    /// surfaces a <see cref="TimeoutException"/> instead of hanging the run on an unbounded join.
+    /// </summary>
+    /// <param name="workers">The worker threads to join.</param>
+    private static void JoinAllOrThrow(Thread[] workers)
+    {
+        foreach (Thread worker in workers)
+        {
+            if (!worker.Join(StopJoinTimeout))
+            {
+                throw new TimeoutException(
+                    $"Worker '{worker.Name}' did not stop within {StopJoinTimeout.TotalSeconds:0.#}s of the stop signal.");
+            }
+        }
     }
 
     /// <summary>Creates the adapter for the requested target over a fresh shared queue instance.</summary>

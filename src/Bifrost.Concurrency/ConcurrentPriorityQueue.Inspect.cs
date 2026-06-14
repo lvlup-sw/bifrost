@@ -225,7 +225,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 continue;
             }
 
-            bool revalidated;
             try
             {
                 // Re-read the live root under the lock; a writer may have changed it since the scan.
@@ -233,38 +232,37 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 // runner-up's scanned top: if the live root is strictly larger than the runner-up
                 // (the scanned minimum was popped, a larger element exposed) or the winner is now
                 // empty, a better candidate may live in the runner-up's sub-queue, so we rescan.
-                revalidated =
+                bool revalidated =
                     subQueue.TryHeapPeekRoot(out _, out TPriority rootPriority) &&
                     (!hasRunnerUp || CompareEffective(rootPriority, runnerUp) <= 0);
+
+                if (!revalidated)
+                {
+                    // The winner moved out from under us; rescan for a possibly-better candidate.
+                    continue;
+                }
+
+                // Pop the revalidated root while STILL holding the lock. Releasing here and re-locking
+                // in a separate pop would expose an unlocked window in which another thread could
+                // remove the validated root and surface a worse one, so the strict-min path would pop
+                // an element it never revalidated. Popping under the held lock makes the revalidated
+                // root and the popped root the same element by construction.
+                if (subQueue.PopHeldRoot(out element, out priority) == SubQueuePopStatus.Success)
+                {
+                    // This path pops the sub-queue DIRECTLY, bypassing TryPopFrom, so it must release
+                    // the bounded reservation itself (no-op on an unbounded queue), the same single
+                    // helper TryPopFrom uses, keeping one decrement site per successful removal.
+                    OnElementRemovedFromBounded();
+                    return true;
+                }
+
+                // Empty in the post-revalidation window — effectively unreachable, since the root was
+                // just peeked under this same lock: consume the attempt and rescan.
             }
             finally
             {
-                // Release before popping: TryLockedPop re-acquires the lock itself. The window
-                // between Exit and the pop is part of the documented observation window; whatever
-                // Success yields is, by contract, the minimum observed during the call.
                 subQueue.SyncLock.Exit();
             }
-
-            if (!revalidated)
-            {
-                // The winner moved out from under us; rescan for a possibly-better candidate.
-                continue;
-            }
-
-            SubQueuePopStatus status = subQueue.TryLockedPop(out element, out priority);
-            if (status == SubQueuePopStatus.Success)
-            {
-                // This path pops the sub-queue DIRECTLY, bypassing TryPopFrom, so it must release
-                // the bounded reservation itself (no-op on an unbounded queue), the same single
-                // helper TryPopFrom uses, keeping one decrement site per successful removal.
-                OnElementRemovedFromBounded();
-
-                // Whatever Success yielded IS the result: the observation window includes this pop,
-                // so a value popped here is the minimum among elements observed during the call.
-                return true;
-            }
-
-            // Empty or Contended in the tiny post-revalidation window: consume the attempt, rescan.
         }
 
         element = default;

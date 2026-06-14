@@ -85,7 +85,7 @@ public sealed class DecoratorStackCompatibilityTests
         .WithAutoscaling()
         .Build();
 
-        await using var provider = services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
         // Act — enqueue a mixed-class backlog through the decorated surface.
@@ -110,6 +110,10 @@ public sealed class DecoratorStackCompatibilityTests
         // rejections anywhere in the stack).
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
         await Assert.That(dlq.Count).IsEqualTo(0);
+
+        // Cleanup is owned by WorkOrchestrator.DisposeAsync — dispose the orchestrator
+        // rather than the provider to avoid the double-dispose path on orchestrator-owned resources.
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -144,7 +148,7 @@ public sealed class DecoratorStackCompatibilityTests
         .WithAutoscaling()
         .Build();
 
-        await using var provider = services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
         // Park the single worker: the gate item is dequeued (so it never counts as
@@ -172,6 +176,8 @@ public sealed class DecoratorStackCompatibilityTests
         using var drainCts = new CancellationTokenSource(WaitTimeout);
         await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
         await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
+
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -203,7 +209,7 @@ public sealed class DecoratorStackCompatibilityTests
         .WithDeadLetterQueue(dlqOpts => dlqOpts.MaxRetries = 1)
         .Build();
 
-        await using var provider = services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
         // Act — a poison item between two healthy ones.
@@ -231,6 +237,8 @@ public sealed class DecoratorStackCompatibilityTests
         await Assert.That(processed.Count).IsEqualTo(2);
         await Assert.That(processed).Contains("ok-1");
         await Assert.That(processed).Contains("ok-2");
+
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -264,7 +272,7 @@ public sealed class DecoratorStackCompatibilityTests
         .WithDeadLetterQueue()
         .Build();
 
-        await using var provider = services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
@@ -295,6 +303,8 @@ public sealed class DecoratorStackCompatibilityTests
 
         // Cleanup — release the parked worker so disposal does not wait.
         handler.ReleaseGate();
+
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -322,7 +332,7 @@ public sealed class DecoratorStackCompatibilityTests
         .WithDeadLetterQueue()
         .Build();
 
-        await using var provider = services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
@@ -356,6 +366,8 @@ public sealed class DecoratorStackCompatibilityTests
         // dead-lettered anything.
         await Assert.That(handler.ProcessedSnapshot().Count).IsEqualTo(4);
         await Assert.That(dlq.Count).IsEqualTo(0);
+
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -387,7 +399,7 @@ public sealed class DecoratorStackCompatibilityTests
         .WithEventStream()
         .Build();
 
-        await using var provider = services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var eventStream = orchestrator as IEventStreamOrchestrator<string>;
         await Assert.That(eventStream).IsNotNull();
@@ -454,6 +466,8 @@ public sealed class DecoratorStackCompatibilityTests
         {
             await Assert.That(completed.Select(c => c.Work).Contains($"fill-{i}")).IsTrue();
         }
+
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -487,7 +501,7 @@ public sealed class DecoratorStackCompatibilityTests
         .WithHealthChecks()
         .Build();
 
-        await using var provider = services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
 
         // Realize the orchestrator singleton so the check observes the live instance.
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
@@ -502,6 +516,8 @@ public sealed class DecoratorStackCompatibilityTests
         await Assert.That(report.Entries.ContainsKey("WorkOrchestrator<String>")).IsTrue();
         await Assert.That(report.Entries["WorkOrchestrator<String>"].Status).IsEqualTo(HealthStatus.Healthy);
         await Assert.That(report.Status).IsEqualTo(HealthStatus.Healthy);
+
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -536,7 +552,7 @@ public sealed class DecoratorStackCompatibilityTests
         .WithAutoscaling()
         .Build();
 
-        await using var provider = services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
         // Park the built-in worker.
@@ -585,6 +601,8 @@ public sealed class DecoratorStackCompatibilityTests
         {
             // Expected during shutdown.
         }
+
+        await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>

@@ -82,10 +82,11 @@ Derived per-item figures (mean / 10,000 items):
 
 Post-rewrite measurement of the FIFO path after T13 (envelope wrapping +
 `EnqueueResult` surface), T17 (`IWorkQueue` abstraction + `FifoChannelWorkQueue`),
-and T18 (strategy factory). `OrchestratorBaselineBenchmarks.cs` is **byte-for-byte
-unchanged** since the T1 capture (`git log --follow` confirms; the new
-`ValueTask<EnqueueResult>` return is awaited-and-discarded identically), so the
-scenario is exactly equivalent: 10,000 `int` payloads, no-op countdown handler,
+and T18 (strategy factory). `OrchestratorBaselineBenchmarks.cs` is **functionally
+equivalent** to the T1 capture — the file is part of this PR's changes, but the only
+edit is the new `ValueTask<EnqueueResult>` return, awaited-and-discarded identically
+(`git log --follow` confirms no other change) — so the scenario is exactly
+equivalent: 10,000 `int` payloads, no-op countdown handler,
 `Capacity = 128`, `WorkerCount ∈ {1, 2, 8}`, default `DispatchStrategy.Fifo`.
 Environment identical to the T1 block above (same host, BenchmarkDotNet v0.14.0,
 .NET SDK 10.0.202, runtime 10.0.6).
@@ -224,7 +225,8 @@ parallel orchestrator):
 
 Re-measurement after the T28-fix remediation commits (`refactor(cpq)!` contract
 change + `fix(cpq)` FIFO path), same host, same BenchmarkDotNet v0.14.0 /
-SDK 10.0.202 / runtime 10.0.6, benchmark source still byte-for-byte unchanged.
+SDK 10.0.202 / runtime 10.0.6; the benchmark source stays functionally equivalent —
+the contract change only alters the awaited-and-discarded return type.
 
 **What changed.** (1) `FifoChannelWorkQueue.WaitToDequeueAsync` now forwards
 the channel's pooled `WaitToReadAsync` `ValueTask` directly — the per-suspension

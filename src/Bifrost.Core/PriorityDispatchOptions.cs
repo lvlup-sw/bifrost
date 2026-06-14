@@ -4,6 +4,8 @@
 // </copyright>
 // =============================================================================
 
+using System.Runtime.CompilerServices;
+
 namespace Bifrost.Core;
 
 /// <summary>
@@ -125,8 +127,7 @@ public class PriorityDispatchOptions
         get => _batchAdmissionWatermark;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1.0);
+            ThrowIfNotInUnitInterval(value);
             _batchAdmissionWatermark = value;
         }
     }
@@ -151,8 +152,7 @@ public class PriorityDispatchOptions
         get => _defaultAdmissionWatermark;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1.0);
+            ThrowIfNotInUnitInterval(value);
             _defaultAdmissionWatermark = value;
         }
     }
@@ -179,9 +179,30 @@ public class PriorityDispatchOptions
         get => _interactiveAdmissionWatermark;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1.0);
+            ThrowIfNotInUnitInterval(value);
             _interactiveAdmissionWatermark = value;
         }
+    }
+
+    /// <summary>
+    /// Validates that a watermark assignment lies in <c>(0, 1]</c>, rejecting <see cref="double.NaN"/>
+    /// explicitly. <c>NaN</c> fails every ordering comparison, so the bare
+    /// <c>ThrowIfNegativeOrZero</c> / <c>ThrowIfGreaterThan</c> pair would let it slip through and
+    /// silently destabilize admission. Centralized so all three setters stay in step.
+    /// </summary>
+    /// <param name="value">The assigned watermark fraction.</param>
+    /// <param name="paramName">The captured argument name, for the thrown exception.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="value"/> is <c>NaN</c> or outside <c>(0, 1]</c>.
+    /// </exception>
+    private static void ThrowIfNotInUnitInterval(double value, [CallerArgumentExpression(nameof(value))] string? paramName = null)
+    {
+        if (double.IsNaN(value))
+        {
+            throw new ArgumentOutOfRangeException(paramName, value, "Watermark must be a number in (0, 1].");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value, paramName);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1.0, paramName);
     }
 }

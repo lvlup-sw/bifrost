@@ -61,7 +61,12 @@ public interface IWorkOrchestrator<TWork> : IAsyncDisposable
     /// The <see cref="WorkClass"/> the item is enqueued under. Defaults to
     /// <see cref="WorkClass.Default"/>.
     /// </param>
-    /// <param name="ct">Cancellation token to cancel the enqueue operation.</param>
+    /// <param name="ct">
+    /// Cancellation token for the enqueue operation. If it is canceled, the
+    /// operation is canceled and surfaces an <see cref="OperationCanceledException"/>
+    /// (the returned task completes in the canceled state) — it is not folded into a
+    /// rejected result. See the remarks.
+    /// </param>
     /// <returns>
     /// The <see cref="EnqueueResult"/> admission outcome:
     /// <see cref="EnqueueResult.Accepted"/> when the item was admitted, or a
@@ -73,11 +78,24 @@ public interface IWorkOrchestrator<TWork> : IAsyncDisposable
     /// implementing backpressure behavior.
     /// </para>
     /// <para>
-    /// This method never throws for admission failures. Shutdown and
-    /// cancellation surface as a rejected result with
-    /// <see cref="RejectionReason.Shutdown"/>.
+    /// <b>Admission vs. cancellation.</b> Admission <i>decisions</i> are values, not
+    /// exceptions: a full queue, a tripped per-class watermark, or an orchestrator
+    /// shutting down all return <see cref="EnqueueResult.Rejected(RejectionReason)"/>
+    /// (with <see cref="RejectionReason.CapacityExceeded"/>,
+    /// <see cref="RejectionReason.WatermarkExceeded"/>, or
+    /// <see cref="RejectionReason.Shutdown"/> respectively). The method never throws
+    /// for an admission failure. <i>Caller cancellation</i> is a different concern:
+    /// canceling <paramref name="ct"/> surfaces an
+    /// <see cref="OperationCanceledException"/>, matching the Task-based Asynchronous
+    /// Pattern and the <see cref="System.Threading.Channels.ChannelWriter{T}"/>
+    /// precedent (completion returns "no writes permitted"; cancellation throws). A
+    /// canceled enqueue is therefore distinguishable from a shut-down queue and is
+    /// never dead-lettered.
     /// </para>
     /// </remarks>
+    /// <exception cref="OperationCanceledException">
+    /// <paramref name="ct"/> was canceled before or during the enqueue.
+    /// </exception>
     ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default);
 
     /// <summary>

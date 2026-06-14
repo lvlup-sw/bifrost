@@ -123,7 +123,9 @@ public static class SoakVerbs
                 }
 
                 case "--seconds":
-                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) || seconds <= 0)
+                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds)
+                        || !double.IsFinite(seconds)
+                        || seconds <= 0)
                     {
                         Console.Error.WriteLine($"soak: invalid --seconds '{value}'.");
                         return false;
@@ -169,6 +171,7 @@ public static class SoakVerbs
                         || !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double interactive)
                         || !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double @default)
                         || !double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out double batch)
+                        || !double.IsFinite(interactive) || !double.IsFinite(@default) || !double.IsFinite(batch)
                         || interactive < 0 || @default < 0 || batch < 0
                         || Math.Abs(interactive + @default + batch - 100.0) > 0.001)
                     {
@@ -181,7 +184,9 @@ public static class SoakVerbs
                 }
 
                 case "--burst-interval":
-                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double burstInterval) || burstInterval < 0)
+                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double burstInterval)
+                        || !double.IsFinite(burstInterval)
+                        || burstInterval < 0)
                     {
                         Console.Error.WriteLine($"soak: invalid --burst-interval '{value}'.");
                         return false;
@@ -201,7 +206,9 @@ public static class SoakVerbs
                     break;
 
                 case "--boost-seconds":
-                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double boostSeconds) || boostSeconds < 0)
+                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double boostSeconds)
+                        || !double.IsFinite(boostSeconds)
+                        || boostSeconds < 0)
                     {
                         Console.Error.WriteLine($"soak: invalid --boost-seconds '{value}'.");
                         return false;

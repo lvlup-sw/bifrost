@@ -454,6 +454,7 @@ public class RejectionRoutingTests
         {
             _listener.SetMeasurementEventCallback<long>(OnMeasurement);
             _listener.EnableMeasurementEvents(instrument);
+            _listener.Start(); // Required to activate the listener so OnMeasurement fires.
         }
 
         /// <summary>
