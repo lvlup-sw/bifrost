@@ -91,8 +91,11 @@ public sealed class SchedulerMetricsTests
     }
 
     /// <summary>
-    /// Verifies the fire-latency histogram records the elapsed time between a job's
-    /// scheduled next-fire instant and its actual dispatch.
+    /// Verifies the fire-latency histogram records a strictly positive value
+    /// approximately equal to the known gap between the scheduled fire and the actual
+    /// dispatch. The fake clock is advanced by 2× the job interval, making the
+    /// scheduled fire 1 interval late. The recorded latency must be positive (not
+    /// clamped-to-zero) and within a generous tolerance of the expected gap.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
@@ -103,15 +106,30 @@ public sealed class SchedulerMetricsTests
             metrics.Meter, "bifrost.scheduling.jobs.fire_latency");
         await using var fx = await Fixture.StartAsync(metrics).ConfigureAwait(false);
 
-        await fx.RegisterAsync("late", Interval()).ConfigureAwait(false);
+        // Register with a 1-hour interval: the job becomes due at Start + 1h.
+        var interval = TimeSpan.FromHours(1);
+        await fx.RegisterAsync("late", new IntervalCadence(interval)).ConfigureAwait(false);
 
-        // Advance well past the scheduled fire so the dispatch is observably late.
-        fx.Time.Advance(TimeSpan.FromHours(2));
+        // Advance by 2× the interval: clock is now at Start + 2h.
+        // The job fires at Start + 2h; its scheduled occurrence was Start + 1h.
+        // Expected latency ≈ 1h = 3,600,000 ms.
+        fx.Time.Advance(interval + interval);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
         var measurements = collector.GetMeasurementSnapshot();
         await Assert.That(measurements).IsNotEmpty();
-        await Assert.That(measurements.Any(m => m.Value >= 0)).IsTrue();
+
+        // The recorded value must be strictly positive — not clamped-to-zero — so
+        // we distinguish a correct measurement from a bug that always returns 0.
+        var latencyMs = measurements.Max(m => m.Value);
+        await Assert.That(latencyMs).IsGreaterThan(0.0);
+
+        // Approximate check: latency should be close to 1 hour (3,600,000 ms).
+        // Allow ±1 second of tolerance for any internal timing imprecision.
+        const double expectedMs = 3_600_000.0; // 1 hour in milliseconds
+        const double toleranceMs = 1_000.0;    // 1 second tolerance
+        await Assert.That(latencyMs).IsGreaterThan(expectedMs - toleranceMs);
+        await Assert.That(latencyMs).IsLessThan(expectedMs + toleranceMs);
     }
 
     /// <summary>
