@@ -644,6 +644,15 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// computes its next fire if needed, and enqueues it. A job that is not running or
     /// has no next fire is left disarmed.
     /// </summary>
+    /// <remarks>
+    /// When the persisted <c>NextFireAt</c> is still in the future it is used
+    /// directly (optimisation: no cadence computation needed). When it is absent or
+    /// in the past — for example after a pause across N occurrences — the cadence's
+    /// next occurrence is computed from <c>(LastFiredAt, now)</c> so the loop arms
+    /// at the next <em>natural</em> future occurrence rather than replaying stale
+    /// past instants as if they were missed fires (DR-10: missed-fire catch-up is
+    /// startup-from-store recovery only, not live resume).
+    /// </remarks>
     /// <param name="jobName">The job to arm.</param>
     private void Arm(string jobName)
     {
@@ -656,8 +665,20 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         }
 
         var now = this.timeProvider.GetUtcNow();
-        var nextFire = record.NextFireAt
-            ?? record.Cadence.ComputeNextFire(record.LastFiredAt, now);
+
+        // Use the stored NextFireAt only when it is still in the future; if it is
+        // stale (in the past or absent) compute the next natural occurrence from now.
+        // This ensures a resume after a long pause arms at the next future occurrence
+        // rather than treating the intervening period as missed fires (DR-10).
+        DateTimeOffset? nextFire;
+        if (record.NextFireAt is not null && record.NextFireAt.Value > now)
+        {
+            nextFire = record.NextFireAt.Value;
+        }
+        else
+        {
+            nextFire = record.Cadence.ComputeNextFire(record.LastFiredAt, now);
+        }
 
         if (nextFire is null)
         {
@@ -727,15 +748,28 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             // turn (the re-enqueued occurrence is re-examined by this same loop), and
             // sets up the strict-occurrence next-fire computation a later group relies
             // on rather than skipping the backlog as a now-anchored interval would.
-            var nextNext = handle.Cadence.ComputeNextFire(scheduledOccurrence, scheduledOccurrence);
+            // SafeComputeNextFire wraps the call: a throwing cadence marks the job
+            // Faulted and publishes a JobFireFailedEvent, isolating the fault so other
+            // jobs continue to fire (DR-10, Task 48, Hangfire#529/#530/#537).
+            var nextNext = this.SafeComputeNextFire(handle, scheduledOccurrence);
 
-            // Re-schedule BEFORE dispatching so the next fire is committed even if the
-            // dispatch or a fault in the dispatch path throws (DR-4/DR-10): a recurring
-            // job never loses its schedule to a failed fire.
+            // A null result from SafeComputeNextFire either means the cadence is
+            // exhausted (normal) or it threw (faulted): in both cases the job is
+            // dropped from the live schedule. The job was already marked Faulted
+            // and its failed-fire event was published by SafeComputeNextFire.
             if (nextNext is null)
             {
-                // One-shot (or exhausted cadence): drop it from the live state.
+                // One-shot, exhausted cadence, or faulted cadence: drop live state.
                 this.scheduled.Remove(handle.JobName);
+
+                // If the cadence faulted (marked via registry), do not dispatch the
+                // (now un-schedulable) fire occurrence: the JobFireFailedEvent from
+                // SafeComputeNextFire already reported the failure.
+                var record = this.registry.TryGetRecord(handle.JobName);
+                if (record?.State == JobState.Faulted)
+                {
+                    continue;
+                }
             }
             else
             {
@@ -745,6 +779,47 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             this.Dispatch(handle.JobName, scheduledOccurrence, nextNext);
         }
     }
+
+    /// <summary>
+    /// Computes the next occurrence for a job whose cadence may throw, isolating any
+    /// fault as a <see cref="Core.Events.JobFireFailedEvent"/> and marking the job
+    /// <see cref="JobState.Faulted"/> so it does not block the loop from processing
+    /// other jobs (DR-10, Task 48, Hangfire#529/#530/#537).
+    /// </summary>
+    /// <remarks>
+    /// A faulted job is removed from the live schedule by the caller
+    /// (<see cref="DispatchDueJobs"/>); no further occurrences are enqueued for it.
+    /// </remarks>
+    /// <param name="handle">The heap handle for the job being evaluated.</param>
+    /// <param name="scheduledOccurrence">The occurrence that just fired (the anchor for the next-fire computation).</param>
+    /// <returns>
+    /// The next scheduled occurrence, or <see langword="null"/> when the cadence is
+    /// exhausted or threw (the job is faulted in the latter case).
+    /// </returns>
+#pragma warning disable CA1031 // A throwing cadence must be isolated, not allowed to crash the loop.
+    private DateTimeOffset? SafeComputeNextFire(JobHandle handle, DateTimeOffset scheduledOccurrence)
+    {
+        try
+        {
+            return handle.Cadence.ComputeNextFire(scheduledOccurrence, scheduledOccurrence);
+        }
+        catch (Exception ex)
+        {
+            // The cadence's ComputeNextFire threw: isolate the fault. Mark the job
+            // Faulted in the registry so it is not re-armed, and publish a
+            // JobFireFailedEvent so observers can detect the per-job failure without
+            // it being confused with a dispatched-but-throwing fire.
+            this.registry.MarkJobFaulted(handle.JobName);
+            this.eventSink.Publish(new Core.Events.JobFireFailedEvent(
+                handle.JobName,
+                scheduledOccurrence,
+                ex,
+                Reason: "Cadence.ComputeNextFire threw; job marked Faulted."));
+            this.LogCadenceComputeNextFireFailed(handle.JobName, ex);
+            return null;
+        }
+    }
+#pragma warning restore CA1031
 
     /// <summary>
     /// Performs a single fire: resolves the live dispatcher, hands the fire to the

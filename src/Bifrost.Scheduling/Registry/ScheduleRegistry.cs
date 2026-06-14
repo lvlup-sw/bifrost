@@ -125,6 +125,26 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
     /// <returns>A snapshot of all registered job records.</returns>
     internal IReadOnlyList<JobRecord> SnapshotRecords() => [.. this.jobs.Values];
 
+    /// <summary>
+    /// Marks a job as <see cref="JobState.Faulted"/> in-process, called by the tick
+    /// loop when a per-job <c>ComputeNextFire</c> throws (DR-10, Task 48). The
+    /// in-memory state is updated synchronously on the tick thread; the store write
+    /// is intentionally skipped here — the store is a best-effort checkpoint and
+    /// the fault is visible in-process immediately. Silently ignores unknown jobs.
+    /// </summary>
+    /// <param name="name">The job name to mark faulted.</param>
+    internal void MarkJobFaulted(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        if (!this.jobs.TryGetValue(name, out var record))
+        {
+            return;
+        }
+
+        this.jobs[name] = record with { State = JobState.Faulted };
+    }
+
     /// <inheritdoc/>
     public async ValueTask RegisterAsync(
         string name,
