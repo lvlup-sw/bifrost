@@ -23,6 +23,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Bifrost.Tests.Scheduling" />
     <InternalsVisibleTo Include="Bifrost.Scheduling.Testing" />
+    <InternalsVisibleTo Include="Bifrost.Benchmarks" />
   </ItemGroup>
 
 </Project>
