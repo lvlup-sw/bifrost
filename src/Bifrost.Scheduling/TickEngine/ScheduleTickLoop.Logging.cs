@@ -56,4 +56,12 @@ public sealed partial class ScheduleTickLoop
         Message = "Checkpointing the fire of job '{JobName}' to the store failed; the " +
             "fire already dispatched and the next fire is unaffected (best-effort).")]
     private partial void LogCheckpointFailed(string jobName, Exception exception);
+
+    [LoggerMessage(
+        EventId = 7,
+        Level = LogLevel.Error,
+        Message = "Job '{JobName}': Cadence.ComputeNextFire threw; the job has been " +
+            "marked Faulted and will not fire again until it is re-registered " +
+            "(DR-10, Task 48).")]
+    private partial void LogCadenceComputeNextFireFailed(string jobName, Exception exception);
 }

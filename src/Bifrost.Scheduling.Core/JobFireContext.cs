@@ -12,11 +12,15 @@ namespace Bifrost.Scheduling.Core;
 /// </summary>
 /// <param name="JobName">The name of the job that fired.</param>
 /// <param name="FireTime">
-/// The scheduled occurrence time of this fire. This is the occurrence's logical
-/// instant, not the wall-clock instant the dispatch ran, so it is stable across
-/// a re-fire of the same occurrence; the pair
-/// (<paramref name="JobName"/>, <paramref name="FireTime"/>) is the idempotency
-/// key a dispatcher uses to deduplicate retried occurrences.
+/// The scheduled occurrence time of this fire — the heap key, never a
+/// wall-clock instant read at dispatch time (DR-12). This value is stable across
+/// a re-fire of the same occurrence: if the process crashed between the dispatch
+/// handoff and the <c>RecordFiredAsync</c> checkpoint, the scheduler re-fires the
+/// same occurrence on startup and this field carries the same instant. Use the
+/// pair (<paramref name="JobName"/>, <paramref name="FireTime"/>) as the
+/// idempotency / deduplication key in your handler. For on-demand triggers (via
+/// <c>TriggerAsync</c>) this is the trigger instant, since no scheduled
+/// occurrence exists.
 /// </param>
 /// <param name="NextFireAt">
 /// The job's next scheduled occurrence, or <see langword="null"/> when no

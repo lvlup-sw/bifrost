@@ -28,6 +28,13 @@ namespace Bifrost.Scheduling.Dispatch;
 /// honors cancellation surfaces an <see cref="OperationCanceledException"/> that
 /// propagates out of the dispatch.
 /// </para>
+/// <para>
+/// <strong>At-least-once delivery.</strong> Execution is at-least-once per
+/// scheduled occurrence — see <see cref="IJobDispatcher.DispatchAsync"/> for the
+/// full contract. Make the supplied delegate idempotent and use the pair
+/// (<see cref="JobFireContext.JobName"/>, <see cref="JobFireContext.FireTime"/>)
+/// as the deduplication key (DR-12).
+/// </para>
 /// </remarks>
 public sealed class InlineJobDispatcher : IJobDispatcher
 {
