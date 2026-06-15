@@ -57,30 +57,26 @@ namespace Bifrost.Concurrency;
 /// <see cref="System.Threading.Interlocked"/> instruction against it.
 /// </para>
 /// <para>
-/// <b>Choosing a configuration.</b> This queue is built for contention. Measured on a 64-core server it
-/// matches a single global lock at about four threads and pulls past it from there, reaching twelve to
-/// twenty-five times the lock's throughput once the machine is saturated. Below two threads an
-/// uncontended lock is faster, so prefer this queue only when threads genuinely compete for it. Two
+/// <b>Choosing a configuration.</b> This queue is built for contention. It draws even with a single
+/// global lock only once several threads compete for the queue and pulls ahead from there; at very low
+/// thread counts an uncontended lock is faster, so prefer this queue when threads genuinely contend. Two
 /// constructor dials, <c>stickiness</c> and <c>bufferCapacity</c>, trade dequeue quality for throughput;
 /// both are safe to leave at their defaults and matter only in the regimes below.
 /// </para>
 /// <para>
 /// <c>stickiness</c> lets a thread reuse its sampled sub-queue for several consecutive operations,
 /// hiding the cost of re-sampling. Its weak spot is one or two threads, where that fixed cost is not yet
-/// buried under contention: raising the dial to four or eight there roughly doubles throughput and is
-/// what lets the relaxed queue overtake a plain lock in the low-thread regime. Under real contention
-/// leave it at one, which keeps a pop closest to the true minimum. The price is looseness — expected
-/// rank error scales with the dial, on top of the per-machine scaling above.
+/// buried under contention: raising the dial there lifts throughput and is what lets the relaxed queue
+/// overtake a plain lock in the low-thread regime. Under real contention leave it at one, which keeps a
+/// pop closest to the true minimum. The price is looseness: expected rank error scales with the dial.
 /// </para>
 /// <para>
 /// <c>bufferCapacity</c> gives each sub-queue small insertion and deletion buffers so the deep heap is
 /// touched only about once per <c>C</c> operations. It helps at low thread counts, on drain-heavy
-/// workloads, and for reference-type elements whose comparisons and moves are expensive, where it cuts
-/// single-thread latency on a million-element queue by roughly a third. On a saturated machine running a
-/// cheap value-type mix it is a wash to a few percent slower, which is why it ships off. Bifrost's own
-/// work items are reference-typed, so a deployment that lets queues run deep is the case buffering was
-/// built for. The internal heap is fixed at arity 4 either way (it favors latency and is cheaper for
-/// reference elements); neither dial allocates per operation.
+/// workloads, and for reference-type elements whose comparisons and moves are expensive, where it lowers
+/// single-thread latency on a deep queue. On a saturated machine running a cheap value-type mix it is
+/// roughly neutral, sometimes slightly slower, which is why it ships off. Neither dial allocates per
+/// operation.
 /// </para>
 /// <para>
 /// <b>Thread Safety:</b> All public and protected members of
@@ -236,13 +232,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <param name="stickiness">
     /// The stickiness factor <c>s</c>: a thread reuses its sampled sub-queue selection for <c>s</c>
     /// consecutive operations before re-sampling, hiding the cost of re-sampling. Must be at least one;
-    /// <c>-1</c> selects the default (<see cref="DefaultStickiness"/>). Raise it to four or eight only in
-    /// the low-thread regime, where the fixed sampling cost is not yet buried under contention and a
-    /// higher <c>s</c> can roughly double throughput at one or two threads; under real contention leave
-    /// it at one, which keeps a pop closest to the true minimum. The price is dequeue quality: the
-    /// relaxed <see cref="TryDequeue"/>'s expected rank error scales to <c>s·(5/6)·n</c>, so a pop grows
-    /// looser as this dial rises, on top of how that looseness already grows with the core count. Keep it
-    /// small — one or four are the safe choices.
+    /// <c>-1</c> selects the default (<see cref="DefaultStickiness"/>). Raise it (to a small value such
+    /// as four) only in the low-thread regime, where the fixed sampling cost is not yet buried under
+    /// contention and a higher <c>s</c> lifts throughput; under real contention leave it at one, which
+    /// keeps a pop closest to the true minimum. The price is dequeue quality: the relaxed
+    /// <see cref="TryDequeue"/>'s expected rank error scales to <c>s·(5/6)·n</c>, so a pop grows looser
+    /// as this dial rises, on top of how that looseness already grows with the core count. Keep it small
+    /// — one or four are the safe choices.
     /// </param>
     /// <param name="comparer">
     /// The priority comparer, or <see langword="null"/> to use <see cref="Comparer{T}.Default"/>.
@@ -273,13 +269,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// The buffer capacity <c>C ∈ [0, SubQueue.BufferCapacityMax]</c>: <c>0</c> (the default) disables
     /// buffering and leaves Enqueue/Dequeue bit-exact with the unbuffered queue; <c>1..16</c> gives each
     /// sub-queue an insertion and a sorted deletion buffer of that size, so the deep heap is touched only
-    /// about once per <c>C</c> operations rather than on every one. Enable it (16 is the sweet spot) for
-    /// low thread counts, drain-heavy workloads, or reference-type elements with deep heaps, where it
-    /// cuts single-thread latency on a large queue by roughly a third; on a saturated machine running a
-    /// cheap value-type mix it is a wash to slightly slower, so it stays off by default. The buffers wrap
-    /// the arity-4 heap rather than replacing it, and add no per-operation allocation either way. This is
-    /// a distinct four-argument arity from the <c>(boundedCapacity, stickiness, comparer)</c> overload,
-    /// so adding it re-binds no existing positional call site.
+    /// about once per <c>C</c> operations rather than on every one. Enable it (16 is the usual choice)
+    /// for low thread counts, drain-heavy workloads, or reference-type elements with deep heaps, where it
+    /// lowers single-thread latency; on a saturated machine running a cheap value-type mix it is roughly
+    /// neutral, sometimes slightly slower, so it stays off by default. The buffers wrap the heap rather
+    /// than replacing it, and add no per-operation allocation either way. This is a distinct
+    /// four-argument overload from the <c>(boundedCapacity, stickiness, comparer)</c> one, so adding it
+    /// re-binds no existing positional call site.
     /// </param>
     /// <param name="comparer">
     /// The priority comparer, or <see langword="null"/> to use <see cref="Comparer{T}.Default"/>.
@@ -396,6 +392,9 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <summary>Gets the resolved stickiness factor <c>s</c>. Exposed for tests.</summary>
     internal int StickinessForTest => _stickiness;
+
+    /// <summary>Gets the resolved buffer capacity <c>C</c> (<c>0</c> when buffering is off). Exposed for tests.</summary>
+    internal int BufferCapacityForTest => _bufferCapacity;
 
     /// <summary>
     /// Gets the backing sub-queue array. Exposed so later tasks can drive sub-queues directly
