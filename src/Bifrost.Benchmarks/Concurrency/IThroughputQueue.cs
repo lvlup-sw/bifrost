@@ -44,6 +44,15 @@ internal sealed class RelaxedQueueAdapter : IThroughputQueue
     /// <param name="stickiness">The stickiness factor <c>s</c> the queue samples sub-queues with.</param>
     public RelaxedQueueAdapter(int stickiness) => _queue = new ConcurrentPriorityQueue<long, long>(boundedCapacity: -1, stickiness: stickiness);
 
+    /// <summary>
+    /// Initializes a new adapter over a fresh relaxed MultiQueue queue with the given stickiness factor
+    /// and ESA 2021 §4 buffer capacity (the buffered-vs-unbuffered A/B dial; <c>0</c> = buffering off).
+    /// </summary>
+    /// <param name="stickiness">The stickiness factor <c>s</c> the queue samples sub-queues with.</param>
+    /// <param name="bufferCapacity">The logical buffer capacity <c>C ∈ [0, 16]</c>; <c>0</c> disables buffering.</param>
+    public RelaxedQueueAdapter(int stickiness, int bufferCapacity)
+        => _queue = new ConcurrentPriorityQueue<long, long>(boundedCapacity: -1, stickiness: stickiness, bufferCapacity: bufferCapacity);
+
     /// <inheritdoc/>
     public void Enqueue(long priority) => _queue.Enqueue(priority, priority);
 

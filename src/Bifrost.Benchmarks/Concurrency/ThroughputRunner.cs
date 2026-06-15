@@ -82,6 +82,11 @@ public sealed class ThroughputRunner
     /// to keep the smoke run fast. Ignored by every non-drain workload.
     /// </param>
     /// <param name="stickiness">The stickiness factor <c>s</c> for the MultiQueue targets (inert for the locking baseline).</param>
+    /// <param name="bufferCapacity">
+    /// The ESA 2021 §4 buffer capacity <c>C</c> for the relaxed MultiQueue target (the
+    /// buffered-vs-unbuffered A/B dial; <c>0</c> = buffering off). Inert for the strict and locking
+    /// targets, which do not construct a buffered relaxed queue.
+    /// </param>
     /// <returns>The aggregated <see cref="ThroughputResult"/> for the run.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="threadCount"/> is less than one.</exception>
     public ThroughputResult Run(
@@ -90,11 +95,12 @@ public sealed class ThroughputRunner
         int threadCount,
         TimeSpan window,
         int drainPrepopulationPerThread = 0,
-        int stickiness = 1)
+        int stickiness = 1,
+        int bufferCapacity = 0)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(threadCount, 1);
 
-        IThroughputQueue queue = CreateQueue(target, stickiness);
+        IThroughputQueue queue = CreateQueue(target, stickiness, bufferCapacity);
 
         // Drain pre-populates the shared queue BEFORE the timed window opens so the window measures
         // pure drain throughput, not the fill.
@@ -244,9 +250,13 @@ public sealed class ThroughputRunner
     /// <summary>Creates the adapter for the requested target over a fresh shared queue instance.</summary>
     /// <param name="target">The queue implementation to drive.</param>
     /// <param name="stickiness">The stickiness factor for the relaxed/strict MultiQueue targets (ignored by the locking baseline).</param>
-    private static IThroughputQueue CreateQueue(ThroughputTarget target, int stickiness) => target switch
+    /// <param name="bufferCapacity">
+    /// The ESA 2021 §4 buffer capacity for the relaxed MultiQueue target (the buffered A/B dial);
+    /// <c>0</c> = buffering off. Ignored by the strict and locking targets.
+    /// </param>
+    private static IThroughputQueue CreateQueue(ThroughputTarget target, int stickiness, int bufferCapacity) => target switch
     {
-        ThroughputTarget.MultiQueueRelaxed => new RelaxedQueueAdapter(stickiness),
+        ThroughputTarget.MultiQueueRelaxed => new RelaxedQueueAdapter(stickiness, bufferCapacity),
         ThroughputTarget.MultiQueueDequeueMin => new DequeueMinQueueAdapter(stickiness),
         ThroughputTarget.LockingBaseline => new LockingQueueAdapter(),
         _ => throw new ArgumentOutOfRangeException(nameof(target), target, "Unknown throughput target."),

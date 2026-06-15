@@ -56,6 +56,28 @@ public static class ThroughputVerbs
         Console.WriteLine($"Wrote throughput-stickiness.csv and throughput-stickiness.md to '{outputDirectory}'.");
     }
 
+    /// <summary>
+    /// Runs the buffered-vs-unbuffered dense-throughput A/B (design DR-8): the relaxed MultiQueue
+    /// target across every workload and the default thread ladder, swept across buffer capacities
+    /// <c>{0, 16}</c> so each (workload, threads) pair is reported off and on:
+    /// <c>buffered-throughput [windowSeconds] [outputDirectory]</c>. Writes
+    /// <c>throughput-buffered-ab.csv</c>/<c>.md</c>.
+    /// </summary>
+    /// <param name="args">The full command line; <c>args[0]</c> is the verb itself.</param>
+    public static void RunBufferedThroughputAb(string[] args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        (double windowSeconds, string outputDirectory) = ParseWindowAndOutput(args);
+
+        int[] threadCounts = ThroughputSweep.DefaultThreadCounts();
+        int[] bufferCapacities = [0, 16];
+
+        Console.WriteLine($"Running buffered A/B: window={windowSeconds}s, target=MultiQueueRelaxed, C={{0,16}}, output='{outputDirectory}'");
+        ThroughputSweep.RunBufferedAb(windowSeconds, threadCounts, bufferCapacities, outputDirectory);
+        Console.WriteLine($"Wrote throughput-buffered-ab.csv and throughput-buffered-ab.md to '{outputDirectory}'.");
+    }
+
     /// <summary>Parses the optional <c>[windowSeconds] [outputDirectory]</c> positional overrides shared by both verbs.</summary>
     /// <param name="args">The full command line; <c>args[0]</c> is the verb itself.</param>
     /// <returns>The window in seconds and the output directory.</returns>
