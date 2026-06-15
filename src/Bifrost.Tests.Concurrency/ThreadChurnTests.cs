@@ -44,6 +44,13 @@ namespace Bifrost.Tests.Concurrency;
 /// machine.
 /// </para>
 /// </remarks>
+/// <remarks>
+/// Categorized <c>Stress</c>: CPU-bound thread-churn proofs that require real multi-core parallelism
+/// (e.g. the async-yield re-fetch test asserts continuations span &gt;1 pool thread). Per-PR CI
+/// excludes the <c>Stress</c> category; they run on the dedicated stress job (push to <c>main</c>,
+/// the <c>run-stress</c> label, or manual dispatch). The correctness assertions stay strict.
+/// </remarks>
+[Property("Category", "Stress")]
 [NotInParallel]
 public class ThreadChurnTests
 {

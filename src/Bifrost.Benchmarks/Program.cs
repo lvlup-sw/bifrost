@@ -58,6 +58,16 @@ if (args.Length > 0 && args[0].Equals("stickiness", StringComparison.OrdinalIgno
     return;
 }
 
+// DR-8 buffered-vs-unbuffered dense-throughput A/B: the relaxed MultiQueue swept across buffer
+// capacities {0, 16}. Like the other throughput verbs, this is the custom fixed-window harness, not
+// the BDN switcher:
+//   dotnet run -c Release -- buffered-throughput [windowSeconds] [outputDirectory]
+if (args.Length > 0 && args[0].Equals("buffered-throughput", StringComparison.OrdinalIgnoreCase))
+{
+    ThroughputVerbs.RunBufferedThroughputAb(args);
+    return;
+}
+
 var config = ManualConfig.Create(DefaultConfig.Instance);
 
 if (Array.Exists(args, a => a.Equals("Dry", StringComparison.OrdinalIgnoreCase)))
@@ -86,6 +96,7 @@ var switcher = new BenchmarkSwitcher(
     typeof(DeadLetterQueueBenchmarks),
     typeof(OrchestratorBaselineBenchmarks),
     typeof(CpqSingleThreadedLatencyBenchmarks),
+    typeof(CpqBufferedAbBenchmarks),
     // Group L — Scheduling benchmarks (Tasks 41-44)
     typeof(RegistryRegistrationBenchmarks),
     typeof(TickEngineBenchmarks),

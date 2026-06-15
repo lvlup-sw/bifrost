@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -50,7 +51,13 @@ jobs:
             projname=$(basename "$proj" .csproj)
             # Use absolute path for coverage output
             coverage_path="${GITHUB_WORKSPACE}/TestResults/${projname}.cobertura.xml"
+            # Exclude the heavy [Category=Stress] proofs (ConservationStressTests /
+            # ThreadChurnTests): they are CPU-bound multi-core contention tests that run
+            # in the dedicated 'stress-tests' job (see below), not on every PR. The
+            # '!=Stress' predicate still runs all uncategorized tests, and excluding them
+            # leaves Bifrost.Concurrency coverage well above threshold (96.9% line / 94% branch).
             if ! dotnet run --project "$proj" --configuration Release -- \
+              --treenode-filter "/*/*/*/*[Category!=Stress]" \
               --coverage \
               --coverage-output-format cobertura \
               --coverage-output "$coverage_path"; then
@@ -84,6 +91,23 @@ jobs:
         # fails the build, which is the intended behaviour for DR-13 gating.
         run: ./aot-publish/Bifrost.Scheduling.AotSmoke
 
+      - name: AOT smoke (concurrency) — publish native binary (CPQ DR-1)
+        # Publishes samples/Bifrost.Concurrency.AotSmoke as a fully ahead-of-time
+        # compiled native binary, enforcing that the buffered ConcurrentPriorityQueue
+        # reference-type path (ESA 2021 §4 buffers) is NativeAOT-clean (no IL2xxx/IL3050).
+        # Reuses the clang toolchain installed above; PublishAot=true is passed on the
+        # command line so a regular solution `dotnet build` needs no native toolchain.
+        run: |
+          dotnet publish samples/Bifrost.Concurrency.AotSmoke/Bifrost.Concurrency.AotSmoke.csproj \
+            -c Release \
+            /p:PublishAot=true \
+            -o ./aot-publish-concurrency
+
+      - name: AOT smoke (concurrency) — run native binary
+        # Exercises the buffered (bufferCapacity:16) reference-type enqueue/dequeue under
+        # NativeAOT. Exits 0 on success, non-zero on failure; a non-zero exit fails the build.
+        run: ./aot-publish-concurrency/Bifrost.Concurrency.AotSmoke
+
       - name: Merge coverage reports
         if: always()
         run: |
@@ -110,6 +134,42 @@ jobs:
           name: coverage-reports
           path: ./TestResults/coverage.cobertura.xml
           retention-days: 7
+
+  stress-tests:
+    name: Stress / churn proofs (heavy, gated)
+    # The [Category=Stress] proofs (ConservationStressTests, ThreadChurnTests) are
+    # multi-million-op conservation + multi-core thread-churn tests calibrated for a
+    # >=4-core runner; they are excluded from the per-PR build-test run (they add
+    # minutes and starve on small runners). Run them ONLY when needed: on every push
+    # to main (post-merge correctness gate), on manual dispatch, and on PRs that carry
+    # the 'run-stress' label. The correctness assertions themselves stay strict.
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'run-stress')
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+      - name: Build
+        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release
+
+      - name: Run Stress-category proofs
+        # Target the project that carries the Stress tests directly: an MTP filter that
+        # matches zero tests exits non-zero, so do not loop it over the stress-free projects.
+        run: |
+          dotnet run --project src/Bifrost.Tests.Concurrency --configuration Release -- \
+            --treenode-filter "/*/*/*/*[Category=Stress]"
 
   coverage-gate:
     name: Coverage Gate

@@ -41,6 +41,18 @@ public class StrictMinInspectTests
         => new(subQueueCount: subQueueCount, boundedCapacity: -1, comparer: null);
 
     /// <summary>
+    /// Builds a pinned-size unbounded queue with ESA 2021 §4 buffering ENABLED at the given logical
+    /// capacity, so the strict-min revalidation path must read <c>D.front()</c> (the buffered top),
+    /// not the arity-4 heap root. Single sub-queue by default so the resident minima land in the
+    /// deletion buffer <c>D</c> deterministically.
+    /// </summary>
+    /// <param name="subQueueCount">The exact sub-queue count to pin.</param>
+    /// <param name="bufferCapacity">The logical buffer capacity <c>C</c> (1..16).</param>
+    /// <returns>A pinned-size unbounded buffered <c>(int, int)</c> queue.</returns>
+    private static ConcurrentPriorityQueue<int, int> NewBufferedPinned(int subQueueCount, int bufferCapacity)
+        => new(subQueueCount: subQueueCount, boundedCapacity: -1, comparer: null, bufferCapacity: bufferCapacity);
+
+    /// <summary>
     /// Single-threaded, the strict <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryDequeueMin"/>
     /// drains the population in <i>exact</i> ascending priority order — it always returns the TRUE
     /// global minimum, unlike the relaxed two-choice path. A scattered insertion order across many
@@ -83,6 +95,98 @@ public class StrictMinInspectTests
         // The drain is exact: nothing left behind, nothing fabricated.
         await Assert.That(queue.TryDequeueMin(out _, out _)).IsFalse().Because("the queue is fully drained");
         await Assert.That(queue.IsEmpty).IsTrue().Because("a strict drain removes every element exactly once");
+    }
+
+    /// <summary>
+    /// REGRESSION (#18): with ESA 2021 §4 buffering ENABLED, the strict
+    /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryDequeueMin"/> still drains the full
+    /// population in exact ascending order. The resident minima live in the deletion buffer <c>D</c>
+    /// (whose <c>D.front()</c> is the published top), while the arity-4 heap holds the larger keys and
+    /// can even be empty while <c>D</c> is full. The under-lock revalidation must peek <c>D.front()</c>,
+    /// NOT the heap root: with the bug present it peeked the heap root — which is strictly larger than
+    /// <c>D.front()</c> (or reports empty when the heap is empty) — so revalidation kept failing and the
+    /// method gave up early, returning <see langword="false"/> with elements still resident
+    /// (the AOT-smoke symptom: <c>TryDequeueMin</c> drained 0 of 4096).
+    /// </summary>
+    [Test]
+    public async Task TryDequeueMin_Buffered_DrainsAllInStrictOrder()
+    {
+        // Single sub-queue with buffering on: every element funnels through D + heap on ONE stripe, so
+        // the strict path's under-lock revalidation read is unambiguously the buffered front.
+        var queue = NewBufferedPinned(subQueueCount: 1, bufferCapacity: 16);
+
+        // > bufferCapacity elements so D fills, the heap is non-empty, and pops force repeated
+        // refills of D from the heap — exactly the regime where the heap root != D.front().
+        const int n = 200;
+
+        // Shuffled insertion so a wrong revalidation cannot accidentally pass by lucky ordering.
+        var rng = new Random(0xC0FFEE);
+        int[] order = Enumerable.Range(0, n).ToArray();
+        for (int i = order.Length - 1; i > 0; i--)
+        {
+            int j = rng.Next(i + 1);
+            (order[i], order[j]) = (order[j], order[i]);
+        }
+
+        foreach (int p in order)
+        {
+            queue.Enqueue(p, p);
+        }
+
+        await Assert.That(queue.Count).IsEqualTo(n).Because("all n elements are resident before the drain");
+
+        int previous = -1;
+        for (int i = 0; i < n; i++)
+        {
+            bool ok = queue.TryDequeueMin(out int element, out int priority);
+            await Assert.That(ok).IsTrue().Because(
+                $"the buffered strict drain must yield element {i} of {n}; a false here is the #18 heap-root-revalidation bug");
+            await Assert.That(priority).IsEqualTo(i).Because(
+                $"TryDequeueMin must serve D.front() in exact ascending order; expected {i}, got {priority}");
+            await Assert.That(element).IsEqualTo(priority).Because("element == priority by construction");
+            await Assert.That(priority).IsGreaterThan(previous).Because("the buffered strict drain is monotonically increasing");
+            previous = priority;
+        }
+
+        await Assert.That(queue.TryDequeueMin(out _, out _)).IsFalse().Because("the buffered queue is fully drained");
+        await Assert.That(queue.IsEmpty).IsTrue().Because("a buffered strict drain removes every element exactly once");
+    }
+
+    /// <summary>
+    /// REGRESSION (#18): with buffering ENABLED and the global minimum resident in the deletion buffer
+    /// <c>D</c> while the heap holds only larger keys,
+    /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryPeek"/> returns that buffered minimum
+    /// (non-destructively). With the bug present the under-lock revalidation peeked the heap root —
+    /// strictly larger than <c>D.front()</c> — so the no-worse-than-scanned-minimum check failed every
+    /// attempt and TryPeek returned <see langword="false"/> on a non-empty queue.
+    /// </summary>
+    [Test]
+    public async Task TryPeek_Buffered_ReturnsResidentMinimum()
+    {
+        var queue = NewBufferedPinned(subQueueCount: 1, bufferCapacity: 16);
+
+        // Enqueue more than C so D holds the smallest C entries (front = the global minimum) while the
+        // heap retains the larger keys — the arrangement where heap root != D.front().
+        const int n = 50;
+        for (int p = n - 1; p >= 0; p--)
+        {
+            queue.Enqueue(p, p);
+        }
+
+        // The published top is D.front() == 0, but 0 does NOT sit at the heap root (it was buffered).
+        await Assert.That(queue.TryPeek(out int e1, out int p1)).IsTrue().Because(
+            "TryPeek must see the buffered resident minimum 0 in D.front(), not fail against the heap root");
+        await Assert.That(p1).IsEqualTo(0).Because("the resident minimum lives in the deletion buffer D");
+        await Assert.That(e1).IsEqualTo(0);
+
+        // Non-destructive: a second peek still sees 0, and the count is unchanged.
+        await Assert.That(queue.TryPeek(out _, out int p2)).IsTrue();
+        await Assert.That(p2).IsEqualTo(0).Because("a second peek still sees the buffered minimum — peek does not remove");
+        await Assert.That(queue.Count).IsEqualTo(n).Because("the two buffered peeks removed nothing");
+
+        // And the next strict pop removes exactly that peeked minimum.
+        await Assert.That(queue.TryDequeueMin(out _, out int popped)).IsTrue();
+        await Assert.That(popped).IsEqualTo(0).Because("the peeked buffered minimum is the next element popped");
     }
 
     /// <summary>

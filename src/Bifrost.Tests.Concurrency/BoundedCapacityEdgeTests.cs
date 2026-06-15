@@ -200,6 +200,89 @@ public class BoundedCapacityEdgeTests
     }
 
     /// <summary>
+    /// Bounded-capacity admission parity (DR-6): the admit/reject decision and the final
+    /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}.Count"/> are identical whether the
+    /// ESA 2021 §4 buffers are ON (<c>bufferCapacity: 16</c>) or OFF (<c>bufferCapacity: 0</c>),
+    /// at the same bound over an identical offered operation stream.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this is the load-bearing parity.</b> The bound is enforced by the shared atomic
+    /// reservation gate (<c>_boundedCount</c>), which is taken <i>before</i> any sub-queue is touched
+    /// and is therefore structurally blind to whether an admitted element ultimately lands in the
+    /// insertion buffer <c>I</c>, the deletion buffer <c>D</c>, or the arity-4 heap. The watermark
+    /// admission view in turn reads the public <c>Count</c>, which sums each sub-queue's
+    /// <c>VolatileCount</c> — and the core's T9 makes that per-stripe count <c>I + D + heap</c>, so a
+    /// buffered resident is observed at the door exactly like a heaped one. If buffering ever
+    /// over-admitted (a buffered element miscounted at the gate), the buffered queue would accept a push
+    /// the unbuffered queue rejected, diverging this sequence — so a green run is a real proof, not a
+    /// tautology.
+    /// </para>
+    /// <para>
+    /// <b>Determinism.</b> Both queues pin <c>subQueueCount: 1</c> so the entire offered population
+    /// funnels through one sub-queue's buffer (maximizing any I/D/heap routing divergence) and the
+    /// single-threaded driver replays one fixed pseudo-random enqueue/dequeue stream — pushing both
+    /// past and over the bound — against both queues. The per-operation admit results and the final
+    /// count are then fully reproducible.
+    /// </para>
+    /// </remarks>
+    [Test]
+    public async Task BoundedAdmission_Buffered_MatchesUnbufferedShedding()
+    {
+        const int bound = 8;
+        const int operations = 400;
+        const int prioritySpread = 32; // narrow enough that small/large keys both route through I and D
+
+        // Two bounded single-sub-queue queues at the SAME bound: one buffered (ESA 2021 §4 cap 16),
+        // one unbuffered (cap 0). subQueueCount: 1 forces the whole population through one stripe.
+        var buffered = new ConcurrentPriorityQueue<int, int>(subQueueCount: 1, boundedCapacity: bound, comparer: null, bufferCapacity: 16);
+        var unbuffered = new ConcurrentPriorityQueue<int, int>(subQueueCount: 1, boundedCapacity: bound, comparer: null, bufferCapacity: 0);
+
+        // Replay ONE fixed operation stream against both queues, recording the per-enqueue admit
+        // result (true = admitted, false = shed). Identical seed ⟹ identical stream ⟹ the recorded
+        // admit sequences must coincide element-for-element if admission is buffer-agnostic.
+        var rng = new Random(0xB0_17ED);
+        var bufferedAdmits = new List<bool>(operations);
+        var unbufferedAdmits = new List<bool>(operations);
+
+        for (int op = 0; op < operations; op++)
+        {
+            // ~40% of operations are dequeues, the rest enqueues: this churns the buffered structure
+            // through D-refills and I-flushes, so admission is exercised across every buffer state.
+            bool isDequeue = rng.Next(100) < 40;
+            if (isDequeue)
+            {
+                // A pop on either queue frees exactly one reservation; whether it drains D, the heap, or
+                // is a no-op on an empty queue, both queues react identically because the bound only ever
+                // tracks the logical element count, not the buffer layout.
+                buffered.TryDequeue(out _, out _);
+                unbuffered.TryDequeue(out _, out _);
+            }
+            else
+            {
+                int priority = rng.Next(prioritySpread);
+                bufferedAdmits.Add(buffered.TryEnqueue(op, priority));
+                unbufferedAdmits.Add(unbuffered.TryEnqueue(op, priority));
+            }
+        }
+
+        // The decisive parity assertions: the admit/shed sequences coincide, and the queues end at the
+        // same occupancy. A buffered over-admit would surface as a single diverging `true` here.
+        await Assert.That(bufferedAdmits.SequenceEqual(unbufferedAdmits)).IsTrue().Because(
+            "buffering on vs off must yield the same per-enqueue admit/shed decision at the same bound over an identical stream");
+        await Assert.That(buffered.Count).IsEqualTo(unbuffered.Count).Because(
+            "buffered and unbuffered bounded queues must reach the same final occupancy from the same operation stream");
+
+        // And neither queue ever broke its bound (the watermark/reservation gate held for both regimes).
+        await Assert.That(buffered.Count).IsLessThanOrEqualTo(bound).Because(
+            "the buffered queue never admits beyond its bound");
+        await Assert.That(unbuffered.Count).IsLessThanOrEqualTo(bound).Because(
+            "the unbuffered queue never admits beyond its bound");
+        await Assert.That(buffered.DebugBoundedCountForTest).IsEqualTo(unbuffered.DebugBoundedCountForTest).Because(
+            "the reservation gate ends at the same value in both regimes — buffering takes no extra (or fewer) reservations");
+    }
+
+    /// <summary>
     /// A comparer that orders by the integer's natural order but throws an
     /// <see cref="InvalidOperationException"/> from <see cref="Compare"/> while <see cref="Throw"/> is
     /// set, used to drive the enqueue reservation-rollback <c>catch</c>.

@@ -42,6 +42,13 @@ namespace Bifrost.Tests.Concurrency;
 /// fail deterministically instead of hanging. The expected wall-clock is well under a second.
 /// </para>
 /// </remarks>
+/// <remarks>
+/// Categorized <c>Stress</c>: these are CPU-bound multi-million-op contention proofs calibrated for
+/// a ≥4-core runner. Per-PR CI excludes the <c>Stress</c> category (it would time out / starve on a
+/// small runner); they run on the dedicated stress job (push to <c>main</c>, the <c>run-stress</c>
+/// label, or manual dispatch). The correctness assertions stay strict — only where they run is gated.
+/// </remarks>
+[Property("Category", "Stress")]
 [NotInParallel]
 public class ConservationStressTests
 {
