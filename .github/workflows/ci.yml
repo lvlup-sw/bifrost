@@ -84,6 +84,23 @@ jobs:
         # fails the build, which is the intended behaviour for DR-13 gating.
         run: ./aot-publish/Bifrost.Scheduling.AotSmoke
 
+      - name: AOT smoke (concurrency) — publish native binary (CPQ DR-1)
+        # Publishes samples/Bifrost.Concurrency.AotSmoke as a fully ahead-of-time
+        # compiled native binary, enforcing that the buffered ConcurrentPriorityQueue
+        # reference-type path (ESA 2021 §4 buffers) is NativeAOT-clean (no IL2xxx/IL3050).
+        # Reuses the clang toolchain installed above; PublishAot=true is passed on the
+        # command line so a regular solution `dotnet build` needs no native toolchain.
+        run: |
+          dotnet publish samples/Bifrost.Concurrency.AotSmoke/Bifrost.Concurrency.AotSmoke.csproj \
+            -c Release \
+            /p:PublishAot=true \
+            -o ./aot-publish-concurrency
+
+      - name: AOT smoke (concurrency) — run native binary
+        # Exercises the buffered (bufferCapacity:16) reference-type enqueue/dequeue under
+        # NativeAOT. Exits 0 on success, non-zero on failure; a non-zero exit fails the build.
+        run: ./aot-publish-concurrency/Bifrost.Concurrency.AotSmoke
+
       - name: Merge coverage reports
         if: always()
         run: |

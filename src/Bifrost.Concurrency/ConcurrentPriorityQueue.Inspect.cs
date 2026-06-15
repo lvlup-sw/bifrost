@@ -171,9 +171,10 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <para>
     /// Each attempt scans the tops for the winner (minimum) and the runner-up
     /// (second-smallest published top), then acquires the winner with <c>TryEnter</c>, never
-    /// blocking. Under the lock the live root is re-read
-    /// (<see cref="SubQueue{TElement, TPriority}.TryHeapPeekRoot"/>): a concurrent writer may have
-    /// changed the root since the scan. If the winner is now empty, or its live root is strictly
+    /// blocking. Under the lock the live minimum is re-read
+    /// (<see cref="SubQueue{TElement, TPriority}.TryPeekLiveMin"/>, which serves <c>D.front()</c> on
+    /// the buffered path and the heap root otherwise): a concurrent writer may have
+    /// changed the minimum since the scan. If the winner is now empty, or its live root is strictly
     /// greater than the runner-up's scanned top (the scanned minimum was popped and a larger element
     /// exposed), the lock is released and the queue is rescanned, because a better candidate may now
     /// live in the runner-up's sub-queue. A contended winner likewise consumes an attempt and

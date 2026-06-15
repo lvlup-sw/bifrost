@@ -4,6 +4,7 @@
 // </copyright>
 // =============================================================================
 
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -62,7 +63,18 @@ internal struct SubQueueBuffer<TElement, TPriority>
     internal static Span<(TElement Element, TPriority Priority)> AsSpan(
         ref SubQueueBuffer<TElement, TPriority> buffer,
         int length)
-        => MemoryMarshal.CreateSpan(
+    {
+        // Defense-in-depth: CreateSpan does no bounds check, so a length past the fixed inline
+        // capacity would silently fabricate an out-of-bounds span over adjacent storage (a
+        // memory-safety hole). All production callers are provably bounded by the logical
+        // bufferCapacity (≤ BufferCapacityMax); this debug-only assert fast-fails any future
+        // caller that violates the precondition, at zero release cost.
+        Debug.Assert(
+            (uint)length <= SubQueue<TElement, TPriority>.BufferCapacityMax,
+            "SubQueueBuffer.AsSpan length exceeds the fixed inline capacity.");
+
+        return MemoryMarshal.CreateSpan(
             ref Unsafe.As<SubQueueBuffer<TElement, TPriority>, (TElement Element, TPriority Priority)>(ref buffer),
             length);
+    }
 }
