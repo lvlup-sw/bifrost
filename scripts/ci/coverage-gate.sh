@@ -7,9 +7,19 @@ set -euo pipefail
 
 # Default values
 COVERAGE_FILE=""
+PER_PROJECT_DIR=""
 THRESHOLD=80
 OUTPUT_DIR="."
 VERBOSE=false
+
+# Exclude globs for --per-project mode (pure test-support projects with no
+# shippable code). Seeded from the EXCLUDE env var (whitespace-separated),
+# then appended to by each --exclude flag.
+EXCLUDE_GLOBS=()
+if [[ -n "${EXCLUDE:-}" ]]; then
+    # shellcheck disable=SC2206  # intentional word-splitting of the env list
+    EXCLUDE_GLOBS=(${EXCLUDE})
+fi
 
 # Colors for terminal output
 RED='\033[0;31m'
@@ -21,15 +31,34 @@ usage() {
     cat << EOF
 Usage: $(basename "$0") [OPTIONS]
 
+Modes (exactly one of --coverage-file or --per-project is required):
+    --coverage-file FILE    Gate a single Cobertura XML report (the merged
+                            aggregate). Writes a PR-comment markdown file.
+    --per-project DIR       Gate EACH *.cobertura.xml in DIR independently.
+                            Fails if ANY project is below the threshold on
+                            line OR branch coverage. Writes a per-project
+                            pass/fail table to the PR-comment markdown.
+
 Options:
-    --coverage-file FILE    Path to Cobertura XML coverage report (required)
-    --threshold PERCENT     Minimum coverage percentage (default: 80)
+    --threshold PERCENT     Minimum coverage percentage (default: 80). Applies
+                            to both line and branch coverage. A file with no
+                            branch-rate skips the branch check (not a failure).
+    --exclude GLOB          (--per-project only, repeatable) Skip any project
+                            whose Cobertura filename matches GLOB — use for
+                            pure test-support projects with no shippable code.
+                            May also be supplied via the EXCLUDE env var as a
+                            whitespace-separated list of globs.
     --output-dir DIR        Directory for output files (default: current directory)
     --verbose               Enable verbose output
     -h, --help              Show this help message
 
-Example:
+Examples:
+    # Aggregate gate (existing CI behavior)
     $(basename "$0") --coverage-file ./coverage/Cobertura.xml --threshold 80 --output-dir ./output
+
+    # Per-project gate, excluding a test-support project
+    $(basename "$0") --per-project ./coverage --threshold 80 --exclude '*TestSupport*'
+    EXCLUDE='*TestSupport* *Fixtures*' $(basename "$0") --per-project ./coverage
 EOF
     exit 1
 }
@@ -59,6 +88,14 @@ while [[ $# -gt 0 ]]; do
             COVERAGE_FILE="$2"
             shift 2
             ;;
+        --per-project)
+            PER_PROJECT_DIR="$2"
+            shift 2
+            ;;
+        --exclude)
+            EXCLUDE_GLOBS+=("$2")
+            shift 2
+            ;;
         --threshold)
             THRESHOLD="$2"
             shift 2
@@ -81,14 +118,24 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Validate required arguments
-if [[ -z "$COVERAGE_FILE" ]]; then
-    log_error "Coverage file is required"
+# Validate required arguments: exactly one mode must be selected.
+if [[ -n "$COVERAGE_FILE" && -n "$PER_PROJECT_DIR" ]]; then
+    log_error "--coverage-file and --per-project are mutually exclusive"
     usage
 fi
 
-if [[ ! -f "$COVERAGE_FILE" ]]; then
+if [[ -z "$COVERAGE_FILE" && -z "$PER_PROJECT_DIR" ]]; then
+    log_error "One of --coverage-file or --per-project is required"
+    usage
+fi
+
+if [[ -n "$COVERAGE_FILE" && ! -f "$COVERAGE_FILE" ]]; then
     log_error "Coverage file not found: $COVERAGE_FILE"
+    exit 1
+fi
+
+if [[ -n "$PER_PROJECT_DIR" && ! -d "$PER_PROJECT_DIR" ]]; then
+    log_error "Per-project directory not found: $PER_PROJECT_DIR"
     exit 1
 fi
 
@@ -97,7 +144,13 @@ mkdir -p "$OUTPUT_DIR"
 
 log_info "Coverage Gate Analysis"
 log_info "======================"
-log_info "Coverage file: $COVERAGE_FILE"
+if [[ -n "$PER_PROJECT_DIR" ]]; then
+    log_info "Mode: per-project"
+    log_info "Coverage dir: $PER_PROJECT_DIR"
+else
+    log_info "Mode: aggregate"
+    log_info "Coverage file: $COVERAGE_FILE"
+fi
 log_info "Threshold: ${THRESHOLD}%"
 log_info "Output directory: $OUTPUT_DIR"
 
@@ -179,6 +232,121 @@ extract_package_coverage() {
     echo -e "$output"
 }
 
+# Decide pass/fail for a single (line%, branch%) pair against THRESHOLD.
+# Gates BOTH line and branch coverage. A branch value of "N/A" (no branch-rate
+# in the report) skips the branch check so single-file callers with line-only
+# reports stay green. Echoes "pass" or "fail"; returns 0/1 accordingly.
+check_thresholds() {
+    local line_pct="$1"
+    local branch_pct="$2"
+
+    local line_int
+    line_int=$(echo "$line_pct" | awk '{print int($1)}')
+    if [[ "$line_int" -lt "$THRESHOLD" ]]; then
+        echo "fail"
+        return 1
+    fi
+
+    if [[ -n "$branch_pct" && "$branch_pct" != "N/A" ]]; then
+        local branch_int
+        branch_int=$(echo "$branch_pct" | awk '{print int($1)}')
+        if [[ "$branch_int" -lt "$THRESHOLD" ]]; then
+            echo "fail"
+            return 1
+        fi
+    fi
+
+    echo "pass"
+    return 0
+}
+
+# True if the given filename matches any configured exclude glob.
+is_excluded() {
+    local name="$1"
+    local glob
+    for glob in "${EXCLUDE_GLOBS[@]+"${EXCLUDE_GLOBS[@]}"}"; do
+        # shellcheck disable=SC2053  # RHS is an intentional glob pattern
+        if [[ "$name" == $glob ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# Per-project mode: gate each *.cobertura.xml in the directory independently.
+# ---------------------------------------------------------------------------
+if [[ -n "$PER_PROJECT_DIR" ]]; then
+    PR_COMMENT_FILE="$OUTPUT_DIR/pr-comment.md"
+    OVERALL_STATUS="passing"
+    ROWS=""
+    CONSIDERED=0
+
+    shopt -s nullglob
+    for cov_file in "$PER_PROJECT_DIR"/*.cobertura.xml; do
+        base="$(basename "$cov_file")"
+
+        if is_excluded "$base"; then
+            log_info "Excluding ${base} (matched exclude glob)"
+            ROWS+="| ${base} | - | - | :fast_forward: Excluded |\n"
+            continue
+        fi
+
+        CONSIDERED=$((CONSIDERED + 1))
+        proj_line=$(extract_coverage "$cov_file")
+        proj_branch=$(extract_branch_coverage "$cov_file")
+        # '|| true' keeps `set -e` from aborting on a failing project — we
+        # branch on the echoed "pass"/"fail" string, not the exit status.
+        proj_result=$(check_thresholds "$proj_line" "$proj_branch") || true
+
+        if [[ "$proj_result" == "pass" ]]; then
+            log_info "PASS ${base}: line ${proj_line}% / branch ${proj_branch}%"
+            ROWS+="| ${base} | ${proj_line}% | ${proj_branch}% | :white_check_mark: Pass |\n"
+        else
+            log_error "FAIL ${base}: line ${proj_line}% / branch ${proj_branch}% (threshold ${THRESHOLD}%)"
+            ROWS+="| ${base} | ${proj_line}% | ${proj_branch}% | :x: Fail |\n"
+            OVERALL_STATUS="failing"
+        fi
+    done
+    shopt -u nullglob
+
+    if [[ "$CONSIDERED" -eq 0 ]]; then
+        log_error "No (non-excluded) *.cobertura.xml files found in: $PER_PROJECT_DIR"
+        OVERALL_STATUS="failing"
+    fi
+
+    # Write the per-project PR comment table.
+    {
+        echo "## :bar_chart: Per-Project Coverage Report"
+        echo
+        echo "| Project | Line | Branch | Status |"
+        echo "|---------|------|--------|--------|"
+        echo -en "$ROWS"
+        echo
+        echo "---"
+        echo "<sub>Generated by coverage-gate.sh | Per-project gate | Threshold: ${THRESHOLD}% (line + branch)</sub>"
+    } > "$PR_COMMENT_FILE"
+
+    log_info "PR comment written to: $PR_COMMENT_FILE"
+
+    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+        echo "threshold=$THRESHOLD" >> "$GITHUB_OUTPUT"
+        echo "status=$OVERALL_STATUS" >> "$GITHUB_OUTPUT"
+    fi
+
+    if [[ "$OVERALL_STATUS" == "failing" ]]; then
+        log_error "Per-project coverage gate FAILED"
+        exit 1
+    fi
+
+    log_info "Per-project coverage gate PASSED"
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Single-file (aggregate) mode — backward compatible.
+# ---------------------------------------------------------------------------
+
 # Get coverage values
 COVERAGE=$(extract_coverage "$COVERAGE_FILE")
 BRANCH_COVERAGE=$(extract_branch_coverage "$COVERAGE_FILE")
@@ -187,9 +355,12 @@ log_info "Line Coverage: ${COVERAGE}%"
 log_info "Branch Coverage: ${BRANCH_COVERAGE}%"
 log_info "Threshold: ${THRESHOLD}%"
 
-# Determine pass/fail
-COVERAGE_INT=$(echo "$COVERAGE" | awk '{print int($1)}')
-if [[ $COVERAGE_INT -ge $THRESHOLD ]]; then
+# Determine pass/fail — gates BOTH line and branch coverage.
+# Branch coverage of "N/A" (line-only report) skips the branch check.
+# '|| true' stops `set -e` from aborting before the PR comment is written;
+# we still gate on the echoed result and exit 1 at the end.
+GATE_RESULT=$(check_thresholds "$COVERAGE" "$BRANCH_COVERAGE") || true
+if [[ "$GATE_RESULT" == "pass" ]]; then
     STATUS="passing"
     STATUS_EMOJI="white_check_mark"
     STATUS_COLOR="brightgreen"
@@ -203,6 +374,20 @@ fi
 
 # Generate badge URL (shields.io)
 BADGE_URL="https://img.shields.io/badge/coverage-${COVERAGE}%25-${STATUS_COLOR}"
+
+# Branch-coverage row presentation: gated when present, "skipped" when N/A.
+if [[ -z "$BRANCH_COVERAGE" || "$BRANCH_COVERAGE" == "N/A" ]]; then
+    BRANCH_THRESHOLD_LABEL="-"
+    BRANCH_STATUS_CELL=":heavy_minus_sign: N/A"
+else
+    BRANCH_THRESHOLD_LABEL="${THRESHOLD}%"
+    BRANCH_INT=$(echo "$BRANCH_COVERAGE" | awk '{print int($1)}')
+    if [[ "$BRANCH_INT" -ge "$THRESHOLD" ]]; then
+        BRANCH_STATUS_CELL=":white_check_mark: Passing"
+    else
+        BRANCH_STATUS_CELL=":x: Failing"
+    fi
+fi
 
 # Get package breakdown
 PACKAGE_BREAKDOWN=$(extract_package_coverage "$COVERAGE_FILE")
@@ -218,7 +403,7 @@ cat > "$PR_COMMENT_FILE" << EOF
 | Metric | Value | Threshold | Status |
 |--------|-------|-----------|--------|
 | Line Coverage | **${COVERAGE}%** | ${THRESHOLD}% | :${STATUS_EMOJI}: ${STATUS^} |
-| Branch Coverage | ${BRANCH_COVERAGE}% | - | - |
+| Branch Coverage | ${BRANCH_COVERAGE}% | ${BRANCH_THRESHOLD_LABEL} | ${BRANCH_STATUS_CELL} |
 
 EOF
 
