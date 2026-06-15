@@ -69,6 +69,43 @@ public class EmptySemanticTests
             new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 4)).ConfigureAwait(false);
 
     /// <summary>
+    /// Reads the queue's <c>Count</c> and re-confirms it stays above <paramref name="inFlightTolerance"/>
+    /// across a bounded spin, returning the persistently-observed count or <c>0</c> otherwise. This
+    /// distinguishes a resident element from the benign transient where a concurrent consumer has
+    /// published a sub-queue's seqlock empty flag but not yet written its striped <c>Count = 0</c> (two
+    /// ordered writes under the held lock). Count over-reports by at most one per consumer mid-pop, so
+    /// a Count at or below the consumer count could be entirely in-flight removals, however long a
+    /// preempted consumer stalls; keying the threshold to the consumer count makes the witness sound
+    /// regardless of scheduling, where a fixed-iteration wait could not.
+    /// </summary>
+    /// <param name="queue">The queue to probe.</param>
+    /// <param name="inFlightTolerance">Maximum Count attributable to concurrent in-flight removals.</param>
+    /// <returns>The persistently-observed count above the tolerance, or <c>0</c> otherwise.</returns>
+    private static int PersistentNonEmptyCount(ConcurrentPriorityQueue<int, int> queue, int inFlightTolerance)
+    {
+        int observed = queue.Count;
+        if (observed <= inFlightTolerance)
+        {
+            return 0;
+        }
+
+        var spinner = new SpinWait();
+        for (int i = 0; i < 64; i++)
+        {
+            int reread = queue.Count;
+            if (reread <= inFlightTolerance)
+            {
+                return 0;
+            }
+
+            observed = reread;
+            spinner.SpinOnce();
+        }
+
+        return observed;
+    }
+
+    /// <summary>
     /// Shared body of the quiescent-drain observed-empty proof (DR-9), parameterized only by the
     /// supplied <paramref name="queue"/> so the exact same single-threaded-fill / concurrent-drain
     /// race runs against both the default (<c>s = 1</c>) and a stickiness-enabled queue. A
@@ -122,22 +159,25 @@ public class EmptySemanticTests
                     // A false was returned. The violation witness is the queue's OWN Count read
                     // AFTER the false (the check order is load-bearing). Count is the authoritative
                     // measure of elements still present: SubQueue.TryLockedPop decrements the
-                    // striped count under the sub-queue lock before releasing it, so the count never
-                    // lags a completed pop the way the external `remaining` counter does. With
-                    // production quiescent the per-stripe counts only ever decrease, so a Count
-                    // snapshot read after the false is at worst an under-estimate — it can never read
-                    // higher than the true number of elements present.
+                    // striped count under the sub-queue lock before releasing it. With production
+                    // quiescent the per-stripe counts only ever decrease.
                     //
-                    // DR-9 says false is legal only when the queue was observed empty at some point
-                    // during the call. A false produced while another consumer was concurrently
-                    // popping the very last element is in-contract: the queue genuinely reached
-                    // empty. But Count strictly positive immediately AFTER the false means the
-                    // verification scan concluded emptiness while elements demonstrably remained in
-                    // the queue and no producer was in flight to excuse it — the unambiguous
-                    // observed-empty violation. (Reading Count before the false would be wrong: it
-                    // would flag the legal last-element race; reading after is what makes a positive
-                    // Count load-bearing.)
-                    int observedCount = queue.Count;
+                    // False is legal only when the queue was observed empty at some point during the
+                    // call. A false produced while another consumer was concurrently popping the very
+                    // last element is in-contract: the queue reached empty. The witness must also be
+                    // sound against a benign transient. A consumer mid-pop publishes its sub-queue's
+                    // seqlock empty flag BEFORE it writes the striped Count = 0 (two ordered writes
+                    // under the held lock), so the scan's lock-free cheap route can legitimately
+                    // observe "empty" while Count still counts that being-removed element. Up to
+                    // ConsumerCount consumers can be mid-pop at once, so Count over-reports by at most
+                    // ConsumerCount; only a Count that stays ABOVE that tolerance across a recheck spin
+                    // (PersistentNonEmptyCount) proves a genuinely resident element, and that bound
+                    // holds however long a preempted consumer stalls. A persistent such Count with
+                    // production quiescent means the scan concluded emptiness while an element was
+                    // resident and unremoved: the observed-empty violation. (Reading before the false
+                    // would flag the legal last-element race; reading after, and requiring persistence,
+                    // is what makes a positive Count load-bearing.)
+                    int observedCount = PersistentNonEmptyCount(queue, inFlightTolerance: ConsumerCount);
                     if (observedCount > 0)
                     {
                         lock (violationGate)
