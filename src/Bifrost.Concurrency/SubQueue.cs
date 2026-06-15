@@ -502,6 +502,47 @@ internal sealed class SubQueue<TElement, TPriority>
     }
 
     /// <summary>
+    /// Peeks this sub-queue's LIVE minimum entry without removing it: <c>D.front()</c> (the buffered
+    /// resident minimum, which is also the published top) when buffering is enabled, otherwise the
+    /// arity-4 heap root. Used by the strict-min revalidation path
+    /// (<see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryPeek"/> and
+    /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryDequeueMin"/>), which re-reads the
+    /// winning sub-queue's live minimum under the held lock before accepting or popping it.
+    /// </summary>
+    /// <remarks>
+    /// Called only under <see cref="SyncLock"/> by the strict-min path, but like
+    /// <see cref="TryHeapPeekRoot"/> it does not itself assert the lock. The
+    /// <c>_bufferCapacity == 0</c> branch delegates verbatim to <see cref="TryHeapPeekRoot"/>, keeping
+    /// the unbuffered (default) path bit-exact with the pre-feature behavior; the buffered branch reads
+    /// <c>D.front()</c>, the true live minimum, because on the buffered path the heap root is a LARGER
+    /// key (the smallest entries were refilled into <c>D</c>) and the heap can even be empty while
+    /// <c>D</c> is non-empty — a heap-only peek would mis-revalidate or wrongly report empty.
+    /// </remarks>
+    /// <param name="element">The live minimum element, when the sub-queue is non-empty.</param>
+    /// <param name="priority">The live minimum priority, when the sub-queue is non-empty.</param>
+    /// <returns><see langword="true"/> if a live minimum exists; <see langword="false"/> if empty.</returns>
+    internal bool TryPeekLiveMin(out TElement element, out TPriority priority)
+    {
+        if (_bufferCapacity > 0)
+        {
+            // Buffered: the resident minima live in the sorted deletion buffer D; D.front() (slot 0) is
+            // the live minimum (and the published top). D empty ⟺ the whole sub-queue is empty.
+            if (_deletionCount == 0)
+            {
+                element = default!;
+                priority = default!;
+                return false;
+            }
+
+            (element, priority) = DeletionSpan(_deletionCount)[0];
+            return true;
+        }
+
+        // Unbuffered: bit-exact with the pre-feature behavior — the heap root is the live minimum.
+        return TryHeapPeekRoot(out element, out priority);
+    }
+
+    /// <summary>
     /// Grows the backing store by doubling (from <see cref="InitialCapacity"/> on the first
     /// growth), clamped to <see cref="Array.MaxLength"/> with guaranteed forward progress,
     /// the <see cref="PriorityQueue{TElement, TPriority}"/> <c>Grow</c> precedent.
