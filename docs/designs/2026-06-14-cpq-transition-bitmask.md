@@ -368,20 +368,41 @@ The discover spike ran ([`docs/research/2026-06-14-cpq-bitmask-spike.md`](../res
 - **V-B NO-GO** — authoritative O(1)-empty is not worth it (double-read non-linearizable;
   generation-stamp reintroduces a global contended counter). **Tasks 23–24 are deferred**, not built.
 - **V-DENSE MIXED** — 16T/32T within noise, but **4T −5.0%** in the spike harness (uncertain cause;
-  possibly hybrid-CPU/standalone-harness artifact). Folded into DR-5/DR-7: **confirm-or-refute on
-  production code via the before/after benchmark; apply the mitigation below only if it reproduces
-  >2%.**
+  possibly hybrid-CPU/standalone-harness artifact). This was carried to DR-7 for confirmation on
+  production code → **refuted** (see *DR-7 production benchmark outcome* below).
+
+## DR-7 production benchmark outcome (2026-06-14, resolves DR-5/DR-7)
+
+Before/after on production code, `main` (`74a95bb`) vs the feature branch — full report in
+[`docs/benchmarks/2026-06-14-cpq-bitmask-before-after.md`](../benchmarks/2026-06-14-cpq-bitmask-before-after.md)
+(i9-13900K, 32T/n=128, no AVX-512 → **directional vs the Xeon 8573C**, the parity host):
+
+- **V-SPARSE — PASS (direction), magnitude smaller than the spike.** Pop-10 pair latency
+  **92.5 → 79.6 ns (1.16×, −14%), 0 B/op.** The spike's 177→100 ns / 1.76× was a *standalone-harness*
+  artifact: the real verification scan takes the cheap lock-free `EmptyFlag` route, so the "before"
+  is already ~92 ns at n=128 — not the ~177/260 ns cliff. The win is real but modest at this `n` and
+  scales with `n`, so the larger payoff is expected on the Xeon (n=256). DR-7's "reproduce the
+  ~260 ns cliff" criterion was a harness/Xeon-n=256 figure, not a local-n=128 one.
+- **V-DENSE-NOREG — PASS.** Dense throughput within ±2% at 16T/32T (pooled over 8 trials);
+  steady-state latency at pops 1k/100k/1M within noise; **`0 B/op` at every population**; drain
+  after ≥ before.
+- **V-4T — REFUTED on production code.** 4T dense = UniformMixed −1.61% / NarrowKeyRange +0.67%,
+  inside ±2% and inside this hybrid CPU's ~±4% 4-thread placement noise. The spike's 4T −5% did
+  **not** reproduce — consistent with the only new dense-path work being a field load + an
+  already-present branch (the transition write is strictly off the dense path). **No mitigation
+  needed.**
 
 ## Open Questions (resolved / deferred)
 
 - **Approach B** — **NO-GO** (spike). Revisit only if a future profile shows the genuinely-empty
   scan is a measured hot spot *and* a per-word/sharded generation scheme (not a single global
   counter) is shown linearizable.
-- **4T dense regression mitigation** — if DR-7 reproduces it on production code, the sound fix is
-  **one occupancy slot per stripe** (`byte[]`/`int[]`, plain ordered store under the held lock) —
-  *not* a plain store on the packed `ulong[]`, since distinct stripes share a word under different
-  locks and would race. Profile the actual cause first (boundary-check branch + field load vs. the
-  atomic RMW vs. measurement artifact) before choosing.
+- **4T dense regression** — **RESOLVED (refuted on production code, DR-7).** No mitigation built.
+  Were it to surface on other hardware, the sound fix is one occupancy slot **per stripe**
+  (`byte[]`/`int[]`, plain ordered store under the held lock) — *not* a plain store on the packed
+  `ulong[]`, since distinct stripes share a word under different locks and would race.
+- **Sparse-win magnitude on server hardware** — open, deferred to the **Xeon 8573C** (n=256, 64T):
+  the local 1.16× should widen as the verification scan grows with `n`.
 - **`_occupancy` padding** — decided by the DR-5 false-sharing measurement on production code.
 - **SIMD** — `Vector256`/AVX-512 emptiness read **deferred to the Xeon** (no AVX-512 on the dev
   host); marginal at n=256 (4 words). Measured future enhancement, not in scope.
