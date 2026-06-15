@@ -63,6 +63,15 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     private volatile bool _queueCompleted;
 
     /// <summary>
+    /// Idempotency gate for <see cref="DisposeAsync"/> (DR-3): the first caller flips it
+    /// from 0 to 1 and performs the worker drain, queue disposal, and
+    /// <see cref="CancellationTokenSource"/> disposal; later calls are no-ops, so a
+    /// second <see cref="DisposeAsync"/> never re-cancels or re-disposes the (already
+    /// disposed) <see cref="_cts"/>.
+    /// </summary>
+    private int _disposedGate;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestrator{TWork}"/> class.
     /// </summary>
     /// <param name="handler">The handler that processes work items.</param>
@@ -351,8 +360,21 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Idempotent (DR-3): a second call is a no-op, so it never re-cancels or
+    /// re-disposes the already-disposed <see cref="CancellationTokenSource"/>. After the
+    /// worker drain the owned queue binding is released — the priority bindings own a
+    /// <see cref="SemaphoreSlim"/> (their <c>Dispose</c> is itself idempotent), while the
+    /// default <see cref="FifoChannelWorkQueue{T}"/> is non-disposable and is left
+    /// untouched.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposedGate, 1) == 1)
+        {
+            return;
+        }
+
         CompleteQueue();
         await _cts.CancelAsync().ConfigureAwait(false);
 
@@ -366,6 +388,18 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         catch (OperationCanceledException)
         {
             _logger.LogWarning("DisposeAsync timed out waiting for workers to complete");
+        }
+
+        // DR-3: release the owned queue binding after the workers have drained. The
+        // priority bindings own a SemaphoreSlim; the default FIFO binding is
+        // non-disposable and is left untouched.
+        if (_queue is IAsyncDisposable asyncDisposableQueue)
+        {
+            await asyncDisposableQueue.DisposeAsync().ConfigureAwait(false);
+        }
+        else if (_queue is IDisposable disposableQueue)
+        {
+            disposableQueue.Dispose();
         }
 
         _cts.Dispose();

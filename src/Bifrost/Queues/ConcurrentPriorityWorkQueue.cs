@@ -5,6 +5,7 @@
 // =============================================================================
 
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 using Bifrost.Concurrency;
 using Bifrost.Core;
@@ -99,7 +100,7 @@ namespace Bifrost.Queues;
 /// accept path: producers that need backpressure observe <c>TryEnqueue == false</c>.
 /// </para>
 /// </remarks>
-internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<TWork>>
+internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<TWork>>, IDisposable
 {
     private readonly ConcurrentPriorityQueue<WorkEnvelope<TWork>, long> _queue;
     private readonly SemaphoreSlim _signal = new(0);
@@ -133,6 +134,14 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// and wait paths, published by <see cref="Complete"/> ahead of a full fence.
     /// </summary>
     private volatile bool _completed;
+
+    /// <summary>
+    /// Idempotency gate for <see cref="Dispose"/> (DR-3): the first caller flips it
+    /// from 0 to 1 and disposes the owned <see cref="SemaphoreSlim"/>; later calls are
+    /// no-ops, so double-dispose never reaches <see cref="SemaphoreSlim.Dispose()"/>
+    /// twice.
+    /// </summary>
+    private int _disposedGate;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ConcurrentPriorityWorkQueue{TWork}"/> class.
@@ -236,6 +245,23 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// completes <c>true</c> so the canonical consume loop can drain them (see the
     /// completion-wake remarks on the class).
     /// </remarks>
+    /// <remarks>
+    /// <para>
+    /// <b>Pooled async box (task-6, DR-3).</b> The park path
+    /// (<see cref="SemaphoreSlim.WaitAsync(CancellationToken)"/>) suspends, so without
+    /// pooling each parked wait heap-allocates a fresh async state-machine box. The
+    /// <see cref="AsyncMethodBuilderAttribute"/> overriding the default builder with
+    /// <see cref="PoolingAsyncValueTaskMethodBuilder{TResult}"/> amortizes that box via
+    /// the runtime's per-thread pool, so steady-state park-path allocation drops toward
+    /// zero. The pooled builder is trim/AOT-safe (no reflection or runtime codegen). The
+    /// fast paths (pre-cancelled token; completed-queue poll) return synchronously and
+    /// never rent a box. The completion-handshake semantics — the waiter-count
+    /// increment/decrement, the <c>Interlocked.MemoryBarrier</c> fence in
+    /// <see cref="Complete"/>, and the post-completion poll — are unchanged: only the
+    /// state-machine's backing storage is pooled, not the awaited operation.
+    /// </para>
+    /// </remarks>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public async ValueTask<bool> WaitToDequeueAsync(CancellationToken cancellationToken)
     {
         // Register as a waiter BEFORE reading the completed flag. Complete() publishes
@@ -313,4 +339,33 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
             _signal.Release(waiters);
         }
     }
+
+    /// <summary>
+    /// Releases the owned <see cref="SemaphoreSlim"/> wake-up (DR-3). The underlying
+    /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}"/> holds no unmanaged or
+    /// disposable resources, so the semaphore is the only resource to release. Guarded by
+    /// an <see cref="Interlocked.Exchange(ref int, int)"/> idempotency flag, so a second
+    /// <see cref="Dispose"/> call is a safe no-op (it never disposes the semaphore twice).
+    /// A wait parked after disposal surfaces <see cref="ObjectDisposedException"/> from
+    /// the disposed semaphore — disposal is the orchestrator's responsibility on the
+    /// shutdown path, after the consume loop has drained.
+    /// </summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposedGate, 1) == 1)
+        {
+            return;
+        }
+
+        _signal.Dispose();
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether <see cref="Dispose"/> has run (DR-3). Test-only
+    /// inspection seam (via InternalsVisibleTo) for asserting that an owning
+    /// <see cref="WorkOrchestrator{TWork}"/> disposed this binding, without widening the
+    /// public surface or relying on the post-completion wait short-circuit (which never
+    /// reaches the disposed semaphore on a completed queue).
+    /// </summary>
+    internal bool IsDisposedForTest => Volatile.Read(ref _disposedGate) == 1;
 }

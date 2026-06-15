@@ -73,6 +73,7 @@ var switcher = new BenchmarkSwitcher(
     typeof(EnqueueAllocationBenchmarks),
     typeof(WorkerLoopAllocationBenchmarks),
     typeof(EventStreamAllocationBenchmarks),
+    typeof(PriorityWaitAllocationBenchmarks),
     typeof(DecoratorOverheadBenchmarks),
     typeof(AutoscalingOverheadBenchmarks),
     typeof(ResilienceOverheadBenchmarks),
