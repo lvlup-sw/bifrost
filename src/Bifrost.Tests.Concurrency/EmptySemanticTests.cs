@@ -71,11 +71,11 @@ public class EmptySemanticTests
     /// <summary>
     /// Reads the queue's <c>Count</c> and re-confirms it stays strictly positive across a bounded
     /// spin, returning the persistently-observed positive count or <c>0</c> if any read saw empty.
-    /// Distinguishes a genuinely-resident element from the benign transient where a concurrent
-    /// consumer has published a sub-queue's seqlock empty flag but not yet written its striped
-    /// <c>Count = 0</c> (two ordered writes under the held lock). The lag window is one thread
-    /// finishing a <see cref="Volatile.Write{T}(ref T, T)"/> and releasing a lock — bounded — so a
-    /// still-positive Count after the spin reflects a real resident element.
+    /// This distinguishes a resident element from the benign transient where a concurrent consumer
+    /// has published a sub-queue's seqlock empty flag but not yet written its striped <c>Count = 0</c>
+    /// (two ordered writes under the held lock). The lag window is one thread finishing a
+    /// <see cref="Volatile.Write{T}(ref T, T)"/> and releasing a lock, so it is bounded: a Count
+    /// still positive after the spin reflects a real resident element.
     /// </summary>
     /// <param name="queue">The queue to probe.</param>
     /// <returns>The persistently-positive count, or <c>0</c> if the queue was observed empty.</returns>
@@ -160,21 +160,21 @@ public class EmptySemanticTests
                     // striped count under the sub-queue lock before releasing it. With production
                     // quiescent the per-stripe counts only ever decrease.
                     //
-                    // DR-9 says false is legal only when the queue was observed empty at some point
-                    // during the call. A false produced while another consumer was concurrently
-                    // popping the very last element is in-contract: the queue genuinely reached
-                    // empty. The witness must also be sound against a benign transient: a consumer
-                    // mid-pop publishes its sub-queue's seqlock empty flag BEFORE it writes the
-                    // striped Count = 0 (two ordered writes under the held lock), so the scan's
-                    // lock-free cheap route can legitimately observe "empty" while Count still counts
-                    // that being-removed element for a bounded window. A single Count read would flag
-                    // that lag. So a violation requires Count to stay strictly positive across a
-                    // bounded recheck spin (PersistentlyNonEmpty) — long enough for any in-flight pop
-                    // to finish its under-lock Count write. A persistently-positive Count with
-                    // production quiescent means the scan concluded emptiness while an element was
-                    // genuinely resident and unremoved — the unambiguous observed-empty violation.
-                    // (Reading before the false would flag the legal last-element race; reading after,
-                    // and requiring persistence, is what makes a positive Count load-bearing.)
+                    // False is legal only when the queue was observed empty at some point during the
+                    // call. A false produced while another consumer was concurrently popping the very
+                    // last element is in-contract: the queue reached empty. The witness must also be
+                    // sound against a benign transient. A consumer mid-pop publishes its sub-queue's
+                    // seqlock empty flag BEFORE it writes the striped Count = 0 (two ordered writes
+                    // under the held lock), so the scan's lock-free cheap route can legitimately
+                    // observe "empty" while Count still counts that being-removed element for a
+                    // bounded window. A single Count read would flag that lag. So a violation requires
+                    // Count to stay strictly positive across a bounded recheck spin
+                    // (PersistentNonEmptyCount), long enough for any in-flight pop to finish its
+                    // under-lock Count write. A persistently-positive Count with production quiescent
+                    // means the scan concluded emptiness while an element was resident and unremoved:
+                    // the observed-empty violation. (Reading before the false would flag the legal
+                    // last-element race; reading after, and requiring persistence, is what makes a
+                    // positive Count load-bearing.)
                     int observedCount = PersistentNonEmptyCount(queue);
                     if (observedCount > 0)
                     {

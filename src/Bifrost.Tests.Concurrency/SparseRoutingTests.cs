@@ -9,32 +9,32 @@ using Bifrost.Concurrency;
 namespace Bifrost.Tests.Concurrency;
 
 /// <summary>
-/// Tests for the sparse-fallback routing phase of the relaxed dequeue (DR-3) and its staleness
-/// safety (DR-4). After the two-choice sampling budget is spent without a pop, a bitmask-guided
-/// routing phase reads the occupancy words and routes straight to a populated sub-queue via
-/// <c>TrailingZeroCount</c> instead of running the O(n) verification scan. Routing is purely a hint:
-/// it can only short-circuit to a successful pop or fall through to the scan, which stays the sole
-/// authority for returning <see langword="false"/>.
+/// Tests for the sparse routing step of the relaxed dequeue and its staleness safety. After the
+/// two-choice sampling budget is spent without a pop, a bitmask-guided
+/// routing step reads the occupancy words and routes straight to a populated sub-queue via
+/// <c>TrailingZeroCount</c> instead of running the O(n) verification scan. Routing is only a hint:
+/// it can short-circuit to a successful pop or fall through to the scan, which stays the one
+/// authority allowed to return <see langword="false"/>.
 /// </summary>
 /// <remarks>
 /// The tests drive the post-sampling path in isolation through the <c>TryDequeueRoutingOnlyForTest</c>
-/// seam (skip Phase 1 sampling, run Phase 1.5 routing + Phase 2 scan) so the assertions are
-/// deterministic — the production sampling phase is random and would only <i>probabilistically</i>
-/// miss. Two instrumentation counters make the path observable: a routing-hit counter (Phase 1.5
-/// popped) and a scan-entered counter (Phase 1.5 fell through to the O(n) scan).
+/// seam (skip sampling, run routing then the verification scan) so the assertions are
+/// deterministic. The production sampling phase is random and would only <i>probabilistically</i>
+/// miss. Two instrumentation counters make the path observable: a routing-hit counter (routing
+/// popped) and a scan-entered counter (routing fell through to the O(n) scan).
 /// </remarks>
 public class SparseRoutingTests
 {
     /// <summary>
     /// With one item in a single sub-queue and all others empty, the post-sampling path routes via
-    /// the occupancy bitmask straight to that sub-queue and pops it — without entering the O(n)
-    /// verification scan (DR-3).
+    /// the occupancy bitmask straight to that sub-queue and pops it, without entering the O(n)
+    /// verification scan.
     /// </summary>
     [Test]
     public async Task TryDequeue_OneItemAfterSamplingMiss_RoutesViaBitmaskWithoutFullScan()
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
-        const int targetIndex = 70; // word 1, bit 6 — also exercises multi-word routing.
+        const int targetIndex = 70; // word 1, bit 6; also exercises multi-word routing.
 
         // One item, placed directly so the populated sub-queue is known and the occupancy bit set.
         await Assert.That(queue.SubQueuesForTest[targetIndex].TryLockedPush(element: 99, priority: 99)).IsTrue();
@@ -50,16 +50,16 @@ public class SparseRoutingTests
         await Assert.That(element).IsEqualTo(99);
         await Assert.That(priority).IsEqualTo(99);
         await Assert.That(queue.DebugRoutingHitCountForTest - routingHitsBefore).IsEqualTo(1L).Because(
-            "Phase 1.5 routing popped the element");
+            "routing popped the element");
         await Assert.That(queue.DebugScanEntryCountForTest - scanEntriesBefore).IsEqualTo(0L).Because(
             "routing succeeded, so the O(n) verification scan was never entered");
     }
 
     /// <summary>
-    /// On a genuinely empty queue, the routing phase finds no set bits and must <i>defer</i> to the
-    /// verification scan, which is the sole authority for returning <see langword="false"/> (DR-3).
+    /// On a genuinely empty queue, the routing step finds no set bits and must <i>defer</i> to the
+    /// verification scan, the one authority allowed to return <see langword="false"/>.
     /// Routing must never short-circuit to <see langword="false"/> on its own. The load-bearing
-    /// assertion is that the scan was actually entered — a routing-returns-false implementation would
+    /// assertion is that the scan was actually entered: a routing-returns-false implementation would
     /// leave the scan-entry counter at zero.
     /// </summary>
     [Test]
@@ -85,7 +85,7 @@ public class SparseRoutingTests
     /// <summary>
     /// The full public <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryDequeue"/> (not the
     /// routing-only seam) returns <see langword="false"/> on an empty queue via the verification scan,
-    /// confirming the production path's Phase 1.5 → Phase 2 fall-through is wired correctly (DR-3).
+    /// confirming the production path's routing-to-scan fall-through is wired correctly.
     /// </summary>
     [Test]
     public async Task TryDequeue_PublicPath_EmptyQueue_FallsThroughToScanAndReturnsFalse()
@@ -102,8 +102,8 @@ public class SparseRoutingTests
 
     /// <summary>
     /// When the two-choice sampling phase lands a pop within budget (the dense fast path), the dequeue
-    /// returns before Phase 1.5, so the routing phase is never entered (DR-3/DR-5). Verified by a
-    /// densely-populated queue: every sub-queue holds items, so the very first sample round pops
+    /// returns before routing, so the routing step is never entered. A densely-populated queue shows
+    /// this: every sub-queue holds items, so the first sample round pops
     /// successfully and neither the routing-hit nor the scan-entry counter moves.
     /// </summary>
     [Test]
@@ -131,15 +131,15 @@ public class SparseRoutingTests
         }
 
         await Assert.That(queue.DebugRoutingHitCountForTest - routingHitsBefore).IsEqualTo(0L).Because(
-            "sampling succeeded every time, so Phase 1.5 routing was never entered on the dense path");
+            "sampling succeeded every time, so routing was never entered on the dense path");
         await Assert.That(queue.DebugScanEntryCountForTest - scanEntriesBefore).IsEqualTo(0L).Because(
             "and the O(n) verification scan was never entered on the dense path either");
     }
 
     /// <summary>
-    /// A stale-set bit (occupancy reads 1 over an actually-empty sub-queue) is asymmetric-safe under
-    /// Approach A (DR-4): routing attempts the locked pop, gets <c>Empty</c>, skips the bit and
-    /// continues — never trusting the bit as proof of an element. Over an otherwise-empty queue the
+    /// A stale-set bit (occupancy reads 1 over an actually-empty sub-queue) is asymmetric-safe:
+    /// routing attempts the locked pop, gets <c>Empty</c>, skips the bit and
+    /// continues, never trusting the bit as proof of an element. Over an otherwise-empty queue the
     /// stale-set bit must therefore resolve to a <see langword="false"/> from the verification scan,
     /// not a bogus <see langword="true"/>.
     /// </summary>
@@ -165,7 +165,7 @@ public class SparseRoutingTests
 
     /// <summary>
     /// A stale-set bit at a lower index does not block routing from popping a genuinely populated
-    /// sub-queue at a higher index (DR-4): routing skips the stale (lowest-first) bit on
+    /// sub-queue at a higher index: routing skips the stale (lowest-first) bit on
     /// <c>Empty</c> and continues to the real one.
     /// </summary>
     [Test]
@@ -173,8 +173,8 @@ public class SparseRoutingTests
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
 
-        const int staleIndex = 10;  // lower — routed first, must be skipped.
-        const int realIndex = 200;  // higher — the genuine item.
+        const int staleIndex = 10;  // lower: routed first, must be skipped.
+        const int realIndex = 200;  // higher: the genuine item.
         queue.DebugForceSetOccupancyBitForTest(staleIndex);
         await Assert.That(queue.SubQueuesForTest[realIndex].TryLockedPush(element: 7, priority: 7)).IsTrue();
 

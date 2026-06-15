@@ -86,30 +86,29 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     private readonly int _subQueueMask;
 
     /// <summary>
-    /// The per-instance occupancy bitmask (DR-1): one bit per sub-queue, length
-    /// <c>(n + 63) &gt;&gt; 6</c> words. Bit <c>i</c> (word <c>i &gt;&gt; 6</c>, position <c>i &amp; 63</c>) is
-    /// set exactly when sub-queue <c>i</c> has published itself non-empty, and cleared when it
-    /// publishes empty. The array is allocated once in the core constructor and shared <i>by
-    /// reference</i> with every <see cref="SubQueue{TElement, TPriority}"/>, which is told its own
-    /// index; each sub-queue writes its bit under its own <c>SyncLock</c> on a boundary crossing
-    /// using <see cref="Interlocked.Or(ref ulong, ulong)"/> / <see cref="Interlocked.And(ref ulong, ulong)"/>
-    /// (atomic per-word, so two sub-queues sharing a word never lose an update; DR-2).
+    /// Per-instance occupancy bitmask: one bit per sub-queue, <c>(n + 63) &gt;&gt; 6</c> words long.
+    /// Bit <c>i</c> (word <c>i &gt;&gt; 6</c>, position <c>i &amp; 63</c>) is set while sub-queue <c>i</c>
+    /// has published itself non-empty and cleared once it publishes empty. The array is allocated
+    /// once in the core constructor and shared by reference with every
+    /// <see cref="SubQueue{TElement, TPriority}"/>, each of which knows its own index and flips its
+    /// bit under its own <c>SyncLock</c> on a boundary crossing via
+    /// <see cref="Interlocked.Or(ref ulong, ulong)"/> / <see cref="Interlocked.And(ref ulong, ulong)"/>.
+    /// The atomics work per word, so two sub-queues that share a word never clobber each other's bit.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is a lock-free-<i>read</i> hint consulted only by the relaxed dequeue's sparse-fallback
-    /// routing phase (DR-3): after the two-choice sampling budget is spent, the consumer reads the
-    /// occupancy words and routes straight to a populated sub-queue via
-    /// <see cref="BitOperations.TrailingZeroCount(ulong)"/> instead of falling to the O(n)
-    /// verification scan. The bitmask is purely a hint — the verification scan stays the sole
-    /// authority for returning <see langword="false"/> — so a stale read can only cost a wasted
-    /// routing attempt, never a wrong answer (DR-4).
+    /// The dequeue path reads this lock-free as a routing hint once its two-choice sampling budget is
+    /// spent: instead of falling to the O(n) verification scan, the consumer reads the occupancy
+    /// words and jumps straight to a populated sub-queue via
+    /// <see cref="BitOperations.TrailingZeroCount(ulong)"/>. It is only a hint. The verification scan
+    /// stays the one authority allowed to return <see langword="false"/>, so a stale read costs at
+    /// most a wasted routing attempt, never a wrong answer.
     /// </para>
     /// <para>
-    /// On the dense hot path the bitmask is never written (sub-queues never reach size zero under
-    /// load) and never read (sampling lands a pop within budget), so it sits dormant in cache and
-    /// adds no per-operation allocation (DR-5). Unused high bits in the final word of a
-    /// non-multiple-of-64 sub-queue count stay zero and are never interpreted as occupied.
+    /// Under dense load the bitmask is neither written (sub-queues rarely hit size zero) nor read
+    /// (sampling lands a pop within budget), so it stays dormant in cache and adds no allocation or
+    /// contention to the dequeue path. Unused high bits in the last word of a non-multiple-of-64
+    /// sub-queue count stay zero and are never read as occupied.
     /// </para>
     /// </remarks>
     private readonly ulong[] _occupancy;
@@ -279,9 +278,9 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         _boundedCapacity = boundedCapacity;
         _subQueueMask = count - 1;
 
-        // DR-1: the occupancy bitmask is ceil(count/64) words, all zero (every sub-queue starts
-        // empty, matching each SubQueue's initial EmptyFlag = 1). Allocated once here and shared by
-        // reference with every sub-queue so transition writes and routing reads see the same array.
+        // ceil(count/64) words, all zero to start: every sub-queue begins empty, matching each
+        // SubQueue's initial EmptyFlag = 1. Allocated once here and shared by reference with every
+        // sub-queue so transition writes and routing reads see the same array.
         _occupancy = new ulong[(count + 63) >> 6];
 
         _queues = new SubQueue<TElement, TPriority>[count];
@@ -289,7 +288,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         {
             // Pass the ORIGINAL comparer: SubQueue performs the same normalization itself. Hand each
             // sub-queue its index and a reference to the shared occupancy array so its boundary-only
-            // transition writes (DR-2) flip the right bit.
+            // transition writes flip the right bit.
             _queues[i] = new SubQueue<TElement, TPriority>(comparer, i, _occupancy);
         }
     }
@@ -330,7 +329,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <summary>
     /// Maps a sub-queue index to its word in <see cref="_occupancy"/>: <c>i &gt;&gt; 6</c> (64 bits per
-    /// word, a shift not a division, mirroring the <see cref="_subQueueMask"/> discipline; DR-1).
+    /// word, a shift rather than a division, the same way <see cref="_subQueueMask"/> works).
     /// </summary>
     /// <param name="index">The sub-queue index.</param>
     /// <returns>The occupancy word index <c>index &gt;&gt; 6</c>.</returns>
@@ -339,28 +338,28 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <summary>
     /// Maps a sub-queue index to its single-bit mask within its occupancy word:
-    /// <c>1UL &lt;&lt; (i &amp; 63)</c> (DR-1).
+    /// <c>1UL &lt;&lt; (i &amp; 63)</c>.
     /// </summary>
     /// <param name="index">The sub-queue index.</param>
-    /// <returns>A <see cref="ulong"/> with exactly the bit for <paramref name="index"/> set.</returns>
+    /// <returns>A <see cref="ulong"/> with the bit for <paramref name="index"/> set.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ulong OccupancyBit(int index) => 1UL << (index & 63);
 
-    /// <summary>TEST-ONLY: exposes <see cref="OccupancyWord"/> for the indexing-math unit tests (DR-1).</summary>
+    /// <summary>TEST-ONLY: exposes <see cref="OccupancyWord"/> for the indexing-math unit tests.</summary>
     /// <param name="index">The sub-queue index.</param>
     /// <returns>The occupancy word index for <paramref name="index"/>.</returns>
     internal static int OccupancyWordForTest(int index) => OccupancyWord(index);
 
-    /// <summary>TEST-ONLY: exposes <see cref="OccupancyBit"/> for the indexing-math unit tests (DR-1).</summary>
+    /// <summary>TEST-ONLY: exposes <see cref="OccupancyBit"/> for the indexing-math unit tests.</summary>
     /// <param name="index">The sub-queue index.</param>
     /// <returns>The single-bit mask for <paramref name="index"/>.</returns>
     internal static ulong OccupancyBitForTest(int index) => OccupancyBit(index);
 
     /// <summary>
-    /// TEST-ONLY: a defensive copy of the occupancy bitmask words (DR-1/DR-2). Each word is read with
-    /// a volatile read (an aligned <see cref="ulong"/> read is atomic on the supported 64-bit
-    /// runtimes), giving a per-word-consistent (though not cross-word-atomic) snapshot — sufficient
-    /// for the single-threaded transition-write assertions and the routing tests.
+    /// TEST-ONLY: a defensive copy of the occupancy bitmask words. Each word is read with a volatile
+    /// read (an aligned <see cref="ulong"/> read is atomic on the supported 64-bit runtimes), giving a
+    /// per-word-consistent (though not cross-word-atomic) snapshot. That is enough for the
+    /// single-threaded transition-write assertions and the routing tests.
     /// </summary>
     internal ulong[] DebugOccupancyForTest
     {
@@ -379,10 +378,10 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <summary>
     /// TEST-ONLY: forces sub-queue <paramref name="index"/>'s occupancy bit to <c>1</c> without
     /// pushing an element, fabricating a <i>stale-set</i> bit (the bitmask reads occupied over an
-    /// actually-empty sub-queue). Used to prove the staleness-safety contract (DR-4): routing must
-    /// attempt the locked pop, observe <see cref="SubQueuePopStatus.Empty"/>, skip the bit and
-    /// continue — never returning a bogus <see langword="true"/>. Uses the same atomic
-    /// <see cref="Interlocked.Or(ref ulong, ulong)"/> the production transition write uses.
+    /// actually-empty sub-queue). This is how the tests exercise staleness safety: routing has to
+    /// attempt the locked pop, see <see cref="SubQueuePopStatus.Empty"/>, then skip the bit and carry
+    /// on rather than return a bogus <see langword="true"/>. Uses the same atomic
+    /// <see cref="Interlocked.Or(ref ulong, ulong)"/> as the production transition write.
     /// </summary>
     /// <param name="index">The sub-queue index whose bit to force set.</param>
     internal void DebugForceSetOccupancyBitForTest(int index)

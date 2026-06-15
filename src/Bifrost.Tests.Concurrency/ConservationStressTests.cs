@@ -13,23 +13,23 @@ namespace Bifrost.Tests.Concurrency;
 
 /// <summary>
 /// Conservation stress tests proving the MultiQueue is a <i>set-conserving</i> structure under
-/// many-producer/many-consumer concurrency (DR-17): every element enqueued is dequeued exactly
-/// once — never lost, never duplicated. The relaxed two-choice dequeue (DR-8) reorders elements,
-/// so these tests assert on the consumed <i>multiset</i> (sort + sequence-equal), never on order.
+/// many-producer/many-consumer concurrency: every element enqueued is dequeued once, never lost
+/// and never duplicated. The relaxed two-choice dequeue reorders elements, so these tests assert
+/// on the consumed <i>multiset</i> (sort + sequence-equal), never on order.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Why a counter, not <c>TryDequeue == false</c>, terminates the consumers.</b> A
 /// <see langword="false"/> return only means the queue was observed momentarily empty (the
-/// <c>ConcurrentQueue.TryDequeue</c> precedent) — while producers are still enqueueing, a transient
+/// <c>ConcurrentQueue.TryDequeue</c> precedent). While producers are still enqueueing, a transient
 /// empty observation is expected and is <i>not</i> a completion signal. Consumers therefore loop
 /// until a shared <see cref="Interlocked"/> dequeued-counter reaches the known produced total, which
 /// is the only sound termination condition for a still-filling queue.
 /// </para>
 /// <para>
 /// <b>Kill-probe (RED witness).</b> These tests were verified to DETECT a conservation break before
-/// being trusted to assert its absence: with <c>SubQueue.TryHeapPop</c> mutated to return the root
-/// <i>without removing it</i> (no size decrement, no sift-down — a duplicate factory, the v1-class
+/// being trusted to assert its absence. With <c>SubQueue.TryHeapPop</c> mutated to return the root
+/// <i>without removing it</i> (no size decrement, no sift-down: a duplicate factory, the v1-class
 /// conservation failure), both tests fail with thousands of duplicate elements detected. With the
 /// real heap restored both pass with zero duplicates and zero losses. The mutation procedure is
 /// recorded in the task notes; re-run it after any change to <c>TryHeapPop</c> / <c>TryLockedPop</c>.
@@ -39,7 +39,7 @@ namespace Bifrost.Tests.Concurrency;
 /// (≤ 8) and runs <see cref="NotInParallelAttribute">serially with respect to the other stress
 /// tests</see> so concurrent runs on a shared machine cannot oversubscribe the scheduler. A watchdog
 /// <see cref="CancellationTokenSource"/> deadline (<see cref="WatchdogTimeout"/>) makes a stuck run
-/// fail deterministically instead of hanging — the expected wall-clock is well under a second.
+/// fail deterministically instead of hanging. The expected wall-clock is well under a second.
 /// </para>
 /// </remarks>
 [NotInParallel]
@@ -52,11 +52,10 @@ public class ConservationStressTests
     private const int Test1TotalElements = 100_000;
 
     /// <summary>
-    /// The total number of unique elements produced by the churn-near-empty test (DR-4): ≥10⁶ ops,
-    /// driving the sparse-fallback routing (Phase 1.5) and the verification scan under the
-    /// single-item insert/drain storm that keeps the queue hovering near empty, the exact regime the
-    /// occupancy bitmask targets and the one most likely to surface a transition-write/routing
-    /// staleness defect.
+    /// The total number of unique elements produced by the churn-near-empty test: ≥10⁶ ops driving
+    /// the sparse-fallback routing and the verification scan under the single-item insert/drain storm
+    /// that keeps the queue hovering near empty. That is the regime the occupancy bitmask targets and
+    /// the one most likely to surface a transition-write or routing staleness defect.
     /// </summary>
     private const int ChurnTotalElements = 1_000_000;
 
@@ -220,7 +219,7 @@ public class ConservationStressTests
         // Multiset equality: sorted consumed == sorted produced (proves no loss AND no duplication).
         actual.Sort();
         await Assert.That(actual.SequenceEqual(expected)).IsTrue().Because(
-            "the consumed multiset must equal the produced set exactly (order is irrelevant under DR-8)");
+            "the consumed multiset must equal the produced set exactly (order is irrelevant)");
 
         // The queue is drained.
         await Assert.That(queue.Count).IsEqualTo(0);
@@ -361,12 +360,12 @@ public class ConservationStressTests
 
     /// <summary>
     /// Returns <see langword="true"/> only when the queue's own <c>Count</c> stays strictly positive
-    /// across a short recheck spin, distinguishing a genuinely-resident element from the benign
-    /// transient where a concurrent consumer has published a sub-queue's seqlock empty flag but not
-    /// yet written its striped <c>Count = 0</c> (two ordered writes under the held lock). The lag
-    /// window is one thread finishing a <see cref="Volatile.Write{T}(ref T, T)"/> and releasing a
-    /// lock — bounded — so a Count that is still positive after the spin reflects a real resident
-    /// element. Used only as a stress-test witness with production quiescent.
+    /// across a short recheck spin. This distinguishes a resident element from the benign transient
+    /// where a concurrent consumer has published a sub-queue's seqlock empty flag but not yet written
+    /// its striped <c>Count = 0</c> (two ordered writes under the held lock). The lag window is one
+    /// thread finishing a <see cref="Volatile.Write{T}(ref T, T)"/> and releasing a lock, so it is
+    /// bounded: a Count still positive after the spin reflects a real resident element. Used only as
+    /// a stress-test witness with production quiescent.
     /// </summary>
     /// <param name="queue">The queue to probe.</param>
     /// <returns><see langword="true"/> if <c>Count</c> is persistently positive across the spin.</returns>
@@ -396,14 +395,13 @@ public class ConservationStressTests
     }
 
     /// <summary>
-    /// Churn-near-empty conservation + no-false-empty proof (DR-4): many producers each insert
+    /// Churn-near-empty conservation and no-false-empty proof: many producers each insert
     /// <i>single</i> items as fast as consumers drain them, so the queue continuously hovers near
-    /// empty — the regime that exercises the occupancy bitmask's transition writes and the
-    /// sparse-fallback routing (Phase 1.5) hardest, and where a lost-clear or stale-set staleness bug
-    /// would surface. Over ≥10⁶ ops the consumed multiset must equal the produced set exactly (no
-    /// element lost, none duplicated), and — the staleness-specific assertion — no <c>TryDequeue</c>
-    /// may return <see langword="false"/> while elements demonstrably remain after all production
-    /// completes.
+    /// empty. That regime exercises the occupancy bitmask's transition writes and the sparse-fallback
+    /// routing hardest, and is where a lost-clear or stale-set staleness bug would surface. Over ≥10⁶
+    /// ops the consumed multiset must equal the produced set exactly (nothing lost or duplicated), and
+    /// the staleness-specific assertion is that no <c>TryDequeue</c> may return <see langword="false"/>
+    /// while elements demonstrably remain after all production completes.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -414,9 +412,9 @@ public class ConservationStressTests
     /// <item>the conservation multiset (every unique value produced is consumed exactly once), the
     /// authority for "no element lost via a stale/lost-clear routing miss"; and</item>
     /// <item>a quiescent-tail no-false-empty check: after producers finish, any remaining elements
-    /// must be drainable — a <see langword="false"/> while the queue's own <c>Count</c> is still
-    /// positive and no producer is in flight is an unambiguous staleness violation (a stale-clear
-    /// that fooled routing AND the scan, which must be impossible under Approach A).</item>
+    /// must be drainable. A <see langword="false"/> while the queue's own <c>Count</c> is still
+    /// positive and no producer is in flight is an unambiguous staleness violation: a stale-clear
+    /// that fooled both routing and the scan, which the occupancy design must make impossible.</item>
     /// </list>
     /// </remarks>
     [Test]
@@ -482,22 +480,22 @@ public class ConservationStressTests
                         continue;
                     }
 
-                    // A false was returned. ONLY once every producer has finished is the queue
+                    // A false was returned. Only once every producer has finished is the queue
                     // quiescent enough that a false-while-resident is unambiguous: with no in-flight
                     // enqueue to excuse a stale observation, a false while a poppable element
-                    // demonstrably remains means routing AND the scan both concluded emptiness while
-                    // an element was resident — the staleness violation Approach A must make
+                    // demonstrably remains means routing and the scan both concluded emptiness while
+                    // an element was resident, the staleness violation the occupancy design must make
                     // impossible.
                     //
-                    // The witness must be sound against a benign transient: a concurrent consumer
-                    // mid-pop publishes its sub-queue's seqlock EmptyFlag = empty BEFORE it writes the
+                    // The witness must be sound against a benign transient. A concurrent consumer
+                    // mid-pop publishes its sub-queue's seqlock EmptyFlag = empty before it writes the
                     // striped Count = 0 (two ordered writes under the held lock), so the scan's
                     // lock-free cheap route can legitimately observe "empty" while queue.Count still
                     // counts that being-removed element for a bounded window. A single Count read
                     // would flag that benign lag. So flag a violation only if Count stays strictly
-                    // positive across a bounded recheck spin (long enough for any in-flight pop to
-                    // finish its under-lock Count write) — a persistently-positive Count with
-                    // production quiescent is a genuine resident element no one is removing.
+                    // positive across a bounded recheck spin, long enough for any in-flight pop to
+                    // finish its under-lock Count write. A persistently-positive Count with production
+                    // quiescent is a resident element no one is removing.
                     if (Volatile.Read(ref producersDone) == p && PersistentlyNonEmpty(queue))
                     {
                         Interlocked.Increment(ref falseWhileResident);
@@ -542,7 +540,7 @@ public class ConservationStressTests
         // production quiescent.
         await Assert.That(Volatile.Read(ref falseWhileResident)).IsEqualTo(0L).Because(
             "no TryDequeue may return false while elements demonstrably remained and no producer was " +
-            "in flight — a lost-clear that fooled both routing and the scan (impossible under Approach A)");
+            "in flight: a lost-clear that fooled both routing and the scan, which cannot happen here");
 
         // Conservation: build the produced/consumed multisets and reconcile.
         var actual = new List<int>(producedTotal);

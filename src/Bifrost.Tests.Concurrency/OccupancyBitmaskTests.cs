@@ -9,16 +9,16 @@ using Bifrost.Concurrency;
 namespace Bifrost.Tests.Concurrency;
 
 /// <summary>
-/// Unit tests for the per-instance occupancy bitmask (DR-1) and its boundary-only transition writes
-/// (DR-2): the indexing math (<c>word</c>/<c>bit</c>), the array sizing with unused-high-bit masking
+/// Unit tests for the per-instance occupancy bitmask and its boundary-only transition writes. They
+/// cover the indexing math (<c>word</c>/<c>bit</c>), the array sizing with unused-high-bit masking
 /// at a non-multiple-of-64 sub-queue count, the fresh-queue all-zero invariant, and that the bit is
-/// set/cleared exactly on the empty&#8596;non-empty crossings and never on a non-boundary mutation.
+/// set and cleared on the empty&#8596;non-empty crossings and never on a non-boundary mutation.
 /// </summary>
 /// <remarks>
-/// The bitmask is a global occupancy index: bit <c>i</c> is set exactly when sub-queue <c>i</c>
-/// published itself non-empty. It accelerates the sparse-fallback routing phase of the relaxed
-/// dequeue (DR-3) while staying dormant on the dense hot path (DR-5). These tests pin its invariants
-/// directly through the internal test seams (<c>DebugOccupancyForTest</c>,
+/// The bitmask is a global occupancy index: bit <c>i</c> is set when sub-queue <c>i</c>
+/// publishes itself non-empty. It speeds up the sparse routing step of the relaxed dequeue while
+/// staying dormant on the dense hot path. These tests pin its invariants
+/// through the internal test seams (<c>DebugOccupancyForTest</c>,
 /// <c>DebugOccupancyWriteCountForTest</c>) rather than inferring them through the public surface.
 /// </remarks>
 public class OccupancyBitmaskTests
@@ -26,7 +26,7 @@ public class OccupancyBitmaskTests
     /// <summary>
     /// The indexing helpers map sub-queue index <c>i</c> to word <c>i &gt;&gt; 6</c> and bit
     /// <c>1UL &lt;&lt; (i &amp; 63)</c> (64 bits per word, no division), mirroring the
-    /// <c>_subQueueMask</c> shift/mask discipline (DR-1).
+    /// <c>_subQueueMask</c> shift/mask discipline.
     /// </summary>
     [Test]
     public async Task OccupancyBitmask_WordAndBit_MapIndexCorrectly()
@@ -50,8 +50,8 @@ public class OccupancyBitmaskTests
 
     /// <summary>
     /// The bitmask is sized to <c>ceil(n / 64)</c> words. For a non-multiple-of-64 sub-queue count
-    /// (e.g. 32) the single word's unused high bits stay zero and are never interpreted as occupied
-    /// (DR-1). The exact-collapse case (<c>n = 1</c>) is a single word as well.
+    /// (e.g. 32) the single word's unused high bits stay zero and are never interpreted as occupied.
+    /// The exact-collapse case (<c>n = 1</c>) is a single word as well.
     /// </summary>
     [Test]
     public async Task OccupancyBitmask_SizedForSubQueueCount_MasksUnusedHighBits()
@@ -77,7 +77,7 @@ public class OccupancyBitmaskTests
 
     /// <summary>
     /// A freshly constructed queue's occupancy bitmask is all zero in every word: every sub-queue
-    /// starts empty, mirroring each <c>SubQueue</c>'s initial <c>EmptyFlag = 1</c> (DR-1).
+    /// starts empty, mirroring each <c>SubQueue</c>'s initial <c>EmptyFlag = 1</c>.
     /// </summary>
     [Test]
     public async Task OccupancyBitmask_FreshQueue_AllWordsZero()
@@ -95,9 +95,9 @@ public class OccupancyBitmaskTests
 
     /// <summary>
     /// Pushing the first item into an empty sub-queue (the empty&#8594;non-empty crossing) sets that
-    /// sub-queue's occupancy bit, and only that bit (DR-2). The bit lives in word <c>i &gt;&gt; 6</c> at
-    /// position <c>i &amp; 63</c>; here a sub-queue index that lands in word 1 is chosen so the test
-    /// also exercises the multi-word addressing.
+    /// sub-queue's occupancy bit, and only that bit. The bit lives in word <c>i &gt;&gt; 6</c> at
+    /// position <c>i &amp; 63</c>. The chosen sub-queue index lands in word 1, so the test also
+    /// exercises the multi-word addressing.
     /// </summary>
     [Test]
     public async Task TryLockedPush_FirstItemIntoEmptySubQueue_SetsOccupancyBit()
@@ -120,7 +120,7 @@ public class OccupancyBitmaskTests
     /// <summary>
     /// Popping the last item from a sub-queue (the non-empty&#8594;empty crossing) clears its
     /// occupancy bit. The pop funnels through <c>PopHeldRoot</c>, so this also covers
-    /// <c>TryLockedPop</c> (DR-2).
+    /// <c>TryLockedPop</c>.
     /// </summary>
     [Test]
     public async Task PopHeldRoot_LastItemRemoved_ClearsOccupancyBit()
@@ -129,8 +129,8 @@ public class OccupancyBitmaskTests
         const int targetIndex = 70; // word 1, bit 6.
         SubQueue<int, int> sub = queue.SubQueuesForTest[targetIndex];
 
-        // Push two, pop one (bit must STAY set — a non-last pop is not a boundary crossing), then
-        // pop the last (bit must clear).
+        // Push two, pop one (bit must STAY set, since a non-last pop is not a boundary crossing),
+        // then pop the last (bit must clear).
         await Assert.That(sub.TryLockedPush(element: 1, priority: 1)).IsTrue();
         await Assert.That(sub.TryLockedPush(element: 2, priority: 2)).IsTrue();
         await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(1UL << 6).Because("two items in: bit set");
@@ -148,7 +148,7 @@ public class OccupancyBitmaskTests
 
     /// <summary>
     /// Clearing a non-empty sub-queue via <c>LockedClear</c> (the <c>Clear()</c> path) clears its
-    /// occupancy bit alongside the empty publish (DR-2).
+    /// occupancy bit alongside the empty publish.
     /// </summary>
     [Test]
     public async Task LockedClear_NonEmptySubQueue_ClearsOccupancyBit()
@@ -168,10 +168,10 @@ public class OccupancyBitmaskTests
     }
 
     /// <summary>
-    /// Only boundary crossings write the bitmask (DR-2): a push onto an already-populated sub-queue
+    /// Only boundary crossings write the bitmask: a push onto an already-populated sub-queue
     /// and a pop that leaves entries behind perform no <c>Interlocked</c> write to the occupancy
-    /// word. Verified by the instrumented per-sub-queue transition-write counter — the mechanism
-    /// that keeps the bitmask dormant on the dense hot path.
+    /// word. The instrumented per-sub-queue transition-write counter verifies this. That counter is
+    /// the mechanism that keeps the bitmask dormant on the dense hot path.
     /// </summary>
     [Test]
     public async Task Occupancy_PushToPopulatedAndNonLastPop_PerformsNoBitmaskWrite()
@@ -180,7 +180,7 @@ public class OccupancyBitmaskTests
         const int targetIndex = 70;
         SubQueue<int, int> sub = queue.SubQueuesForTest[targetIndex];
 
-        // First push is a boundary crossing: exactly one write (the set).
+        // First push is a boundary crossing: one write (the set).
         await Assert.That(sub.TryLockedPush(element: 5, priority: 5)).IsTrue();
         await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(1L).Because(
             "the empty→non-empty push is the only boundary crossing so far");
@@ -197,18 +197,17 @@ public class OccupancyBitmaskTests
         await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(1L).Because(
             "non-last pops leave entries behind and must not touch the bitmask");
 
-        // The last pop IS a boundary crossing: exactly one more write (the clear).
+        // The last pop IS a boundary crossing: one more write (the clear).
         await Assert.That(sub.TryLockedPop(out _, out _)).IsEqualTo(SubQueuePopStatus.Success);
         await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(2L).Because(
             "the non-empty→empty last pop is the second and only other boundary crossing");
     }
 
     /// <summary>
-    /// The <c>n = 1</c> collapse behaves identically to today (DR-4): the single-word bitmask's one
+    /// The <c>n = 1</c> collapse behaves the same as today. The single-word bitmask's one
     /// bit mirrors the sole sub-queue's <c>EmptyFlag</c>, the relaxed dequeue returns the exact
     /// minimum (no relaxation when there is only one sub-queue), and a drained queue reports honest
-    /// emptiness. The bitmask is purely additive — it must not perturb the collapsed exact-ordering
-    /// case.
+    /// emptiness. The bitmask is additive: it must not perturb the collapsed exact-ordering case.
     /// </summary>
     [Test]
     public async Task TryDequeue_SingleSubQueue_ReturnsExactMinAndHonestEmpty()
