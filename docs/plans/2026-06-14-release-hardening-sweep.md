@@ -329,6 +329,42 @@ Group D:  Task 15 → Task 16 ─────────────→ Task 17
 - **Pooled async builder + AOT** (Task 6): verify `PoolingAsyncValueTaskMethodBuilder`
   stays trim/AOT-safe (IsAotCompatible projects) — re-run the AOT smoke if in doubt.
 
+## Scope expansion (2026-06-15) — DR-5 re-based to per-assembly + DR-6
+
+Pre-flight measurement before wiring CI (task-17) revealed that gating per-*test-project*
+cobertura file would red `main`: those files blend **incidental** coverage of large shared
+libs (the scheduling suite loads all of `Bifrost.Concurrency` but tests little of it → 59%).
+User decision: **re-base the gate on per-owned-assembly coverage** (the meaningful unit) and
+close the genuine gaps. Measured per-assembly (merged across suites), only two shipping
+assemblies miss ≥80% **branch** (all others pass line+branch):
+
+| Assembly | line | branch | gap |
+|----------|------|--------|-----|
+| `Bifrost.Core` | 92.8% | **50.0% (2/4)** | 1 arm: `PriorityDispatchOptions.cs:200` `double.IsNaN` |
+| `Bifrost.Resilience` | 92.0% | **77.8% (56/72)** | 4 arms: `ResiliencyPolicyGenerator.cs:236/245/263/267` |
+
+### DR-5 (re-based) — task-18: per-assembly gate
+Add a `--per-assembly <merged-cobertura.xml>` mode to `coverage-gate.sh` that gates **each
+`<package>` (shipping assembly)** in the merged report at ≥80% line AND branch (the
+package-level `branch-rate` attrs are reliable — verified against summed condition counts),
+failing if any shipping assembly is below; per-assembly table to the PR comment.
+RED fixture (one package <80%) → GREEN. Keeps the per-file `--per-project` mode.
+
+### DR-6 — task-19: Bifrost.Core branch ≥80%
+Cover `PriorityDispatchOptions.ThrowIfNotInUnitInterval` NaN arm — assign a `double.NaN`
+watermark (Batch/Default/Interactive) and assert `ArgumentOutOfRangeException`. 2/4 → 4/4.
+Test in `src/Bifrost.Tests`.
+
+### DR-6 — task-20: Bifrost.Resilience branch ≥80%
+Cover the four `ResiliencyPolicyGenerator` arms: exponential-vs-fixed backoff (236),
+negative-delay clamp (245, note `Random.Shared` jitter — use a seam or test the private
+static directly via reflection in the test project), final-vs-non-final retry log level
+(263) + message (267). 56/72 → ≥80%. Test in `src/Bifrost.Tests`.
+
+### task-17 (revised)
+Wire `.github/workflows/ci.yml` coverage-gate job to `--per-assembly` on the merged report;
+verify all 9 shipping assemblies pass. Depends on task-18 + task-19 + task-20.
+
 ## Open design questions — resolutions (confirm at plan-review)
 
 1. **#19 Dependabot** → **adopt** (`.github/dependabot.yml`, Task 1) — recommended, cheap.
