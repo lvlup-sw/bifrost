@@ -341,4 +341,13 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
 
         _signal.Dispose();
     }
+
+    /// <summary>
+    /// Gets a value indicating whether <see cref="Dispose"/> has run (DR-3). Test-only
+    /// inspection seam (via InternalsVisibleTo) for asserting that an owning
+    /// <see cref="WorkOrchestrator{TWork}"/> disposed this binding, without widening the
+    /// public surface or relying on the post-completion wait short-circuit (which never
+    /// reaches the disposed semaphore on a completed queue).
+    /// </summary>
+    internal bool IsDisposedForTest => Volatile.Read(ref _disposedGate) == 1;
 }
