@@ -1,0 +1,7 @@
+
+Test run summary: Passed! - /home/azureuser/bifrost/src/Bifrost.Tests.Concurrency/bin/Release/net10.0/Bifrost.Tests.Concurrency.dll (net10.0|x64)
+  total: 123
+  failed: 0
+  succeeded: 123
+  skipped: 0
+  duration: 2s 723ms
