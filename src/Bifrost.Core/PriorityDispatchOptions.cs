@@ -185,6 +185,20 @@ public class PriorityDispatchOptions
     }
 
     /// <summary>
+    /// Gets or sets the tuning profile for the relaxed MultiQueue the priority queue is built on.
+    /// </summary>
+    /// <value>The selected profile. Default is <see cref="CpqTuningProfile.Balanced"/>.</value>
+    /// <remarks>
+    /// <see cref="CpqTuningProfile.Balanced"/> keeps the dequeue contract as tight as the relaxed queue
+    /// allows and turns buffering on for reference-bearing work items, where it pays for itself; it suits
+    /// a queue shared across several worker threads. Choose <see cref="CpqTuningProfile.LowConcurrency"/>
+    /// for a queue driven by only one or two threads or by drain-style work, or
+    /// <see cref="CpqTuningProfile.StrictOrdering"/> when dequeue-order accuracy matters more than
+    /// throughput.
+    /// </remarks>
+    public CpqTuningProfile CpqTuning { get; set; } = CpqTuningProfile.Balanced;
+
+    /// <summary>
     /// Validates that a watermark assignment lies in <c>(0, 1]</c>, rejecting <see cref="double.NaN"/>
     /// explicitly. <c>NaN</c> fails every ordering comparison, so the bare
     /// <c>ThrowIfNegativeOrZero</c> / <c>ThrowIfGreaterThan</c> pair would let it slip through and
