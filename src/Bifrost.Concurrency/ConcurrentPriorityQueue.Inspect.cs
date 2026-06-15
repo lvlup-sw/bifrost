@@ -114,10 +114,12 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
             try
             {
-                if (subQueue.TryHeapPeekRoot(out TElement rootElement, out TPriority rootPriority) &&
+                if (subQueue.TryPeekLiveMin(out TElement rootElement, out TPriority rootPriority) &&
                     CompareEffective(rootPriority, scannedMin) <= 0)
                 {
-                    // The live root is no worse than the minimum we scanned: accept it.
+                    // The live minimum is no worse than the minimum we scanned: accept it. TryPeekLiveMin
+                    // reads D.front() on the buffered path (the published top), not the heap root, so the
+                    // buffered resident minimum revalidates correctly here.
                     element = rootElement;
                     priority = rootPriority;
                     return true;
@@ -232,8 +234,12 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 // runner-up's scanned top: if the live root is strictly larger than the runner-up
                 // (the scanned minimum was popped, a larger element exposed) or the winner is now
                 // empty, a better candidate may live in the runner-up's sub-queue, so we rescan.
+                // Revalidate the winner's LIVE minimum, not its heap root: on the buffered path the live
+                // minimum is D.front() (the published top), while the heap root is a larger key — a
+                // heap-only re-read would mis-revalidate (or wrongly report empty when the heap is empty
+                // but D is full), so the strict path must peek D.front() here.
                 bool revalidated =
-                    subQueue.TryHeapPeekRoot(out _, out TPriority rootPriority) &&
+                    subQueue.TryPeekLiveMin(out _, out TPriority rootPriority) &&
                     (!hasRunnerUp || CompareEffective(rootPriority, runnerUp) <= 0);
 
                 if (!revalidated)
