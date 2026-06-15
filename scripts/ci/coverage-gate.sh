@@ -8,13 +8,16 @@ set -euo pipefail
 # Default values
 COVERAGE_FILE=""
 PER_PROJECT_DIR=""
+PER_ASSEMBLY_FILE=""
 THRESHOLD=80
 OUTPUT_DIR="."
 VERBOSE=false
 
-# Exclude globs for --per-project mode (pure test-support projects with no
-# shippable code). Seeded from the EXCLUDE env var (whitespace-separated),
-# then appended to by each --exclude flag.
+# Exclude globs for --per-project / --per-assembly modes (non-shipping units:
+# pure test-support projects, or non-shipping assemblies). Seeded from the
+# EXCLUDE env var (whitespace-separated), then appended to by each --exclude
+# flag. In --per-project mode globs match the Cobertura FILE name; in
+# --per-assembly mode they match the <package> NAME.
 EXCLUDE_GLOBS=()
 if [[ -n "${EXCLUDE:-}" ]]; then
     # shellcheck disable=SC2206  # intentional word-splitting of the env list
@@ -31,23 +34,31 @@ usage() {
     cat << EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Modes (exactly one of --coverage-file or --per-project is required):
+Modes (exactly one of --coverage-file, --per-project, or --per-assembly is required):
     --coverage-file FILE    Gate a single Cobertura XML report (the merged
                             aggregate). Writes a PR-comment markdown file.
     --per-project DIR       Gate EACH *.cobertura.xml in DIR independently.
                             Fails if ANY project is below the threshold on
                             line OR branch coverage. Writes a per-project
                             pass/fail table to the PR-comment markdown.
+    --per-assembly FILE     Gate EACH <package> in a single MERGED Cobertura
+                            report independently — one <package name="..">
+                            per shipping assembly. Fails if ANY assembly is
+                            below the threshold on line OR branch coverage.
+                            An empty / all-excluded package set FAILS (no
+                            vacuous pass). Writes a per-assembly pass/fail
+                            table to the PR-comment markdown.
 
 Options:
     --threshold PERCENT     Minimum coverage percentage (default: 80). Applies
                             to both line and branch coverage. A file with no
                             branch-rate skips the branch check (not a failure).
-    --exclude GLOB          (--per-project only, repeatable) Skip any project
-                            whose Cobertura filename matches GLOB — use for
-                            pure test-support projects with no shippable code.
-                            May also be supplied via the EXCLUDE env var as a
-                            whitespace-separated list of globs.
+    --exclude GLOB          (--per-project / --per-assembly, repeatable) Skip
+                            a unit whose name matches GLOB. In --per-project
+                            the glob matches the Cobertura FILE name; in
+                            --per-assembly it matches the <package> NAME. Use
+                            for non-shipping units. May also be supplied via
+                            the EXCLUDE env var as a whitespace-separated list.
     --output-dir DIR        Directory for output files (default: current directory)
     --verbose               Enable verbose output
     -h, --help              Show this help message
@@ -59,6 +70,9 @@ Examples:
     # Per-project gate, excluding a test-support project
     $(basename "$0") --per-project ./coverage --threshold 80 --exclude '*TestSupport*'
     EXCLUDE='*TestSupport* *Fixtures*' $(basename "$0") --per-project ./coverage
+
+    # Per-assembly gate over one merged report, excluding a non-shipping assembly
+    $(basename "$0") --per-assembly ./coverage/merged.cobertura.xml --threshold 80 --exclude 'Bifrost.Scheduling.Testing'
 EOF
     exit 1
 }
@@ -92,6 +106,10 @@ while [[ $# -gt 0 ]]; do
             PER_PROJECT_DIR="$2"
             shift 2
             ;;
+        --per-assembly)
+            PER_ASSEMBLY_FILE="$2"
+            shift 2
+            ;;
         --exclude)
             EXCLUDE_GLOBS+=("$2")
             shift 2
@@ -119,13 +137,18 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate required arguments: exactly one mode must be selected.
-if [[ -n "$COVERAGE_FILE" && -n "$PER_PROJECT_DIR" ]]; then
-    log_error "--coverage-file and --per-project are mutually exclusive"
+MODE_COUNT=0
+[[ -n "$COVERAGE_FILE" ]] && MODE_COUNT=$((MODE_COUNT + 1))
+[[ -n "$PER_PROJECT_DIR" ]] && MODE_COUNT=$((MODE_COUNT + 1))
+[[ -n "$PER_ASSEMBLY_FILE" ]] && MODE_COUNT=$((MODE_COUNT + 1))
+
+if [[ "$MODE_COUNT" -gt 1 ]]; then
+    log_error "--coverage-file, --per-project, and --per-assembly are mutually exclusive"
     usage
 fi
 
-if [[ -z "$COVERAGE_FILE" && -z "$PER_PROJECT_DIR" ]]; then
-    log_error "One of --coverage-file or --per-project is required"
+if [[ "$MODE_COUNT" -eq 0 ]]; then
+    log_error "One of --coverage-file, --per-project, or --per-assembly is required"
     usage
 fi
 
@@ -139,6 +162,11 @@ if [[ -n "$PER_PROJECT_DIR" && ! -d "$PER_PROJECT_DIR" ]]; then
     exit 1
 fi
 
+if [[ -n "$PER_ASSEMBLY_FILE" && ! -f "$PER_ASSEMBLY_FILE" ]]; then
+    log_error "Per-assembly merged report not found: $PER_ASSEMBLY_FILE"
+    exit 1
+fi
+
 # Create output directory
 mkdir -p "$OUTPUT_DIR"
 
@@ -147,6 +175,9 @@ log_info "======================"
 if [[ -n "$PER_PROJECT_DIR" ]]; then
     log_info "Mode: per-project"
     log_info "Coverage dir: $PER_PROJECT_DIR"
+elif [[ -n "$PER_ASSEMBLY_FILE" ]]; then
+    log_info "Mode: per-assembly"
+    log_info "Merged report: $PER_ASSEMBLY_FILE"
 else
     log_info "Mode: aggregate"
     log_info "Coverage file: $COVERAGE_FILE"
@@ -232,6 +263,63 @@ extract_package_coverage() {
     echo -e "$output"
 }
 
+# Extract per-package (assembly) rows from a single MERGED Cobertura report.
+# Emits one TAB-separated record per <package>:  name<TAB>line%<TAB>branch%
+# where line%/branch% are 0-100 with two decimals (branch% is "N/A" if the
+# package has no branch-rate attribute). Works on the xmllint path and the
+# grep/sed fallback (xmllint absent). Mirrors extract_package_coverage's
+# extraction strategy but carries branch-rate too and stays machine-readable.
+extract_assembly_rows() {
+    local file="$1"
+    local emitted=0
+
+    if command -v xmllint &> /dev/null; then
+        local packages
+        packages=$(xmllint --xpath "//package/@name" "$file" 2>/dev/null \
+            | tr ' ' '\n' | grep -oP '(?<=name=")[^"]+' || echo "")
+
+        local pkg
+        for pkg in $packages; do
+            local line_rate branch_rate line_pct branch_pct
+            line_rate=$(xmllint --xpath "string(//package[@name='$pkg']/@line-rate)" "$file" 2>/dev/null || echo "")
+            branch_rate=$(xmllint --xpath "string(//package[@name='$pkg']/@branch-rate)" "$file" 2>/dev/null || echo "")
+
+            if [[ -n "$line_rate" ]]; then
+                line_pct=$(echo "$line_rate" | awk '{printf "%.2f", $1 * 100}')
+            else
+                line_pct="0.00"
+            fi
+            if [[ -n "$branch_rate" ]]; then
+                branch_pct=$(echo "$branch_rate" | awk '{printf "%.2f", $1 * 100}')
+            else
+                branch_pct="N/A"
+            fi
+
+            printf '%s\t%s\t%s\n' "$pkg" "$line_pct" "$branch_pct"
+            emitted=1
+        done
+    fi
+
+    if [[ "$emitted" -eq 0 ]]; then
+        # Fallback: parse each <package ...> open tag with grep/sed. Real
+        # ReportGenerator / coverlet output orders name before the rate attrs.
+        while IFS= read -r tag; do
+            [[ "$tag" =~ name=\"([^\"]+)\" ]] || continue
+            local pkg_name="${BASH_REMATCH[1]}"
+
+            local line_pct="0.00" branch_pct="N/A"
+            if [[ "$tag" =~ line-rate=\"([0-9.]+)\" ]]; then
+                line_pct=$(echo "${BASH_REMATCH[1]}" | awk '{printf "%.2f", $1 * 100}')
+            fi
+            if [[ "$tag" =~ branch-rate=\"([0-9.]+)\" ]]; then
+                branch_pct=$(echo "${BASH_REMATCH[1]}" | awk '{printf "%.2f", $1 * 100}')
+            fi
+
+            printf '%s\t%s\t%s\n' "$pkg_name" "$line_pct" "$branch_pct"
+        done < <(grep -oP '<package[^>]+>' "$file")
+    fi
+}
+
 # Decide pass/fail for a single (line%, branch%) pair against THRESHOLD.
 # Gates BOTH line and branch coverage. A branch value of "N/A" (no branch-rate
 # in the report) skips the branch check so single-file callers with line-only
@@ -272,6 +360,75 @@ is_excluded() {
     done
     return 1
 }
+
+# ---------------------------------------------------------------------------
+# Per-assembly mode: gate each <package> in a single MERGED Cobertura report.
+# Each <package name="AssemblyName" line-rate=".." branch-rate=".."> is one
+# shipping assembly. Fails if ANY (non-excluded) assembly is below threshold
+# on line OR branch. An empty / fully-excluded set FAILS (no vacuous pass).
+# ---------------------------------------------------------------------------
+if [[ -n "$PER_ASSEMBLY_FILE" ]]; then
+    PR_COMMENT_FILE="$OUTPUT_DIR/pr-comment.md"
+    OVERALL_STATUS="passing"
+    ROWS=""
+    CONSIDERED=0
+
+    while IFS=$'\t' read -r asm_name asm_line asm_branch; do
+        [[ -z "$asm_name" ]] && continue
+
+        if is_excluded "$asm_name"; then
+            log_info "Excluding ${asm_name} (matched exclude glob)"
+            ROWS+="| ${asm_name} | - | - | :fast_forward: Excluded |\n"
+            continue
+        fi
+
+        CONSIDERED=$((CONSIDERED + 1))
+        # '|| true' keeps `set -e` from aborting on a failing assembly — we
+        # branch on the echoed "pass"/"fail" string, not the exit status.
+        asm_result=$(check_thresholds "$asm_line" "$asm_branch") || true
+
+        if [[ "$asm_result" == "pass" ]]; then
+            log_info "PASS ${asm_name}: line ${asm_line}% / branch ${asm_branch}%"
+            ROWS+="| ${asm_name} | ${asm_line}% | ${asm_branch}% | :white_check_mark: Pass |\n"
+        else
+            log_error "FAIL ${asm_name}: line ${asm_line}% / branch ${asm_branch}% (threshold ${THRESHOLD}%)"
+            ROWS+="| ${asm_name} | ${asm_line}% | ${asm_branch}% | :x: Fail |\n"
+            OVERALL_STATUS="failing"
+        fi
+    done < <(extract_assembly_rows "$PER_ASSEMBLY_FILE")
+
+    if [[ "$CONSIDERED" -eq 0 ]]; then
+        log_error "No (non-excluded) <package> assemblies found in: $PER_ASSEMBLY_FILE"
+        OVERALL_STATUS="failing"
+    fi
+
+    # Write the per-assembly PR comment table.
+    {
+        echo "## :bar_chart: Per-Assembly Coverage Report"
+        echo
+        echo "| Assembly | Line | Branch | Status |"
+        echo "|----------|------|--------|--------|"
+        echo -en "$ROWS"
+        echo
+        echo "---"
+        echo "<sub>Generated by coverage-gate.sh | Per-assembly gate | Threshold: ${THRESHOLD}% (line + branch)</sub>"
+    } > "$PR_COMMENT_FILE"
+
+    log_info "PR comment written to: $PR_COMMENT_FILE"
+
+    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+        echo "threshold=$THRESHOLD" >> "$GITHUB_OUTPUT"
+        echo "status=$OVERALL_STATUS" >> "$GITHUB_OUTPUT"
+    fi
+
+    if [[ "$OVERALL_STATUS" == "failing" ]]; then
+        log_error "Per-assembly coverage gate FAILED"
+        exit 1
+    fi
+
+    log_info "Per-assembly coverage gate PASSED"
+    exit 0
+fi
 
 # ---------------------------------------------------------------------------
 # Per-project mode: gate each *.cobertura.xml in the directory independently.
