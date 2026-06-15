@@ -50,18 +50,33 @@ public sealed class InMemoryScheduleStore : IScheduleStore
     {
         ArgumentNullException.ThrowIfNull(jobName);
 
-        // No-op when the job is absent: a record-fired for an unknown job is ignored
-        // rather than re-creating a phantom record.
-        this.jobs.TryGetValue(jobName, out var existing);
-        if (existing is not null)
+        // Atomic compare-and-swap retry loop. A naive TryGetValue-then-indexer-assign is
+        // a non-atomic read-modify-write: a concurrent SaveAsync (or another
+        // RecordFiredAsync) landing between the read and the write would be silently
+        // clobbered by the stale snapshot we read. TryUpdate only commits when the stored
+        // record is still the one we read (value equality on the record); on contention
+        // we re-read the freshest record and re-apply the fire stamp, so no concurrent
+        // update is lost.
+        while (this.jobs.TryGetValue(jobName, out var existing))
         {
-            this.jobs[jobName] = existing with
+            var updated = existing with
             {
                 LastFiredAt = firedAt,
                 NextFireAt = nextFireAt,
             };
+
+            if (this.jobs.TryUpdate(jobName, updated, existing))
+            {
+                break;
+            }
+
+            // Contended: another writer replaced the record between our read and our
+            // CAS. Re-read and retry against the freshest record.
         }
 
+        // No-op when the job is absent: a record-fired for an unknown job is ignored
+        // rather than re-creating a phantom record. (The loop exits immediately when
+        // TryGetValue returns false.)
         return ValueTask.CompletedTask;
     }
 

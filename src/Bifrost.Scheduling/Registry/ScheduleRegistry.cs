@@ -22,10 +22,15 @@ namespace Bifrost.Scheduling.Registry;
 /// re-evaluate the affected job.
 /// </summary>
 /// <remarks>
-/// Durable state flows through the store: registration, pause, resume, and removal
-/// write through before the in-memory state is mutated, so a store failure rolls
-/// back the change rather than leaving the registry and store divergent. Names are
-/// the identity key and are validated against a compiled lowercase pattern.
+/// Durable state flows through the store. Pause, resume, and removal write through
+/// before the in-memory state is mutated, so a store failure rolls back the change
+/// rather than leaving the registry and store divergent. Registration is the one
+/// exception to that order: it claims the in-memory name slot first, then persists,
+/// and compensates by releasing the slot if the store write fails. Claiming first is
+/// what keeps a losing concurrent same-name registrant from ever writing its payload
+/// through the store's blind upsert, while the compensation preserves the same
+/// store-failure-rolls-back invariant. Names are the identity key and are validated
+/// against a compiled lowercase pattern.
 /// </remarks>
 public sealed partial class ScheduleRegistry : IScheduleRegistry
 {
@@ -246,21 +251,34 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
             DispatcherTypeName: dispatcher.GetType().FullName,
             Metadata: new Dictionary<string, string>());
 
-        // Persist first: a store failure must not leave the job in the registry.
-        await this.store.SaveAsync(record, ct).ConfigureAwait(false);
-
-        // A concurrent registration of the same name may have won the race; if so,
-        // the persisted record is harmless (it would be overwritten) but we must not
-        // double-register in memory.
+        // Claim the in-memory slot FIRST, then persist. Ordering matters under a
+        // concurrent same-name race: SaveAsync is a blind upsert, so if we persisted
+        // first a losing registrant would have already written its (possibly different)
+        // payload to the store before TryAdd rejected it — leaving the store holding
+        // loser data while the registry holds the winner. Claiming the slot first means
+        // a loser is rejected before it ever touches the store. We then persist; if the
+        // store write fails we compensate by releasing the slot so a store failure never
+        // leaves the job in the registry (the existing rollback invariant).
         if (!this.jobs.TryAdd(name, record))
         {
             throw new DuplicateJobNameException(name);
         }
 
+        try
+        {
+            await this.store.SaveAsync(record, ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Compensate: the slot we claimed must not outlive a failed persist.
+            this.jobs.TryRemove(name, out _);
+            throw;
+        }
+
         this.dispatchers[name] = dispatcher;
         this.metrics.RecordRegistered();
         this.events.Publish(new JobRegisteredEvent(name));
-        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), ct).ConfigureAwait(false);
+        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -279,7 +297,11 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         this.dispatchers.TryRemove(name, out _);
         this.metrics.RecordUnregistered();
         this.events.Publish(new JobUnregisteredEvent(name));
-        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Unregister, name), ct).ConfigureAwait(false);
+
+        // Post-commit wake uses CancellationToken.None: once durable + in-memory state
+        // is committed, a caller cancellation must NOT drop the tick-loop wake, or the
+        // loop would keep firing a job the registry has already removed (DR-1).
+        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Unregister, name), CancellationToken.None).ConfigureAwait(false);
         return true;
     }
 
@@ -369,7 +391,9 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         // Post a Register command so the tick loop re-arms the job from the updated
         // record immediately, computing the new NextFireAt without any immediate fire
         // side effect. The Register command calls Arm which reads the updated registry.
-        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), ct).ConfigureAwait(false);
+        // CancellationToken.None: the durable + in-memory update is already committed, so
+        // a caller cancellation must not drop the re-arm wake (DR-1).
+        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -383,8 +407,11 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         }
 
         // Trigger does not itself dispatch or mutate state: it posts a command and
-        // the tick loop performs the out-of-band fire.
-        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name), ct).ConfigureAwait(false);
+        // the tick loop performs the out-of-band fire. Posting uses CancellationToken.None
+        // for parity with the other post-commit wakes — once the trigger is accepted
+        // (the job exists), enqueueing the wake must not be dropped by a caller
+        // cancellation, mirroring the durable-mutation paths (DR-1).
+        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name), CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -457,7 +484,11 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
 
         this.jobs[updated.Name] = updated;
         this.PublishTransition(kind, updated.Name);
-        await this.PostAsync(new RegistryCommand(kind, updated.Name), ct).ConfigureAwait(false);
+
+        // Post-commit wake uses CancellationToken.None (covers Pause and Resume): the
+        // durable + in-memory transition is already committed, so a caller cancellation
+        // must not drop the wake that tells the tick loop to honour the new state (DR-1).
+        await this.PostAsync(new RegistryCommand(kind, updated.Name), CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <summary>
