@@ -8,7 +8,7 @@ namespace Bifrost.Core;
 
 /// <summary>
 /// Marker exception carried by dead-letter entries produced from admission
-/// rejections (DR-6), distinguishing them from entries produced by handler
+/// rejections, distinguishing them from entries produced by handler
 /// failures.
 /// </summary>
 /// <remarks>

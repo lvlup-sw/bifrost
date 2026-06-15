@@ -11,7 +11,7 @@ using System.Runtime.InteropServices;
 namespace Bifrost.Concurrency;
 
 /// <summary>
-/// Compile-time-fixed inline storage for one ESA 2021 §4 buffer (the unsorted insertion buffer
+/// Compile-time-fixed inline storage for one buffer (the unsorted insertion buffer
 /// <c>I</c> or the sorted deletion buffer <c>D</c>) of a <see cref="SubQueue{TElement, TPriority}"/>.
 /// A C# 12 <see cref="InlineArrayAttribute"/> struct holding exactly
 /// <see cref="SubQueue{TElement, TPriority}.BufferCapacityMax"/> (16) <c>(element, priority)</c>

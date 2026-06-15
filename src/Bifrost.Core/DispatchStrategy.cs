@@ -7,7 +7,7 @@
 namespace Bifrost.Core;
 
 /// <summary>
-/// Selects the work-queue binding the orchestrator constructs (DR-4).
+/// Selects the work-queue binding the orchestrator constructs.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -17,7 +17,7 @@ namespace Bifrost.Core;
 /// devirtualizes.
 /// </para>
 /// <para>
-/// <b>Enqueue semantics differ by strategy (DR-6).</b> <see cref="Fifo"/> keeps
+/// <b>Enqueue semantics differ by strategy.</b> <see cref="Fifo"/> keeps
 /// producer-wait semantics on the asynchronous enqueue path (await space at
 /// capacity). The priority strategies are FAIL-FAST at admission: an enqueue at
 /// capacity — or above the work class's admission watermark — is rejected
