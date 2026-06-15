@@ -811,4 +811,102 @@ public class BufferedSubQueueTests
         await Assert.That(sub.DebugBufferRefillCountForTest).IsEqualTo(0L).Because("the heap was never refilled because it stayed empty");
         await Assert.That(sub.DebugBufferEvictionCountForTest).IsEqualTo(0L).Because("D never filled, so no max(D) was ever evicted");
     }
+
+    /// <summary>
+    /// DR-7 (T17): the load-bearing locality claim — over a steady buffered drain the arity-4 heap is
+    /// refilled <b>≈ once per <c>C</c> pops</b>, not once per pop. A single sub-queue is preloaded with
+    /// <c>K = popWindows·C</c> elements (no pops, so no refills happen during the preload — refills run
+    /// only on a pop that empties <c>D</c>), then every element is popped. Each pop serves
+    /// <c>D.front()</c>; the heap is touched only by <see cref="SubQueue{TElement, TPriority}"/>'s
+    /// <c>RefillDeletion</c>, which pulls <c>min(C, |heap|)</c> entries at a time, so a window of <c>C</c>
+    /// consecutive pops triggers exactly one refill. Draining <c>K = popWindows·C</c> elements from a
+    /// rest state with a full <c>D</c> therefore performs <c>popWindows − 1</c> refills (the first <c>C</c>
+    /// pops drain the already-resident <c>D</c>; the remaining <c>(popWindows−1)·C</c> pops each open a
+    /// fresh refill). The measured refill/pop ratio is asserted to sit within a tight band around
+    /// <c>1/C</c> — a heap touched markedly more often (toward once per pop) would blow past the band and
+    /// signal that the buffering locality mechanism had regressed.
+    /// </summary>
+    [Test]
+    public async Task Amortization_SteadyBufferedRun_RefillsApproxPopsOverCapacity()
+    {
+        const int cap = 16;
+        const int popWindows = 64; // K = 64*C = 1024 elements: a long steady drain, not warm-up dominated.
+        const int n = popWindows * cap; // pops == preloaded elements (a full drain).
+        var sub = NewSubQueue(bufferCapacity: cap);
+
+        // Preload K >> C elements with shuffled keys so I flushes to the heap many times and the heap is
+        // deep at rest. No pops during the preload, so the refill counter is still zero when the drain
+        // begins (refills run only on the pop that empties D) — the measurement is pure steady-state.
+        var rng = new Random(0x5EED);
+        var order = Enumerable.Range(0, n).ToList();
+        for (int i = order.Count - 1; i > 0; i--)
+        {
+            int j = rng.Next(i + 1);
+            (order[i], order[j]) = (order[j], order[i]);
+        }
+
+        foreach (int p in order)
+        {
+            sub.TryLockedPush(p, p);
+        }
+
+        long refillsAtPreloadEnd = sub.DebugBufferRefillCountForTest;
+        await Assert.That(refillsAtPreloadEnd).IsEqualTo(0L).Because(
+            "a push-only preload never empties D, so no refill runs before the drain — the measurement is pure steady-state");
+        await Assert.That(sub.DeletionCountForTest).IsEqualTo(cap).Because(
+            "at rest after preloading K >> C, the deletion buffer holds a full window of C minima");
+        await Assert.That(sub.HeapSize).IsGreaterThan(0).Because(
+            "K >> C leaves the bulk of the population in the heap, so refills must walk it during the drain");
+
+        // Drain everything; the refill counter accumulates exactly the heap touches.
+        var drained = new List<int>(n);
+        long popHitsBefore = sub.DebugBufferPopHitCountForTest;
+        lock (sub.SyncLock)
+        {
+            while (sub.PopHeldRoot(out _, out int p) == SubQueuePopStatus.Success)
+            {
+                drained.Add(p);
+            }
+        }
+
+        long refills = sub.DebugBufferRefillCountForTest - refillsAtPreloadEnd;
+        long popHits = sub.DebugBufferPopHitCountForTest - popHitsBefore;
+
+        await Assert.That(drained.Count).IsEqualTo(n).Because("the steady drain returns every preloaded element");
+        await Assert.That(popHits).IsEqualTo((long)n).Because(
+            "every pop in the buffered drain is served from D.front() (a buffered pop hit)");
+
+        bool nonDecreasing = true;
+        for (int i = 1; i < drained.Count; i++)
+        {
+            if (drained[i] < drained[i - 1])
+            {
+                nonDecreasing = false;
+                break;
+            }
+        }
+
+        await Assert.That(nonDecreasing).IsTrue().Because(
+            "the buffered drain serves D.front() (the running minimum), so it is non-decreasing");
+
+        // The locality claim, stated exactly. Draining n = popWindows*C elements from a rest state with a
+        // full D performs popWindows-1 refills: the first C pops drain the resident D, and the remaining
+        // (popWindows-1)*C pops each open a fresh refill of C entries.
+        long expectedRefills = popWindows - 1;
+        await Assert.That(refills).IsEqualTo(expectedRefills).Because(
+            "draining popWindows*C elements refills the heap exactly popWindows-1 times (one heap touch per C pops)");
+
+        // The ratio framing the task asks for: refills per pop hovers at ~1/C, NOT ~1 (once per pop). The
+        // tolerance band is generous enough to absorb the single boundary window (the initial resident D
+        // and the final partial window) yet far below the "once per pop" failure regime: at C = 16 the
+        // measured ratio is ~0.0615 (= 63/1024) against the 1/C = 0.0625 ideal, and the band caps it at
+        // 2/C = 0.125 — an order of magnitude under the 1.0 a regressed (heap-per-pop) path would show.
+        double refillRatio = (double)refills / n;
+        const double idealRatio = 1.0 / cap; // 0.0625
+        const double tolerance = idealRatio; // +/- 1/C: a full window of slack, still << the 1.0 failure regime.
+        await Assert.That(refillRatio).IsLessThanOrEqualTo(idealRatio + tolerance).Because(
+            "the heap is refilled at most ~once per C pops, an order of magnitude below the once-per-pop regression regime");
+        await Assert.That(refillRatio).IsGreaterThanOrEqualTo(idealRatio - tolerance).Because(
+            "the heap is genuinely refilled across the steady drain (the buffering mechanism is engaged, not bypassed)");
+    }
 }
