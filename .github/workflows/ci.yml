@@ -147,10 +147,16 @@ jobs:
 
       - name: Run coverage gate
         id: coverage
+        # Per-ASSEMBLY enforcement (#24): every shipping assembly (<package> in the merged
+        # Cobertura report) must independently meet the threshold on BOTH line and branch.
+        # This replaces the old aggregate line-only gate, which let a low-coverage package be
+        # averaged up by the rest. The per-assembly metric is the meaningful unit — gating each
+        # per-test-project file instead would red on incidental cross-assembly coverage (e.g.
+        # the scheduling suite loads Bifrost.Concurrency but does not test it).
         run: |
           chmod +x ./scripts/ci/coverage-gate.sh
           ./scripts/ci/coverage-gate.sh \
-            --coverage-file ./coverage-merged/Cobertura.xml \
+            --per-assembly ./coverage-merged/Cobertura.xml \
             --threshold ${{ env.COVERAGE_THRESHOLD }} \
             --output-dir ./coverage-merged
 
