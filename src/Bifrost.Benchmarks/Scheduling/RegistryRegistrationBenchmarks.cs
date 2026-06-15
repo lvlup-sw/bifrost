@@ -92,9 +92,35 @@ public class RegistryRegistrationBenchmarks
     // GlobalSetup fills _warmRegistry with one job; each benchmark reads from
     // the same warm instance. Because we are measuring per-call overhead —
     // not the first-call cost — sharing is intentional and matches production.
+    //
+    // Each pause/resume/trigger/update posts a RegistryCommand onto the
+    // registry's unbounded wake channel. In production the tick loop is the
+    // single reader and drains it continuously; here there is no consumer, so
+    // across BenchmarkDotNet's many invocations of the same warm instance the
+    // channel would grow without bound — distorting both timing (cache/GC
+    // pressure from the backlog) and the MemoryDiagnoser allocation numbers.
+    // We restore the production invariant by draining every queued command at
+    // the end of each measured op via the internal Commands reader (Bifrost.
+    // Benchmarks has InternalsVisibleTo). TryRead is a non-blocking O(1) pop;
+    // the drain cost is attributed to the same op that produced the commands,
+    // which is exactly what we want to measure (post + the consumer's pop).
     // -----------------------------------------------------------------------
 
     private ScheduleRegistry? _warmRegistry;
+
+    /// <summary>
+    /// Drains every command currently queued on the warm registry's wake
+    /// channel, mimicking the production tick-loop consumer so the shared
+    /// instance does not accumulate an unbounded backlog across invocations.
+    /// </summary>
+    private void DrainWarmCommands()
+    {
+        while (_warmRegistry!.Commands.TryRead(out _))
+        {
+            // Discard — the benchmark does not need to act on the command, only
+            // to keep the channel from growing across reused invocations.
+        }
+    }
 
     /// <summary>
     /// Fills a shared registry with one named job for pause/resume/trigger benchmarks.
@@ -135,6 +161,9 @@ public class RegistryRegistrationBenchmarks
         // consecutive benchmark iterations without a separate IterationSetup.
         await _warmRegistry!.PauseAsync("warm-job").ConfigureAwait(false);
         await _warmRegistry!.ResumeAsync("warm-job").ConfigureAwait(false);
+
+        // Drain the Pause + Resume commands so the shared channel stays bounded.
+        DrainWarmCommands();
     }
 
     /// <summary>
@@ -147,6 +176,9 @@ public class RegistryRegistrationBenchmarks
         // Pause first so we have a Paused job to resume, then restore state.
         await _warmRegistry!.PauseAsync("warm-job").ConfigureAwait(false);
         await _warmRegistry!.ResumeAsync("warm-job").ConfigureAwait(false);
+
+        // Drain the Pause + Resume commands so the shared channel stays bounded.
+        DrainWarmCommands();
     }
 
     /// <summary>
@@ -157,6 +189,9 @@ public class RegistryRegistrationBenchmarks
     public async ValueTask Trigger_Single()
     {
         await _warmRegistry!.TriggerAsync("warm-job").ConfigureAwait(false);
+
+        // Drain the Trigger command so the shared channel stays bounded.
+        DrainWarmCommands();
     }
 
     /// <summary>

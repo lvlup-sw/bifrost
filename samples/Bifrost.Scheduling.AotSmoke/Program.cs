@@ -13,6 +13,15 @@
 //     a diagnostic label only (verified by AotSafetyTests)
 //   - no Expression.Compile — all dispatch paths use plain async delegates or
 //     direct method calls
+//
+// Beyond *registration*, the smoke test also proves an actual *dispatch* runs
+// end-to-end under NativeAOT: two jobs fire near-immediately (a few hundred ms)
+// while the tick loop is live — one over the highest-AOT-risk orchestrator path
+// and one over the inline path. Each handler sets an AOT-safe signal
+// (TaskCompletionSource, no reflection); the program then awaits both with a
+// bounded timeout and FAILs if either does not execute. This catches a trimmer
+// or AOT regression that breaks the fire path even when registration still
+// resolves cleanly.
 // =============================================================================
 
 using Bifrost.Core;
@@ -59,18 +68,23 @@ var host = Host.CreateDefaultBuilder(args)
             // generic GetRequiredService<IWorkOrchestrator<SmokeWork>>() call.
             // This exercises the highest-AOT-risk code path (OrchestratorJobDispatcher<T>
             // + generic DI) without any reflection-based type lookup.
+            // Fires ~300 ms out so it actually executes during this run (the tick
+            // loop is live after StartAsync). Proves the orchestrator dispatch path
+            // runs end-to-end under NativeAOT, not just that it registered.
             b.AddJob<SmokeWork>("smoke-orchestrator")
-             .Every(TimeSpan.FromHours(24))
+             .Every(TimeSpan.FromMilliseconds(300))
              .DispatchTo<IWorkOrchestrator<SmokeWork>>(
                  static _ => new SmokeWork("smoke-orchestrator"));
 
             // Mode 2 — inline dispatch: a delegate runs on the scheduler pool thread.
-            // No orchestrator, no reflective activation.
+            // No orchestrator, no reflective activation. Also fires ~300 ms out so
+            // we can assert the inline fire path executes under NativeAOT.
             b.AddInlineJob("smoke-inline")
-             .Every(TimeSpan.FromHours(24))
+             .Every(TimeSpan.FromMilliseconds(300))
              .Run(static (ctx, ct) =>
              {
                  Console.WriteLine($"[inline] {ctx.JobName} fired at {ctx.FireTime:u}");
+                 SmokeSignals.InlineFired.TrySetResult();
                  return ValueTask.CompletedTask;
              });
 
@@ -149,6 +163,55 @@ if (!jobNames.Contains("smoke-custom"))
 }
 
 Console.WriteLine("All four dispatch modes registered and resolved cleanly.");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. Prove an actual dispatch EXECUTES under NativeAOT (not just registers).
+//    The orchestrator and inline jobs were scheduled ~300 ms out; the tick loop
+//    is running, so both should fire. Await both signals with a bounded
+//    real-wall-clock timeout. If either does not fire, the fire path is broken
+//    under AOT/trim even though registration resolved — FAIL non-zero.
+// ─────────────────────────────────────────────────────────────────────────────
+
+var fireTimeout = TimeSpan.FromSeconds(5);
+
+// Task.WaitAsync bounds the await on the externally-completed signal task with a
+// real-wall-clock timeout and throws TimeoutException if the job never fires. It
+// is AOT-safe (no reflection) and the analyzer-clean idiom for bounding a wait on
+// a Task that completes outside this method's flow.
+var orchestratorFired = true;
+try
+{
+    await SmokeSignals.OrchestratorHandled.Task.WaitAsync(fireTimeout).ConfigureAwait(false);
+    Console.WriteLine("Verified fire: 'smoke-orchestrator (mode 1 — orchestrator dispatch)' executed.");
+}
+catch (TimeoutException)
+{
+    orchestratorFired = false;
+    Console.Error.WriteLine(
+        $"FAIL: 'smoke-orchestrator (mode 1 — orchestrator dispatch)' did not execute within {fireTimeout.TotalSeconds:0.#}s — fire path broken under NativeAOT.");
+}
+
+var inlineFired = true;
+try
+{
+    await SmokeSignals.InlineFired.Task.WaitAsync(fireTimeout).ConfigureAwait(false);
+    Console.WriteLine("Verified fire: 'smoke-inline (mode 2 — inline dispatch)' executed.");
+}
+catch (TimeoutException)
+{
+    inlineFired = false;
+    Console.Error.WriteLine(
+        $"FAIL: 'smoke-inline (mode 2 — inline dispatch)' did not execute within {fireTimeout.TotalSeconds:0.#}s — fire path broken under NativeAOT.");
+}
+
+if (!orchestratorFired || !inlineFired)
+{
+    // Stop the host so the process terminates deterministically even on failure.
+    await host.StopAsync().ConfigureAwait(false);
+    return 1;
+}
+
+Console.WriteLine("Orchestrator and inline dispatch paths both executed under NativeAOT.");
 Console.WriteLine("Bifrost.Scheduling AOT smoke — PASS.");
 
 await host.StopAsync().ConfigureAwait(false);
@@ -177,8 +240,36 @@ internal sealed class SmokeWorkHandler : IWorkHandler<SmokeWork>
     public ValueTask HandleAsync(SmokeWork work, CancellationToken ct)
     {
         Console.WriteLine($"[orchestrator] {work.Source} handled");
+        SmokeSignals.OrchestratorHandled.TrySetResult();
         return ValueTask.CompletedTask;
     }
+}
+
+// =============================================================================
+// Fire signals — AOT-safe TaskCompletionSource holders set inside the handler
+// and the inline delegate, awaited by the top-level program with a bounded
+// timeout. No reflection, no codegen — plain shared static state.
+// =============================================================================
+
+/// <summary>
+/// Holds the dispatch-execution signals the smoke test awaits to prove a real
+/// fire happened under NativeAOT. Each source is completed exactly once by the
+/// first fire of its job; <see cref="TaskCreationOptions.RunContinuationsAsynchronously"/>
+/// keeps the awaiter off the scheduler tick/pool thread that sets the result.
+/// </summary>
+internal static class SmokeSignals
+{
+    /// <summary>
+    /// Completed when the orchestrator-dispatched job's handler (mode 1) runs.
+    /// </summary>
+    public static readonly TaskCompletionSource OrchestratorHandled =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completed when the inline-dispatched job's delegate (mode 2) runs.
+    /// </summary>
+    public static readonly TaskCompletionSource InlineFired =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 }
 
 // =============================================================================
