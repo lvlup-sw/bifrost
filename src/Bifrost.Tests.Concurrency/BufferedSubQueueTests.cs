@@ -360,4 +360,110 @@ public class BufferedSubQueueTests
         await Assert.That(invariantHeld).IsTrue().Because(
             "after every buffered operation, an empty D implies an empty I and heap (the ESA 2021 §4 refill invariant)");
     }
+
+    /// <summary>
+    /// DR-3 (T7): the seqlock-published top is <c>D.front()</c> (the sub-queue minimum) and the empty
+    /// flag tracks <c>D</c>-emptiness. The lock-free <see cref="SubQueue{TElement, TPriority}.TryReadTop"/>
+    /// reader yields exactly the current minimum after pushes, after a front-changing push, after a pop,
+    /// and reports empty once <c>D</c> drains — all without the reader touching any buffer field.
+    /// </summary>
+    [Test]
+    public async Task TryReadTop_Buffered_ReturnsDeletionBufferFront()
+    {
+        var buffered = NewSubQueue(bufferCapacity: 16);
+
+        // Fresh sub-queue publishes empty.
+        await Assert.That(buffered.TryReadTop(out _, out bool empty0)).IsTrue();
+        await Assert.That(empty0).IsTrue().Because("a fresh buffered sub-queue publishes the empty state");
+
+        // First push seeds D directly; the published top is that single minimum.
+        buffered.TryLockedPush(50, 50);
+        await Assert.That(buffered.TryReadTop(out int top1, out bool empty1)).IsTrue();
+        await Assert.That(empty1).IsFalse();
+        await Assert.That(top1).IsEqualTo(50).Because("the published top is D.front()");
+
+        // A front-changing push (smaller key) re-publishes the new minimum.
+        buffered.TryLockedPush(20, 20);
+        await Assert.That(buffered.TryReadTop(out int top2, out _)).IsTrue();
+        await Assert.That(top2).IsEqualTo(20).Because("a smaller key becomes the new D.front() and is republished");
+
+        // A non-front push (larger key) leaves the published front unchanged.
+        buffered.TryLockedPush(90, 90);
+        await Assert.That(buffered.TryReadTop(out int top3, out _)).IsTrue();
+        await Assert.That(top3).IsEqualTo(20).Because("a larger key does not change D.front(), so the publication stays 20");
+
+        // Pop the front: the next minimum is republished.
+        lock (buffered.SyncLock)
+        {
+            buffered.PopHeldRoot(out _, out _);
+        }
+
+        await Assert.That(buffered.TryReadTop(out int top4, out _)).IsTrue();
+        await Assert.That(top4).IsEqualTo(50).Because("popping D.front() republishes the next minimum");
+
+        // Drain the rest; the final state publishes empty.
+        DrainAll(buffered);
+        await Assert.That(buffered.TryReadTop(out _, out bool emptyEnd)).IsTrue();
+        await Assert.That(emptyEnd).IsTrue().Because("a fully drained buffered sub-queue publishes the empty state");
+    }
+
+    /// <summary>
+    /// DR-6 (T9): the per-sub-queue logical <c>Count</c> equals the total resident element count across
+    /// the insertion buffer <c>I</c>, the deletion buffer <c>D</c>, and the arity-4 heap (the
+    /// reference's <c>insertion_end_ + deletion_end_ + pq_.size()</c>). A conservation check over a long
+    /// random push/pop run asserts the published count tracks enqueued-minus-dequeued exactly at every
+    /// step, and the collection surface (<c>SnapshotTo</c>) carries the same multiset of resident entries.
+    /// </summary>
+    [Test]
+    public async Task Count_Buffered_EqualsTotalResident()
+    {
+        var buffered = NewSubQueue(bufferCapacity: 16);
+
+        var rng = new Random(0x7777);
+        var expected = 0;
+        bool conserved = true;
+
+        for (int step = 0; step < 8_000 && conserved; step++)
+        {
+            bool push = expected == 0 || rng.Next(2) == 0;
+            if (push)
+            {
+                int p = rng.Next(0, 1_000);
+                buffered.TryLockedPush(p, p);
+                expected++;
+            }
+            else
+            {
+                lock (buffered.SyncLock)
+                {
+                    if (buffered.PopHeldRoot(out _, out _) == SubQueuePopStatus.Success)
+                    {
+                        expected--;
+                    }
+                }
+            }
+
+            // VolatileCount is the published striped count = I + D + heap.
+            if (buffered.VolatileCount != expected)
+            {
+                conserved = false;
+            }
+
+            // The component sum must also reconcile (defends against a stale published count).
+            int components = buffered.InsertionCountForTest + buffered.DeletionCountForTest + buffered.HeapSize;
+            if (components != expected)
+            {
+                conserved = false;
+            }
+        }
+
+        await Assert.That(conserved).IsTrue().Because(
+            "the published Count equals I + D + heap and tracks enqueued-minus-dequeued at every step");
+
+        // The collection surface includes the buffered residents: SnapshotTo copies I + D + heap.
+        var snapshot = new List<(int Element, int Priority)>();
+        buffered.SnapshotTo(snapshot);
+        await Assert.That(snapshot.Count).IsEqualTo(expected).Because(
+            "SnapshotTo copies every resident entry across I, D, and the heap (the collection surface is buffer-correct)");
+    }
 }

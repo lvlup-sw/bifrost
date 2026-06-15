@@ -1373,11 +1373,28 @@ internal sealed class SubQueue<TElement, TPriority>
     /// than a <c>TryEnter</c> here: enumeration is not a hot path, the design specifies "taking each
     /// lock briefly", and the critical section is a pure array copy.
     /// </summary>
+    /// <remarks>
+    /// When buffering is active the resident set spans the insertion buffer <c>I</c>, the sorted
+    /// deletion buffer <c>D</c>, and the heap; all three are copied so the unordered collection surface
+    /// (<c>ToArray</c>/enumeration) reflects every resident element. When buffering is off, <c>I</c> and
+    /// <c>D</c> are empty, so only the heap copy runs — bit-exact with the pre-feature behavior.
+    /// </remarks>
     /// <param name="buffer">The destination list that receives this sub-queue's live entries.</param>
     internal void SnapshotTo(List<(TElement Element, TPriority Priority)> buffer)
     {
         lock (SyncLock)
         {
+            // Buffered residents (empty and skipped on the unbuffered path).
+            for (int i = 0; i < _insertionCount; i++)
+            {
+                buffer.Add(InsertionSpan(_insertionCount)[i]);
+            }
+
+            for (int i = 0; i < _deletionCount; i++)
+            {
+                buffer.Add(DeletionSpan(_deletionCount)[i]);
+            }
+
             for (int i = 0; i < _size; i++)
             {
                 buffer.Add(_nodes[i]);
