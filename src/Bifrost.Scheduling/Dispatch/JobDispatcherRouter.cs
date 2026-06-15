@@ -81,10 +81,28 @@ internal sealed class JobDispatcherRouter : IJobDispatcherRouter
             // Isolate the dispatcher: a throwing fire must never crash the tick
             // loop. Surface it as a failed fire carrying the exception. FireTime
             // is the occurrence's logical instant the dispatch was attempted at.
-            this.eventSink.Publish(new JobFireFailedEvent(
-                context.JobName,
-                context.FireTime,
-                ex));
+            //
+            // Guard the publish itself: this RunAsync runs on a fire-and-forget pool
+            // task, so if the sink's Publish throws (a misbehaving subscriber fan-out)
+            // the task would fault unobserved and dispatcher-failure isolation would
+            // break. Swallow a publish fault here so the router always isolates the
+            // dispatcher failure and the returned task never faults. No logger is in
+            // scope for this seam (the router takes only an ISchedulerEventSink), so the
+            // publish fault is swallowed silently rather than logged.
+            try
+            {
+                this.eventSink.Publish(new JobFireFailedEvent(
+                    context.JobName,
+                    context.FireTime,
+                    ex));
+            }
+#pragma warning disable CA1031 // A faulting sink must never break dispatcher-failure isolation.
+            catch
+#pragma warning restore CA1031
+            {
+                // Intentionally swallowed: a broken sink must not fault the fire-and-forget
+                // pool task or defeat the dispatcher isolation this catch provides.
+            }
         }
     }
 }
