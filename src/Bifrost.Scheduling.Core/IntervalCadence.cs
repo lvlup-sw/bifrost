@@ -55,7 +55,7 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
     public override DateTimeOffset? ComputeNextFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)
     {
         var baseFire = ComputeBaseFire(lastFiredAt, now);
-        return ApplyJitter(baseFire);
+        return ApplyJitter(baseFire, now);
     }
 
     /// <summary>
@@ -113,11 +113,14 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
     /// <summary>
     /// Applies the configured <see cref="Jitter"/> to a base fire instant. When
     /// jitter is zero this is the identity. Jitter is symmetric: the deviation is at
-    /// most <see cref="Interval"/> × <see cref="Jitter"/> on either side.
+    /// most <see cref="Interval"/> × <see cref="Jitter"/> on either side. The result
+    /// is clamped to be strictly greater than <paramref name="now"/> so a downward
+    /// draw never produces an immediately-due fire that churns the scheduler.
     /// </summary>
-    /// <param name="baseFire">The un-jittered fire instant.</param>
-    /// <returns>The jittered fire instant.</returns>
-    private DateTimeOffset ApplyJitter(DateTimeOffset baseFire)
+    /// <param name="baseFire">The un-jittered fire instant (always strictly after <paramref name="now"/>).</param>
+    /// <param name="now">The current instant (DR-7) the jittered fire must stay strictly after.</param>
+    /// <returns>The jittered fire instant, guaranteed strictly greater than <paramref name="now"/>.</returns>
+    private DateTimeOffset ApplyJitter(DateTimeOffset baseFire, DateTimeOffset now)
     {
         if (this.jitter <= 0)
         {
@@ -128,6 +131,18 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
         // randomness uses the shared RNG; tests assert only the deterministic bounds.
         var fraction = (Random.Shared.NextDouble() * 2.0) - 1.0;
         var offsetTicks = (long)(this.interval.Ticks * this.jitter * fraction);
-        return baseFire + TimeSpan.FromTicks(offsetTicks);
+        var jittered = baseFire + TimeSpan.FromTicks(offsetTicks);
+
+        // A downward draw can land the jittered instant at or before now (notably when
+        // baseFire is close to now or Jitter is near 1), which would fire immediately
+        // and churn. Clamp strictly into the future: prefer the un-jittered baseFire
+        // (always strictly after now), falling back to now + 1 tick only in the
+        // degenerate case baseFire itself is not strictly after now.
+        if (jittered <= now)
+        {
+            return baseFire > now ? baseFire : now + TimeSpan.FromTicks(1);
+        }
+
+        return jittered;
     }
 }
