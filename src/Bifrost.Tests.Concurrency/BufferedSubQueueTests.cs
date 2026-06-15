@@ -466,4 +466,74 @@ public class BufferedSubQueueTests
         await Assert.That(snapshot.Count).IsEqualTo(expected).Because(
             "SnapshotTo copies every resident entry across I, D, and the heap (the collection surface is buffer-correct)");
     }
+
+    /// <summary>
+    /// DR-4 (T10): with reference-containing elements, the buffer moves (sorted-insert shift,
+    /// <c>max(D)</c> eviction, <c>I</c>→heap flush, heap→<c>D</c> refill) leave no live reference in a
+    /// vacated slot. After draining the sub-queue and forcing a GC, every popped element is collectible
+    /// (its <see cref="WeakReference"/> reports dead), proving the gated <c>Span.Clear</c> dropped the
+    /// dead reference rather than letting a stale buffer slot pin it.
+    /// </summary>
+    [Test]
+    public async Task BufferMoves_ReferenceElements_NoStaleRetention()
+    {
+        // string elements (reference-containing tuple) => the gated slot/block clears all run.
+        var sub = new SubQueue<string, int>(comparer: null, index: 0, occupancy: new ulong[1], bufferCapacity: 16);
+
+        // Distinct, non-interned element instances so a WeakReference can observe collectibility; the
+        // priorities span a range that drives flushes, refills, and sorted inserts/evictions.
+        const int n = 200;
+        var weakRefs = new List<WeakReference>(n);
+        PopulateReferenceSubQueue(sub, n, weakRefs);
+
+        // Drain the whole sub-queue: every move vacates its source slots, which must be cleared.
+        lock (sub.SyncLock)
+        {
+            while (sub.PopHeldRoot(out _, out _) == SubQueuePopStatus.Success)
+            {
+            }
+        }
+
+        await Assert.That(sub.DeletionCountForTest).IsEqualTo(0).Because("the sub-queue is fully drained");
+        await Assert.That(sub.InsertionCountForTest).IsEqualTo(0).Because("the insertion buffer drained too");
+        await Assert.That(sub.HeapSize).IsEqualTo(0).Because("the heap drained too");
+
+        // Force collection: no buffer slot may still pin a popped element.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        int alive = weakRefs.Count(w => w.IsAlive);
+        await Assert.That(alive).IsEqualTo(0).Because(
+            "after a full drain + GC, no vacated buffer slot retains a popped reference (gated Span.Clear ran)");
+    }
+
+    /// <summary>
+    /// Pushes <paramref name="n"/> freshly-allocated <see cref="string"/> elements into a buffered
+    /// reference-element sub-queue, recording a <see cref="WeakReference"/> to each so collectibility can
+    /// be observed after the drain. Kept in a separate non-inlined frame so no JIT-rooted local pins an
+    /// element past the populate step. Priorities are shuffled to drive flushes/refills/evictions.
+    /// </summary>
+    /// <param name="sub">The buffered sub-queue to populate.</param>
+    /// <param name="n">The number of elements to push.</param>
+    /// <param name="weakRefs">The list that receives a weak reference to each pushed element.</param>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void PopulateReferenceSubQueue(SubQueue<string, int> sub, int n, List<WeakReference> weakRefs)
+    {
+        var rng = new Random(0xBEEF);
+        var order = Enumerable.Range(0, n).ToList();
+        for (int i = order.Count - 1; i > 0; i--)
+        {
+            int j = rng.Next(i + 1);
+            (order[i], order[j]) = (order[j], order[i]);
+        }
+
+        foreach (int p in order)
+        {
+            // A fresh, non-interned string instance per element (concatenation defeats interning).
+            string element = "elem-" + p.ToString();
+            weakRefs.Add(new WeakReference(element));
+            sub.TryLockedPush(element, p);
+        }
+    }
 }
