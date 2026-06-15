@@ -413,10 +413,41 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     private void Grow()
     {
+        // The capacity arithmetic (doubling, the Array.MaxLength clamp, the forward-progress floor,
+        // and the "cannot grow further" throw at the exact limit) is factored into a pure static so it
+        // can be unit-tested at the Array.MaxLength boundary WITHOUT allocating a multi-gigabyte array
+        // — the boundary clamps are otherwise unreachable from a real push. See
+        // ComputeGrownCapacityForTest.
+        int newCapacity = ComputeGrownCapacity(_nodes.Length);
+        Array.Resize(ref _nodes, newCapacity);
+    }
+
+    /// <summary>
+    /// The first allocation size used when the backing store is empty. Factored out of
+    /// <see cref="ComputeGrownCapacity"/> so the growth arithmetic reads identically to the original.
+    /// </summary>
+    private const int GrowInitialCapacity = InitialCapacity;
+
+    /// <summary>
+    /// Computes the next backing-store capacity from the current length: doubles it, clamps to
+    /// <see cref="Array.MaxLength"/>, applies a forward-progress floor (the first growth jumps to
+    /// <see cref="InitialCapacity"/>, later growths add at least four), re-clamps that floor, and
+    /// throws when the result cannot exceed the current length (already at <see cref="Array.MaxLength"/>).
+    /// A pure function of <paramref name="currentLength"/> with no instance state, so the
+    /// <see cref="Array.MaxLength"/> boundary clamps and the "cannot grow further" throw are testable
+    /// directly without allocating an array of that size.
+    /// </summary>
+    /// <param name="currentLength">The current backing-store length (<c>_nodes.Length</c>).</param>
+    /// <returns>The new, strictly-larger capacity to resize to.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The store is already at <see cref="Array.MaxLength"/> and cannot grow further.
+    /// </exception>
+    private static int ComputeGrownCapacity(int currentLength)
+    {
         const int GrowFactor = 2;
         const int MinimumGrow = 4;
 
-        int newCapacity = GrowFactor * _nodes.Length;
+        int newCapacity = GrowFactor * currentLength;
 
         // Allow the heap to grow to the maximum possible capacity before encountering overflow
         // Without this, doubling past 2^30 entries would overflow negative and
@@ -430,22 +461,31 @@ internal sealed class SubQueue<TElement, TPriority>
         // forward-progress floor itself can exceed Array.MaxLength near the boundary, so re-clamp it
         // before the Math.Max — otherwise the earlier clamp is undone and the resize throws a
         // wrong-typed exception at the exact limit this block exists to handle.
-        int minCapacity = _nodes.Length == 0 ? InitialCapacity : _nodes.Length + MinimumGrow;
+        int minCapacity = currentLength == 0 ? GrowInitialCapacity : currentLength + MinimumGrow;
         if ((uint)minCapacity > Array.MaxLength)
         {
             minCapacity = Array.MaxLength;
         }
 
         newCapacity = Math.Max(newCapacity, minCapacity);
-        if (newCapacity <= _nodes.Length)
+        if (newCapacity <= currentLength)
         {
             // Already at Array.MaxLength with no room to grow: surface a clear, typed failure rather
             // than resizing to a non-increasing length.
             throw new InvalidOperationException("Sub-queue reached its maximum capacity and cannot grow further.");
         }
 
-        Array.Resize(ref _nodes, newCapacity);
+        return newCapacity;
     }
+
+    /// <summary>
+    /// TEST-ONLY: exposes <see cref="ComputeGrownCapacity"/> so the growth arithmetic — including the
+    /// <see cref="Array.MaxLength"/> clamp and the "cannot grow further" throw at the boundary — can be
+    /// exercised directly with boundary-sized lengths that a real push could never allocate.
+    /// </summary>
+    /// <param name="currentLength">The hypothetical current backing-store length.</param>
+    /// <returns>The new capacity <see cref="ComputeGrownCapacity"/> would resize to.</returns>
+    internal static int ComputeGrownCapacityForTest(int currentLength) => ComputeGrownCapacity(currentLength);
 
     /// <summary>
     /// Hole-based sift-up on the devirtualized default-comparer path: walks the moving entry toward
