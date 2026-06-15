@@ -631,4 +631,184 @@ public class BufferedSubQueueTests
         await Assert.That(buffered.TryReadTop(out _, out bool empty)).IsTrue();
         await Assert.That(empty).IsTrue().Because("the cleared buffered sub-queue republished the empty state");
     }
+
+    /// <summary>
+    /// DR-7 (T12): the <c>BIFROST_TEST_HOOKS</c> buffer counters increment exactly as the scripted
+    /// sequence dictates. With a tiny capacity (<c>C = 2</c>) every transition is reachable in a few
+    /// operations: the first push seeds <c>D</c> directly; descending small keys sorted-insert and
+    /// (once <c>D</c> is full) evict <c>max(D)</c>; further pushes fill and flush <c>I</c>; pops served
+    /// from <c>D.front()</c> count as hits; and the pop that empties <c>D</c> with the heap populated
+    /// triggers a refill. Asserted against exact expected counts.
+    /// </summary>
+    [Test]
+    public async Task Counters_BufferedRun_RecordFlushRefillHitEvict()
+    {
+        const int cap = 2;
+        var sub = NewSubQueue(bufferCapacity: cap);
+
+        // Push 10 -> direct-to-D seed. D=[10], direct=1.
+        sub.TryLockedPush(10, 10);
+        await Assert.That(sub.DebugBufferDirectToDeletionCountForTest).IsEqualTo(1L).Because("the first push seeds an empty D directly");
+
+        // Push 9 (<= max(D)=10) -> sorted-insert, D not yet full. D=[9,10], evict=0.
+        sub.TryLockedPush(9, 9);
+        await Assert.That(sub.DeletionCountForTest).IsEqualTo(2).Because("D holds both small keys, sorted");
+        await Assert.That(sub.DebugBufferEvictionCountForTest).IsEqualTo(0L).Because("D was not full, so no eviction");
+
+        // Push 8 (<= max(D)=10), D full (cap 2) -> evict max(D)=10 into I; sorted-insert 8.
+        // evict=1, I=[10] (count 1, not full), D=[8,9].
+        sub.TryLockedPush(8, 8);
+        await Assert.That(sub.DebugBufferEvictionCountForTest).IsEqualTo(1L).Because("a full D evicts its max on a small-key sorted insert");
+        await Assert.That(sub.InsertionCountForTest).IsEqualTo(1).Because("the evicted max landed in I (not yet full)");
+        await Assert.That(sub.DebugBufferFlushCountForTest).IsEqualTo(0L).Because("I is not full yet, so nothing flushed");
+
+        // Push 7 (<= max(D)=9), D full -> evict 9 into I; I=[10,9] reaches cap (full) but does not flush
+        // until the NEXT append; sorted-insert 7. evict=2, I count=2, flush=0, D=[7,8].
+        sub.TryLockedPush(7, 7);
+        await Assert.That(sub.DebugBufferEvictionCountForTest).IsEqualTo(2L).Because("the second full-D sorted insert evicts again");
+        await Assert.That(sub.InsertionCountForTest).IsEqualTo(2).Because("I is now full with the two evicted maxima");
+        await Assert.That(sub.DebugBufferFlushCountForTest).IsEqualTo(0L).Because("a full I flushes on the next append, not on filling");
+
+        // Push 6 (<= max(D)=8), D full -> evict 8; EvictToInsertion sees I full -> FLUSH I to heap
+        // (flush=1, heap now {10,9}), then append 8 (I=[8]); sorted-insert 6. evict=3, D=[6,7].
+        sub.TryLockedPush(6, 6);
+        await Assert.That(sub.DebugBufferFlushCountForTest).IsEqualTo(1L).Because("a full I flushes to the heap on the next append (the evicted 8)");
+        await Assert.That(sub.DebugBufferEvictionCountForTest).IsEqualTo(3L).Because("a third full-D sorted insert evicts again");
+        await Assert.That(sub.InsertionCountForTest).IsEqualTo(1).Because("I emptied on the flush, then took the newly evicted max");
+        await Assert.That(sub.HeapSize).IsEqualTo(2).Because("the two flushed entries (10, 9) now live in the heap");
+
+        // Pop both D.front()s: hits=2. The pushed multiset is {10,9,8,7,6}; D=[6,7] pops 6 then 7.
+        // After popping 7, D empties; I=[8] and heap={10,9} are populated -> refill (refill=1).
+        long hitsBefore = sub.DebugBufferPopHitCountForTest;
+        long refillsBefore = sub.DebugBufferRefillCountForTest;
+        lock (sub.SyncLock)
+        {
+            sub.PopHeldRoot(out _, out int first);
+            sub.PopHeldRoot(out _, out int second);
+            _ = (first, second);
+        }
+
+        await Assert.That(sub.DebugBufferPopHitCountForTest - hitsBefore).IsEqualTo(2L).Because("both pops were served from D.front()");
+        await Assert.That(sub.DebugBufferRefillCountForTest - refillsBefore).IsEqualTo(1L).Because(
+            "emptying D while I/heap are populated triggers exactly one refill");
+
+        // Drain the rest; the full pushed multiset {6,7,8,9,10} must come out in ascending order.
+        var drained = new List<int> { 6, 7 }; // already popped above
+        lock (sub.SyncLock)
+        {
+            while (sub.PopHeldRoot(out _, out int p) == SubQueuePopStatus.Success)
+            {
+                drained.Add(p);
+            }
+        }
+
+        await Assert.That(drained.SequenceEqual([6, 7, 8, 9, 10])).IsTrue().Because(
+            "the scripted run conserved every element and drains in ascending order");
+    }
+
+    /// <summary>
+    /// DR-6 (T14): a refill where the heap holds fewer than <c>C</c> entries fills <c>D</c> with exactly
+    /// <c>|heap|</c> entries and empties the heap (the <c>min(C, |heap|)</c> bound). Driven by seeding
+    /// past the cap, draining <c>D</c> to force the heap path, then popping until a refill pulls the
+    /// final small remainder.
+    /// </summary>
+    [Test]
+    public async Task Refill_HeapSmallerThanCapacity_FillsExactly()
+    {
+        const int cap = 4;
+        var sub = NewSubQueue(bufferCapacity: cap);
+
+        // Seven strictly-descending keys with cap 4: the first seeds D, the next three fill D, and the
+        // last three each evict D's max into I (filling I to 3, one short of full). At rest:
+        //   D = [94,95,96,97]   I = [100,99,98] (3 < cap)   heap = empty
+        // so the refill that runs when D drains flushes I (3 entries) into the heap then takes
+        // min(cap, 3) = 3 — the |heap| < C partial-fill path.
+        int[] descending = [100, 99, 98, 97, 96, 95, 94];
+        foreach (int p in descending)
+        {
+            sub.TryLockedPush(p, p);
+        }
+
+        await Assert.That(sub.DeletionCountForTest).IsEqualTo(cap).Because("D is full at rest");
+        await Assert.That(sub.InsertionCountForTest).IsEqualTo(3).Because("three evicted maxima sit in I (one short of full)");
+        await Assert.That(sub.HeapSize).IsEqualTo(0).Because("nothing has reached the heap yet");
+
+        long refillsBefore = sub.DebugBufferRefillCountForTest;
+
+        // Pop the four D entries; the fourth empties D and triggers the partial refill.
+        lock (sub.SyncLock)
+        {
+            for (int i = 0; i < cap; i++)
+            {
+                sub.PopHeldRoot(out _, out _);
+            }
+        }
+
+        await Assert.That(sub.DebugBufferRefillCountForTest - refillsBefore).IsEqualTo(1L).Because("draining D triggered exactly one refill");
+        await Assert.That(sub.DeletionCountForTest).IsEqualTo(3).Because(
+            "a refill where |heap| (3) < C (4) fills D with exactly |heap| = 3 entries");
+        await Assert.That(sub.HeapSize).IsEqualTo(0).Because("the partial refill drained the heap completely");
+
+        // The remaining drain stays ascending and exhausts the structure.
+        List<int> rest = DrainAll(sub);
+        bool nonDecreasing = true;
+        for (int i = 1; i < rest.Count; i++)
+        {
+            if (rest[i] < rest[i - 1])
+            {
+                nonDecreasing = false;
+            }
+        }
+
+        await Assert.That(nonDecreasing).IsTrue().Because("the post-partial-refill drain stays in ascending order");
+    }
+
+    /// <summary>
+    /// DR-6 (T14): a sub-queue whose resident population stays strictly below the buffer capacity never
+    /// touches the heap — no flushes, no refills (asserted via the T12 counters). With fewer than
+    /// <c>C</c> residents the deletion buffer <c>D</c> never fills, so no <c>max(D)</c> is ever evicted
+    /// into <c>I</c>; every push sorted-inserts into (or seeds) <c>D</c> and every pop is served from
+    /// <c>D.front()</c>, so the deep-heap walk is fully avoided — the locality win buffering exists for.
+    /// </summary>
+    [Test]
+    public async Task TinyQueue_StaysInDeletionBuffer_NeverTouchesHeap()
+    {
+        const int cap = 16;
+        var sub = NewSubQueue(bufferCapacity: cap);
+
+        // A lifetime that stays below the cap (resident < cap) AND only ever pushes keys <= the current
+        // D minimum, so every push sorted-inserts at (or near) the front of D and nothing is ever routed
+        // into I. With resident < cap, D never fills (no eviction), and since I is always empty, a pop
+        // that drains D never triggers a refill — the heap is never touched. The push key is driven
+        // strictly downward so it is always <= max(D).
+        var rng = new Random(0x7149);
+        var resident = 0;
+        int nextKey = 1_000_000; // pushed keys strictly descend, so each is <= the current D contents
+        for (int step = 0; step < 2_000; step++)
+        {
+            bool canPush = resident < cap - 1; // strictly below the cap: D never fills
+            bool push = resident == 0 || (canPush && rng.Next(2) == 0);
+            if (push)
+            {
+                nextKey -= rng.Next(1, 5); // monotonically decreasing keys
+                sub.TryLockedPush(nextKey, nextKey);
+                resident++;
+            }
+            else
+            {
+                lock (sub.SyncLock)
+                {
+                    if (sub.PopHeldRoot(out _, out _) == SubQueuePopStatus.Success)
+                    {
+                        resident--;
+                    }
+                }
+            }
+        }
+
+        await Assert.That(sub.HeapSize).IsEqualTo(0).Because("a sub-queue that stays below the cap keeps everything in the buffers");
+        await Assert.That(sub.DebugBufferFlushCountForTest).IsEqualTo(0L).Because("nothing ever flushed to the heap");
+        await Assert.That(sub.DebugBufferRefillCountForTest).IsEqualTo(0L).Because("the heap was never refilled because it stayed empty");
+        await Assert.That(sub.DebugBufferEvictionCountForTest).IsEqualTo(0L).Because("D never filled, so no max(D) was ever evicted");
+    }
 }
