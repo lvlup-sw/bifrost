@@ -450,10 +450,136 @@ def fig_stickiness_lowthread(tp, st):
     return "\n".join(L)
 
 
+# --- ESA-2021 optimization before/after charts (read from ab/) ----------------------
+POPS = [10, 1000, 100000, 1000000]
+POP_LABEL = {10: "10", 1000: "1k", 100000: "100k", 1000000: "1M"}
+
+
+def load_buffered_throughput(path):
+    out = {}
+    for r in _rows(path):
+        out.setdefault((r["Workload"], int(r["ThreadCount"])), {})[int(r["BufferCapacity"])] = \
+            float(r["OpsPerSecond"]) / 1e6
+    return out
+
+
+def load_buffered_bdn(path):
+    out = {}
+    for r in _rows(path):
+        m = r["Method"]
+        elem = "Reference" if "ReferenceElement" in m else "Value" if "ValueElement" in m else None
+        if elem is None:
+            continue
+        out.setdefault((elem, int(r["BufferCapacity"])), {})[int(r["Population"])] = \
+            float(r["Mean"].replace(" ns", "").replace(",", ""))
+    return out
+
+
+def _lat_panel(L, x0, x1, y0, y1, title, ymax, series):
+    """Population-axis latency panel. series: list of (color, dash, {pop: ns})."""
+    def xf(i):
+        return x0 + i * (x1 - x0) / (len(POPS) - 1)
+
+    def yf(v):
+        return y1 - (min(v, ymax) / ymax) * (y1 - y0)
+
+    if title:
+        L.append(text((x0 + x1) / 2, y0 - 12, title, size=13, weight="bold", fill="#c9d1d9"))
+    step = 40 if ymax <= 200 else 80
+    for t in range(0, int(ymax) + 1, step):
+        L.append(f'<line x1="{x0}" y1="{yf(t):.1f}" x2="{x1}" y2="{yf(t):.1f}" stroke="{GRID}" '
+                 f'stroke-opacity="0.2" stroke-width="1"/>')
+        L.append(text(x0 - 6, yf(t) + 4, str(t), size=10, anchor="end"))
+    for i, p in enumerate(POPS):
+        L.append(text(xf(i), y1 + 16, POP_LABEL[p], size=10))
+    L.append(text((x0 + x1) / 2, y1 + 32, "population (log)", size=10))
+    L.append(text(x0 - 32, (y0 + y1) / 2, "ns / op", size=10))
+    for color, dash, pts in series:
+        da = f' stroke-dasharray="{dash}"' if dash else ''
+        poly = " ".join(f"{xf(i):.1f},{yf(pts[p]):.1f}" for i, p in enumerate(POPS) if p in pts)
+        L.append(f'<polyline points="{poly}" fill="none" stroke="{color}" stroke-width="2.5"{da}/>')
+        for i, p in enumerate(POPS):
+            if p in pts:
+                L.append(f'<circle cx="{xf(i):.1f}" cy="{yf(pts[p]):.1f}" r="3" fill="{color}"/>')
+                L.append(text(xf(i), yf(pts[p]) - 8, f"{pts[p]:.0f}", size=9, fill=color))
+
+
+def fig_bitmask_latency(before, after):
+    w, h = 760, 460
+    L = svg_open(w, h, "Occupancy bitmask — single-thread pair latency, before vs after")
+    L.append(text(w / 2, 26, "Occupancy bitmask — single-thread Enqueue+Dequeue latency, before vs after",
+                  size=15, weight="bold"))
+    L.append(text(w / 2, 45, "Sparse pop-10 falls 264 → 146 ns (1.81×) at n=256; steady-state unchanged · 0 B/op",
+                  size=11))
+    legend_lines(L, 250, 66, [("after (bitmask)", ORANGE, ""), ("before (no bitmask)", GRAY, "5 4")])
+    _lat_panel(L, 86, 730, 96, 392, "", 280.0, [
+        (GRAY, "5 4", before["MultiQueue_EnqueueDequeue_Int"]),
+        (ORANGE, "", after["MultiQueue_EnqueueDequeue_Int"]),
+    ])
+    L.append("</svg>")
+    return "\n".join(L)
+
+
+def fig_buffering_throughput(buf):
+    w, h = 920, 700
+    L = svg_open(w, h, "Per-sub-queue buffering — throughput, C=0 vs C=16")
+    L.append(text(w / 2, 26, "Per-sub-queue buffering — throughput, unbuffered (C=0) vs buffered (C=16)",
+                  size=16, weight="bold"))
+    L.append(text(w / 2, 45, "Xeon 8573C, 64 logical cores, 3 s windows · one panel per workload · 0 B/op either way",
+                  size=11))
+    legend_row(L, 300, 66, [("buffered (C=16)", ORANGE), ("unbuffered (C=0)", GRAY)])
+    cells = [(70, 430, 110, 340), (510, 870, 110, 340), (70, 430, 410, 640), (510, 870, 410, 640)]
+    for wl, (x0, x1, y0, y1) in zip(WORKLOADS, cells):
+        c0 = {t: buf[(wl, t)][0] for t in THREADS if (wl, t) in buf and 0 in buf[(wl, t)]}
+        c16 = {t: buf[(wl, t)][16] for t in THREADS if (wl, t) in buf and 16 in buf[(wl, t)]}
+        _panel(L, x0, x1, y0, y1, WL_LABEL[wl], 120.0, [(ORANGE, c16), (GRAY, c0)])
+    L.append("</svg>")
+    return "\n".join(L)
+
+
+def fig_buffering_latency(bb):
+    w, h = 920, 460
+    L = svg_open(w, h, "Buffering — single-thread latency, C=0 vs C=16 (value vs reference)")
+    L.append(text(w / 2, 26, "Per-sub-queue buffering — single-thread latency, C=0 vs C=16",
+                  size=16, weight="bold"))
+    L.append(text(w / 2, 45, "Reference-element deep heaps gain most (1M 179 → 122 ns, −31%); int is ~neutral · 0 B/op",
+                  size=11))
+    legend_lines(L, 300, 66, [("C=16", ORANGE, ""), ("C=0", GRAY, "5 4")])
+    cells = [(86, 446, 112, 392), (520, 880, 112, 392)]
+    panels = [("value element (int)", "Value"), ("reference element (string)", "Reference")]
+    for (ptitle, elem), (x0, x1, y0, y1) in zip(panels, cells):
+        _lat_panel(L, x0, x1, y0, y1, ptitle, 200.0, [
+            (GRAY, "5 4", bb[(elem, 0)]),
+            (ORANGE, "", bb[(elem, 16)]),
+        ])
+    L.append("</svg>")
+    return "\n".join(L)
+
+
+def fig_arity_throughput(tp4, tp8):
+    w, h = 920, 430
+    L = svg_open(w, h, "Internal-heap arity — throughput, arity-4 vs arity-8")
+    L.append(text(w / 2, 26, "Internal-heap arity — throughput, arity-4 vs arity-8", size=16, weight="bold"))
+    L.append(text(w / 2, 45, "Value-type int · arity-8 leads contended throughput at 16–64T; arity-4 leads single-thread latency",
+                  size=11))
+    legend_row(L, 320, 66, [("arity-8", ORANGE), ("arity-4", GRAY)])
+    cells = [(70, 430, 110, 360), (510, 870, 110, 360)]
+    for wl, (x0, x1, y0, y1) in zip(["UniformMixed5050", "NarrowKeyRange"], cells):
+        a4 = {t: tp4[("MultiQueueRelaxed", wl)][t] for t in THREADS}
+        a8 = {t: tp8[("MultiQueueRelaxed", wl)][t] for t in THREADS}
+        _panel(L, x0, x1, y0, y1, WL_LABEL[wl], 130.0, [(ORANGE, a8), (GRAY, a4)])
+    L.append("</svg>")
+    return "\n".join(L)
+
+
 def main():
     tp = load_throughput(HERE / "throughput.csv")
     st = load_stickiness(HERE / "throughput-stickiness.csv")
     bdn = load_bdn(HERE / "cpq-singlethreaded-latency-report.csv")
+    bdn_before = load_bdn(HERE / "ab/bitmask-before/latency-report.csv")
+    buf = load_buffered_throughput(HERE / "ab/buffered/throughput-buffered-ab.csv")
+    buf_bdn = load_buffered_bdn(HERE / "ab/buffered/buffered-latency-report.csv")
+    tp8 = load_throughput(HERE / "ab/arity8/throughput.csv")
     charts = {
         "chart-xeon-scalability.svg": fig_scalability(tp),
         "chart-xeon-speedup.svg": fig_speedup(tp),
@@ -462,6 +588,10 @@ def main():
         "chart-xeon-near-linear.svg": fig_near_linear(tp),
         "chart-xeon-stickiness.svg": fig_stickiness(st),
         "chart-xeon-stickiness-lowthread.svg": fig_stickiness_lowthread(tp, st),
+        "chart-xeon-bitmask-latency.svg": fig_bitmask_latency(bdn_before, bdn),
+        "chart-xeon-buffering-throughput.svg": fig_buffering_throughput(buf),
+        "chart-xeon-buffering-latency.svg": fig_buffering_latency(buf_bdn),
+        "chart-xeon-arity-throughput.svg": fig_arity_throughput(tp, tp8),
     }
     for name, svg in charts.items():
         (HERE / name).write_text(svg + "\n", encoding="utf-8")

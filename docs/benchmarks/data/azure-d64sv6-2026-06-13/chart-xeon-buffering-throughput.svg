@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 700" font-family="ui-sans-serif, system-ui, sans-serif" role="img" aria-label="Per-sub-queue buffering — throughput, C=0 vs C=16">
+<text x="460.0" y="26.0" font-size="16" text-anchor="middle" fill="#8b949e" font-weight="bold">Per-sub-queue buffering — throughput, unbuffered (C=0) vs buffered (C=16)</text>
+<text x="460.0" y="45.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">Xeon 8573C, 64 logical cores, 3 s windows · one panel per workload · 0 B/op either way</text>
+<rect x="300" y="57" width="12" height="12" rx="2" fill="#f0883e"/>
+<text x="318.0" y="67.0" font-size="12" text-anchor="start" fill="#8b949e" font-weight="normal">buffered (C=16)</text>
+<rect x="434.0" y="57" width="12" height="12" rx="2" fill="#8b949e"/>
+<text x="452.0" y="67.0" font-size="12" text-anchor="start" fill="#8b949e" font-weight="normal">unbuffered (C=0)</text>
+<text x="250.0" y="98.0" font-size="13" text-anchor="middle" fill="#c9d1d9" font-weight="bold">UniformMixed5050</text>
+<line x1="70" y1="340.0" x2="430" y2="340.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="64.0" y="344.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">0</text>
+<line x1="70" y1="263.3" x2="430" y2="263.3" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="64.0" y="267.3" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">40</text>
+<line x1="70" y1="186.7" x2="430" y2="186.7" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="64.0" y="190.7" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">80</text>
+<line x1="70" y1="110.0" x2="430" y2="110.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="64.0" y="114.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">120</text>
+<text x="70.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">1</text>
+<text x="130.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">2</text>
+<text x="190.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">4</text>
+<text x="250.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">8</text>
+<text x="310.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">16</text>
+<text x="370.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">32</text>
+<text x="430.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">64</text>
+<text x="250.0" y="373.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">threads (log2)</text>
+<text x="40.0" y="225.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">M ops/s</text>
+<polyline points="70.0,311.5 130.0,318.4 190.0,304.9 250.0,279.9 310.0,238.4 370.0,182.1 430.0,128.5" fill="none" stroke="#f0883e" stroke-width="2.5"/>
+<circle cx="70.0" cy="311.5" r="3" fill="#f0883e"/>
+<circle cx="130.0" cy="318.4" r="3" fill="#f0883e"/>
+<circle cx="190.0" cy="304.9" r="3" fill="#f0883e"/>
+<circle cx="250.0" cy="279.9" r="3" fill="#f0883e"/>
+<circle cx="310.0" cy="238.4" r="3" fill="#f0883e"/>
+<circle cx="370.0" cy="182.1" r="3" fill="#f0883e"/>
+<circle cx="430.0" cy="128.5" r="3" fill="#f0883e"/>
+<polyline points="70.0,316.1 130.0,319.9 190.0,307.6 250.0,285.0 310.0,240.6 370.0,179.8 430.0,120.7" fill="none" stroke="#8b949e" stroke-width="2.5"/>
+<circle cx="70.0" cy="316.1" r="3" fill="#8b949e"/>
+<circle cx="130.0" cy="319.9" r="3" fill="#8b949e"/>
+<circle cx="190.0" cy="307.6" r="3" fill="#8b949e"/>
+<circle cx="250.0" cy="285.0" r="3" fill="#8b949e"/>
+<circle cx="310.0" cy="240.6" r="3" fill="#8b949e"/>
+<circle cx="370.0" cy="179.8" r="3" fill="#8b949e"/>
+<circle cx="430.0" cy="120.7" r="3" fill="#8b949e"/>
+<text x="430.0" y="120.5" font-size="10" text-anchor="middle" fill="#f0883e" font-weight="bold">110</text>
+<text x="690.0" y="98.0" font-size="13" text-anchor="middle" fill="#c9d1d9" font-weight="bold">SplitProducerConsumer</text>
+<line x1="510" y1="340.0" x2="870" y2="340.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="504.0" y="344.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">0</text>
+<line x1="510" y1="263.3" x2="870" y2="263.3" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="504.0" y="267.3" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">40</text>
+<line x1="510" y1="186.7" x2="870" y2="186.7" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="504.0" y="190.7" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">80</text>
+<line x1="510" y1="110.0" x2="870" y2="110.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="504.0" y="114.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">120</text>
+<text x="510.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">1</text>
+<text x="570.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">2</text>
+<text x="630.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">4</text>
+<text x="690.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">8</text>
+<text x="750.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">16</text>
+<text x="810.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">32</text>
+<text x="870.0" y="356.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">64</text>
+<text x="690.0" y="373.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">threads (log2)</text>
+<text x="480.0" y="225.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">M ops/s</text>
+<polyline points="510.0,313.4 570.0,318.4 630.0,311.3 690.0,286.9 750.0,240.8 810.0,182.7 870.0,128.7" fill="none" stroke="#f0883e" stroke-width="2.5"/>
+<circle cx="510.0" cy="313.4" r="3" fill="#f0883e"/>
+<circle cx="570.0" cy="318.4" r="3" fill="#f0883e"/>
+<circle cx="630.0" cy="311.3" r="3" fill="#f0883e"/>
+<circle cx="690.0" cy="286.9" r="3" fill="#f0883e"/>
+<circle cx="750.0" cy="240.8" r="3" fill="#f0883e"/>
+<circle cx="810.0" cy="182.7" r="3" fill="#f0883e"/>
+<circle cx="870.0" cy="128.7" r="3" fill="#f0883e"/>
+<polyline points="510.0,318.1 570.0,320.5 630.0,307.9 690.0,284.7 750.0,245.6 810.0,179.9 870.0,122.8" fill="none" stroke="#8b949e" stroke-width="2.5"/>
+<circle cx="510.0" cy="318.1" r="3" fill="#8b949e"/>
+<circle cx="570.0" cy="320.5" r="3" fill="#8b949e"/>
+<circle cx="630.0" cy="307.9" r="3" fill="#8b949e"/>
+<circle cx="690.0" cy="284.7" r="3" fill="#8b949e"/>
+<circle cx="750.0" cy="245.6" r="3" fill="#8b949e"/>
+<circle cx="810.0" cy="179.9" r="3" fill="#8b949e"/>
+<circle cx="870.0" cy="122.8" r="3" fill="#8b949e"/>
+<text x="870.0" y="120.7" font-size="10" text-anchor="middle" fill="#f0883e" font-weight="bold">110</text>
+<text x="250.0" y="398.0" font-size="13" text-anchor="middle" fill="#c9d1d9" font-weight="bold">NarrowKeyRange</text>
+<line x1="70" y1="640.0" x2="430" y2="640.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="64.0" y="644.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">0</text>
+<line x1="70" y1="563.3" x2="430" y2="563.3" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="64.0" y="567.3" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">40</text>
+<line x1="70" y1="486.7" x2="430" y2="486.7" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="64.0" y="490.7" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">80</text>
+<line x1="70" y1="410.0" x2="430" y2="410.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="64.0" y="414.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">120</text>
+<text x="70.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">1</text>
+<text x="130.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">2</text>
+<text x="190.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">4</text>
+<text x="250.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">8</text>
+<text x="310.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">16</text>
+<text x="370.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">32</text>
+<text x="430.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">64</text>
+<text x="250.0" y="673.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">threads (log2)</text>
+<text x="40.0" y="525.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">M ops/s</text>
+<polyline points="70.0,604.5 130.0,616.8 190.0,603.5 250.0,577.9 310.0,535.6 370.0,477.3 430.0,426.6" fill="none" stroke="#f0883e" stroke-width="2.5"/>
+<circle cx="70.0" cy="604.5" r="3" fill="#f0883e"/>
+<circle cx="130.0" cy="616.8" r="3" fill="#f0883e"/>
+<circle cx="190.0" cy="603.5" r="3" fill="#f0883e"/>
+<circle cx="250.0" cy="577.9" r="3" fill="#f0883e"/>
+<circle cx="310.0" cy="535.6" r="3" fill="#f0883e"/>
+<circle cx="370.0" cy="477.3" r="3" fill="#f0883e"/>
+<circle cx="430.0" cy="426.6" r="3" fill="#f0883e"/>
+<polyline points="70.0,611.3 130.0,617.2 190.0,604.2 250.0,578.2 310.0,536.4 370.0,476.1 430.0,415.9" fill="none" stroke="#8b949e" stroke-width="2.5"/>
+<circle cx="70.0" cy="611.3" r="3" fill="#8b949e"/>
+<circle cx="130.0" cy="617.2" r="3" fill="#8b949e"/>
+<circle cx="190.0" cy="604.2" r="3" fill="#8b949e"/>
+<circle cx="250.0" cy="578.2" r="3" fill="#8b949e"/>
+<circle cx="310.0" cy="536.4" r="3" fill="#8b949e"/>
+<circle cx="370.0" cy="476.1" r="3" fill="#8b949e"/>
+<circle cx="430.0" cy="415.9" r="3" fill="#8b949e"/>
+<text x="430.0" y="418.6" font-size="10" text-anchor="middle" fill="#f0883e" font-weight="bold">111</text>
+<text x="690.0" y="398.0" font-size="13" text-anchor="middle" fill="#c9d1d9" font-weight="bold">Drain (1M pre-loaded)</text>
+<line x1="510" y1="640.0" x2="870" y2="640.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="504.0" y="644.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">0</text>
+<line x1="510" y1="563.3" x2="870" y2="563.3" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="504.0" y="567.3" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">40</text>
+<line x1="510" y1="486.7" x2="870" y2="486.7" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="504.0" y="490.7" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">80</text>
+<line x1="510" y1="410.0" x2="870" y2="410.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="504.0" y="414.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">120</text>
+<text x="510.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">1</text>
+<text x="570.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">2</text>
+<text x="630.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">4</text>
+<text x="690.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">8</text>
+<text x="750.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">16</text>
+<text x="810.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">32</text>
+<text x="870.0" y="656.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">64</text>
+<text x="690.0" y="673.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">threads (log2)</text>
+<text x="480.0" y="525.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">M ops/s</text>
+<polyline points="510.0,623.4 570.0,624.0 630.0,613.8 690.0,592.1 750.0,572.3 810.0,537.8 870.0,499.9" fill="none" stroke="#f0883e" stroke-width="2.5"/>
+<circle cx="510.0" cy="623.4" r="3" fill="#f0883e"/>
+<circle cx="570.0" cy="624.0" r="3" fill="#f0883e"/>
+<circle cx="630.0" cy="613.8" r="3" fill="#f0883e"/>
+<circle cx="690.0" cy="592.1" r="3" fill="#f0883e"/>
+<circle cx="750.0" cy="572.3" r="3" fill="#f0883e"/>
+<circle cx="810.0" cy="537.8" r="3" fill="#f0883e"/>
+<circle cx="870.0" cy="499.9" r="3" fill="#f0883e"/>
+<polyline points="510.0,624.1 570.0,625.8 630.0,616.4 690.0,596.9 750.0,572.7 810.0,544.2 870.0,512.1" fill="none" stroke="#8b949e" stroke-width="2.5"/>
+<circle cx="510.0" cy="624.1" r="3" fill="#8b949e"/>
+<circle cx="570.0" cy="625.8" r="3" fill="#8b949e"/>
+<circle cx="630.0" cy="616.4" r="3" fill="#8b949e"/>
+<circle cx="690.0" cy="596.9" r="3" fill="#8b949e"/>
+<circle cx="750.0" cy="572.7" r="3" fill="#8b949e"/>
+<circle cx="810.0" cy="544.2" r="3" fill="#8b949e"/>
+<circle cx="870.0" cy="512.1" r="3" fill="#8b949e"/>
+<text x="870.0" y="491.9" font-size="10" text-anchor="middle" fill="#f0883e" font-weight="bold">73</text>
+</svg>
