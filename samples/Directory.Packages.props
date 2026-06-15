@@ -1,0 +1,5 @@
+<Project>
+  <!-- Re-use the src/ central package versions for samples so package references
+       in sample projects remain versionless (CPM-compliant). -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)../src/'))" />
+</Project>

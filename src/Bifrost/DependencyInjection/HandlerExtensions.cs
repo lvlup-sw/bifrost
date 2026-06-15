@@ -38,11 +38,9 @@ public static class HandlerExtensions
     /// ensuring scoped services like <c>DbContext</c> are properly isolated.
     /// </para>
     /// </remarks>
-    [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2087:DynamicallyAccessedMemberTypes",
-        Justification = "THandler is a concrete type known at compile time")]
-    public static WorkOrchestratorBuilder<TWork> WithHandler<TWork, THandler>(
+    public static WorkOrchestratorBuilder<TWork> WithHandler<
+        TWork,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(
         this WorkOrchestratorBuilder<TWork> builder,
         ServiceLifetime lifetime = ServiceLifetime.Singleton)
         where THandler : class, IWorkHandler<TWork>

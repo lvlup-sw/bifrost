@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Bifrost.Tests.Scheduling</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Tests don't need to be AOT compatible -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bifrost.Scheduling\Bifrost.Scheduling.csproj" />
+    <ProjectReference Include="..\Bifrost.Scheduling.Core\Bifrost.Scheduling.Core.csproj" />
+    <ProjectReference Include="..\Bifrost.Scheduling.Testing\Bifrost.Scheduling.Testing.csproj" />
+    <ProjectReference Include="..\Bifrost\Bifrost.csproj" />
+    <ProjectReference Include="..\Bifrost.Resilience\Bifrost.Resilience.csproj" />
+  </ItemGroup>
+
+</Project>
