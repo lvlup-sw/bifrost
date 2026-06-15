@@ -1,0 +1,60 @@
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.14.0, Pop!_OS 24.04 LTS
+13th Gen Intel Core i9-13900K, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.202
+  [Host]   : .NET 10.0.6 (10.0.626.17701), X64 RyuJIT AVX2
+  ShortRun : .NET 10.0.6 (10.0.626.17701), X64 RyuJIT AVX2
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+| Method                                   | BufferCapacity | Population | Mean      | Error     | StdDev   | Ratio | RatioSD | Allocated | Alloc Ratio |
+|----------------------------------------- |--------------- |----------- |----------:|----------:|---------:|------:|--------:|----------:|------------:|
+| Buffered_EnqueueDequeue_ReferenceElement | 0              | 10         |  80.92 ns |  3.924 ns | 0.215 ns |  1.04 |    0.00 |         - |          NA |
+| Buffered_EnqueueDequeue_ValueElement     | 0              | 10         |  77.92 ns |  1.058 ns | 0.058 ns |  1.00 |    0.00 |         - |          NA |
+|                                          |                |            |           |           |          |       |         |           |             |
+| Buffered_EnqueueDequeue_ReferenceElement | 0              | 1000       |  67.77 ns |  0.590 ns | 0.032 ns |  1.36 |    0.00 |         - |          NA |
+| Buffered_EnqueueDequeue_ValueElement     | 0              | 1000       |  49.88 ns |  2.951 ns | 0.162 ns |  1.00 |    0.00 |         - |          NA |
+|                                          |                |            |           |           |          |       |         |           |             |
+| Buffered_EnqueueDequeue_ReferenceElement | 0              | 100000     | 100.23 ns | 22.050 ns | 1.209 ns |  1.19 |    0.03 |         - |          NA |
+| Buffered_EnqueueDequeue_ValueElement     | 0              | 100000     |  84.25 ns | 36.785 ns | 2.016 ns |  1.00 |    0.03 |         - |          NA |
+|                                          |                |            |           |           |          |       |         |           |             |
+| Buffered_EnqueueDequeue_ReferenceElement | 0              | 1000000    | 115.42 ns |  4.455 ns | 0.244 ns |  1.08 |    0.01 |         - |          NA |
+| Buffered_EnqueueDequeue_ValueElement     | 0              | 1000000    | 107.24 ns | 18.345 ns | 1.006 ns |  1.00 |    0.01 |         - |          NA |
+|                                          |                |            |           |           |          |       |         |           |             |
+| Buffered_EnqueueDequeue_ReferenceElement | 16             | 10         |  83.09 ns | 12.151 ns | 0.666 ns |  1.03 |    0.01 |         - |          NA |
+| Buffered_EnqueueDequeue_ValueElement     | 16             | 10         |  80.54 ns | 10.188 ns | 0.558 ns |  1.00 |    0.01 |         - |          NA |
+|                                          |                |            |           |           |          |       |         |           |             |
+| Buffered_EnqueueDequeue_ReferenceElement | 16             | 1000       |  74.32 ns |  5.517 ns | 0.302 ns |  1.49 |    0.01 |         - |          NA |
+| Buffered_EnqueueDequeue_ValueElement     | 16             | 1000       |  49.80 ns |  0.678 ns | 0.037 ns |  1.00 |    0.00 |         - |          NA |
+|                                          |                |            |           |           |          |       |         |           |             |
+| Buffered_EnqueueDequeue_ReferenceElement | 16             | 100000     |  75.95 ns | 19.225 ns | 1.054 ns |  0.86 |    0.01 |         - |          NA |
+| Buffered_EnqueueDequeue_ValueElement     | 16             | 100000     |  87.83 ns |  1.049 ns | 0.057 ns |  1.00 |    0.00 |         - |          NA |
+|                                          |                |            |           |           |          |       |         |           |             |
+| Buffered_EnqueueDequeue_ReferenceElement | 16             | 1000000    |  74.49 ns |  3.040 ns | 0.167 ns |  0.66 |    0.01 |         - |          NA |
+| Buffered_EnqueueDequeue_ValueElement     | 16             | 1000000    | 113.17 ns | 35.142 ns | 1.926 ns |  1.00 |    0.02 |         - |          NA |
+
+// * Legends *
+  BufferCapacity : Value of the 'BufferCapacity' parameter
+  Population     : Value of the 'Population' parameter
+  Mean           : Arithmetic mean of all measurements
+  Error          : Half of 99.9% confidence interval
+  StdDev         : Standard deviation of all measurements
+  Ratio          : Mean of the ratio distribution ([Current]/[Baseline])
+  RatioSD        : Standard deviation of the ratio distribution ([Current]/[Baseline])
+  Allocated      : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio    : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 ns           : 1 Nanosecond (0.000000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:02:09 (129.71 sec), executed benchmarks: 16
+
+Global total time: 00:02:25 (145.84 sec), executed benchmarks: 16
+// * Artifacts cleanup *
+Artifacts cleanup is finished

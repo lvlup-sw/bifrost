@@ -1,0 +1,63 @@
+# Bifrost CPQ throughput sweep — generated 2026-06-15 19:26:18Z
+# ProcessorCount: 32
+# OS: Pop!_OS 24.04 LTS
+# CPU arch: X64
+# Runtime: .NET 10.0.6
+# GC mode: Workstation, Concurrent: Interactive
+Target,Workload,ThreadCount,BufferCapacity,Stickiness,WindowSeconds,TotalOps,OpsPerSecond
+MultiQueueRelaxed,UniformMixed5050,1,0,1,1,17182978,17181362.95
+MultiQueueRelaxed,UniformMixed5050,1,16,1,1,21131312,21129963.91
+MultiQueueRelaxed,UniformMixed5050,2,0,1,1,21817378,21816014.5
+MultiQueueRelaxed,UniformMixed5050,2,16,1,1,24026598,24025137.27
+MultiQueueRelaxed,UniformMixed5050,4,0,1,1,33760904,33758277.61
+MultiQueueRelaxed,UniformMixed5050,4,16,1,1,38368658,38364694.93
+MultiQueueRelaxed,UniformMixed5050,8,0,1,1,54282242,54278952.7
+MultiQueueRelaxed,UniformMixed5050,8,16,1,1,63959286,63955493.44
+MultiQueueRelaxed,UniformMixed5050,16,0,1,1,77543626,77538934.89
+MultiQueueRelaxed,UniformMixed5050,16,16,1,1,93646370,93640667.28
+MultiQueueRelaxed,UniformMixed5050,32,0,1,1,84101930,84026852.01
+MultiQueueRelaxed,UniformMixed5050,32,16,1,1,134108362,133965768.84
+MultiQueueRelaxed,UniformMixed5050,64,0,1,1,81490624,81273858.49
+MultiQueueRelaxed,UniformMixed5050,64,16,1,1,120312052,119626603.52
+MultiQueueRelaxed,SplitProducerConsumer,1,0,1,1,22790335,22787256.44
+MultiQueueRelaxed,SplitProducerConsumer,1,16,1,1,23759485,23756912.13
+MultiQueueRelaxed,SplitProducerConsumer,2,0,1,1,20805915,20804643.84
+MultiQueueRelaxed,SplitProducerConsumer,2,16,1,1,17185007,17183974.24
+MultiQueueRelaxed,SplitProducerConsumer,4,0,1,1,30528366,30526506.94
+MultiQueueRelaxed,SplitProducerConsumer,4,16,1,1,35849596,35847373.46
+MultiQueueRelaxed,SplitProducerConsumer,8,0,1,1,49955392,49952284.97
+MultiQueueRelaxed,SplitProducerConsumer,8,16,1,1,61653019,61649313.88
+MultiQueueRelaxed,SplitProducerConsumer,16,0,1,1,75633815,75629118.43
+MultiQueueRelaxed,SplitProducerConsumer,16,16,1,1,90312676,90307049.87
+MultiQueueRelaxed,SplitProducerConsumer,32,0,1,1,84067668,83907354.61
+MultiQueueRelaxed,SplitProducerConsumer,32,16,1,1,116548534,116530832.97
+MultiQueueRelaxed,SplitProducerConsumer,64,0,1,1,82565648,82080543.78
+MultiQueueRelaxed,SplitProducerConsumer,64,16,1,1,104625582,104052254.08
+MultiQueueRelaxed,NarrowKeyRange,1,0,1,1,23762854,23759876.89
+MultiQueueRelaxed,NarrowKeyRange,1,16,1,1,28745390,28743688.37
+MultiQueueRelaxed,NarrowKeyRange,2,0,1,1,23799042,23797547.51
+MultiQueueRelaxed,NarrowKeyRange,2,16,1,1,25733184,25731688.99
+MultiQueueRelaxed,NarrowKeyRange,4,0,1,1,36050224,36048158.44
+MultiQueueRelaxed,NarrowKeyRange,4,16,1,1,38558664,38556439.29
+MultiQueueRelaxed,NarrowKeyRange,8,0,1,1,55743480,55740169.03
+MultiQueueRelaxed,NarrowKeyRange,8,16,1,1,64778878,64774868.44
+MultiQueueRelaxed,NarrowKeyRange,16,0,1,1,83074476,83069159.57
+MultiQueueRelaxed,NarrowKeyRange,16,16,1,1,96175228,96169438.6
+MultiQueueRelaxed,NarrowKeyRange,32,0,1,1,80637780,80601179
+MultiQueueRelaxed,NarrowKeyRange,32,16,1,1,131354140,131074636.45
+MultiQueueRelaxed,NarrowKeyRange,64,0,1,1,79649646,79574964.9
+MultiQueueRelaxed,NarrowKeyRange,64,16,1,1,122018530,122011514.34
+MultiQueueRelaxed,Drain,1,0,1,1,1000000,13699606
+MultiQueueRelaxed,Drain,1,16,1,1,1000000,16661473.84
+MultiQueueRelaxed,Drain,2,0,1,1,1000000,15987082.44
+MultiQueueRelaxed,Drain,2,16,1,1,1000000,18257303.83
+MultiQueueRelaxed,Drain,4,0,1,1,1000000,23363394.23
+MultiQueueRelaxed,Drain,4,16,1,1,1000000,25958989.99
+MultiQueueRelaxed,Drain,8,0,1,1,1000000,36287761.95
+MultiQueueRelaxed,Drain,8,16,1,1,1000000,40830825.64
+MultiQueueRelaxed,Drain,16,0,1,1,1000000,50474969.46
+MultiQueueRelaxed,Drain,16,16,1,1,1000000,63082328.75
+MultiQueueRelaxed,Drain,32,0,1,1,1000000,57719724.56
+MultiQueueRelaxed,Drain,32,16,1,1,1000000,75765037.47
+MultiQueueRelaxed,Drain,64,0,1,1,1000000,52384818.88
+MultiQueueRelaxed,Drain,64,16,1,1,1000000,73592181.57
