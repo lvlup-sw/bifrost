@@ -85,7 +85,11 @@ internal sealed class SubQueue<TElement, TPriority>
     /// of which run under <see cref="SyncLock"/>, so the writes are serialized; a single-threaded
     /// test reads it directly via <see cref="DebugOccupancyWriteCountForTest"/>.
     /// </summary>
+    // CS0649: when BIFROST_TEST_HOOKS is undefined (the shipped package) this field is read by its
+    // getter but never assigned, since the only writer is the gated body of CountOccupancyWrite.
+#pragma warning disable CS0649
     private long _debugOccupancyWriteCount;
+#pragma warning restore CS0649
 
     /// <summary>The cached top priority, isolated on its own cache line (see <see cref="PaddedTopSlot{TPriority}"/>).</summary>
     private readonly PaddedTopSlot<TPriority> _cachedTop;
@@ -810,14 +814,21 @@ internal sealed class SubQueue<TElement, TPriority>
 
     /// <summary>
     /// TEST-ONLY instrumentation hook: counts one occupancy-bit write (set or clear). Always called
-    /// under <see cref="SyncLock"/>, so the plain increment is race-free. The increment is
-    /// unconditional (the <c>InternalsVisibleTo</c> tests build against this same Release binary), but
-    /// it runs <i>only on a boundary crossing</i> — never on the dense hot path where the bitmask is
-    /// already dormant — and touches only this sub-queue's own cold field, never the shared hot
-    /// bitmask word, so it adds no contention.
+    /// under <see cref="SyncLock"/>, so the plain increment is race-free, and it runs <i>only on a
+    /// boundary crossing</i> — never on the dense hot path where the bitmask is already dormant —
+    /// touching only this sub-queue's own cold field, never the shared hot bitmask word. The
+    /// increment is compiled in only behind <c>BIFROST_TEST_HOOKS</c> (defined for the
+    /// <c>InternalsVisibleTo</c> test builds, stripped from the shipped package by the publish
+    /// workflow); off that path the method body is empty and the JIT inlines it away. See
+    /// Bifrost.Concurrency.csproj.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void CountOccupancyWrite() => _debugOccupancyWriteCount++;
+    private void CountOccupancyWrite()
+    {
+#if BIFROST_TEST_HOOKS
+        _debugOccupancyWriteCount++;
+#endif
+    }
 
     /// <summary>
     /// Copies this sub-queue's entries under its lock into <paramref name="buffer"/>. ToArray and

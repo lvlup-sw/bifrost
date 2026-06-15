@@ -51,6 +51,10 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <inheritdoc cref="_debugLastFalseScanEmptyObservations"/>
     internal int DebugLastFalseScanEmptyObservationsForTest => _debugLastFalseScanEmptyObservations;
 
+    // CS0649: when BIFROST_TEST_HOOKS is undefined (the shipped package, see Bifrost.Concurrency.csproj)
+    // these two counters are read by their ...ForTest getters but never assigned, since the only writers
+    // are the BIFROST_TEST_HOOKS-gated increments below. That is the intended stripped-build state.
+#pragma warning disable CS0649
     /// <summary>
     /// TEST-ONLY instrumentation: the number of times the sparse-fallback routing phase (Phase 1.5,
     /// DR-3) popped an element — i.e. read the occupancy bitmask, routed to a populated sub-queue via
@@ -65,6 +69,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <see cref="_debugRoutingHitCount"/> moves, since sampling lands a pop within budget.
     /// </summary>
     private long _debugScanEntryCount;
+#pragma warning restore CS0649
 
     /// <summary>TEST-ONLY: see <see cref="_debugRoutingHitCount"/>.</summary>
     internal long DebugRoutingHitCountForTest => Volatile.Read(ref _debugRoutingHitCount);
@@ -267,7 +272,9 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 SubQueuePopStatus status = TryPopFrom(index, out element, out priority);
                 if (status == SubQueuePopStatus.Success)
                 {
+#if BIFROST_TEST_HOOKS
                     Interlocked.Increment(ref _debugRoutingHitCount);
+#endif
                     return true;
                 }
 
@@ -318,8 +325,11 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     {
         // TEST-ONLY instrumentation: count entry into the O(n) scan. On the sparse path routing
         // (Phase 1.5) handles the pop and this stays put; the scan is reached only on a genuinely
-        // (or transiently all-stale-clear) empty queue (DR-3).
+        // (or transiently all-stale-clear) empty queue (DR-3). Compiled out of the shipped package
+        // (BIFROST_TEST_HOOKS undefined; see Bifrost.Concurrency.csproj).
+#if BIFROST_TEST_HOOKS
         Interlocked.Increment(ref _debugScanEntryCount);
+#endif
 
         SubQueue<TElement, TPriority>[] queues = _queues;
         SpinWait spinner = default;

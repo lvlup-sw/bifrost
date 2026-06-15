@@ -30,7 +30,9 @@ jobs:
         run: dotnet restore ${{ env.SOLUTION_PATH }}
 
       - name: Build
-        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release
+        # BifrostTestHooks=false strips the BIFROST_TEST_HOOKS test-only occupancy/routing/scan
+        # counters from the shipped binary; `dotnet pack --no-build` below packages this artifact.
+        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release -p:BifrostTestHooks=false
 
       - name: Run tests
         run: |
