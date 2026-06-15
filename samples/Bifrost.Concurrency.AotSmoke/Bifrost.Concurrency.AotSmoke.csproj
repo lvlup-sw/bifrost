@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- TargetFramework, Nullable, ImplicitUsings, LangVersion, IsAotCompatible
+         are all inherited from samples/Directory.Build.props → src/Directory.Build.props. -->
+    <RootNamespace>Bifrost.Concurrency.AotSmoke</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>true</IsPublishable>
+    <!-- NativeAOT: only active during `dotnet publish`, not `dotnet build`.
+         Set via /p:PublishAot=true on the publish command line, or via the CI step
+         that uses `dotnet publish -c Release /p:PublishAot=true`. This way a
+         regular `dotnet build` still compiles and validates trim-analyzer warnings
+         without requiring the native toolchain (LLVM / linker) locally. -->
+    <!-- AOT/trim safety: IsAotCompatible=true is inherited from Directory.Build.props;
+         trim warnings flow into warnings-as-errors via TreatWarningsAsErrors. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Silence the xml-doc warning (no doc file for a console host) -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Description>AOT smoke test for Bifrost.Concurrency — verifies the buffered ConcurrentPriorityQueue reference-type path (ESA 2021 §4 buffers) publishes warning-clean under NativeAOT and dispatches in priority order.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reference the concurrency project by relative path (sample lives in samples/,
+         solution is in src/ — paths are relative to this csproj). -->
+    <ProjectReference Include="..\..\src\Bifrost.Concurrency\Bifrost.Concurrency.csproj" />
+  </ItemGroup>
+
+</Project>
