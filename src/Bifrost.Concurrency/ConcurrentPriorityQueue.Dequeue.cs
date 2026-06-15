@@ -6,6 +6,7 @@
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace Bifrost.Concurrency;
@@ -49,6 +50,53 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <inheritdoc cref="_debugLastFalseScanEmptyObservations"/>
     internal int DebugLastFalseScanEmptyObservationsForTest => _debugLastFalseScanEmptyObservations;
+
+    // CS0649: when BIFROST_TEST_HOOKS is undefined (the shipped package, see Bifrost.Concurrency.csproj)
+    // these two counters are read by their ...ForTest getters but never assigned, since the only writers
+    // are the BIFROST_TEST_HOOKS-gated increments below. That is the intended stripped-build state.
+#pragma warning disable CS0649
+    /// <summary>
+    /// TEST-ONLY instrumentation: the number of times the sparse-fallback routing step popped an
+    /// element, i.e. read the occupancy bitmask, routed to a populated sub-queue via
+    /// <see cref="BitOperations.TrailingZeroCount(ulong)"/>, and returned without an O(n) scan.
+    /// Incremented with <see cref="Interlocked.Increment(ref long)"/> since multiple consumers race.
+    /// </summary>
+    private long _debugRoutingHitCount;
+
+    /// <summary>
+    /// TEST-ONLY instrumentation: the number of times the verification scan ran after routing found
+    /// nothing to pop. Under dense load neither this nor <see cref="_debugRoutingHitCount"/> moves,
+    /// since sampling lands a pop within budget.
+    /// </summary>
+    private long _debugScanEntryCount;
+#pragma warning restore CS0649
+
+    /// <summary>TEST-ONLY: see <see cref="_debugRoutingHitCount"/>.</summary>
+    internal long DebugRoutingHitCountForTest => Volatile.Read(ref _debugRoutingHitCount);
+
+    /// <summary>TEST-ONLY: see <see cref="_debugScanEntryCount"/>.</summary>
+    internal long DebugScanEntryCountForTest => Volatile.Read(ref _debugScanEntryCount);
+
+    /// <summary>
+    /// TEST-ONLY: drives the post-sampling dequeue path in isolation — bitmask routing first, then
+    /// the verification scan only if routing found nothing — <i>skipping</i> the random two-choice
+    /// sampling that normally runs ahead of them. This lets the routing tests assert the routing/scan
+    /// split deterministically, where the random sampler would only reach it now and then. Production
+    /// <see cref="TryDequeue"/> runs the same routing-then-scan sequence once its sampling budget is
+    /// spent.
+    /// </summary>
+    /// <param name="element">The popped element on success; otherwise the default value.</param>
+    /// <param name="priority">The popped priority on success; otherwise the default value.</param>
+    /// <returns><see langword="true"/> if routing or the scan popped an element; otherwise <see langword="false"/>.</returns>
+    internal bool TryDequeueRoutingOnlyForTest([MaybeNullWhen(false)] out TElement element, [MaybeNullWhen(false)] out TPriority priority)
+    {
+        if (TryRouteViaOccupancy(out element, out priority))
+        {
+            return true;
+        }
+
+        return TryDequeueVerificationScan(out element, out priority);
+    }
 
     /// <summary>
     /// Attempts to remove and return an element with one of the smallest priorities in the queue.
@@ -107,7 +155,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         ThreadHandle handle = ThreadHandle.Current;
         int mask = _subQueueMask;
 
-        // Phase 1 (two-choice sampling): a few bounded rounds of "sample two, pop the better top".
+        // Two-choice sampling: a few bounded rounds of "sample two, pop the better top".
         for (int round = 0; round < SampleRounds; round++)
         {
             int i, j;
@@ -157,9 +205,90 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
             handle.ResetStickyDequeue();
         }
 
-        // Phase 2 (the authoritative verification scan): sampling did not land a pop within its
-        // budget, so settle the outcome (a real pop, or an authoritative observed-empty false).
+        // Sparse-fallback routing: sampling missed its budget. Before paying for the O(n) scan,
+        // consult the occupancy bitmask and route straight to a populated sub-queue. This collapses
+        // the sparse-but-non-empty drain case (the common one as the queue empties) to an
+        // O(n/64)-word read plus one locked pop. Routing is only a hint: it never returns false, and
+        // when no bit is set (or every set bit is stale) it falls through to the scan below.
+        if (TryRouteViaOccupancy(out element, out priority))
+        {
+            return true;
+        }
+
+        // Verification scan: sampling and routing did not land a pop, so settle the outcome here —
+        // either a real pop or an authoritative observed-empty false. The scan stays the sole
+        // authority for returning false.
         return TryDequeueVerificationScan(out element, out priority);
+    }
+
+    /// <summary>
+    /// The sparse-fallback routing step: reads the occupancy bitmask and, for each set bit
+    /// lowest-first (via <see cref="BitOperations.TrailingZeroCount(ulong)"/>), attempts a locked pop
+    /// of that sub-queue. A <see cref="SubQueuePopStatus.Success"/> returns immediately; an
+    /// <see cref="SubQueuePopStatus.Empty"/> (a stale-set bit) or <see cref="SubQueuePopStatus.Contended"/>
+    /// (a race) skips that bit and continues. When no set bit yields a pop, returns
+    /// <see langword="false"/> so the caller falls through to the verification scan.
+    /// </summary>
+    /// <param name="element">The popped element on success; otherwise the default value.</param>
+    /// <param name="priority">The popped priority on success; otherwise the default value.</param>
+    /// <returns>
+    /// <see langword="true"/> when a populated sub-queue was found and popped; <see langword="false"/>
+    /// when routing found nothing to pop (no set bits, or every set bit was stale/contended).
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Staleness safety.</b> The occupancy words are read lock-free and <i>will</i> sometimes be
+    /// stale, and that is safe in both directions. A <b>stale-set</b> bit (reads 1 while the sub-queue
+    /// is actually empty) yields <see cref="SubQueuePopStatus.Empty"/> from the locked pop and is
+    /// skipped: wasted work, never a wrong answer. A <b>stale or lost clear</b> can only cost a
+    /// redundant routing attempt, because this method never returns <see langword="false"/> as proof
+    /// of emptiness; that is the job of the verification scan, which locks and inspects every
+    /// sub-queue directly. A multi-word read is not an atomic snapshot, but since an all-zero read is
+    /// never treated as proof of emptiness here, the non-atomicity only affects whether routing finds
+    /// a populated queue on the first pass, not correctness.
+    /// </para>
+    /// <para>
+    /// The words are re-read on each outer iteration so a bit set by a concurrent producer after the
+    /// initial read can still be routed to within the same call, tightening the sparse win under churn.
+    /// Progress is bounded: the loop advances only on a freshly observed set bit, and a pop that
+    /// succeeds returns, so it cannot spin without either making progress or running out of set bits.
+    /// </para>
+    /// </remarks>
+    private bool TryRouteViaOccupancy([MaybeNullWhen(false)] out TElement element, [MaybeNullWhen(false)] out TPriority priority)
+    {
+        ulong[] occupancy = _occupancy;
+
+        for (int word = 0; word < occupancy.Length; word++)
+        {
+            // Snapshot this word; route to each currently-set bit lowest-first. A bit cleared by a
+            // concurrent drainer after the snapshot resolves to Empty under the lock and is skipped.
+            ulong bits = Volatile.Read(ref occupancy[word]);
+
+            while (bits != 0)
+            {
+                int bit = BitOperations.TrailingZeroCount(bits);
+                int index = (word << 6) + bit;
+
+                SubQueuePopStatus status = TryPopFrom(index, out element, out priority);
+                if (status == SubQueuePopStatus.Success)
+                {
+#if BIFROST_TEST_HOOKS
+                    Interlocked.Increment(ref _debugRoutingHitCount);
+#endif
+                    return true;
+                }
+
+                // Empty (stale-set bit) or Contended (a race): drop this bit and try the next set
+                // bit in the word. Neither outcome lets routing conclude anything about emptiness.
+                bits &= bits - 1;
+            }
+        }
+
+        // No set bit yielded a pop. Routing NEVER returns false as proof of emptiness — the caller
+        // falls through to the verification scan, which is the sole false authority.
+        element = default;
+        priority = default;
+        return false;
     }
 
     /// <summary>
@@ -194,6 +323,14 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </remarks>
     private bool TryDequeueVerificationScan([MaybeNullWhen(false)] out TElement element, [MaybeNullWhen(false)] out TPriority priority)
     {
+        // TEST-ONLY instrumentation: count entry into the O(n) scan. On the sparse path routing
+        // handles the pop and this stays put; the scan is reached only on a genuinely empty queue (or
+        // one that transiently looks empty because every bit was just cleared). Compiled out of the
+        // shipped package (BIFROST_TEST_HOOKS undefined; see Bifrost.Concurrency.csproj).
+#if BIFROST_TEST_HOOKS
+        Interlocked.Increment(ref _debugScanEntryCount);
+#endif
+
         SubQueue<TElement, TPriority>[] queues = _queues;
         SpinWait spinner = default;
 

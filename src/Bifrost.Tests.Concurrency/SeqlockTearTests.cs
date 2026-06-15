@@ -53,8 +53,10 @@ public class SeqlockTearTests
     [Test]
     public async Task TryReadTop_UnderWriteStorm_NeverReturnsTornValue()
     {
-        // Arrange — a sub-queue whose priority type makes torn reads self-evident.
-        var subQueue = new SubQueue<string, TornDetectPriority>(comparer: null);
+        // Arrange — a sub-queue whose priority type makes torn reads self-evident. Index 0 with a
+        // single-word occupancy array satisfies the boundary-transition wiring; this test does not
+        // assert on the bitmask.
+        var subQueue = new SubQueue<string, TornDetectPriority>(comparer: null, index: 0, occupancy: new ulong[1]);
         using var storm = new CancellationTokenSource(StormDuration);
 
         long validatedReads = 0;

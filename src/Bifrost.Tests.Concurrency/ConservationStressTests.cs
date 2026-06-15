@@ -13,23 +13,23 @@ namespace Bifrost.Tests.Concurrency;
 
 /// <summary>
 /// Conservation stress tests proving the MultiQueue is a <i>set-conserving</i> structure under
-/// many-producer/many-consumer concurrency (DR-17): every element enqueued is dequeued exactly
-/// once — never lost, never duplicated. The relaxed two-choice dequeue (DR-8) reorders elements,
-/// so these tests assert on the consumed <i>multiset</i> (sort + sequence-equal), never on order.
+/// many-producer/many-consumer concurrency: every element enqueued is dequeued once, never lost
+/// and never duplicated. The relaxed two-choice dequeue reorders elements, so these tests assert
+/// on the consumed <i>multiset</i> (sort + sequence-equal), never on order.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Why a counter, not <c>TryDequeue == false</c>, terminates the consumers.</b> A
 /// <see langword="false"/> return only means the queue was observed momentarily empty (the
-/// <c>ConcurrentQueue.TryDequeue</c> precedent) — while producers are still enqueueing, a transient
+/// <c>ConcurrentQueue.TryDequeue</c> precedent). While producers are still enqueueing, a transient
 /// empty observation is expected and is <i>not</i> a completion signal. Consumers therefore loop
 /// until a shared <see cref="Interlocked"/> dequeued-counter reaches the known produced total, which
 /// is the only sound termination condition for a still-filling queue.
 /// </para>
 /// <para>
 /// <b>Kill-probe (RED witness).</b> These tests were verified to DETECT a conservation break before
-/// being trusted to assert its absence: with <c>SubQueue.TryHeapPop</c> mutated to return the root
-/// <i>without removing it</i> (no size decrement, no sift-down — a duplicate factory, the v1-class
+/// being trusted to assert its absence. With <c>SubQueue.TryHeapPop</c> mutated to return the root
+/// <i>without removing it</i> (no size decrement, no sift-down: a duplicate factory, the v1-class
 /// conservation failure), both tests fail with thousands of duplicate elements detected. With the
 /// real heap restored both pass with zero duplicates and zero losses. The mutation procedure is
 /// recorded in the task notes; re-run it after any change to <c>TryHeapPop</c> / <c>TryLockedPop</c>.
@@ -39,7 +39,7 @@ namespace Bifrost.Tests.Concurrency;
 /// (≤ 8) and runs <see cref="NotInParallelAttribute">serially with respect to the other stress
 /// tests</see> so concurrent runs on a shared machine cannot oversubscribe the scheduler. A watchdog
 /// <see cref="CancellationTokenSource"/> deadline (<see cref="WatchdogTimeout"/>) makes a stuck run
-/// fail deterministically instead of hanging — the expected wall-clock is well under a second.
+/// fail deterministically instead of hanging. The expected wall-clock is well under a second.
 /// </para>
 /// </remarks>
 [NotInParallel]
@@ -50,6 +50,14 @@ public class ConservationStressTests
 
     /// <summary>The total number of unique elements produced by test 1's producers.</summary>
     private const int Test1TotalElements = 100_000;
+
+    /// <summary>
+    /// The total number of unique elements produced by the churn-near-empty test: ≥10⁶ ops driving
+    /// the sparse-fallback routing and the verification scan under the single-item insert/drain storm
+    /// that keeps the queue hovering near empty. That is the regime the occupancy bitmask targets and
+    /// the one most likely to surface a transition-write or routing staleness defect.
+    /// </summary>
+    private const int ChurnTotalElements = 1_000_000;
 
     /// <summary>The per-thread operation count for test 2's mixed-workload threads.</summary>
     private const int Test2OpsPerThread = 25_000;
@@ -211,7 +219,7 @@ public class ConservationStressTests
         // Multiset equality: sorted consumed == sorted produced (proves no loss AND no duplication).
         actual.Sort();
         await Assert.That(actual.SequenceEqual(expected)).IsTrue().Because(
-            "the consumed multiset must equal the produced set exactly (order is irrelevant under DR-8)");
+            "the consumed multiset must equal the produced set exactly (order is irrelevant)");
 
         // The queue is drained.
         await Assert.That(queue.Count).IsEqualTo(0);
@@ -347,6 +355,238 @@ public class ConservationStressTests
             "the removed multiset must equal the enqueued multiset exactly — no element lost or duplicated");
 
         // The queue is fully drained.
+        await Assert.That(queue.IsEmpty).IsTrue();
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> only when the queue's own <c>Count</c> stays above
+    /// <paramref name="inFlightTolerance"/> across a short recheck spin, evidence of a genuinely
+    /// resident element. Count can transiently over-report by up to one per consumer mid-pop: each
+    /// publishes its sub-queue's seqlock empty flag before writing the striped <c>Count = 0</c> (two
+    /// ordered writes under the held lock), so a Count at or below the number of concurrent consumers
+    /// could be entirely in-flight removals, however long a preempted consumer stalls. Keying the
+    /// threshold to the consumer count makes the witness sound regardless of scheduling, where a
+    /// fixed-iteration wait could not. Used only as a stress-test witness with production quiescent.
+    /// </summary>
+    /// <param name="queue">The queue to probe.</param>
+    /// <param name="inFlightTolerance">Maximum Count attributable to concurrent in-flight removals.</param>
+    /// <returns><see langword="true"/> if <c>Count</c> stays above the tolerance across the spin.</returns>
+    private static bool PersistentlyNonEmpty(ConcurrentPriorityQueue<int, int> queue, int inFlightTolerance)
+    {
+        // Cheap exit: a Count within the in-flight tolerance proves nothing resident.
+        if (queue.Count <= inFlightTolerance)
+        {
+            return false;
+        }
+
+        // Re-confirm across a bounded spin; a single drop to within tolerance means the apparent
+        // residents were in-flight removals whose Count writes have now landed, not a violation.
+        var spinner = new SpinWait();
+        for (int i = 0; i < 64; i++)
+        {
+            if (queue.Count <= inFlightTolerance)
+            {
+                return false;
+            }
+
+            spinner.SpinOnce();
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Churn-near-empty conservation and no-false-empty proof: many producers each insert
+    /// <i>single</i> items as fast as consumers drain them, so the queue continuously hovers near
+    /// empty. That regime exercises the occupancy bitmask's transition writes and the sparse-fallback
+    /// routing hardest, and is where a lost-clear or stale-set staleness bug would surface. Over ≥10⁶
+    /// ops the consumed multiset must equal the produced set exactly (nothing lost or duplicated), and
+    /// the staleness-specific assertion is that no <c>TryDequeue</c> may return <see langword="false"/>
+    /// while elements demonstrably remain after all production completes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Run in Release (the project lesson: Debug-green ≠ Release-green for concurrency timing). Two
+    /// independent witnesses guard correctness:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>the conservation multiset (every unique value produced is consumed exactly once), the
+    /// authority for "no element lost via a stale/lost-clear routing miss"; and</item>
+    /// <item>a quiescent-tail no-false-empty check: after producers finish, any remaining elements
+    /// must be drainable. A <see langword="false"/> while the queue's own <c>Count</c> is still
+    /// positive and no producer is in flight is an unambiguous staleness violation: a stale-clear
+    /// that fooled both routing and the scan, which the occupancy design must make impossible.</item>
+    /// </list>
+    /// </remarks>
+    [Test]
+    public async Task ChurnNearEmpty_SingleItemInsertDrainStorm_NoFalseEmptyNoLostElement()
+    {
+        var queue = new ConcurrentPriorityQueue<int, int>();
+
+        // p producers + p consumers, capped so 2p ≤ MaxThreads, at least one of each.
+        int p = Math.Clamp(Math.Min(4, Environment.ProcessorCount / 2), 1, MaxThreads / 2);
+        using var watchdog = new CancellationTokenSource(WatchdogTimeout);
+
+        int perProducer = ChurnTotalElements / p;
+        int producedTotal = perProducer * p;
+
+        // Keep the queue in the near-empty regime this test targets: producers hold back whenever the
+        // outstanding (enqueued-but-not-yet-dequeued) backlog rises above this small bound, so a fast
+        // producer / slow consumer schedule can't quietly turn it into a dense test. Small enough to
+        // stay well inside the sparse regime, large enough not to over-serialize the churn.
+        int nearEmptyBacklogCap = p * 8;
+
+        long enqueuedTotal = 0;
+        long dequeuedCount = 0;
+        long producersDone = 0;
+        long falseWhileResident = 0;
+        var consumed = new List<int>[p];
+        var producers = new Thread[p];
+        var consumers = new Thread[p];
+
+        for (int k = 0; k < p; k++)
+        {
+            int start = k * perProducer;
+            int endExclusive = start + perProducer;
+            producers[k] = new Thread(() =>
+            {
+                // Single-item inserts with backpressure: push one only once the outstanding backlog is
+                // back under the cap, so consumers stay caught up and the queue keeps hovering near
+                // empty. Disjoint per-producer ranges keep every value globally unique, so a duplicate
+                // anywhere is a true conservation break.
+                var backoff = new SpinWait();
+                for (int value = start; value < endExclusive; value++)
+                {
+                    while (Volatile.Read(ref enqueuedTotal) - Volatile.Read(ref dequeuedCount) > nearEmptyBacklogCap)
+                    {
+                        if (watchdog.IsCancellationRequested)
+                        {
+                            return;
+                        }
+
+                        backoff.SpinOnce();
+                    }
+
+                    if (watchdog.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    queue.Enqueue(value, value);
+                    Interlocked.Increment(ref enqueuedTotal);
+                }
+
+                Interlocked.Increment(ref producersDone);
+            })
+            { IsBackground = true, Name = $"churn-producer-{k}" };
+        }
+
+        for (int k = 0; k < p; k++)
+        {
+            var localConsumed = new List<int>(perProducer);
+            consumed[k] = localConsumed;
+            consumers[k] = new Thread(() =>
+            {
+                while (Volatile.Read(ref dequeuedCount) < producedTotal)
+                {
+                    if (watchdog.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    if (queue.TryDequeue(out int element, out _))
+                    {
+                        localConsumed.Add(element);
+                        Interlocked.Increment(ref dequeuedCount);
+                        continue;
+                    }
+
+                    // A false was returned. Only once every producer has finished is the queue
+                    // quiescent enough that a false-while-resident is unambiguous: with no in-flight
+                    // enqueue to excuse a stale observation, a false while a poppable element
+                    // demonstrably remains means routing and the scan both concluded emptiness while
+                    // an element was resident, the staleness violation the occupancy design must make
+                    // impossible.
+                    //
+                    // The witness must be sound against a benign transient. A concurrent consumer
+                    // mid-pop publishes its sub-queue's seqlock EmptyFlag = empty before it writes the
+                    // striped Count = 0 (two ordered writes under the held lock), so the scan's
+                    // lock-free cheap route can legitimately observe "empty" while queue.Count still
+                    // counts that being-removed element. Up to p consumers can be mid-pop at once, so
+                    // Count over-reports by at most p; only a Count that stays ABOVE p proves a
+                    // genuinely resident element, and that bound holds however long a preempted
+                    // consumer stalls (a fixed-iteration wait would not).
+                    if (Volatile.Read(ref producersDone) == p && PersistentlyNonEmpty(queue, inFlightTolerance: p))
+                    {
+                        Interlocked.Increment(ref falseWhileResident);
+                    }
+
+                    Thread.Yield();
+                }
+            })
+            { IsBackground = true, Name = $"churn-consumer-{k}" };
+        }
+
+        // Act — start consumers first so they are draining the instant producers begin (maximizing
+        // near-empty churn), then start producers.
+        var sw = Stopwatch.StartNew();
+        foreach (var consumer in consumers)
+        {
+            consumer.Start();
+        }
+
+        foreach (var producer in producers)
+        {
+            producer.Start();
+        }
+
+        foreach (var producer in producers)
+        {
+            producer.Join();
+        }
+
+        foreach (var consumer in consumers)
+        {
+            consumer.Join();
+        }
+
+        sw.Stop();
+
+        await Assert.That(watchdog.IsCancellationRequested).IsFalse().Because(
+            $"the churn run exceeded the {WatchdogTimeout.TotalSeconds:N0}s watchdog " +
+            $"(dequeued={Volatile.Read(ref dequeuedCount):N0} of {producedTotal:N0}) — lost progress");
+
+        // The staleness-specific witness: never a false while elements were provably resident and
+        // production quiescent.
+        await Assert.That(Volatile.Read(ref falseWhileResident)).IsEqualTo(0L).Because(
+            "no TryDequeue may return false while elements demonstrably remained and no producer was " +
+            "in flight: a lost-clear that fooled both routing and the scan, which cannot happen here");
+
+        // Conservation: build the produced/consumed multisets and reconcile.
+        var actual = new List<int>(producedTotal);
+        foreach (var list in consumed)
+        {
+            actual.AddRange(list);
+        }
+
+        await Assert.That(actual.Count).IsEqualTo(producedTotal).Because(
+            $"every produced element must be consumed exactly once (run took {sw.ElapsedMilliseconds:N0} ms)");
+
+        int distinctCount = new HashSet<int>(actual).Count;
+        await Assert.That(distinctCount).IsEqualTo(producedTotal).Because(
+            $"a duplicated element was dequeued — conservation broken ({actual.Count - distinctCount:N0} duplicates)");
+
+        var expected = new List<int>(producedTotal);
+        for (int value = 0; value < producedTotal; value++)
+        {
+            expected.Add(value);
+        }
+
+        actual.Sort();
+        await Assert.That(actual.SequenceEqual(expected)).IsTrue().Because(
+            "the consumed multiset must equal the produced set exactly — no element lost or duplicated under churn");
+
+        await Assert.That(queue.Count).IsEqualTo(0);
         await Assert.That(queue.IsEmpty).IsTrue();
     }
 }

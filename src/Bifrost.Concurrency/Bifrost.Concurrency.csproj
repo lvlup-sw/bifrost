@@ -17,6 +17,20 @@
     <PackageTags>Concurrency;PriorityQueue;ConcurrentPriorityQueue;MultiQueue;ThreadSafe</PackageTags>
   </PropertyGroup>
 
+  <!--
+    Test-only observability counters (occupancy-write / routing-hit / scan-entry, DR-2/DR-3) are
+    compiled in only behind BIFROST_TEST_HOOKS, so the InternalsVisibleTo test suite can read them
+    in every normal build — Debug AND Release (the concurrency suite runs in Release, see ci.yml).
+    The publish workflow builds with BifrostTestHooks=false, stripping the instrumentation from the
+    shipped NuGet binary (the same artifact that the no-build `dotnet pack` step packages). The
+    counter fields and their ...ForTest getters are intentionally left ungated so the test project
+    still compiles against the stripped library in the publish build's solution-wide compile.
+  -->
+  <PropertyGroup>
+    <BifrostTestHooks Condition="'$(BifrostTestHooks)' == ''">true</BifrostTestHooks>
+    <DefineConstants Condition="'$(BifrostTestHooks)' == 'true'">$(DefineConstants);BIFROST_TEST_HOOKS</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Bifrost.Tests.Concurrency" />
   </ItemGroup>

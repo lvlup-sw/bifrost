@@ -62,6 +62,35 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     private readonly IComparer<TPriority>? _comparer;
 
+    /// <summary>
+    /// This sub-queue's index in the owning queue's sub-queue array, used to address its bit in the
+    /// shared occupancy bitmask: word <c>_index &gt;&gt; 6</c>, position <c>_index &amp; 63</c>.
+    /// </summary>
+    private readonly int _index;
+
+    /// <summary>
+    /// A reference to the owning queue's shared occupancy bitmask. This sub-queue flips
+    /// <i>only its own bit</i> (<c>_occupancy[_index &gt;&gt; 6]</c>, mask <c>1UL &lt;&lt; (_index &amp; 63)</c>)
+    /// and only on an empty&#8596;non-empty boundary crossing while <see cref="SyncLock"/> is held,
+    /// via <see cref="Interlocked.Or(ref ulong, ulong)"/> / <see cref="Interlocked.And(ref ulong, ulong)"/>
+    /// so a neighbouring sub-queue sharing the same 64-bit word never loses an update.
+    /// </summary>
+    private readonly ulong[] _occupancy;
+
+    /// <summary>
+    /// TEST-ONLY instrumentation: the number of times this sub-queue wrote its occupancy bit (a set
+    /// or a clear). Because the writes are boundary-only, this increments exactly once per
+    /// empty&#8596;non-empty crossing and never on a push onto a populated heap or a non-last pop.
+    /// It is incremented inside <see cref="SetOccupancyBit"/>/<see cref="ClearOccupancyBit"/>, both
+    /// of which run under <see cref="SyncLock"/>, so the writes are serialized; a single-threaded
+    /// test reads it directly via <see cref="DebugOccupancyWriteCountForTest"/>.
+    /// </summary>
+    // CS0649: when BIFROST_TEST_HOOKS is undefined (the shipped package) this field is read by its
+    // getter but never assigned, since the only writer is the gated body of CountOccupancyWrite.
+#pragma warning disable CS0649
+    private long _debugOccupancyWriteCount;
+#pragma warning restore CS0649
+
     /// <summary>The cached top priority, isolated on its own cache line (see <see cref="PaddedTopSlot{TPriority}"/>).</summary>
     private readonly PaddedTopSlot<TPriority> _cachedTop;
 
@@ -90,12 +119,23 @@ internal sealed class SubQueue<TElement, TPriority>
     /// The priority comparer retained for the heap tasks; <see langword="null"/> selects the
     /// devirtualized <see cref="Comparer{T}.Default"/> path at the queue level.
     /// </param>
-    internal SubQueue(IComparer<TPriority>? comparer)
+    /// <param name="index">
+    /// This sub-queue's index in the owning queue's sub-queue array; addresses its bit in
+    /// <paramref name="occupancy"/>.
+    /// </param>
+    /// <param name="occupancy">
+    /// The owning queue's shared occupancy bitmask. This sub-queue flips only its own bit, under its
+    /// lock, on an empty&#8596;non-empty crossing. The array is shared by reference, never copied.
+    /// </param>
+    internal SubQueue(IComparer<TPriority>? comparer, int index, ulong[] occupancy)
     {
         // Comparer normalization, shared with the queue shell (see
         // PriorityComparerHelpers.InitializeComparer): a stored null selects the devirtualized
         // Comparer<TPriority>.Default path in the hot heap methods.
         _comparer = PriorityComparerHelpers.InitializeComparer(comparer);
+
+        _index = index;
+        _occupancy = occupancy;
 
         _nodes = [];
 
@@ -138,6 +178,13 @@ internal sealed class SubQueue<TElement, TPriority>
     /// (or deliberately did not) republish the cached top.
     /// </summary>
     internal uint DebugTopVersionForTest => Volatile.Read(ref _header.TopVersion);
+
+    /// <summary>
+    /// TEST-ONLY: the count of occupancy-bit writes (set + clear) this sub-queue has performed.
+    /// Being boundary-only, it increments once per empty&#8596;non-empty crossing and stays frozen
+    /// across pushes onto a populated heap and non-last pops.
+    /// </summary>
+    internal long DebugOccupancyWriteCountForTest => Volatile.Read(ref _debugOccupancyWriteCount);
 
     /// <summary>
     /// Publishes a new cached top (or the empty state) through the seqlock. Must be called with
@@ -581,6 +628,15 @@ internal sealed class SubQueue<TElement, TPriority>
                 PublishTop(priority, empty: false);
             }
 
+            // Boundary-only occupancy transition. The empty→non-empty crossing is just `wasEmpty`;
+            // set this sub-queue's bit alongside the seqlock publish, under the held lock. A push onto
+            // an already-populated sub-queue leaves `wasEmpty` false and never touches the bitmask,
+            // which is what keeps it dormant on the dense hot path.
+            if (wasEmpty)
+            {
+                SetOccupancyBit();
+            }
+
             Volatile.Write(ref _header.Count, _size);
             return true;
         }
@@ -648,6 +704,12 @@ internal sealed class SubQueue<TElement, TPriority>
         if (_size == 0)
         {
             PublishTop(priority, empty: true);
+
+            // Boundary-only occupancy transition. The non-empty→empty crossing is just `_size == 0`
+            // after the pop; clear this sub-queue's bit alongside the empty publish, under the held
+            // lock. A pop that leaves entries behind takes the else-branch and never touches the
+            // bitmask. PopHeldRoot is the single drain funnel, so TryLockedPop inherits this clear.
+            ClearOccupancyBit();
         }
         else
         {
@@ -691,6 +753,12 @@ internal sealed class SubQueue<TElement, TPriority>
 
             _size = 0;
             PublishTop(default!, empty: true);
+
+            // This clear is reached only when `removed > 0`, i.e. the sub-queue was non-empty (the
+            // non-empty→empty crossing), so clear its occupancy bit alongside the empty publish. The
+            // `removed <= 0` early-return above means an already-empty Clear writes nothing.
+            ClearOccupancyBit();
+
             Volatile.Write(ref _header.Count, 0);
 
             return removed;
@@ -712,6 +780,53 @@ internal sealed class SubQueue<TElement, TPriority>
         => typeof(TPriority).IsValueType && _comparer is null
             ? Comparer<TPriority>.Default.Compare(x, y)
             : _comparer!.Compare(x, y);
+
+    /// <summary>
+    /// Sets this sub-queue's bit in the shared occupancy bitmask on an empty→non-empty crossing.
+    /// Must be called with <see cref="SyncLock"/> held. The write is
+    /// <see cref="Interlocked.Or(ref ulong, ulong)"/> rather than a plain store because distinct
+    /// sub-queues share a 64-bit word under <i>different</i> per-stripe locks; an atomic OR is the
+    /// only way two neighbours can flip their bits in the same word without losing an update.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void SetOccupancyBit()
+    {
+        Debug.Assert(SyncLock.IsHeldByCurrentThread, "SetOccupancyBit requires the sub-queue lock.");
+        Interlocked.Or(ref _occupancy[_index >> 6], 1UL << (_index & 63));
+        CountOccupancyWrite();
+    }
+
+    /// <summary>
+    /// Clears this sub-queue's bit in the shared occupancy bitmask on a non-empty→empty crossing.
+    /// Must be called with <see cref="SyncLock"/> held. Uses
+    /// <see cref="Interlocked.And(ref ulong, ulong)"/> with the complemented bit mask for the same
+    /// word-sharing reason as <see cref="SetOccupancyBit"/>.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ClearOccupancyBit()
+    {
+        Debug.Assert(SyncLock.IsHeldByCurrentThread, "ClearOccupancyBit requires the sub-queue lock.");
+        Interlocked.And(ref _occupancy[_index >> 6], ~(1UL << (_index & 63)));
+        CountOccupancyWrite();
+    }
+
+    /// <summary>
+    /// TEST-ONLY instrumentation hook: counts one occupancy-bit write (set or clear). Always called
+    /// under <see cref="SyncLock"/>, so the plain increment is race-free, and it runs <i>only on a
+    /// boundary crossing</i> — never on the dense hot path where the bitmask is already dormant —
+    /// touching only this sub-queue's own cold field, never the shared hot bitmask word. The
+    /// increment is compiled in only behind <c>BIFROST_TEST_HOOKS</c> (defined for the
+    /// <c>InternalsVisibleTo</c> test builds, stripped from the shipped package by the publish
+    /// workflow); off that path the method body is empty and the JIT inlines it away. See
+    /// Bifrost.Concurrency.csproj.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CountOccupancyWrite()
+    {
+#if BIFROST_TEST_HOOKS
+        _debugOccupancyWriteCount++;
+#endif
+    }
 
     /// <summary>
     /// Copies this sub-queue's entries under its lock into <paramref name="buffer"/>. ToArray and
