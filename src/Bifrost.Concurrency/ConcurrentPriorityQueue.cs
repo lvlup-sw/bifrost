@@ -140,6 +140,14 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     private readonly int _stickiness;
 
     /// <summary>
+    /// The logical ESA 2021 §4 buffer capacity <c>C ∈ [0, SubQueue.BufferCapacityMax]</c> threaded into
+    /// every sub-queue: <c>0</c> (the default) disables buffering, leaving Enqueue/Dequeue bit-exact
+    /// with the pre-feature queue; <c>1..16</c> activates the per-sub-queue insertion/deletion buffers
+    /// with that logical cap. Resolved and validated once in the core constructor.
+    /// </summary>
+    private readonly int _bufferCapacity;
+
+    /// <summary>
     /// The shared atomic capacity gate: the number of live reservations against
     /// <see cref="_boundedCapacity"/>. An enqueue increments it before selecting a sub-queue and
     /// rejects the element when the result exceeds the bound; every successful removal decrements
@@ -222,6 +230,40 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ConcurrentPriorityQueue{TElement, TPriority}"/>
+    /// class with an explicit stickiness factor and ESA 2021 §4 <c>bufferCapacity</c>, the opt-in
+    /// per-sub-queue insertion/deletion buffering dial (default-off in every other overload).
+    /// </summary>
+    /// <param name="boundedCapacity">
+    /// The maximum number of elements the queue may hold (a positive value), or <c>-1</c> for an
+    /// unbounded queue.
+    /// </param>
+    /// <param name="stickiness">
+    /// The stickiness factor <c>s</c>; must be at least one, or <c>-1</c> for the default
+    /// (<see cref="DefaultStickiness"/>). See the three-argument overload for the relaxation note.
+    /// </param>
+    /// <param name="bufferCapacity">
+    /// The logical buffer capacity <c>C ∈ [0, SubQueue.BufferCapacityMax]</c>: <c>0</c> disables
+    /// buffering (Enqueue/Dequeue stay bit-exact with the unbuffered queue); <c>1..16</c> activates
+    /// the per-sub-queue insertion/deletion buffers, removing the deep-heap cache-line walk from the
+    /// hot path (ESA 2021 §4). Buffering wraps the arity-4 heap; it never replaces it. This is a
+    /// distinct four-argument arity from the <c>(boundedCapacity, stickiness, comparer)</c> overload,
+    /// so adding it re-binds no existing positional call site.
+    /// </param>
+    /// <param name="comparer">
+    /// The priority comparer, or <see langword="null"/> to use <see cref="Comparer{T}.Default"/>.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="boundedCapacity"/> is zero or less than <c>-1</c>; <paramref name="stickiness"/>
+    /// is less than one and not the <c>-1</c> default sentinel; or <paramref name="bufferCapacity"/> is
+    /// outside <c>[0, SubQueue.BufferCapacityMax]</c>.
+    /// </exception>
+    public ConcurrentPriorityQueue(int boundedCapacity, int stickiness, int bufferCapacity, IComparer<TPriority>? comparer = null)
+        : this(s_defaultSubQueueCount, ValidateBoundedCapacityOrUnbounded(boundedCapacity), comparer, stickiness, ValidateBufferCapacity(bufferCapacity))
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ConcurrentPriorityQueue{TElement, TPriority}"/>
     /// class with an explicit sub-queue count. This is the core constructor that every public
     /// overload chains to; it is internal so tests and deterministic rank-error scenarios can pin
     /// the sub-queue count exactly (in particular <c>subQueueCount == 1</c> is honored as-is).
@@ -250,11 +292,17 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <see cref="DefaultStickiness"/> default. <c>-1</c> resolves to the default; values below one
     /// (and not <c>-1</c>) throw.
     /// </param>
+    /// <param name="bufferCapacity">
+    /// The logical ESA 2021 §4 buffer capacity <c>C ∈ [0, SubQueue.BufferCapacityMax]</c>; a trailing
+    /// optional so the existing call sites keep compiling against the default <c>0</c> (buffering off).
+    /// Validated here idempotently and threaded into every sub-queue.
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="subQueueCount"/> is less than one, or <paramref name="stickiness"/> is less
-    /// than one and not the <c>-1</c> default sentinel.
+    /// <paramref name="subQueueCount"/> is less than one; <paramref name="stickiness"/> is less than
+    /// one and not the <c>-1</c> default sentinel; or <paramref name="bufferCapacity"/> is outside
+    /// <c>[0, SubQueue.BufferCapacityMax]</c>.
     /// </exception>
-    internal ConcurrentPriorityQueue(int subQueueCount, int boundedCapacity, IComparer<TPriority>? comparer, int stickiness = DefaultStickiness)
+    internal ConcurrentPriorityQueue(int subQueueCount, int boundedCapacity, IComparer<TPriority>? comparer, int stickiness = DefaultStickiness, int bufferCapacity = 0)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(subQueueCount, 1);
 
@@ -263,6 +311,10 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         // contradictory value (0, or any value below the -1 unbounded sentinel) can never construct an
         // instance, regardless of caller. Public overloads already validated; this is idempotent.
         boundedCapacity = ValidateBoundedCapacityOrUnbounded(boundedCapacity);
+
+        // Idempotent for the public buffered overload (already validated); the authoritative check for
+        // any internal caller that pins a sub-queue count with buffering on.
+        _bufferCapacity = ValidateBufferCapacity(bufferCapacity);
 
         _stickiness = ResolveStickiness(stickiness);
 
@@ -288,8 +340,8 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         {
             // Pass the ORIGINAL comparer: SubQueue performs the same normalization itself. Hand each
             // sub-queue its index and a reference to the shared occupancy array so its boundary-only
-            // transition writes flip the right bit.
-            _queues[i] = new SubQueue<TElement, TPriority>(comparer, i, _occupancy);
+            // transition writes flip the right bit, plus the resolved buffer capacity (0 = unbuffered).
+            _queues[i] = new SubQueue<TElement, TPriority>(comparer, i, _occupancy, _bufferCapacity);
         }
     }
 
@@ -438,6 +490,26 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         }
 
         return boundedCapacity;
+    }
+
+    /// <summary>
+    /// Validates a <c>bufferCapacity</c> argument against the ESA 2021 §4 buffering range
+    /// <c>[0, SubQueue.BufferCapacityMax]</c> (mirroring <see cref="ValidateBoundedCapacity"/>) and
+    /// returns it unchanged for inline forwarding. <c>0</c> means buffering off; <c>1..16</c> activates
+    /// it with that logical cap. The throw message names the compile-time max so the caller learns the
+    /// ceiling (the inline storage is compile-time-fixed; a larger cap also degrades dequeue quality).
+    /// </summary>
+    /// <param name="bufferCapacity">The requested logical buffer capacity.</param>
+    /// <returns>The validated <paramref name="bufferCapacity"/>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="bufferCapacity"/> is negative or greater than
+    /// <see cref="SubQueue{TElement, TPriority}.BufferCapacityMax"/>.
+    /// </exception>
+    private static int ValidateBufferCapacity(int bufferCapacity)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(bufferCapacity);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(bufferCapacity, SubQueue<TElement, TPriority>.BufferCapacityMax);
+        return bufferCapacity;
     }
 
     /// <summary>

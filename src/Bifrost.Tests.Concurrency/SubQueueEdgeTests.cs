@@ -340,4 +340,57 @@ public class SubQueueEdgeTests
         await Assert.That(removed).IsEqualTo(n - (n / 2)).Because("LockedClear removes the un-drained remainder");
         await Assert.That(subQueue.HeapSize).IsEqualTo(0).Because("the reference-type sub-queue is fully cleared");
     }
+
+    /// <summary>
+    /// DR-5: the <c>bufferCapacity</c> knob is validated to the compile-time <c>[0, 16]</c> range at
+    /// the <see cref="ConcurrentPriorityQueue{TElement, TPriority}"/> constructor (mirroring
+    /// <c>ValidateBoundedCapacity</c>): a negative value or one above
+    /// <see cref="SubQueue{TElement, TPriority}.BufferCapacityMax"/> throws
+    /// <see cref="ArgumentOutOfRangeException"/>, and its message names the compile-time max so the
+    /// caller learns the ceiling.
+    /// </summary>
+    [Test]
+    public async Task Ctor_BufferCapacityOutOfRange_Throws()
+    {
+        await Assert.That(() => new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 1, bufferCapacity: -1))
+            .Throws<ArgumentOutOfRangeException>().Because("a negative buffer capacity is out of the [0, 16] range");
+
+        await Assert.That(() => new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 1, bufferCapacity: 17))
+            .Throws<ArgumentOutOfRangeException>().Because("a buffer capacity above the compile-time max of 16 is rejected");
+
+        // The message names the compile-time max so the caller learns the ceiling.
+        ArgumentOutOfRangeException ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 1, bufferCapacity: 99));
+        await Assert.That(ex.Message).Contains("16").Because("the validation message names the compile-time buffer-capacity max");
+    }
+
+    /// <summary>
+    /// DR-5: buffering is OFF by default. A sub-queue (and queue) constructed without an explicit
+    /// <c>bufferCapacity</c> resolves to <c>0</c>, the bit-exact unbuffered path. Pinned through the
+    /// internal <c>BufferCapacityForTest</c> accessor.
+    /// </summary>
+    [Test]
+    public async Task Ctor_Default_BufferingDisabled()
+    {
+        // The SubQueue trailing-optional defaults to 0.
+        var defaultSubQueue = new SubQueue<int, int>(comparer: null, index: 0, occupancy: new ulong[1]);
+        await Assert.That(defaultSubQueue.BufferCapacityForTest).IsEqualTo(0).Because(
+            "a sub-queue constructed without bufferCapacity defaults to 0 (buffering off)");
+
+        // Every public queue overload chains through with bufferCapacity 0 unless explicitly opted in.
+        var defaultQueue = new ConcurrentPriorityQueue<int, int>();
+        foreach (var sq in defaultQueue.SubQueuesForTest)
+        {
+            await Assert.That(sq.BufferCapacityForTest).IsEqualTo(0).Because(
+                "the parameterless queue constructor leaves every sub-queue unbuffered");
+        }
+
+        // An explicit opt-in threads the value through to every sub-queue.
+        var bufferedQueue = new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 1, bufferCapacity: 16);
+        foreach (var sq in bufferedQueue.SubQueuesForTest)
+        {
+            await Assert.That(sq.BufferCapacityForTest).IsEqualTo(16).Because(
+                "an explicit bufferCapacity is threaded into every sub-queue");
+        }
+    }
 }

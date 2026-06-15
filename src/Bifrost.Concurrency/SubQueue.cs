@@ -43,6 +43,16 @@ namespace Bifrost.Concurrency;
 internal sealed class SubQueue<TElement, TPriority>
 {
     /// <summary>
+    /// The compile-time-fixed maximum buffer capacity, <c>16</c> — the ESA 2021 §4 buffering optimum
+    /// (Williams &amp; Sanders measure the relaxed dequeue's rank-error degrading past this point, so a
+    /// larger value would trade quality for throughput). It fixes the inline storage size of
+    /// <see cref="SubQueueBuffer{TElement, TPriority}"/> at compile time and bounds the logical
+    /// <c>bufferCapacity</c> knob's <c>[0, 16]</c> range. Bumping it is a one-line const change plus a
+    /// rebuild; it is deliberately not a runtime parameter (the C++ reference also compile-time-fixes it).
+    /// </summary>
+    internal const int BufferCapacityMax = 16;
+
+    /// <summary>
     /// The bound on seqlock read attempts before <see cref="TryReadTop"/> reports "unknown".
     /// Two-choice callers tolerate unknown results by resampling, so a small bound keeps the
     /// read path's worst case short instead of spinning against a stalled or hot writer.
@@ -85,10 +95,27 @@ internal sealed class SubQueue<TElement, TPriority>
     /// of which run under <see cref="SyncLock"/>, so the writes are serialized; a single-threaded
     /// test reads it directly via <see cref="DebugOccupancyWriteCountForTest"/>.
     /// </summary>
-    // CS0649: when BIFROST_TEST_HOOKS is undefined (the shipped package) this field is read by its
-    // getter but never assigned, since the only writer is the gated body of CountOccupancyWrite.
+    // CS0649: when BIFROST_TEST_HOOKS is undefined (the shipped package) these fields are read by their
+    // getters but never assigned, since the only writers are the gated bodies of the Count… hooks. The
+    // fields and …ForTest getters stay UNGATED so the test project still compiles against the stripped
+    // publish library; only the increment SITES are gated (see the buffered-counter region below).
 #pragma warning disable CS0649
     private long _debugOccupancyWriteCount;
+
+    /// <summary>TEST-ONLY: the number of insertion-buffer flushes into the heap (DR-7).</summary>
+    private long _debugBufferFlushCount;
+
+    /// <summary>TEST-ONLY: the number of deletion-buffer refills from the heap (DR-7).</summary>
+    private long _debugBufferRefillCount;
+
+    /// <summary>TEST-ONLY: the number of pops served straight from <c>D.front()</c> (buffered-pop hits) (DR-7).</summary>
+    private long _debugBufferPopHitCount;
+
+    /// <summary>TEST-ONLY: the number of direct-to-<c>D</c> seeds of an otherwise-empty structure (DR-7).</summary>
+    private long _debugBufferDirectToDeletionCount;
+
+    /// <summary>TEST-ONLY: the number of <c>max(D)</c> eviction cascades on a full-<c>D</c> sorted insert (DR-7).</summary>
+    private long _debugBufferEvictionCount;
 #pragma warning restore CS0649
 
     /// <summary>The cached top priority, isolated on its own cache line (see <see cref="PaddedTopSlot{TPriority}"/>).</summary>
@@ -110,6 +137,36 @@ internal sealed class SubQueue<TElement, TPriority>
     private int _size;
 
     /// <summary>
+    /// The logical buffer capacity <c>C ∈ [0, BufferCapacityMax]</c>: <c>0</c> disables buffering (the
+    /// push/pop paths bypass the buffers entirely and operate directly on the arity-4 heap, bit-exact
+    /// with the pre-feature behavior); <c>1..16</c> caps the logical size of each buffer within the
+    /// fixed-16 inline storage. Readonly: set once at construction and never mutated.
+    /// </summary>
+    private readonly int _bufferCapacity;
+
+    /// <summary>
+    /// The unsorted insertion buffer <c>I</c> (ESA 2021 §4): pushes that are not small enough to enter
+    /// the sorted deletion buffer land here; when it fills (<see cref="_insertionCount"/> reaches
+    /// <see cref="_bufferCapacity"/>) it flushes wholesale into the arity-4 heap. Inline storage,
+    /// mutated only under <see cref="SyncLock"/>. Untouched when <see cref="_bufferCapacity"/> is 0.
+    /// </summary>
+    private SubQueueBuffer<TElement, TPriority> _insertion;
+
+    /// <summary>The number of live entries in <see cref="_insertion"/> (occupies <c>[0, _insertionCount)</c>).</summary>
+    private int _insertionCount;
+
+    /// <summary>
+    /// The sorted deletion buffer <c>D</c> (ESA 2021 §4): holds the smallest resident entries in
+    /// ascending priority order. <c>D.front()</c> (slot 0) is the sub-queue minimum and the value the
+    /// seqlock publishes; pops remove it. It is refilled from the heap when it empties. Inline storage,
+    /// mutated only under <see cref="SyncLock"/>. Untouched when <see cref="_bufferCapacity"/> is 0.
+    /// </summary>
+    private SubQueueBuffer<TElement, TPriority> _deletion;
+
+    /// <summary>The number of live entries in <see cref="_deletion"/> (occupies <c>[0, _deletionCount)</c>).</summary>
+    private int _deletionCount;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="SubQueue{TElement, TPriority}"/> class.
     /// The initial state is a valid, readable, <i>empty</i> publication: version 0 (even) with
     /// the empty flag set, so a reader that samples a brand-new sub-queue gets a stable
@@ -127,8 +184,18 @@ internal sealed class SubQueue<TElement, TPriority>
     /// The owning queue's shared occupancy bitmask. This sub-queue flips only its own bit, under its
     /// lock, on an empty&#8596;non-empty crossing. The array is shared by reference, never copied.
     /// </param>
-    internal SubQueue(IComparer<TPriority>? comparer, int index, ulong[] occupancy)
+    /// <param name="bufferCapacity">
+    /// The logical ESA 2021 §4 buffer capacity <c>C ∈ [0, BufferCapacityMax]</c>; a trailing optional
+    /// so the existing three-argument call sites keep compiling against the default. <c>0</c> (the
+    /// default) disables buffering, leaving the push/pop paths bit-exact with the pre-feature heap
+    /// behavior; <c>1..16</c> activates the buffered path with that logical cap. The owning queue
+    /// validates the range before forwarding; this constructor debug-asserts it.
+    /// </param>
+    internal SubQueue(IComparer<TPriority>? comparer, int index, ulong[] occupancy, int bufferCapacity = 0)
     {
+        Debug.Assert(
+            bufferCapacity is >= 0 and <= BufferCapacityMax,
+            "bufferCapacity must be in [0, BufferCapacityMax]; the owning queue validates before forwarding.");
         // Comparer normalization, shared with the queue shell (see
         // PriorityComparerHelpers.InitializeComparer): a stored null selects the devirtualized
         // Comparer<TPriority>.Default path in the hot heap methods.
@@ -136,6 +203,7 @@ internal sealed class SubQueue<TElement, TPriority>
 
         _index = index;
         _occupancy = occupancy;
+        _bufferCapacity = bufferCapacity;
 
         _nodes = [];
 
@@ -174,6 +242,18 @@ internal sealed class SubQueue<TElement, TPriority>
     internal int HeapSize => _size;
 
     /// <summary>
+    /// Gets the logical buffer capacity <c>C</c> this sub-queue was constructed with (<c>0</c> when
+    /// buffering is disabled). Exposed for the knob-default and bypass tests.
+    /// </summary>
+    internal int BufferCapacityForTest => _bufferCapacity;
+
+    /// <summary>TEST-ONLY: the number of live entries in the insertion buffer <c>I</c>.</summary>
+    internal int InsertionCountForTest => _insertionCount;
+
+    /// <summary>TEST-ONLY: the number of live entries in the sorted deletion buffer <c>D</c>.</summary>
+    internal int DeletionCountForTest => _deletionCount;
+
+    /// <summary>
     /// TEST-ONLY: reads the current seqlock version so tests can assert when a mutation did
     /// (or deliberately did not) republish the cached top.
     /// </summary>
@@ -185,6 +265,21 @@ internal sealed class SubQueue<TElement, TPriority>
     /// across pushes onto a populated heap and non-last pops.
     /// </summary>
     internal long DebugOccupancyWriteCountForTest => Volatile.Read(ref _debugOccupancyWriteCount);
+
+    /// <summary>TEST-ONLY: the count of insertion-buffer flushes into the heap (DR-7).</summary>
+    internal long DebugBufferFlushCountForTest => Volatile.Read(ref _debugBufferFlushCount);
+
+    /// <summary>TEST-ONLY: the count of deletion-buffer refills from the heap (DR-7).</summary>
+    internal long DebugBufferRefillCountForTest => Volatile.Read(ref _debugBufferRefillCount);
+
+    /// <summary>TEST-ONLY: the count of pops served straight from <c>D.front()</c> (buffered-pop hits) (DR-7).</summary>
+    internal long DebugBufferPopHitCountForTest => Volatile.Read(ref _debugBufferPopHitCount);
+
+    /// <summary>TEST-ONLY: the count of direct-to-<c>D</c> seeds of an otherwise-empty structure (DR-7).</summary>
+    internal long DebugBufferDirectToDeletionCountForTest => Volatile.Read(ref _debugBufferDirectToDeletionCount);
+
+    /// <summary>TEST-ONLY: the count of <c>max(D)</c> eviction cascades on a full-<c>D</c> sorted insert (DR-7).</summary>
+    internal long DebugBufferEvictionCountForTest => Volatile.Read(ref _debugBufferEvictionCount);
 
     /// <summary>
     /// Publishes a new cached top (or the empty state) through the seqlock. Must be called with
@@ -653,37 +748,60 @@ internal sealed class SubQueue<TElement, TPriority>
 
         try
         {
-            bool wasEmpty = _size == 0;
-            TPriority previousRoot = wasEmpty ? default! : _nodes[0].Priority;
-
-            HeapPush(element, priority);
-
-            // Republish only when the minimum changed: first entry, or strictly smaller than
-            // the previous root. An equal-priority push leaves the published value correct.
-            if (wasEmpty || CompareEffective(priority, previousRoot) < 0)
+            // The single predictable branch: buffering on or off. The off-path (the overwhelmingly
+            // common default until #30) is the pre-feature heap push verbatim; the on-path routes
+            // through the ESA 2021 §4 insertion/deletion buffers.
+            if (_bufferCapacity > 0)
             {
-                Debug.Assert(
-                    CompareEffective(_nodes[0].Priority, priority) == 0,
-                    "Publishing a pushed priority that did not become the heap root.");
-                PublishTop(priority, empty: false);
+                BufferedPush(element, priority);
+            }
+            else
+            {
+                UnbufferedPush(element, priority);
             }
 
-            // Boundary-only occupancy transition. The empty→non-empty crossing is just `wasEmpty`;
-            // set this sub-queue's bit alongside the seqlock publish, under the held lock. A push onto
-            // an already-populated sub-queue leaves `wasEmpty` false and never touches the bitmask,
-            // which is what keeps it dormant on the dense hot path.
-            if (wasEmpty)
-            {
-                SetOccupancyBit();
-            }
-
-            Volatile.Write(ref _header.Count, _size);
             return true;
         }
         finally
         {
             SyncLock.Exit();
         }
+    }
+
+    /// <summary>
+    /// The unbuffered (<c>bufferCapacity == 0</c>) push: the pre-feature behavior verbatim — heap-push,
+    /// republish only on a root change, set occupancy on the empty→non-empty crossing, write the count.
+    /// Assumes <see cref="SyncLock"/> is held.
+    /// </summary>
+    /// <param name="element">The element to store.</param>
+    /// <param name="priority">The priority that orders the entry.</param>
+    private void UnbufferedPush(TElement element, TPriority priority)
+    {
+        bool wasEmpty = _size == 0;
+        TPriority previousRoot = wasEmpty ? default! : _nodes[0].Priority;
+
+        HeapPush(element, priority);
+
+        // Republish only when the minimum changed: first entry, or strictly smaller than
+        // the previous root. An equal-priority push leaves the published value correct.
+        if (wasEmpty || CompareEffective(priority, previousRoot) < 0)
+        {
+            Debug.Assert(
+                CompareEffective(_nodes[0].Priority, priority) == 0,
+                "Publishing a pushed priority that did not become the heap root.");
+            PublishTop(priority, empty: false);
+        }
+
+        // Boundary-only occupancy transition. The empty→non-empty crossing is just `wasEmpty`;
+        // set this sub-queue's bit alongside the seqlock publish, under the held lock. A push onto
+        // an already-populated sub-queue leaves `wasEmpty` false and never touches the bitmask,
+        // which is what keeps it dormant on the dense hot path.
+        if (wasEmpty)
+        {
+            SetOccupancyBit();
+        }
+
+        Volatile.Write(ref _header.Count, _size);
     }
 
     /// <summary>
@@ -736,6 +854,23 @@ internal sealed class SubQueue<TElement, TPriority>
     {
         Debug.Assert(SyncLock.IsHeldByCurrentThread, "PopHeldRoot requires the sub-queue lock held by the caller.");
 
+        // The single predictable branch: buffering on or off. The off-path is the pre-feature heap pop
+        // verbatim; the on-path serves D.front() and refills D from the heap when it empties.
+        return _bufferCapacity > 0
+            ? BufferedPopHeldRoot(out element, out priority)
+            : UnbufferedPopHeldRoot(out element, out priority);
+    }
+
+    /// <summary>
+    /// The unbuffered (<c>bufferCapacity == 0</c>) pop: the pre-feature behavior verbatim — heap-pop,
+    /// publish empty + clear occupancy on a drain, else republish the new root only on a change, write
+    /// the count. Assumes <see cref="SyncLock"/> is held.
+    /// </summary>
+    /// <param name="element">The removed element, on <see cref="SubQueuePopStatus.Success"/>.</param>
+    /// <param name="priority">The removed priority, on <see cref="SubQueuePopStatus.Success"/>.</param>
+    /// <returns><see cref="SubQueuePopStatus.Success"/> with the former root, or <see cref="SubQueuePopStatus.Empty"/>.</returns>
+    private SubQueuePopStatus UnbufferedPopHeldRoot(out TElement element, out TPriority priority)
+    {
         if (!TryHeapPop(out element, out priority))
         {
             return SubQueuePopStatus.Empty;
@@ -766,6 +901,328 @@ internal sealed class SubQueue<TElement, TPriority>
         return SubQueuePopStatus.Success;
     }
 
+    // =====================================================================================
+    // ESA 2021 §4 buffered push/pop (active only when _bufferCapacity > 0). All methods here
+    // assume SyncLock is held. The arity-4 heap is touched only on an I-flush or a D-refill,
+    // removing the deep-heap cache-line walk from the hot path; D.front() is the published top,
+    // the occupancy bit and EmptyFlag track D's 0↔non-0 boundary, and Count is I+D+heap.
+    // =====================================================================================
+
+    /// <summary>
+    /// The buffered push (ESA 2021 §4). Routes <c>(element, priority)</c> by the reference
+    /// <c>BufferedPQ</c> rules: a small key (<c>v ≤ max(D)</c>) sorted-inserts into the deletion buffer
+    /// <c>D</c> (evicting <c>max(D)</c> into <c>I</c>/heap when <c>D</c> is full); the first key into an
+    /// otherwise-empty structure seeds <c>D</c> directly; otherwise the key appends to the insertion
+    /// buffer <c>I</c>, which flushes wholesale into the heap when it fills. Republishes
+    /// <c>D.front()</c>, drives the occupancy bit on the <c>D</c> boundary, and writes the
+    /// <c>I+D+heap</c> count. Assumes <see cref="SyncLock"/> is held.
+    /// </summary>
+    /// <param name="element">The element to store.</param>
+    /// <param name="priority">The priority that orders the entry.</param>
+    private void BufferedPush(TElement element, TPriority priority)
+    {
+        bool wasEmpty = _deletionCount == 0;
+
+        if (_deletionCount > 0 && CompareEffective(priority, DeletionMax) <= 0)
+        {
+            // Small key: it belongs among the resident minima. Sorted-insert into D; if D was full,
+            // its displaced max cascades out to I (and on to the heap if I is also full).
+            SortedInsertIntoDeletion(element, priority);
+        }
+        else if (wasEmpty)
+        {
+            // D empty ⟹ the whole structure is empty (the refill invariant, T6); seed D directly so
+            // D.front() is immediately the minimum, leaving the heap untouched on the tiny-structure path.
+            Debug.Assert(
+                _insertionCount == 0 && _size == 0,
+                "Buffered invariant violated: D is empty on a push but I or the heap still hold entries.");
+            DirectInsertIntoDeletion(element, priority);
+        }
+        else
+        {
+            // Larger key with D non-empty: it cannot be a resident minimum yet, so it waits in I. A full
+            // I flushes to the heap before this key lands, keeping I bounded by the logical capacity C.
+            AppendToInsertion(element, priority);
+        }
+
+        // D.front() is the published minimum; D non-empty ⟺ occupied. A buffered push always leaves the
+        // structure non-empty, so the only boundary it can cross is empty→non-empty (wasEmpty).
+        RepublishBufferedTop();
+        if (wasEmpty)
+        {
+            SetOccupancyBit();
+        }
+
+        WriteBufferedCount();
+    }
+
+    /// <summary>
+    /// The buffered pop (ESA 2021 §4): returns and removes <c>D.front()</c> (the sub-queue minimum). If
+    /// that empties <c>D</c> while <c>I</c> or the heap still hold entries, refills <c>D</c> with the
+    /// smallest <c>min(C, |heap|)</c> entries (flushing <c>I</c> into the heap first). Republishes the
+    /// new <c>D.front()</c> (or empty), drives the occupancy bit on the <c>D</c> boundary, and writes
+    /// the <c>I+D+heap</c> count. Assumes <see cref="SyncLock"/> is held.
+    /// </summary>
+    /// <param name="element">The removed element, on <see cref="SubQueuePopStatus.Success"/>.</param>
+    /// <param name="priority">The removed (minimum) priority, on <see cref="SubQueuePopStatus.Success"/>.</param>
+    /// <returns><see cref="SubQueuePopStatus.Success"/> with the former front, or <see cref="SubQueuePopStatus.Empty"/>.</returns>
+    private SubQueuePopStatus BufferedPopHeldRoot(out TElement element, out TPriority priority)
+    {
+        if (_deletionCount == 0)
+        {
+            // D empty ⟹ whole sub-queue empty (the invariant). Nothing to pop.
+            Debug.Assert(
+                _insertionCount == 0 && _size == 0,
+                "Buffered invariant violated: D is empty but I or the heap still hold entries.");
+            element = default!;
+            priority = default!;
+            return SubQueuePopStatus.Empty;
+        }
+
+        // Remove D.front() (slot 0), shifting the rest down one to preserve the sorted order.
+        Span<(TElement Element, TPriority Priority)> d = DeletionSpan(_deletionCount);
+        (element, priority) = d[0];
+        CountBufferedPopHit();
+
+        int remaining = _deletionCount - 1;
+        if (remaining > 0)
+        {
+            d.Slice(1, remaining).CopyTo(d.Slice(0, remaining));
+        }
+
+        ClearDeletionSlot(remaining);
+        _deletionCount = remaining;
+
+        // D just emptied but I/heap still hold entries: refill D from the heap (flushing I first).
+        if (_deletionCount == 0 && (_insertionCount > 0 || _size > 0))
+        {
+            RefillDeletion();
+        }
+
+        if (_deletionCount == 0)
+        {
+            // The whole sub-queue is now empty (refill found nothing, or there was nothing to refill).
+            Debug.Assert(
+                _insertionCount == 0 && _size == 0,
+                "Buffered invariant violated: D drained to empty but I or the heap still hold entries.");
+            PublishTop(priority, empty: true);
+            ClearOccupancyBit();
+        }
+        else
+        {
+            RepublishBufferedTop();
+        }
+
+        WriteBufferedCount();
+        return SubQueuePopStatus.Success;
+    }
+
+    /// <summary>
+    /// Gets the maximum priority currently in the sorted deletion buffer <c>D</c> (its last slot).
+    /// Valid only when <see cref="_deletionCount"/> is positive.
+    /// </summary>
+    private TPriority DeletionMax => DeletionSpan(_deletionCount)[_deletionCount - 1].Priority;
+
+    /// <summary>Creates a <see cref="Span{T}"/> over the first <paramref name="length"/> slots of the deletion buffer <c>D</c>.</summary>
+    /// <param name="length">The logical length to expose.</param>
+    /// <returns>A span aliasing <see cref="_deletion"/>'s leading storage.</returns>
+    private Span<(TElement Element, TPriority Priority)> DeletionSpan(int length)
+        => SubQueueBuffer<TElement, TPriority>.AsSpan(ref _deletion, length);
+
+    /// <summary>Creates a <see cref="Span{T}"/> over the first <paramref name="length"/> slots of the insertion buffer <c>I</c>.</summary>
+    /// <param name="length">The logical length to expose.</param>
+    /// <returns>A span aliasing <see cref="_insertion"/>'s leading storage.</returns>
+    private Span<(TElement Element, TPriority Priority)> InsertionSpan(int length)
+        => SubQueueBuffer<TElement, TPriority>.AsSpan(ref _insertion, length);
+
+    /// <summary>
+    /// Seeds the empty deletion buffer with a single entry (the otherwise-empty-structure direct-to-D
+    /// case). Assumes <c>_deletionCount == 0</c> and <see cref="SyncLock"/> held.
+    /// </summary>
+    /// <param name="element">The element to store.</param>
+    /// <param name="priority">The priority that orders the entry.</param>
+    private void DirectInsertIntoDeletion(TElement element, TPriority priority)
+    {
+        DeletionSpan(1)[0] = (element, priority);
+        _deletionCount = 1;
+        CountDirectToDeletion();
+    }
+
+    /// <summary>
+    /// Sorted-inserts a small key (<c>priority ≤ max(D)</c>) into the deletion buffer <c>D</c>,
+    /// preserving ascending order via a hole-shift over the span. When <c>D</c> is already full
+    /// (<c>_deletionCount == C</c>), its current maximum is first evicted into <c>I</c> (cascading to a
+    /// heap flush + heap-push if <c>I</c> is also full) so the new key has room. Assumes
+    /// <see cref="SyncLock"/> held.
+    /// </summary>
+    /// <param name="element">The element to store.</param>
+    /// <param name="priority">The priority that orders the entry.</param>
+    private void SortedInsertIntoDeletion(TElement element, TPriority priority)
+    {
+        if (_deletionCount == _bufferCapacity)
+        {
+            // D is full: evict its max to make room. The evicted max is the largest resident minimum,
+            // which still outranks anything in I/heap relative to the incoming smaller key.
+            (TElement Element, TPriority Priority) evicted = DeletionSpan(_deletionCount)[_deletionCount - 1];
+            ClearDeletionSlot(_deletionCount - 1);
+            _deletionCount--;
+            CountEviction();
+            EvictToInsertion(evicted.Element, evicted.Priority);
+        }
+
+        // Hole-shift: walk from the (now-vacant) tail toward the front, shifting larger entries up one,
+        // then drop the new entry into the hole. CopyTo of the moving block is barrier-correct.
+        Span<(TElement Element, TPriority Priority)> d = DeletionSpan(_deletionCount + 1);
+        int hole = _deletionCount;
+        while (hole > 0 && CompareEffective(priority, d[hole - 1].Priority) < 0)
+        {
+            hole--;
+        }
+
+        int shift = _deletionCount - hole;
+        if (shift > 0)
+        {
+            d.Slice(hole, shift).CopyTo(d.Slice(hole + 1, shift));
+        }
+
+        d[hole] = (element, priority);
+        _deletionCount++;
+    }
+
+    /// <summary>
+    /// Appends an entry to the insertion buffer <c>I</c>; if <c>I</c> is full it first flushes wholesale
+    /// into the heap (so <c>I</c> never exceeds the logical capacity <c>C</c>). Assumes
+    /// <see cref="SyncLock"/> held.
+    /// </summary>
+    /// <param name="element">The element to store.</param>
+    /// <param name="priority">The priority that orders the entry.</param>
+    private void AppendToInsertion(TElement element, TPriority priority)
+    {
+        if (_insertionCount == _bufferCapacity)
+        {
+            FlushInsertion();
+        }
+
+        InsertionSpan(_insertionCount + 1)[_insertionCount] = (element, priority);
+        _insertionCount++;
+    }
+
+    /// <summary>
+    /// Routes an evicted <c>max(D)</c> entry into the insertion buffer <c>I</c>; identical to
+    /// <see cref="AppendToInsertion"/> but kept distinct for the eviction-cascade reading and the
+    /// counter site. Assumes <see cref="SyncLock"/> held.
+    /// </summary>
+    /// <param name="element">The evicted element.</param>
+    /// <param name="priority">The evicted priority.</param>
+    private void EvictToInsertion(TElement element, TPriority priority) => AppendToInsertion(element, priority);
+
+    /// <summary>
+    /// Flushes the entire insertion buffer <c>I</c> into the arity-4 heap (one heap-push per resident
+    /// entry) and resets <c>I</c> to empty. Touched only when <c>I</c> fills or on a refill, so the heap
+    /// is amortized to ~once per <c>C</c> ops. Assumes <see cref="SyncLock"/> held.
+    /// </summary>
+    private void FlushInsertion()
+    {
+        Span<(TElement Element, TPriority Priority)> i = InsertionSpan(_insertionCount);
+        for (int k = 0; k < i.Length; k++)
+        {
+            HeapPush(i[k].Element, i[k].Priority);
+        }
+
+        ClearInsertion(_insertionCount);
+        _insertionCount = 0;
+        CountFlush();
+    }
+
+    /// <summary>
+    /// Refills the empty deletion buffer <c>D</c> from the heap: first flushes <c>I</c> into the heap
+    /// (so every resident entry is heap-ordered), then pops the smallest <c>min(C, |heap|)</c> entries
+    /// into <c>D</c> in ascending order. Called only when <c>D</c> emptied on a pop with <c>I</c> or the
+    /// heap still populated. Assumes <see cref="SyncLock"/> held and <c>_deletionCount == 0</c>.
+    /// </summary>
+    private void RefillDeletion()
+    {
+        Debug.Assert(_deletionCount == 0, "RefillDeletion requires an empty deletion buffer.");
+
+        if (_insertionCount > 0)
+        {
+            FlushInsertion();
+        }
+
+        int take = Math.Min(_bufferCapacity, _size);
+        Span<(TElement Element, TPriority Priority)> d = DeletionSpan(take);
+        for (int k = 0; k < take; k++)
+        {
+            // The heap pops in ascending order, so writing front-to-back keeps D sorted.
+            bool popped = TryHeapPop(out TElement e, out TPriority p);
+            Debug.Assert(popped, "RefillDeletion popped past the heap size.");
+            d[k] = (e, p);
+        }
+
+        _deletionCount = take;
+        CountRefill();
+    }
+
+    /// <summary>
+    /// Republishes the seqlock top as the current <c>D.front()</c> with the non-empty flag. Centralizes
+    /// the buffered publish tail; called whenever <c>D</c> is non-empty after a mutation. Assumes
+    /// <see cref="SyncLock"/> held and <c>_deletionCount &gt; 0</c>.
+    /// </summary>
+    private void RepublishBufferedTop()
+    {
+        Debug.Assert(_deletionCount > 0, "RepublishBufferedTop requires a non-empty deletion buffer.");
+        PublishTop(DeletionSpan(_deletionCount)[0].Priority, empty: false);
+    }
+
+    /// <summary>
+    /// Writes the buffered logical count <c>I + D + heap</c> (the reference's
+    /// <c>insertion_end_ + deletion_end_ + pq_.size()</c>) into the striped header, the value the
+    /// cross-queue <c>Count</c>/<c>IsEmpty</c> sum observes. Assumes <see cref="SyncLock"/> held.
+    /// </summary>
+    private void WriteBufferedCount()
+        => Volatile.Write(ref _header.Count, _insertionCount + _deletionCount + _size);
+
+    /// <summary>
+    /// Clears a single vacated deletion-buffer slot, but only for reference-containing tuples (to drop a
+    /// dead reference); value-type-only tuples skip the write. The write-barrier-safe slot clear (DR-4).
+    /// </summary>
+    /// <param name="index">The slot index to clear.</param>
+    private void ClearDeletionSlot(int index)
+    {
+        if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
+        {
+            DeletionSpan(index + 1).Slice(index, 1).Clear();
+        }
+    }
+
+    /// <summary>
+    /// Clears the first <paramref name="length"/> deletion-buffer slots, but only for
+    /// reference-containing tuples (to drop dead references); value-type-only tuples skip the write.
+    /// Used by <see cref="LockedClear"/> on the buffered path. The write-barrier-safe block clear (DR-4).
+    /// </summary>
+    /// <param name="length">The number of leading slots to clear.</param>
+    private void ClearDeletionRange(int length)
+    {
+        if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
+        {
+            DeletionSpan(length).Clear();
+        }
+    }
+
+    /// <summary>
+    /// Clears the first <paramref name="length"/> insertion-buffer slots, but only for
+    /// reference-containing tuples (to drop dead references); value-type-only tuples skip the write.
+    /// The write-barrier-safe block clear (DR-4).
+    /// </summary>
+    /// <param name="length">The number of leading slots to clear.</param>
+    private void ClearInsertion(int length)
+    {
+        if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
+        {
+            InsertionSpan(length).Clear();
+        }
+    }
+
     /// <summary>
     /// Empties this sub-queue under its lock, publishing the empty state and zeroing the striped
     /// count, and returns how many entries were removed so the caller can release that many
@@ -773,25 +1230,41 @@ internal sealed class SubQueue<TElement, TPriority>
     /// as with <see cref="SnapshotTo"/>: <c>Clear</c> is not a hot path and the critical section is
     /// a bounded array clear.
     /// </summary>
+    /// <remarks>
+    /// When buffering is active the removed count is the full resident set <c>I + D + heap</c>, so the
+    /// bounded-reservation release stays exact; all three are cleared (reference-gated). When buffering
+    /// is off, <c>I</c> and <c>D</c> are empty and only the heap is cleared — bit-exact with the
+    /// pre-feature behavior.
+    /// </remarks>
     /// <returns>The number of entries removed from this sub-queue.</returns>
     internal int LockedClear()
     {
         lock (SyncLock)
         {
-            int removed = _size;
+            int removed = _insertionCount + _deletionCount + _size;
 
             if (removed <= 0)
             {
                 return removed;
             }
 
-            // Gated clear: only release references; value-type-only entries skip the writes.
+            // Gated clears: only release references; value-type-only entries skip the writes. On the
+            // unbuffered path the buffer counts are zero, so ClearInsertion/ClearDeletion are no-ops and
+            // only the heap Array.Clear runs.
             if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
             {
-                Array.Clear(_nodes, 0, removed);
+                Array.Clear(_nodes, 0, _size);
+            }
+
+            ClearInsertion(_insertionCount);
+            if (_deletionCount > 0)
+            {
+                ClearDeletionRange(_deletionCount);
             }
 
             _size = 0;
+            _insertionCount = 0;
+            _deletionCount = 0;
             PublishTop(default!, empty: true);
 
             // This clear is reached only when `removed > 0`, i.e. the sub-queue was non-empty (the
@@ -868,6 +1341,61 @@ internal sealed class SubQueue<TElement, TPriority>
 #endif
     }
 
+    #region Buffered counters (DR-7)
+
+    // The buffered-path instrumentation mirrors CountOccupancyWrite exactly: each method is always
+    // called under SyncLock (so the plain increment is race-free) but its body compiles in only behind
+    // BIFROST_TEST_HOOKS — stripped from the shipped package by `-p:BifrostTestHooks=false` (the JIT
+    // inlines the empty body away). The fields and …ForTest getters stay ungated so the test project
+    // still compiles against the stripped library.
+
+    /// <summary>TEST-ONLY hook: counts one insertion-buffer flush. Gated to BIFROST_TEST_HOOKS.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CountFlush()
+    {
+#if BIFROST_TEST_HOOKS
+        _debugBufferFlushCount++;
+#endif
+    }
+
+    /// <summary>TEST-ONLY hook: counts one deletion-buffer refill. Gated to BIFROST_TEST_HOOKS.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CountRefill()
+    {
+#if BIFROST_TEST_HOOKS
+        _debugBufferRefillCount++;
+#endif
+    }
+
+    /// <summary>TEST-ONLY hook: counts one buffered pop served from <c>D.front()</c>. Gated to BIFROST_TEST_HOOKS.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CountBufferedPopHit()
+    {
+#if BIFROST_TEST_HOOKS
+        _debugBufferPopHitCount++;
+#endif
+    }
+
+    /// <summary>TEST-ONLY hook: counts one direct-to-<c>D</c> seed. Gated to BIFROST_TEST_HOOKS.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CountDirectToDeletion()
+    {
+#if BIFROST_TEST_HOOKS
+        _debugBufferDirectToDeletionCount++;
+#endif
+    }
+
+    /// <summary>TEST-ONLY hook: counts one <c>max(D)</c> eviction cascade. Gated to BIFROST_TEST_HOOKS.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CountEviction()
+    {
+#if BIFROST_TEST_HOOKS
+        _debugBufferEvictionCount++;
+#endif
+    }
+
+    #endregion
+
     /// <summary>
     /// Copies this sub-queue's entries under its lock into <paramref name="buffer"/>. ToArray and
     /// enumeration support: a brief per-queue lock, copied one sub-queue at a time with no
@@ -875,11 +1403,28 @@ internal sealed class SubQueue<TElement, TPriority>
     /// than a <c>TryEnter</c> here: enumeration is not a hot path, the design specifies "taking each
     /// lock briefly", and the critical section is a pure array copy.
     /// </summary>
+    /// <remarks>
+    /// When buffering is active the resident set spans the insertion buffer <c>I</c>, the sorted
+    /// deletion buffer <c>D</c>, and the heap; all three are copied so the unordered collection surface
+    /// (<c>ToArray</c>/enumeration) reflects every resident element. When buffering is off, <c>I</c> and
+    /// <c>D</c> are empty, so only the heap copy runs — bit-exact with the pre-feature behavior.
+    /// </remarks>
     /// <param name="buffer">The destination list that receives this sub-queue's live entries.</param>
     internal void SnapshotTo(List<(TElement Element, TPriority Priority)> buffer)
     {
         lock (SyncLock)
         {
+            // Buffered residents (empty and skipped on the unbuffered path).
+            for (int i = 0; i < _insertionCount; i++)
+            {
+                buffer.Add(InsertionSpan(_insertionCount)[i]);
+            }
+
+            for (int i = 0; i < _deletionCount; i++)
+            {
+                buffer.Add(DeletionSpan(_deletionCount)[i]);
+            }
+
             for (int i = 0; i < _size; i++)
             {
                 buffer.Add(_nodes[i]);

@@ -241,4 +241,55 @@ public class OccupancyBitmaskTests
         await Assert.That(queue.TryDequeue(out _, out _)).IsFalse().Because("a drained queue is honestly empty");
         await Assert.That(queue.IsEmpty).IsTrue();
     }
+
+    /// <summary>
+    /// DR-3 (T8): with buffering active the occupancy bit tracks the <i>deletion buffer</i> <c>D</c>'s
+    /// 0&#8596;non-0 boundary (replacing the heap 0&#8596;1 boundary). A buffered sub-queue's bit is set
+    /// while <c>D</c> is non-empty — even when every element lives in the buffers and the heap is empty —
+    /// and clears only once <c>D</c> drains to empty. The sparse-routing path therefore still finds a
+    /// buffered sub-queue whose population is entirely buffer-resident.
+    /// </summary>
+    [Test]
+    public async Task Occupancy_Buffered_ReflectsDeletionBufferState()
+    {
+        // A single buffered sub-queue: the occupancy word collapses to one bit, so the assertions read
+        // word 0 directly. Buffering 16 with a tiny population keeps everything in D (heap stays empty).
+        var queue = new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 1, bufferCapacity: 16);
+        SubQueue<int, int> sub = queue.SubQueuesForTest[0];
+
+        await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(0UL).Because("a fresh buffered sub-queue is empty");
+
+        // First push seeds D (heap untouched): D non-empty => bit set.
+        await Assert.That(sub.TryLockedPush(element: 5, priority: 5)).IsTrue();
+        await Assert.That(sub.DeletionCountForTest).IsGreaterThan(0).Because("the push routed into D");
+        await Assert.That(sub.HeapSize).IsEqualTo(0).Because("a tiny buffered push never touches the heap");
+        await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(1UL).Because(
+            "the bit is set because D is non-empty, even though the heap is empty (D-boundary occupancy)");
+
+        // A second (non-front) push keeps D non-empty: still a single boundary write total.
+        await Assert.That(sub.TryLockedPush(element: 9, priority: 9)).IsTrue();
+        await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(1UL).Because("D stays non-empty, the bit stays set");
+        await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(1L).Because(
+            "only the empty->non-empty crossing wrote the bit; a push onto a non-empty D is not a boundary");
+
+        // Pop one (D still non-empty): bit stays set, no boundary write.
+        lock (sub.SyncLock)
+        {
+            sub.PopHeldRoot(out _, out _);
+        }
+
+        await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(1UL).Because("D is still non-empty after a non-last pop");
+
+        // Pop the last (D drains to empty): the non-empty->empty crossing clears the bit.
+        lock (sub.SyncLock)
+        {
+            sub.PopHeldRoot(out _, out _);
+        }
+
+        await Assert.That(sub.DeletionCountForTest).IsEqualTo(0).Because("the last pop drained D");
+        await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(0UL).Because(
+            "the bit clears on the D non-empty->empty crossing");
+        await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(2L).Because(
+            "exactly two boundary writes occurred: one set (first push) and one clear (final drain)");
+    }
 }
