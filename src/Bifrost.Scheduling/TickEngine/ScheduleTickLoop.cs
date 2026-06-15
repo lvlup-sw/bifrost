@@ -929,6 +929,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 Exception: null,
                 Reason: "No dispatcher is registered for the job."));
             this.metrics.RecordDispatchFailure(jobName, NoDispatcherFailureType);
+
+            // Record the failed fire in the same health monitor the post-dispatch path
+            // uses (InFlightTrackingDispatcher), so a pre-dispatch failure here is not
+            // missing from FailureRate/RecentFireCount. The in-flight tracking dispatcher
+            // never runs on this path, so this is the only place the outcome is recorded
+            // (no double-recording).
+            this.healthMonitor.RecordFireOutcome(success: false);
             return;
         }
 
@@ -973,6 +980,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             // and the loop is not faulted by an otherwise-benign shutdown race.
             this.eventSink.Publish(new JobFireFailedEvent(jobName, scheduledOccurrence, ex));
             this.metrics.RecordDispatchFailure(jobName, ex.GetType().Name);
+
+            // Record the failed fire in the same health monitor the post-dispatch path
+            // uses (InFlightTrackingDispatcher): the scope-creation fault happens before
+            // the tracking dispatcher runs, so without this the failed fire would be
+            // missing from FailureRate/RecentFireCount. No tracking dispatcher runs on
+            // this path, so this is the only recording (no double-recording).
+            this.healthMonitor.RecordFireOutcome(success: false);
             return;
         }
 
