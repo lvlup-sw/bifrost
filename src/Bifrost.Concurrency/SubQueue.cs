@@ -43,6 +43,16 @@ namespace Bifrost.Concurrency;
 internal sealed class SubQueue<TElement, TPriority>
 {
     /// <summary>
+    /// The compile-time-fixed maximum buffer capacity, <c>16</c> — the ESA 2021 §4 buffering optimum
+    /// (Williams &amp; Sanders measure the relaxed dequeue's rank-error degrading past this point, so a
+    /// larger value would trade quality for throughput). It fixes the inline storage size of
+    /// <see cref="SubQueueBuffer{TElement, TPriority}"/> at compile time and bounds the logical
+    /// <c>bufferCapacity</c> knob's <c>[0, 16]</c> range. Bumping it is a one-line const change plus a
+    /// rebuild; it is deliberately not a runtime parameter (the C++ reference also compile-time-fixes it).
+    /// </summary>
+    internal const int BufferCapacityMax = 16;
+
+    /// <summary>
     /// The bound on seqlock read attempts before <see cref="TryReadTop"/> reports "unknown".
     /// Two-choice callers tolerate unknown results by resampling, so a small bound keeps the
     /// read path's worst case short instead of spinning against a stalled or hot writer.
@@ -110,6 +120,14 @@ internal sealed class SubQueue<TElement, TPriority>
     private int _size;
 
     /// <summary>
+    /// The logical buffer capacity <c>C ∈ [0, BufferCapacityMax]</c>: <c>0</c> disables buffering (the
+    /// push/pop paths bypass the buffers entirely and operate directly on the arity-4 heap, bit-exact
+    /// with the pre-feature behavior); <c>1..16</c> caps the logical size of each buffer within the
+    /// fixed-16 inline storage. Readonly: set once at construction and never mutated.
+    /// </summary>
+    private readonly int _bufferCapacity;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="SubQueue{TElement, TPriority}"/> class.
     /// The initial state is a valid, readable, <i>empty</i> publication: version 0 (even) with
     /// the empty flag set, so a reader that samples a brand-new sub-queue gets a stable
@@ -127,8 +145,18 @@ internal sealed class SubQueue<TElement, TPriority>
     /// The owning queue's shared occupancy bitmask. This sub-queue flips only its own bit, under its
     /// lock, on an empty&#8596;non-empty crossing. The array is shared by reference, never copied.
     /// </param>
-    internal SubQueue(IComparer<TPriority>? comparer, int index, ulong[] occupancy)
+    /// <param name="bufferCapacity">
+    /// The logical ESA 2021 §4 buffer capacity <c>C ∈ [0, BufferCapacityMax]</c>; a trailing optional
+    /// so the existing three-argument call sites keep compiling against the default. <c>0</c> (the
+    /// default) disables buffering, leaving the push/pop paths bit-exact with the pre-feature heap
+    /// behavior; <c>1..16</c> activates the buffered path with that logical cap. The owning queue
+    /// validates the range before forwarding; this constructor debug-asserts it.
+    /// </param>
+    internal SubQueue(IComparer<TPriority>? comparer, int index, ulong[] occupancy, int bufferCapacity = 0)
     {
+        Debug.Assert(
+            bufferCapacity is >= 0 and <= BufferCapacityMax,
+            "bufferCapacity must be in [0, BufferCapacityMax]; the owning queue validates before forwarding.");
         // Comparer normalization, shared with the queue shell (see
         // PriorityComparerHelpers.InitializeComparer): a stored null selects the devirtualized
         // Comparer<TPriority>.Default path in the hot heap methods.
@@ -136,6 +164,7 @@ internal sealed class SubQueue<TElement, TPriority>
 
         _index = index;
         _occupancy = occupancy;
+        _bufferCapacity = bufferCapacity;
 
         _nodes = [];
 
@@ -172,6 +201,12 @@ internal sealed class SubQueue<TElement, TPriority>
 
     /// <summary>Gets the number of entries currently in the heap.</summary>
     internal int HeapSize => _size;
+
+    /// <summary>
+    /// Gets the logical buffer capacity <c>C</c> this sub-queue was constructed with (<c>0</c> when
+    /// buffering is disabled). Exposed for the knob-default and bypass tests.
+    /// </summary>
+    internal int BufferCapacityForTest => _bufferCapacity;
 
     /// <summary>
     /// TEST-ONLY: reads the current seqlock version so tests can assert when a mutation did
