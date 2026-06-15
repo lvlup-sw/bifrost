@@ -131,6 +131,21 @@ public static class ThroughputSweep
         ArgumentNullException.ThrowIfNull(bufferCapacities);
         ArgumentNullException.ThrowIfNull(outputDirectory);
 
+        // Fail fast at the API boundary on invalid sweep values rather than deep inside the run.
+        foreach (int threadCount in threadCounts)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(threadCount, 1);
+        }
+
+        // bufferCapacity must stay within the queue's logical buffer range [0, 16]
+        // (SubQueue.BufferCapacityMax); 0 disables buffering. The ctor would also throw, but
+        // validating here surfaces a bad sweep configuration before any benchmark work begins.
+        foreach (int bufferCapacity in bufferCapacities)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(bufferCapacity);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(bufferCapacity, 16);
+        }
+
         var window = TimeSpan.FromSeconds(windowSeconds);
         var runner = new ThroughputRunner();
         var results = new List<(int BufferCapacity, ThroughputResult Result)>();

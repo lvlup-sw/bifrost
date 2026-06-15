@@ -111,7 +111,11 @@ while (queue.TryDequeue(out object? element, out long priority))
         return 1;
     }
 
-    if (seen[priority])
+    // The range check above proves 0 <= priority < elementCount (an int), so the narrowing
+    // conversion is lossless; use the int index for the bool[] lookups.
+    int index = (int)priority;
+
+    if (seen[index])
     {
         Console.Error.WriteLine(
             $"FAIL: priority {priority} dequeued more than once — buffered flush/refill duplicated an element under NativeAOT.");
@@ -125,7 +129,7 @@ while (queue.TryDequeue(out object? element, out long priority))
         return 1;
     }
 
-    seen[priority] = true;
+    seen[index] = true;
     drained++;
 }
 
