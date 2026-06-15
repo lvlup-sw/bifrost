@@ -536,4 +536,99 @@ public class BufferedSubQueueTests
             sub.TryLockedPush(element, p);
         }
     }
+
+    /// <summary>
+    /// DR-5 (T11): with <c>bufferCapacity == 0</c> the push/pop paths FULLY bypass the buffers, so the
+    /// per-sub-queue drain order and <c>Count</c> are bit-exact with a sub-queue that never knew about
+    /// buffering. Over identical seeds an off-buffered sub-queue and a baseline sub-queue produce the
+    /// identical drain order and identical published count at every step; their buffers stay empty
+    /// throughout (the predictable single compare took the off branch).
+    /// </summary>
+    [Test]
+    public async Task DefaultOff_MatchesPreFeature_OrderCountRankError()
+    {
+        var off = NewSubQueue(bufferCapacity: 0);
+        var baseline = NewSubQueue(bufferCapacity: 0);
+
+        var rng = new Random(0x0FF0);
+        bool countsMatch = true;
+
+        // Interleaved push/pop with identical seeds; assert published counts track step-for-step.
+        for (int step = 0; step < 5_000; step++)
+        {
+            int p = rng.Next(0, 5_000);
+            off.TryLockedPush(p, p);
+            baseline.TryLockedPush(p, p);
+
+            if (off.VolatileCount != baseline.VolatileCount)
+            {
+                countsMatch = false;
+            }
+
+            // The off-path never touches the buffers.
+            if (off.DeletionCountForTest != 0 || off.InsertionCountForTest != 0)
+            {
+                countsMatch = false;
+            }
+
+            if (step % 3 == 0)
+            {
+                lock (off.SyncLock)
+                {
+                    off.PopHeldRoot(out _, out _);
+                }
+
+                lock (baseline.SyncLock)
+                {
+                    baseline.PopHeldRoot(out _, out _);
+                }
+            }
+        }
+
+        await Assert.That(countsMatch).IsTrue().Because(
+            "an off (bufferCapacity 0) sub-queue's Count matches the baseline at every step and never touches the buffers");
+
+        // Count = heap size on the off path (no buffer residents).
+        await Assert.That(off.VolatileCount).IsEqualTo(off.HeapSize).Because("the off path's Count is exactly the heap size");
+
+        List<int> offDrain = DrainAll(off);
+        List<int> baselineDrain = DrainAll(baseline);
+        await Assert.That(offDrain.SequenceEqual(baselineDrain)).IsTrue().Because(
+            "the off path drains in the identical order as the baseline (bit-exact bypass)");
+    }
+
+    /// <summary>
+    /// DR-5 (T11): <c>LockedClear</c> on a buffered sub-queue returns the full resident count
+    /// <c>I + D + heap</c> (not just the heap), so the owning queue releases the correct number of
+    /// bounded reservations, and the cleared sub-queue is genuinely empty across all three structures.
+    /// </summary>
+    [Test]
+    public async Task LockedClear_Buffered_ReturnsFullResidentCount()
+    {
+        var buffered = NewSubQueue(bufferCapacity: 16);
+
+        // Seed enough to populate D, I, and the heap simultaneously.
+        const int n = 100;
+        var rng = new Random(0x4242);
+        for (int i = 0; i < n; i++)
+        {
+            int p = rng.Next(0, 1_000);
+            buffered.TryLockedPush(p, p);
+        }
+
+        int residentBefore = buffered.InsertionCountForTest + buffered.DeletionCountForTest + buffered.HeapSize;
+        await Assert.That(residentBefore).IsEqualTo(n).Because("all n elements are resident across I, D, and the heap");
+
+        int removed = buffered.LockedClear();
+
+        await Assert.That(removed).IsEqualTo(n).Because(
+            "LockedClear returns the full resident count I + D + heap, so bounded reservations release exactly");
+        await Assert.That(buffered.DeletionCountForTest).IsEqualTo(0).Because("D is cleared");
+        await Assert.That(buffered.InsertionCountForTest).IsEqualTo(0).Because("I is cleared");
+        await Assert.That(buffered.HeapSize).IsEqualTo(0).Because("the heap is cleared");
+        await Assert.That(buffered.VolatileCount).IsEqualTo(0).Because("the striped count is zeroed");
+
+        await Assert.That(buffered.TryReadTop(out _, out bool empty)).IsTrue();
+        await Assert.That(empty).IsTrue().Because("the cleared buffered sub-queue republished the empty state");
+    }
 }

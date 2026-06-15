@@ -1196,6 +1196,20 @@ internal sealed class SubQueue<TElement, TPriority>
     }
 
     /// <summary>
+    /// Clears the first <paramref name="length"/> deletion-buffer slots, but only for
+    /// reference-containing tuples (to drop dead references); value-type-only tuples skip the write.
+    /// Used by <see cref="LockedClear"/> on the buffered path. The write-barrier-safe block clear (DR-4).
+    /// </summary>
+    /// <param name="length">The number of leading slots to clear.</param>
+    private void ClearDeletionRange(int length)
+    {
+        if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
+        {
+            DeletionSpan(length).Clear();
+        }
+    }
+
+    /// <summary>
     /// Clears the first <paramref name="length"/> insertion-buffer slots, but only for
     /// reference-containing tuples (to drop dead references); value-type-only tuples skip the write.
     /// The write-barrier-safe block clear (DR-4).
@@ -1216,25 +1230,41 @@ internal sealed class SubQueue<TElement, TPriority>
     /// as with <see cref="SnapshotTo"/>: <c>Clear</c> is not a hot path and the critical section is
     /// a bounded array clear.
     /// </summary>
+    /// <remarks>
+    /// When buffering is active the removed count is the full resident set <c>I + D + heap</c>, so the
+    /// bounded-reservation release stays exact; all three are cleared (reference-gated). When buffering
+    /// is off, <c>I</c> and <c>D</c> are empty and only the heap is cleared — bit-exact with the
+    /// pre-feature behavior.
+    /// </remarks>
     /// <returns>The number of entries removed from this sub-queue.</returns>
     internal int LockedClear()
     {
         lock (SyncLock)
         {
-            int removed = _size;
+            int removed = _insertionCount + _deletionCount + _size;
 
             if (removed <= 0)
             {
                 return removed;
             }
 
-            // Gated clear: only release references; value-type-only entries skip the writes.
+            // Gated clears: only release references; value-type-only entries skip the writes. On the
+            // unbuffered path the buffer counts are zero, so ClearInsertion/ClearDeletion are no-ops and
+            // only the heap Array.Clear runs.
             if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
             {
-                Array.Clear(_nodes, 0, removed);
+                Array.Clear(_nodes, 0, _size);
+            }
+
+            ClearInsertion(_insertionCount);
+            if (_deletionCount > 0)
+            {
+                ClearDeletionRange(_deletionCount);
             }
 
             _size = 0;
+            _insertionCount = 0;
+            _deletionCount = 0;
             PublishTop(default!, empty: true);
 
             // This clear is reached only when `removed > 0`, i.e. the sub-queue was non-empty (the
