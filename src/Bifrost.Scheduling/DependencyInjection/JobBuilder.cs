@@ -121,6 +121,11 @@ internal sealed class JobBuilder<TWork> : IJobBuilder<TWork>, IJobDefinitionSour
     {
         this.dispatchKind = JobDispatchKinds.Custom;
 
+        // Reset any work class set by a prior DispatchTo (C4). The work class is
+        // meaningful only for orchestrator dispatch; for custom dispatch it is unused
+        // and must not leak a stale value (e.g. Interactive) into the JobDefinition.
+        this.workClass = WorkClass.Default;
+
         // Register the dispatcher at configuration time (F1, Task 50) so the factory
         // resolves it at fire time without the consumer having to AddSingleton it
         // manually. TryAddSingleton keeps any registration the consumer supplied —

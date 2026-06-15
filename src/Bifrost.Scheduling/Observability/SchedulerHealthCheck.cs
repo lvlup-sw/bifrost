@@ -19,9 +19,23 @@ namespace Bifrost.Scheduling.Observability;
 /// </list>
 /// </summary>
 /// <remarks>
-/// Register with <c>AddHealthChecks().AddCheck&lt;SchedulerHealthCheck&gt;("bifrost.scheduling")</c>.
-/// The DI wiring that supplies the monitor, fault source, and expected interval lands
-/// in a later group; the type is constructed here for direct use and test.
+/// <para>
+/// Registration is wired automatically by <c>AddScheduler</c> through a factory
+/// lambda — <c>AddHealthChecks().Add(new HealthCheckRegistration("bifrost.scheduling",
+/// sp =&gt; new SchedulerHealthCheck(...), HealthStatus.Unhealthy, tags: ["scheduling"]))</c>
+/// — which resolves the monitor, fault source, and time provider from the service
+/// provider and supplies the expected tick interval.
+/// </para>
+/// <para>
+/// The reflection-free <c>HealthCheckRegistration</c> factory is used deliberately
+/// instead of <c>AddCheck&lt;SchedulerHealthCheck&gt;(...)</c>: this check's
+/// constructor is intentionally <see langword="internal"/> (it takes the expected
+/// interval and infrastructure dependencies that are not consumer-visible), and the
+/// generic <c>AddCheck&lt;T&gt;()</c> overload activates <c>T</c> via reflection,
+/// which is both unable to reach an internal constructor and unsafe under
+/// trimming/NativeAOT. The factory closes over the statically-known constructor, so
+/// it is AOT-safe and needs no public surface.
+/// </para>
 /// </remarks>
 public sealed class SchedulerHealthCheck : IHealthCheck
 {
@@ -67,6 +81,13 @@ public sealed class SchedulerHealthCheck : IHealthCheck
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(faultSource);
         ArgumentNullException.ThrowIfNull(timeProvider);
+
+        // A non-positive interval makes the staleness window (3x the interval)
+        // meaningless, and a failure rate is a fraction — reject both at construction
+        // rather than silently degrading the health signal at evaluation time.
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(expectedInterval, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfNegative(failureRateThreshold);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(failureRateThreshold, 1.0);
 
         this.monitor = monitor;
         this.faultSource = faultSource;
