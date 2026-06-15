@@ -267,7 +267,9 @@ public class StrictMinInspectTests
 
         foreach (var t in consumers)
         {
-            t.Join();
+            bool joined = t.Join(TimeSpan.FromSeconds(15));
+            await Assert.That(joined).IsTrue().Because(
+                "consumer threads must complete; a timeout signals a drain-progress regression (lost pop) rather than hanging CI");
         }
 
         // Conservation: every priority popped exactly once, none lost, none duplicated.

@@ -46,10 +46,10 @@ run_gate() {
     fi
 }
 
-# run_gate_noxmllint — identical to run_gate but runs with xmllint hidden from
-# PATH, exercising the script's grep/sed fallback extraction path. A shim dir
-# with a non-executable `xmllint` stub is prepended so `command -v xmllint`
-# fails inside the script even on hosts where xmllint is installed.
+# run_gate_noxmllint — identical to run_gate but forces the script's grep/sed
+# fallback extraction path. A shim dir with an executable `xmllint` stub that
+# exits non-zero is prepended, so the script's xmllint calls fail and it falls
+# back deterministically — even on hosts where a real xmllint is installed.
 run_gate_noxmllint() {
     local expected="$1"; shift
     local desc="$1"; shift
@@ -58,9 +58,11 @@ run_gate_noxmllint() {
     local tmp_out shim
     tmp_out="$(mktemp -d)"
     shim="$(mktemp -d)"
-    # An empty, non-executable file named xmllint masks the real one for
-    # `command -v` (which only resolves executables).
-    : > "$shim/xmllint"
+    # An EXECUTABLE xmllint stub that fails (exit 127) deterministically forces
+    # coverage-gate.sh onto its grep/sed fallback: `command -v` resolves even a
+    # non-executable file, so the stub must be runnable and fail explicitly.
+    printf '#!/usr/bin/env bash\nexit 127\n' > "$shim/xmllint"
+    chmod +x "$shim/xmllint"
     local log
     log="$(PATH="$shim:$PATH" bash "$GATE" --output-dir "$tmp_out" "$@" 2>&1)"
     local actual=$?

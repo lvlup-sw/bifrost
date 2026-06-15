@@ -11,7 +11,7 @@
 | **DR-2** — Bump OpenTelemetry.Api (#20) | `OpenTelemetry.Api` ≥1.15.3 in CPM only; no NU1902; OTel tests green | 2 | Covered |
 | **DR-3** — Dispose queue resources + trim per-wait alloc (#21) | Bindings dispose `_signal` (idempotent, no CA2213); orchestrator disposes owned `_queue`; per-wait alloc 0 B via benchmark; ODE/double-dispose edge cases | 3, 4, 5, 6 | Covered |
 | **DR-4** — Raise Bifrost.Concurrency to ≥80% (#24) | ≥80% line+branch in isolation; each #18 defensive branch directly tested (ctor validation, reservation rollback, ToArray clamp, SubQueue.Grow clamp, TryDequeueMin PopHeldRoot); strict-min correctness; TUnit awaited | 7, 8, 9, 10, 11, 12, 13, 14 | Covered |
-| **DR-5** — Per-project coverage gate (#24) | Gate fails if any project <80% line **or** branch; per-project PR table; lands with/after DR-4 so `main` stays green; project-set defined | 15, 16, 17 | Covered |
+| **DR-5** — Per-assembly coverage gate (#24) | Gate fails if any shipping assembly <80% line **or** branch (re-based from per-project file gating — DR-6); per-assembly PR table; lands with/after DR-4 so `main` stays green; assembly-set defined | 15, 16, 17, 18 | Covered |
 
 All five requirements are covered. Non-requirement design sections (Problem Statement,
 Chosen Approach, Options Considered, Technical Design, Integration Points, Testing

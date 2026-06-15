@@ -176,6 +176,14 @@ public class StickinessTests
         int afterReset = handle.NextStickyIndex(mask, stickiness);
         await Assert.That(afterReset).IsGreaterThanOrEqualTo(0).And.IsLessThanOrEqualTo(mask).Because(
             "after ResetStickyEnqueue the next call resamples a fresh in-range index");
+
+        // Prove the reset armed a FRESH period (not a no-op): the resampled index is then reused
+        // for the remaining stickiness - 1 calls of the new window.
+        for (int i = 0; i < stickiness - 1; i++)
+        {
+            await Assert.That(handle.NextStickyIndex(mask, stickiness)).IsEqualTo(afterReset).Because(
+                "after reset a fresh sticky period is armed and reused for the full remaining window");
+        }
     }
 
     /// <summary>
@@ -206,6 +214,11 @@ public class StickinessTests
         await Assert.That(i2).IsNotEqualTo(j2).Because("a resampled pair is still two distinct indices");
         await Assert.That(i2).IsGreaterThanOrEqualTo(0).And.IsLessThanOrEqualTo(mask);
         await Assert.That(j2).IsGreaterThanOrEqualTo(0).And.IsLessThanOrEqualTo(mask);
+
+        // Prove the reset began a FRESH reuse window: the resampled pair is reused on the next call.
+        handle.NextStickyPair(mask, stickiness, out int i3, out int j3);
+        await Assert.That(i3).IsEqualTo(i2).Because("post-reset pair begins a new sticky reuse window");
+        await Assert.That(j3).IsEqualTo(j2).Because("post-reset pair is reused within that window");
     }
 
     /// <summary>

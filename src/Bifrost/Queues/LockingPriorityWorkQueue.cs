@@ -240,6 +240,7 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
 
     /// <inheritdoc/>
     /// <remarks>
+    /// <para>
     /// Cancellation surfaces as <see cref="OperationCanceledException"/> — thrown
     /// upfront for a pre-cancelled token and natively by
     /// <see cref="SemaphoreSlim.WaitAsync(CancellationToken)"/> for a parked wait —
@@ -248,8 +249,7 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
     /// <c>false</c> once the queue is also empty; while residual items remain it
     /// completes <c>true</c> so the canonical consume loop can drain them (see the
     /// completion-wake remarks on the class).
-    /// </remarks>
-    /// <remarks>
+    /// </para>
     /// <para>
     /// <b>Pooled async box (task-6, DR-3).</b> The park path
     /// (<see cref="SemaphoreSlim.WaitAsync(CancellationToken)"/>) suspends, so without
