@@ -406,12 +406,13 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
             throw new JobNotFoundException(name);
         }
 
-        // Trigger does not itself dispatch or mutate state: it posts a command and
-        // the tick loop performs the out-of-band fire. Posting uses CancellationToken.None
-        // for parity with the other post-commit wakes — once the trigger is accepted
-        // (the job exists), enqueueing the wake must not be dropped by a caller
-        // cancellation, mirroring the durable-mutation paths (DR-1).
-        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name), CancellationToken.None).ConfigureAwait(false);
+        // Trigger does not commit any durable or in-memory state before posting: the
+        // post IS the operation. Unlike the post-commit wakes (Register/Unregister/
+        // Transition/Update, which use CancellationToken.None so a late cancel cannot
+        // orphan already-committed state), there is nothing committed here to protect,
+        // so a caller cancellation should cleanly abort the trigger via OCE and enqueue
+        // nothing — matching the caller-cancel→OCE contract for uncommitted operations.
+        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name), ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
