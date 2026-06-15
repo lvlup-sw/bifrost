@@ -283,6 +283,29 @@ public sealed class WatermarkAdmissionTests
     }
 
     /// <summary>
+    /// Verifies the explicit <see cref="double.NaN"/> rejection in the watermark
+    /// validator (DR-6): <c>NaN</c> fails every ordering comparison, so the bare
+    /// <c>ThrowIfNegativeOrZero</c> / <c>ThrowIfGreaterThan</c> pair would let it slip
+    /// through — each of the three watermark setters must throw
+    /// <see cref="ArgumentOutOfRangeException"/> on assignment of <c>NaN</c>. This
+    /// covers the explicit-<c>NaN</c> guard arm distinct from the (0, 1] range arms
+    /// asserted by <see cref="Watermarks_Validation"/>.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task Watermarks_RejectNaN()
+    {
+        // Each setter routes through ThrowIfNotInUnitInterval, whose explicit NaN guard
+        // must fire before the ordering checks (which NaN would silently pass).
+        await Assert.That(() => new PriorityDispatchOptions { BatchAdmissionWatermark = double.NaN })
+            .Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => new PriorityDispatchOptions { DefaultAdmissionWatermark = double.NaN })
+            .Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => new PriorityDispatchOptions { InteractiveAdmissionWatermark = double.NaN })
+            .Throws<ArgumentOutOfRangeException>();
+    }
+
+    /// <summary>
     /// Verifies the boundary is exact at quiescence: with the count at 89 a Batch
     /// enqueue is admitted (89 &lt; 90), and at 90 it is rejected — the approximate
     /// striped count is exact with no concurrent operations, so no slop appears.
