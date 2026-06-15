@@ -93,7 +93,7 @@ namespace Bifrost.Queues;
 /// backpressure observe <c>TryEnqueue == false</c>.
 /// </para>
 /// </remarks>
-internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<TWork>>
+internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<TWork>>, IDisposable
 {
     private readonly LockingPriorityQueue<WorkEnvelope<TWork>, long> _queue;
     private readonly SemaphoreSlim _signal = new(0);
@@ -135,6 +135,14 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
     /// and wait paths, published by <see cref="Complete"/> ahead of a full fence.
     /// </summary>
     private volatile bool _completed;
+
+    /// <summary>
+    /// Idempotency gate for <see cref="Dispose"/> (DR-3): the first caller flips it
+    /// from 0 to 1 and disposes the owned <see cref="SemaphoreSlim"/>; later calls are
+    /// no-ops, so double-dispose never reaches <see cref="SemaphoreSlim.Dispose()"/>
+    /// twice.
+    /// </summary>
+    private int _disposedGate;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LockingPriorityWorkQueue{TWork}"/> class.
@@ -320,5 +328,27 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
         {
             _signal.Release(waiters);
         }
+    }
+
+    /// <summary>
+    /// Releases the owned <see cref="SemaphoreSlim"/> wake-up (DR-3). Neither the
+    /// underlying <see cref="LockingPriorityQueue{TElement, TPriority}"/> nor the
+    /// <see cref="Lock"/> admission gate is disposable, so the semaphore is the only
+    /// resource to release. Guarded by an
+    /// <see cref="Interlocked.Exchange(ref int, int)"/> idempotency flag, so a second
+    /// <see cref="Dispose"/> call is a safe no-op (it never disposes the semaphore
+    /// twice). A wait parked after disposal surfaces
+    /// <see cref="ObjectDisposedException"/> from the disposed semaphore — disposal is
+    /// the orchestrator's responsibility on the shutdown path, after the consume loop
+    /// has drained.
+    /// </summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposedGate, 1) == 1)
+        {
+            return;
+        }
+
+        _signal.Dispose();
     }
 }
