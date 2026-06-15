@@ -9,7 +9,7 @@ using System.Runtime.CompilerServices;
 namespace Bifrost.Core;
 
 /// <summary>
-/// Configuration options for class-based priority dispatch (designs DR-5 and DR-6).
+/// Configuration options for class-based priority dispatch.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -26,7 +26,7 @@ namespace Bifrost.Core;
 /// enqueued Interactive item — no aging scans or re-scoring required.
 /// </para>
 /// <para>
-/// <b>Admission watermarks (DR-6).</b> The watermark fractions parameterize the
+/// <b>Admission watermarks.</b> The watermark fractions parameterize the
 /// complementary admission-side policy: a bounded priority queue sheds the LOWEST
 /// class FIRST at admission — Batch is rejected once the queue count reaches
 /// <see cref="BatchAdmissionWatermark"/> × capacity, Default at
@@ -115,7 +115,7 @@ public class PriorityDispatchOptions
     /// <value>The Batch admission fraction in <c>(0, 1]</c>. Default is 0.90.</value>
     /// <remarks>
     /// Batch enqueues are rejected once the queue count reaches this fraction of
-    /// capacity — the first class shed under pressure (DR-6). Must not exceed
+    /// capacity — the first class shed under pressure. Must not exceed
     /// <see cref="DefaultAdmissionWatermark"/>; the monotonicity relation is validated
     /// where the options are consumed (see the class remarks).
     /// </remarks>
@@ -139,7 +139,7 @@ public class PriorityDispatchOptions
     /// <value>The Default admission fraction in <c>(0, 1]</c>. Default is 0.95.</value>
     /// <remarks>
     /// Default enqueues are rejected once the queue count reaches this fraction of
-    /// capacity — shed after Batch but before Interactive (DR-6). Must lie between
+    /// capacity — shed after Batch but before Interactive. Must lie between
     /// <see cref="BatchAdmissionWatermark"/> and
     /// <see cref="InteractiveAdmissionWatermark"/>; the monotonicity relation is
     /// validated where the options are consumed (see the class remarks).
@@ -166,7 +166,7 @@ public class PriorityDispatchOptions
     /// Interactive work is admitted all the way to hard capacity.
     /// </value>
     /// <remarks>
-    /// The most urgent class is shed last (DR-6); at the default of 1.0 only hard
+    /// The most urgent class is shed last; at the default of 1.0 only hard
     /// capacity exhaustion rejects Interactive work. Must not be less than
     /// <see cref="DefaultAdmissionWatermark"/>; the monotonicity relation is validated
     /// where the options are consumed (see the class remarks).
@@ -183,6 +183,20 @@ public class PriorityDispatchOptions
             _interactiveAdmissionWatermark = value;
         }
     }
+
+    /// <summary>
+    /// Gets or sets the tuning profile for the relaxed MultiQueue the priority queue is built on.
+    /// </summary>
+    /// <value>The selected profile. Default is <see cref="CpqTuningProfile.Balanced"/>.</value>
+    /// <remarks>
+    /// <see cref="CpqTuningProfile.Balanced"/> keeps the dequeue contract as tight as the relaxed queue
+    /// allows and turns buffering on for reference-bearing work items, where it pays for itself; it suits
+    /// a queue shared across several worker threads. Choose <see cref="CpqTuningProfile.LowConcurrency"/>
+    /// for a queue driven by only one or two threads or by drain-style work, or
+    /// <see cref="CpqTuningProfile.StrictOrdering"/> when dequeue-order accuracy matters more than
+    /// throughput.
+    /// </remarks>
+    public CpqTuningProfile CpqTuning { get; set; } = CpqTuningProfile.Balanced;
 
     /// <summary>
     /// Validates that a watermark assignment lies in <c>(0, 1]</c>, rejecting <see cref="double.NaN"/>

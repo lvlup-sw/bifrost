@@ -43,7 +43,7 @@ namespace Bifrost.Concurrency;
 internal sealed class SubQueue<TElement, TPriority>
 {
     /// <summary>
-    /// The compile-time-fixed maximum buffer capacity, <c>16</c> — the ESA 2021 §4 buffering optimum
+    /// The compile-time-fixed maximum buffer capacity, <c>16</c> — the buffering optimum
     /// (Williams &amp; Sanders measure the relaxed dequeue's rank-error degrading past this point, so a
     /// larger value would trade quality for throughput). It fixes the inline storage size of
     /// <see cref="SubQueueBuffer{TElement, TPriority}"/> at compile time and bounds the logical
@@ -102,19 +102,19 @@ internal sealed class SubQueue<TElement, TPriority>
 #pragma warning disable CS0649
     private long _debugOccupancyWriteCount;
 
-    /// <summary>TEST-ONLY: the number of insertion-buffer flushes into the heap (DR-7).</summary>
+    /// <summary>TEST-ONLY: the number of insertion-buffer flushes into the heap.</summary>
     private long _debugBufferFlushCount;
 
-    /// <summary>TEST-ONLY: the number of deletion-buffer refills from the heap (DR-7).</summary>
+    /// <summary>TEST-ONLY: the number of deletion-buffer refills from the heap.</summary>
     private long _debugBufferRefillCount;
 
-    /// <summary>TEST-ONLY: the number of pops served straight from <c>D.front()</c> (buffered-pop hits) (DR-7).</summary>
+    /// <summary>TEST-ONLY: the number of pops served straight from <c>D.front()</c> (buffered-pop hits).</summary>
     private long _debugBufferPopHitCount;
 
-    /// <summary>TEST-ONLY: the number of direct-to-<c>D</c> seeds of an otherwise-empty structure (DR-7).</summary>
+    /// <summary>TEST-ONLY: the number of direct-to-<c>D</c> seeds of an otherwise-empty structure.</summary>
     private long _debugBufferDirectToDeletionCount;
 
-    /// <summary>TEST-ONLY: the number of <c>max(D)</c> eviction cascades on a full-<c>D</c> sorted insert (DR-7).</summary>
+    /// <summary>TEST-ONLY: the number of <c>max(D)</c> eviction cascades on a full-<c>D</c> sorted insert.</summary>
     private long _debugBufferEvictionCount;
 #pragma warning restore CS0649
 
@@ -145,7 +145,7 @@ internal sealed class SubQueue<TElement, TPriority>
     private readonly int _bufferCapacity;
 
     /// <summary>
-    /// The unsorted insertion buffer <c>I</c> (ESA 2021 §4): pushes that are not small enough to enter
+    /// The unsorted insertion buffer <c>I</c>: pushes that are not small enough to enter
     /// the sorted deletion buffer land here; when it fills (<see cref="_insertionCount"/> reaches
     /// <see cref="_bufferCapacity"/>) it flushes wholesale into the arity-4 heap. Inline storage,
     /// mutated only under <see cref="SyncLock"/>. Untouched when <see cref="_bufferCapacity"/> is 0.
@@ -156,7 +156,7 @@ internal sealed class SubQueue<TElement, TPriority>
     private int _insertionCount;
 
     /// <summary>
-    /// The sorted deletion buffer <c>D</c> (ESA 2021 §4): holds the smallest resident entries in
+    /// The sorted deletion buffer <c>D</c>: holds the smallest resident entries in
     /// ascending priority order. <c>D.front()</c> (slot 0) is the sub-queue minimum and the value the
     /// seqlock publishes; pops remove it. It is refilled from the heap when it empties. Inline storage,
     /// mutated only under <see cref="SyncLock"/>. Untouched when <see cref="_bufferCapacity"/> is 0.
@@ -185,7 +185,7 @@ internal sealed class SubQueue<TElement, TPriority>
     /// lock, on an empty&#8596;non-empty crossing. The array is shared by reference, never copied.
     /// </param>
     /// <param name="bufferCapacity">
-    /// The logical ESA 2021 §4 buffer capacity <c>C ∈ [0, BufferCapacityMax]</c>; a trailing optional
+    /// The buffer capacity <c>C ∈ [0, BufferCapacityMax]</c>; a trailing optional
     /// so the existing three-argument call sites keep compiling against the default. <c>0</c> (the
     /// default) disables buffering, leaving the push/pop paths bit-exact with the pre-feature heap
     /// behavior; <c>1..16</c> activates the buffered path with that logical cap. The owning queue
@@ -266,19 +266,19 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     internal long DebugOccupancyWriteCountForTest => Volatile.Read(ref _debugOccupancyWriteCount);
 
-    /// <summary>TEST-ONLY: the count of insertion-buffer flushes into the heap (DR-7).</summary>
+    /// <summary>TEST-ONLY: the count of insertion-buffer flushes into the heap.</summary>
     internal long DebugBufferFlushCountForTest => Volatile.Read(ref _debugBufferFlushCount);
 
-    /// <summary>TEST-ONLY: the count of deletion-buffer refills from the heap (DR-7).</summary>
+    /// <summary>TEST-ONLY: the count of deletion-buffer refills from the heap.</summary>
     internal long DebugBufferRefillCountForTest => Volatile.Read(ref _debugBufferRefillCount);
 
-    /// <summary>TEST-ONLY: the count of pops served straight from <c>D.front()</c> (buffered-pop hits) (DR-7).</summary>
+    /// <summary>TEST-ONLY: the count of pops served straight from <c>D.front()</c> (buffered-pop hits).</summary>
     internal long DebugBufferPopHitCountForTest => Volatile.Read(ref _debugBufferPopHitCount);
 
-    /// <summary>TEST-ONLY: the count of direct-to-<c>D</c> seeds of an otherwise-empty structure (DR-7).</summary>
+    /// <summary>TEST-ONLY: the count of direct-to-<c>D</c> seeds of an otherwise-empty structure.</summary>
     internal long DebugBufferDirectToDeletionCountForTest => Volatile.Read(ref _debugBufferDirectToDeletionCount);
 
-    /// <summary>TEST-ONLY: the count of <c>max(D)</c> eviction cascades on a full-<c>D</c> sorted insert (DR-7).</summary>
+    /// <summary>TEST-ONLY: the count of <c>max(D)</c> eviction cascades on a full-<c>D</c> sorted insert.</summary>
     internal long DebugBufferEvictionCountForTest => Volatile.Read(ref _debugBufferEvictionCount);
 
     /// <summary>
@@ -791,7 +791,7 @@ internal sealed class SubQueue<TElement, TPriority>
         {
             // The single predictable branch: buffering on or off. The off-path (the overwhelmingly
             // common default until #30) is the pre-feature heap push verbatim; the on-path routes
-            // through the ESA 2021 §4 insertion/deletion buffers.
+            // through the insertion/deletion buffers.
             if (_bufferCapacity > 0)
             {
                 BufferedPush(element, priority);
@@ -943,14 +943,14 @@ internal sealed class SubQueue<TElement, TPriority>
     }
 
     // =====================================================================================
-    // ESA 2021 §4 buffered push/pop (active only when _bufferCapacity > 0). All methods here
+    // Buffered push/pop (active only when _bufferCapacity > 0). All methods here
     // assume SyncLock is held. The arity-4 heap is touched only on an I-flush or a D-refill,
     // removing the deep-heap cache-line walk from the hot path; D.front() is the published top,
     // the occupancy bit and EmptyFlag track D's 0↔non-0 boundary, and Count is I+D+heap.
     // =====================================================================================
 
     /// <summary>
-    /// The buffered push (ESA 2021 §4). Routes <c>(element, priority)</c> by the reference
+    /// The buffered push. Routes <c>(element, priority)</c> by the reference
     /// <c>BufferedPQ</c> rules: a small key (<c>v ≤ max(D)</c>) sorted-inserts into the deletion buffer
     /// <c>D</c> (evicting <c>max(D)</c> into <c>I</c>/heap when <c>D</c> is full); the first key into an
     /// otherwise-empty structure seeds <c>D</c> directly; otherwise the key appends to the insertion
@@ -972,7 +972,7 @@ internal sealed class SubQueue<TElement, TPriority>
         }
         else if (wasEmpty)
         {
-            // D empty ⟹ the whole structure is empty (the refill invariant, T6); seed D directly so
+            // D empty ⟹ the whole structure is empty (the refill invariant); seed D directly so
             // D.front() is immediately the minimum, leaving the heap untouched on the tiny-structure path.
             Debug.Assert(
                 _insertionCount == 0 && _size == 0,
@@ -998,7 +998,7 @@ internal sealed class SubQueue<TElement, TPriority>
     }
 
     /// <summary>
-    /// The buffered pop (ESA 2021 §4): returns and removes <c>D.front()</c> (the sub-queue minimum). If
+    /// The buffered pop: returns and removes <c>D.front()</c> (the sub-queue minimum). If
     /// that empties <c>D</c> while <c>I</c> or the heap still hold entries, refills <c>D</c> with the
     /// smallest <c>min(C, |heap|)</c> entries (flushing <c>I</c> into the heap first). Republishes the
     /// new <c>D.front()</c> (or empty), drives the occupancy bit on the <c>D</c> boundary, and writes
@@ -1225,7 +1225,7 @@ internal sealed class SubQueue<TElement, TPriority>
 
     /// <summary>
     /// Clears a single vacated deletion-buffer slot, but only for reference-containing tuples (to drop a
-    /// dead reference); value-type-only tuples skip the write. The write-barrier-safe slot clear (DR-4).
+    /// dead reference); value-type-only tuples skip the write. The write-barrier-safe slot clear.
     /// </summary>
     /// <param name="index">The slot index to clear.</param>
     private void ClearDeletionSlot(int index)
@@ -1239,7 +1239,7 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <summary>
     /// Clears the first <paramref name="length"/> deletion-buffer slots, but only for
     /// reference-containing tuples (to drop dead references); value-type-only tuples skip the write.
-    /// Used by <see cref="LockedClear"/> on the buffered path. The write-barrier-safe block clear (DR-4).
+    /// Used by <see cref="LockedClear"/> on the buffered path. The write-barrier-safe block clear.
     /// </summary>
     /// <param name="length">The number of leading slots to clear.</param>
     private void ClearDeletionRange(int length)
@@ -1253,7 +1253,7 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <summary>
     /// Clears the first <paramref name="length"/> insertion-buffer slots, but only for
     /// reference-containing tuples (to drop dead references); value-type-only tuples skip the write.
-    /// The write-barrier-safe block clear (DR-4).
+    /// The write-barrier-safe block clear.
     /// </summary>
     /// <param name="length">The number of leading slots to clear.</param>
     private void ClearInsertion(int length)
@@ -1382,7 +1382,7 @@ internal sealed class SubQueue<TElement, TPriority>
 #endif
     }
 
-    #region Buffered counters (DR-7)
+    #region Buffered counters
 
     // The buffered-path instrumentation mirrors CountOccupancyWrite exactly: each method is always
     // called under SyncLock (so the plain increment is race-free) but its body compiles in only behind

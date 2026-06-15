@@ -116,6 +116,19 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     private readonly AdmissionThresholds _thresholds;
 
     /// <summary>
+    /// The stickiness factor the binding resolved from <see cref="PriorityDispatchOptions.CpqTuning"/>
+    /// and handed the MultiQueue at construction.
+    /// </summary>
+    private readonly int _resolvedStickiness;
+
+    /// <summary>
+    /// The buffer capacity the binding resolved from <see cref="PriorityDispatchOptions.CpqTuning"/> and
+    /// the element type, and handed the MultiQueue at construction. Reference-bearing work buffers; pure
+    /// value-type work does not, unless a profile forces it.
+    /// </summary>
+    private readonly int _resolvedBufferCapacity;
+
+    /// <summary>
     /// The number of consumers currently inside
     /// <see cref="WaitToDequeueAsync(CancellationToken)"/>. One side of the completion
     /// handshake: incremented (full fence) before the completed flag is read, so
@@ -181,8 +194,28 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
         // so TryEnqueue's admission check is pure integer comparison.
         _thresholds = AdmissionThresholds.Precompute(options, capacity);
 
-        _queue = new ConcurrentPriorityQueue<WorkEnvelope<TWork>, long>(capacity);
+        // Resolve the tuning profile to concrete MultiQueue settings once. Buffering is keyed off the
+        // element's reference-ness because that is where it earns its keep; the work envelope is a struct,
+        // so this turns on whenever TWork is, or contains, a managed reference and stays off for pure
+        // value-type work.
+        (_resolvedStickiness, _resolvedBufferCapacity) = CpqTuningResolver.Resolve(
+            options.CpqTuning,
+            RuntimeHelpers.IsReferenceOrContainsReferences<WorkEnvelope<TWork>>());
+
+        _queue = new ConcurrentPriorityQueue<WorkEnvelope<TWork>, long>(capacity, _resolvedStickiness, _resolvedBufferCapacity);
     }
+
+    /// <summary>
+    /// The stickiness factor the binding resolved from its tuning profile and handed the MultiQueue.
+    /// Test-only inspection seam (via InternalsVisibleTo).
+    /// </summary>
+    internal int ResolvedStickinessForTest => _resolvedStickiness;
+
+    /// <summary>
+    /// The buffer capacity the binding resolved from its tuning profile and element type, and handed the
+    /// MultiQueue. Test-only inspection seam (via InternalsVisibleTo).
+    /// </summary>
+    internal int ResolvedBufferCapacityForTest => _resolvedBufferCapacity;
 
     /// <inheritdoc/>
     /// <remarks>

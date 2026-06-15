@@ -41,7 +41,7 @@ public class WorkOrchestratorOptions
 
     /// <summary>
     /// Gets or sets the dispatch strategy selecting the orchestrator's internal
-    /// queue binding (DR-4).
+    /// queue binding.
     /// </summary>
     /// <value>
     /// The strategy. Default is <see cref="DispatchStrategy.Fifo"/>, preserving the
@@ -57,7 +57,7 @@ public class WorkOrchestratorOptions
 
     /// <summary>
     /// Gets or sets the class-based priority dispatch options consumed by the
-    /// priority strategies (DR-5, DR-6).
+    /// priority strategies.
     /// </summary>
     /// <value>
     /// The priority options. Eagerly defaulted to a new
