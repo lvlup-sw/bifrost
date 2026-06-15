@@ -5,6 +5,7 @@
 // =============================================================================
 
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 using Bifrost.Concurrency;
 using Bifrost.Core;
@@ -248,6 +249,23 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
     /// completes <c>true</c> so the canonical consume loop can drain them (see the
     /// completion-wake remarks on the class).
     /// </remarks>
+    /// <remarks>
+    /// <para>
+    /// <b>Pooled async box (task-6, DR-3).</b> The park path
+    /// (<see cref="SemaphoreSlim.WaitAsync(CancellationToken)"/>) suspends, so without
+    /// pooling each parked wait heap-allocates a fresh async state-machine box. The
+    /// <see cref="AsyncMethodBuilderAttribute"/> overriding the default builder with
+    /// <see cref="PoolingAsyncValueTaskMethodBuilder{TResult}"/> amortizes that box via
+    /// the runtime's per-thread pool, so steady-state park-path allocation drops toward
+    /// zero. The pooled builder is trim/AOT-safe (no reflection or runtime codegen). The
+    /// fast paths (pre-cancelled token; completed-queue poll) return synchronously and
+    /// never rent a box. The completion-handshake semantics — the waiter-count
+    /// increment/decrement, the <c>Interlocked.MemoryBarrier</c> fence in
+    /// <see cref="Complete"/>, and the post-completion poll — are unchanged: only the
+    /// state-machine's backing storage is pooled, not the awaited operation.
+    /// </para>
+    /// </remarks>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public async ValueTask<bool> WaitToDequeueAsync(CancellationToken cancellationToken)
     {
         // Register as a waiter BEFORE reading the completed flag. Complete() publishes
