@@ -97,4 +97,267 @@ public class BufferedSubQueueTests
             priorities[i] = span[i].Priority;
         }
     }
+
+    /// <summary>
+    /// Drains a sub-queue entirely under its lock (await is illegal inside a lock body), returning the
+    /// popped priorities in pop order. Funnels through <c>PopHeldRoot</c>, the single drain path.
+    /// </summary>
+    /// <param name="subQueue">The sub-queue to drain.</param>
+    /// <returns>The popped priorities, in the order they came out.</returns>
+    private static List<int> DrainAll(SubQueue<int, int> subQueue)
+    {
+        var drained = new List<int>();
+        lock (subQueue.SyncLock)
+        {
+            while (subQueue.PopHeldRoot(out _, out int priority) == SubQueuePopStatus.Success)
+            {
+                drained.Add(priority);
+            }
+        }
+
+        return drained;
+    }
+
+    /// <summary>
+    /// DR-2 (T3): a push-only sequence into a buffered (cap 16) sub-queue drains in exactly the same
+    /// order as the proven unbuffered arity-4 heap over an identical seed. With pushes only, every
+    /// element flows through the insertion buffer <c>I</c> (flushing to the heap when full); the
+    /// differential drain pins that the buffered path reorders nothing.
+    /// </summary>
+    [Test]
+    public async Task Push_Buffered_MatchesUnbufferedOrder_InsertOnly()
+    {
+        var buffered = NewSubQueue(bufferCapacity: 16);
+        var unbuffered = NewSubQueue(bufferCapacity: 0);
+
+        var rng = new Random(0x3357);
+        const int n = 500; // well past the cap so I flushes to the heap many times.
+        for (int i = 0; i < n; i++)
+        {
+            int p = rng.Next(0, 10_000);
+            buffered.TryLockedPush(p, p);
+            unbuffered.TryLockedPush(p, p);
+        }
+
+        // Buffering is genuinely engaged: the deletion buffer holds the published front (D non-empty),
+        // and the heap holds at most a flush short of everything (the unbuffered queue keeps it ALL in
+        // the heap). A no-op bufferCapacity would leave D empty and the heap holding all n elements.
+        await Assert.That(buffered.DeletionCountForTest).IsGreaterThan(0).Because(
+            "the buffered push routes the minimum into the sorted deletion buffer D");
+        await Assert.That(buffered.HeapSize).IsLessThan(n).Because(
+            "the buffered path keeps some elements in I/D, so the heap holds fewer than the full population");
+
+        List<int> bufferedDrain = DrainAll(buffered);
+        List<int> unbufferedDrain = DrainAll(unbuffered);
+
+        await Assert.That(bufferedDrain.Count).IsEqualTo(n).Because("the buffered drain returns every pushed element");
+        await Assert.That(bufferedDrain.SequenceEqual(unbufferedDrain)).IsTrue().Because(
+            "a push-only buffered run drains in the identical priority order as the unbuffered heap");
+    }
+
+    /// <summary>
+    /// DR-2 (T4): seeding more than <c>C</c> elements and popping them all drains in strict ascending
+    /// priority order (the buffered pop serves <c>D.front()</c>, the sub-queue minimum), and the
+    /// deletion buffer is refilled from the heap at least twice over the drain (a population of
+    /// <c>3·C + 1</c> needs ≥ 2 refills after the initial fill). Pinned through the refill counter.
+    /// </summary>
+    [Test]
+    public async Task Pop_Buffered_DrainsInPriorityOrder_WithRefill()
+    {
+        const int cap = 16;
+        var buffered = NewSubQueue(bufferCapacity: cap);
+
+        var rng = new Random(0x9001);
+        const int n = (3 * cap) + 1; // > C, forcing the heap path and multiple refills.
+        for (int i = 0; i < n; i++)
+        {
+            int p = rng.Next(0, 1_000);
+            buffered.TryLockedPush(p, p);
+        }
+
+        long refillsBefore = buffered.DebugBufferRefillCountForTest;
+        List<int> drained = DrainAll(buffered);
+        long refillsAfter = buffered.DebugBufferRefillCountForTest;
+
+        await Assert.That(drained.Count).IsEqualTo(n).Because("every seeded element drains");
+
+        bool nonDecreasing = true;
+        for (int i = 1; i < drained.Count; i++)
+        {
+            if (drained[i] < drained[i - 1])
+            {
+                nonDecreasing = false;
+                break;
+            }
+        }
+
+        await Assert.That(nonDecreasing).IsTrue().Because(
+            "the buffered pop serves D.front() (the sub-queue minimum), so the drain is non-decreasing");
+        await Assert.That(refillsAfter - refillsBefore).IsGreaterThanOrEqualTo(2).Because(
+            "draining > 2·C elements empties and refills the deletion buffer from the heap at least twice");
+    }
+
+    /// <summary>
+    /// DR-2/DR-6 (T5): pushing strictly-descending keys forces every key (after the first) to satisfy
+    /// <c>v ≤ max(D)</c>, so each one sorted-inserts into the deletion buffer <c>D</c> (driving the
+    /// hole-shift). Interleaving pops keeps the structure small enough to stay buffer-resident. The
+    /// differential drain against an unbuffered sub-queue over the identical script proves the sorted
+    /// insert preserves global order, and the sorted-insert path is exercised (no direct-to-D seeds
+    /// beyond the first, and zero flushes because nothing ever reaches the heap).
+    /// </summary>
+    [Test]
+    public async Task Push_SmallElement_InsertsIntoDeletionBufferSorted()
+    {
+        const int cap = 16;
+        var buffered = NewSubQueue(bufferCapacity: cap);
+        var unbuffered = NewSubQueue(bufferCapacity: 0);
+
+        // Descending keys, fewer than the cap, so D never fills and the heap is never touched: every
+        // key after the first is <= max(D) and sorted-inserts ahead of the residents.
+        int[] descending = [100, 90, 80, 70, 60, 50, 40, 30];
+        foreach (int p in descending)
+        {
+            buffered.TryLockedPush(p, p);
+            unbuffered.TryLockedPush(p, p);
+        }
+
+        long flushes = buffered.DebugBufferFlushCountForTest;
+        long directSeeds = buffered.DebugBufferDirectToDeletionCountForTest;
+        int heapSize = buffered.HeapSize;
+        int deletionCount = buffered.DeletionCountForTest;
+
+        List<int> bufferedDrain = DrainAll(buffered);
+        List<int> unbufferedDrain = DrainAll(unbuffered);
+
+        await Assert.That(heapSize).IsEqualTo(0).Because("descending keys under the cap never reach the heap");
+        await Assert.That(deletionCount).IsEqualTo(descending.Length).Because("all keys stay resident in the sorted deletion buffer");
+        await Assert.That(flushes).IsEqualTo(0).Because("nothing flushed to the heap");
+        await Assert.That(directSeeds).IsEqualTo(1).Because("only the first key seeded an empty D directly; the rest sorted-inserted");
+        await Assert.That(bufferedDrain.SequenceEqual([30, 40, 50, 60, 70, 80, 90, 100])).IsTrue().Because(
+            "the sorted deletion buffer drains in exact ascending order");
+        await Assert.That(bufferedDrain.SequenceEqual(unbufferedDrain)).IsTrue().Because(
+            "the sorted-insert path matches the unbuffered heap order exactly");
+    }
+
+    /// <summary>
+    /// DR-2/DR-6 (T5): saturating both <c>D</c> and <c>I</c> and then pushing a key smaller than
+    /// <c>max(D)</c> forces the full eviction cascade (sorted-insert evicts <c>max(D)</c> → <c>I</c>
+    /// full → flush <c>I</c> to the heap → the evicted max heap-pushes). The cascade conserves every
+    /// element and the full differential drain against an unbuffered sub-queue over the identical
+    /// random script proves the global order is exact.
+    /// </summary>
+    [Test]
+    public async Task Push_DFullIFull_EvictsMaxThroughHeap()
+    {
+        const int cap = 16;
+        var buffered = NewSubQueue(bufferCapacity: cap);
+        var unbuffered = NewSubQueue(bufferCapacity: 0);
+
+        // A large random push/pop script that repeatedly saturates D and I and pushes small keys (the
+        // skew toward small keys forces v <= max(D) sorted inserts that evict a full D, and the bursts
+        // of pushes fill I so the eviction cascades through a heap flush).
+        var rng = new Random(0xCA5C);
+        var residentBuffered = 0;
+        var residentUnbuffered = 0;
+        long evictionsBefore = buffered.DebugBufferEvictionCountForTest;
+
+        for (int step = 0; step < 4_000; step++)
+        {
+            // 75% pushes (skewed small), 25% pops: keeps the structure full and small-key-heavy.
+            if (rng.Next(4) != 0 || residentBuffered == 0)
+            {
+                int p = rng.Next(0, 200); // small range => frequent v <= max(D)
+                buffered.TryLockedPush(p, p);
+                unbuffered.TryLockedPush(p, p);
+                residentBuffered++;
+                residentUnbuffered++;
+            }
+            else
+            {
+                lock (buffered.SyncLock)
+                {
+                    buffered.PopHeldRoot(out _, out _);
+                }
+
+                lock (unbuffered.SyncLock)
+                {
+                    unbuffered.PopHeldRoot(out _, out _);
+                }
+
+                residentBuffered--;
+                residentUnbuffered--;
+            }
+        }
+
+        long evictionsAfter = buffered.DebugBufferEvictionCountForTest;
+
+        // Drain whatever remains; the multiset and order must match the unbuffered heap exactly.
+        List<int> bufferedDrain = DrainAll(buffered);
+        List<int> unbufferedDrain = DrainAll(unbuffered);
+
+        await Assert.That(evictionsAfter - evictionsBefore).IsGreaterThan(0).Because(
+            "the small-key-heavy script saturates D and forces max(D) eviction cascades");
+        await Assert.That(bufferedDrain.Count).IsEqualTo(unbufferedDrain.Count).Because(
+            "the eviction cascade conserves every element (no loss, no duplication)");
+        await Assert.That(bufferedDrain.SequenceEqual(unbufferedDrain)).IsTrue().Because(
+            "the full eviction cascade preserves the exact global dequeue order vs. the unbuffered heap");
+    }
+
+    /// <summary>
+    /// DR-2 (T6): the load-bearing emptiness invariant — <c>D</c> empty ⟹ <c>I</c> empty ∧ heap empty
+    /// (so <c>D</c> empty ⟺ the whole sub-queue empty). A long random push/pop sequence checks, after
+    /// every operation, that whenever the deletion buffer is empty the insertion buffer and the heap are
+    /// also empty; a populated I/heap behind an empty D would be a refill-ordering bug. (The converse —
+    /// a non-empty D — carries no constraint: a tiny structure may live entirely in D.) The invariant is
+    /// also debug-asserted inside the pop path.
+    /// </summary>
+    [Test]
+    public async Task Invariant_DeletionBufferEmpty_ImpliesSubQueueEmpty()
+    {
+        const int cap = 16;
+        var buffered = NewSubQueue(bufferCapacity: cap);
+
+        var rng = new Random(0x1234);
+        bool invariantHeld = true;
+        var resident = 0;
+
+        for (int step = 0; step < 10_000 && invariantHeld; step++)
+        {
+            // Bias toward pushes when empty, balanced otherwise, so D repeatedly empties and refills.
+            bool push = resident == 0 || rng.Next(2) == 0;
+            if (push)
+            {
+                int p = rng.Next(0, 500);
+                buffered.TryLockedPush(p, p);
+                resident++;
+            }
+            else
+            {
+                lock (buffered.SyncLock)
+                {
+                    if (buffered.PopHeldRoot(out _, out _) == SubQueuePopStatus.Success)
+                    {
+                        resident--;
+                    }
+                }
+            }
+
+            int d = buffered.DeletionCountForTest;
+            int iBuf = buffered.InsertionCountForTest;
+            int heap = buffered.HeapSize;
+
+            // The load-bearing invariant: D empty ⟹ I empty AND heap empty (a populated I/heap behind
+            // an empty D would be a refill-ordering bug). The converse does NOT hold — D may legitimately
+            // hold the entire small population while I and the heap are empty (the tiny-structure case).
+            bool dEmpty = d == 0;
+            bool restEmpty = iBuf == 0 && heap == 0;
+            if (dEmpty && !restEmpty)
+            {
+                invariantHeld = false;
+            }
+        }
+
+        await Assert.That(invariantHeld).IsTrue().Because(
+            "after every buffered operation, an empty D implies an empty I and heap (the ESA 2021 §4 refill invariant)");
+    }
 }
