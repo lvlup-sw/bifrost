@@ -178,10 +178,21 @@ public class SparseRoutingTests
         queue.DebugForceSetOccupancyBitForTest(staleIndex);
         await Assert.That(queue.SubQueuesForTest[realIndex].TryLockedPush(element: 7, priority: 7)).IsTrue();
 
+        long routingHitsBefore = queue.DebugRoutingHitCountForTest;
+        long scanEntriesBefore = queue.DebugScanEntryCountForTest;
+
         bool popped = queue.TryDequeueRoutingOnlyForTest(out int element, out int priority);
 
         await Assert.That(popped).IsTrue().Because("routing skips the stale-set bit and pops the real item");
         await Assert.That(element).IsEqualTo(7);
         await Assert.That(priority).IsEqualTo(7);
+
+        // Prove routing itself popped the real item rather than falling through to the scan: the scan
+        // (which would also have found realIndex) must never have been entered, so a routing-vs-scan
+        // regression can't pass this test silently.
+        await Assert.That(queue.DebugRoutingHitCountForTest - routingHitsBefore).IsEqualTo(1L).Because(
+            "routing skipped the stale bit, continued to realIndex, and popped it");
+        await Assert.That(queue.DebugScanEntryCountForTest - scanEntriesBefore).IsEqualTo(0L).Because(
+            "routing found the real item, so the verification scan was never entered");
     }
 }

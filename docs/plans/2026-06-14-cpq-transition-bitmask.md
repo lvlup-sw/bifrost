@@ -55,8 +55,9 @@ tasks (1–5) are research — no TDD; the deliverable is the findings doc.
 
 ### Task 2: [S2] Dense-regression measurement
 **Phase:** Research · **riskTier:** low · **benchmarks:** true · **Implements:** DR-6, DR-5
-- UniformMixed5050 @ 64T, prototype vs baseline. Confirm `_occupancy` write count ≈0 under load
-  ("never written when dense").
+- UniformMixed5050 @ 64T, prototype vs baseline. Confirm `_occupancy` stays effectively dormant
+  under load — only the rare sub-queue that genuinely drains to empty writes a bit (a small fraction
+  of ops, not literally zero).
 - **Deliverable:** number + verdict feeding the DR-5 gate. **Exit:** dense within ±2% or escalate.
 
 **Dependencies:** 1 · **Parallelizable:** No

@@ -140,8 +140,9 @@ the bitmask** — this is what keeps it dormant under load.
   test build).
 - Given the dense UniformMixed 64-thread workload
   When measured over a 3 s window
-  Then `_occupancy` write count is ~0 (sub-queues never reach size 0), and dense throughput is
-  within benchmark noise of baseline (DR-5).
+  Then `_occupancy` is effectively dormant — only the rare sub-queue that genuinely drains to empty
+  writes a bit (a small fraction of ops, not literally zero), and dense throughput is within
+  benchmark noise of baseline (DR-5).
 - Transition writes use `Interlocked.Or`/`Interlocked.And` (atomic per-word; no read-modify-write
   race between two sub-queues sharing a word) and occur strictly inside the `SyncLock` critical
   section.

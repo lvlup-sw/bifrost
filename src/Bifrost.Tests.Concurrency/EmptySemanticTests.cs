@@ -69,20 +69,22 @@ public class EmptySemanticTests
             new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 4)).ConfigureAwait(false);
 
     /// <summary>
-    /// Reads the queue's <c>Count</c> and re-confirms it stays strictly positive across a bounded
-    /// spin, returning the persistently-observed positive count or <c>0</c> if any read saw empty.
-    /// This distinguishes a resident element from the benign transient where a concurrent consumer
-    /// has published a sub-queue's seqlock empty flag but not yet written its striped <c>Count = 0</c>
-    /// (two ordered writes under the held lock). The lag window is one thread finishing a
-    /// <see cref="Volatile.Write{T}(ref T, T)"/> and releasing a lock, so it is bounded: a Count
-    /// still positive after the spin reflects a real resident element.
+    /// Reads the queue's <c>Count</c> and re-confirms it stays above <paramref name="inFlightTolerance"/>
+    /// across a bounded spin, returning the persistently-observed count or <c>0</c> otherwise. This
+    /// distinguishes a resident element from the benign transient where a concurrent consumer has
+    /// published a sub-queue's seqlock empty flag but not yet written its striped <c>Count = 0</c> (two
+    /// ordered writes under the held lock). Count over-reports by at most one per consumer mid-pop, so
+    /// a Count at or below the consumer count could be entirely in-flight removals, however long a
+    /// preempted consumer stalls; keying the threshold to the consumer count makes the witness sound
+    /// regardless of scheduling, where a fixed-iteration wait could not.
     /// </summary>
     /// <param name="queue">The queue to probe.</param>
-    /// <returns>The persistently-positive count, or <c>0</c> if the queue was observed empty.</returns>
-    private static int PersistentNonEmptyCount(ConcurrentPriorityQueue<int, int> queue)
+    /// <param name="inFlightTolerance">Maximum Count attributable to concurrent in-flight removals.</param>
+    /// <returns>The persistently-observed count above the tolerance, or <c>0</c> otherwise.</returns>
+    private static int PersistentNonEmptyCount(ConcurrentPriorityQueue<int, int> queue, int inFlightTolerance)
     {
         int observed = queue.Count;
-        if (observed <= 0)
+        if (observed <= inFlightTolerance)
         {
             return 0;
         }
@@ -91,7 +93,7 @@ public class EmptySemanticTests
         for (int i = 0; i < 64; i++)
         {
             int reread = queue.Count;
-            if (reread <= 0)
+            if (reread <= inFlightTolerance)
             {
                 return 0;
             }
@@ -166,16 +168,16 @@ public class EmptySemanticTests
                     // sound against a benign transient. A consumer mid-pop publishes its sub-queue's
                     // seqlock empty flag BEFORE it writes the striped Count = 0 (two ordered writes
                     // under the held lock), so the scan's lock-free cheap route can legitimately
-                    // observe "empty" while Count still counts that being-removed element for a
-                    // bounded window. A single Count read would flag that lag. So a violation requires
-                    // Count to stay strictly positive across a bounded recheck spin
-                    // (PersistentNonEmptyCount), long enough for any in-flight pop to finish its
-                    // under-lock Count write. A persistently-positive Count with production quiescent
-                    // means the scan concluded emptiness while an element was resident and unremoved:
-                    // the observed-empty violation. (Reading before the false would flag the legal
-                    // last-element race; reading after, and requiring persistence, is what makes a
-                    // positive Count load-bearing.)
-                    int observedCount = PersistentNonEmptyCount(queue);
+                    // observe "empty" while Count still counts that being-removed element. Up to
+                    // ConsumerCount consumers can be mid-pop at once, so Count over-reports by at most
+                    // ConsumerCount; only a Count that stays ABOVE that tolerance across a recheck spin
+                    // (PersistentNonEmptyCount) proves a genuinely resident element, and that bound
+                    // holds however long a preempted consumer stalls. A persistent such Count with
+                    // production quiescent means the scan concluded emptiness while an element was
+                    // resident and unremoved: the observed-empty violation. (Reading before the false
+                    // would flag the legal last-element race; reading after, and requiring persistence,
+                    // is what makes a positive Count load-bearing.)
+                    int observedCount = PersistentNonEmptyCount(queue, inFlightTolerance: ConsumerCount);
                     if (observedCount > 0)
                     {
                         lock (violationGate)

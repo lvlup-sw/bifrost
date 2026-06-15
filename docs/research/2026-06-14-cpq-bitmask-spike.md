@@ -80,9 +80,9 @@ rarely hit empty). 5 trials each.
 | 32 | 128 | 114.52 (sd 0.72) | 113.11 (sd 1.04) | **−1.24%** | ~810k / ~340M = 0.24% |
 
 Occupancy-write count is low but NOT zero: the relaxed two-choice dequeue concentrates pops on the
-smaller-cached-top stripe, so stripes still drain/refill even under deep aggregate population
-(~0.1–0.25% of ops). The "≈ 0 under load" claim holds *relative to op count* but is not literally
-zero.
+smaller-cached-top stripe, so stripes still drain/refill even under deep aggregate population.
+Measured rate is ~0.1–0.25% of ops — occasional boundary writes do occur, so the bitmask is
+effectively dormant relative to op count, not literally untouched under load.
 
 **Verdict: MIXED.** 16T/32T within the ~1% noise band → PASS in the scaling regime the design
 targets. **4T −5.0% is real and consistent** (sd ~1–2%, outside noise) → a genuine FAIL at low

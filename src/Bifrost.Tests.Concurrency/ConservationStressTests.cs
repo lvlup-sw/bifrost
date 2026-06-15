@@ -359,31 +359,32 @@ public class ConservationStressTests
     }
 
     /// <summary>
-    /// Returns <see langword="true"/> only when the queue's own <c>Count</c> stays strictly positive
-    /// across a short recheck spin. This distinguishes a resident element from the benign transient
-    /// where a concurrent consumer has published a sub-queue's seqlock empty flag but not yet written
-    /// its striped <c>Count = 0</c> (two ordered writes under the held lock). The lag window is one
-    /// thread finishing a <see cref="Volatile.Write{T}(ref T, T)"/> and releasing a lock, so it is
-    /// bounded: a Count still positive after the spin reflects a real resident element. Used only as
-    /// a stress-test witness with production quiescent.
+    /// Returns <see langword="true"/> only when the queue's own <c>Count</c> stays above
+    /// <paramref name="inFlightTolerance"/> across a short recheck spin, evidence of a genuinely
+    /// resident element. Count can transiently over-report by up to one per consumer mid-pop: each
+    /// publishes its sub-queue's seqlock empty flag before writing the striped <c>Count = 0</c> (two
+    /// ordered writes under the held lock), so a Count at or below the number of concurrent consumers
+    /// could be entirely in-flight removals, however long a preempted consumer stalls. Keying the
+    /// threshold to the consumer count makes the witness sound regardless of scheduling, where a
+    /// fixed-iteration wait could not. Used only as a stress-test witness with production quiescent.
     /// </summary>
     /// <param name="queue">The queue to probe.</param>
-    /// <returns><see langword="true"/> if <c>Count</c> is persistently positive across the spin.</returns>
-    private static bool PersistentlyNonEmpty(ConcurrentPriorityQueue<int, int> queue)
+    /// <param name="inFlightTolerance">Maximum Count attributable to concurrent in-flight removals.</param>
+    /// <returns><see langword="true"/> if <c>Count</c> stays above the tolerance across the spin.</returns>
+    private static bool PersistentlyNonEmpty(ConcurrentPriorityQueue<int, int> queue, int inFlightTolerance)
     {
-        // Cheap exit: if Count is already zero, there is nothing resident.
-        if (queue.Count <= 0)
+        // Cheap exit: a Count within the in-flight tolerance proves nothing resident.
+        if (queue.Count <= inFlightTolerance)
         {
             return false;
         }
 
-        // Re-confirm across a bounded spin; any single zero observation means an in-flight pop's
-        // Count write landed (the element was being removed), so it was the benign lag, not a
-        // violation.
+        // Re-confirm across a bounded spin; a single drop to within tolerance means the apparent
+        // residents were in-flight removals whose Count writes have now landed, not a violation.
         var spinner = new SpinWait();
         for (int i = 0; i < 64; i++)
         {
-            if (queue.Count <= 0)
+            if (queue.Count <= inFlightTolerance)
             {
                 return false;
             }
@@ -429,6 +430,13 @@ public class ConservationStressTests
         int perProducer = ChurnTotalElements / p;
         int producedTotal = perProducer * p;
 
+        // Keep the queue in the near-empty regime this test targets: producers hold back whenever the
+        // outstanding (enqueued-but-not-yet-dequeued) backlog rises above this small bound, so a fast
+        // producer / slow consumer schedule can't quietly turn it into a dense test. Small enough to
+        // stay well inside the sparse regime, large enough not to over-serialize the churn.
+        int nearEmptyBacklogCap = p * 8;
+
+        long enqueuedTotal = 0;
         long dequeuedCount = 0;
         long producersDone = 0;
         long falseWhileResident = 0;
@@ -442,17 +450,30 @@ public class ConservationStressTests
             int endExclusive = start + perProducer;
             producers[k] = new Thread(() =>
             {
-                // Single-item inserts: push one, then let the scheduler hand the consumers a chance to
-                // drain it, keeping the queue near empty. Disjoint per-producer ranges keep every value
-                // globally unique so a duplicate anywhere is a true conservation break.
+                // Single-item inserts with backpressure: push one only once the outstanding backlog is
+                // back under the cap, so consumers stay caught up and the queue keeps hovering near
+                // empty. Disjoint per-producer ranges keep every value globally unique, so a duplicate
+                // anywhere is a true conservation break.
+                var backoff = new SpinWait();
                 for (int value = start; value < endExclusive; value++)
                 {
+                    while (Volatile.Read(ref enqueuedTotal) - Volatile.Read(ref dequeuedCount) > nearEmptyBacklogCap)
+                    {
+                        if (watchdog.IsCancellationRequested)
+                        {
+                            return;
+                        }
+
+                        backoff.SpinOnce();
+                    }
+
                     if (watchdog.IsCancellationRequested)
                     {
                         return;
                     }
 
                     queue.Enqueue(value, value);
+                    Interlocked.Increment(ref enqueuedTotal);
                 }
 
                 Interlocked.Increment(ref producersDone);
@@ -491,12 +512,11 @@ public class ConservationStressTests
                     // mid-pop publishes its sub-queue's seqlock EmptyFlag = empty before it writes the
                     // striped Count = 0 (two ordered writes under the held lock), so the scan's
                     // lock-free cheap route can legitimately observe "empty" while queue.Count still
-                    // counts that being-removed element for a bounded window. A single Count read
-                    // would flag that benign lag. So flag a violation only if Count stays strictly
-                    // positive across a bounded recheck spin, long enough for any in-flight pop to
-                    // finish its under-lock Count write. A persistently-positive Count with production
-                    // quiescent is a resident element no one is removing.
-                    if (Volatile.Read(ref producersDone) == p && PersistentlyNonEmpty(queue))
+                    // counts that being-removed element. Up to p consumers can be mid-pop at once, so
+                    // Count over-reports by at most p; only a Count that stays ABOVE p proves a
+                    // genuinely resident element, and that bound holds however long a preempted
+                    // consumer stalls (a fixed-iteration wait would not).
+                    if (Volatile.Read(ref producersDone) == p && PersistentlyNonEmpty(queue, inFlightTolerance: p))
                     {
                         Interlocked.Increment(ref falseWhileResident);
                     }

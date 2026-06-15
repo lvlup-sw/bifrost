@@ -16,5 +16,7 @@ foreach (var (wl, tg) in combos)
     for (int trial = 0; trial < trials; trial++) {
         var r = runner.Run(tg, wl, t, window);
         Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-            "{0},{1},{2},{3},{4},{5:0.###},{6},{7:0.##}", label, tg, wl, t, trial, window.TotalSeconds, r.TotalOps, r.OpsPerSecond));
+            "{0},{1},{2},{3},{4},{5:0.###},{6},{7:0.##}", Csv(label), tg, wl, t, trial, window.TotalSeconds, r.TotalOps, r.OpsPerSecond));
     }
+
+static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";

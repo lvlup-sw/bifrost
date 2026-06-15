@@ -30,15 +30,21 @@ jobs:
         run: dotnet restore ${{ env.SOLUTION_PATH }}
 
       - name: Build
-        # BifrostTestHooks=false strips the BIFROST_TEST_HOOKS test-only occupancy/routing/scan
-        # counters from the shipped binary; `dotnet pack --no-build` below packages this artifact.
-        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release -p:BifrostTestHooks=false
+        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release
 
       - name: Run tests
         run: |
           for proj in src/Bifrost.Tests/*.csproj; do
             dotnet run --project "$proj" --configuration Release
           done
+
+      - name: Build package artifact
+        # Rebuild with BifrostTestHooks=false immediately before packing, so the BIFROST_TEST_HOOKS
+        # test-only occupancy/routing/scan counters are stripped from the shipped binary. This MUST
+        # be the last compile before `dotnet pack --no-build`: the test step above rebuilds
+        # Bifrost.Concurrency with the default BifrostTestHooks=true, so packing right after it would
+        # otherwise ship the instrumented binary.
+        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release -p:BifrostTestHooks=false
 
       - name: Pack
         run: dotnet pack ${{ env.SOLUTION_PATH }} --no-build --configuration Release --output ./nupkgs

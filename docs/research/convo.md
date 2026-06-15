@@ -33,6 +33,8 @@ Because the bit is flipped while the lock is held, it is impossible for a consum
 
 ### 4. The Sparse Regime Bonus: Instant Routing
 
+> **Note:** this explored an authoritative O(1)-empty use of the bitmask (later called Approach B). The shipped design did NOT adopt it — the bitmask is a routing hint only and the verification scan remains the sole emptiness authority. See `docs/designs/2026-06-14-cpq-transition-bitmask.md`.
+
 This is where the bitmask goes from being a good idea to a brilliantly optimized one.
 
 When the queue drains and enters the "sparse regime," your benchmark notes that random sampling fails 96% of the time, forcing an expensive $O(n)$ scan. The bitmask completely eliminates this.

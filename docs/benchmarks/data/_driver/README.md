@@ -1,6 +1,6 @@
 # Throughput driver (DR-7 before/after)
 
-Standalone driver used for the dense / drain throughput runs in
+Standalone driver used for the dense throughput runs in
 `2026-06-14-cpq-bitmask-before-after.md`. It is **not** part of the benchmark
 project — it is a throwaway `.csproj` that `<Reference>`s the already-built
 `Bifrost.Concurrency.dll` and re-uses the harness files
@@ -10,7 +10,7 @@ verbatim from `src/Bifrost.Benchmarks/Concurrency/`, which are byte-identical on
 
 Why not the `throughput` verb? The verb runs the *full* sweep (3 targets × 4
 workloads × the 1..2×cores ladder); this driver restricts to
-`MultiQueueRelaxed × {UniformMixed5050, NarrowKeyRange, Drain}` at threads
+`MultiQueueRelaxed × {UniformMixed5050, NarrowKeyRange}` at threads
 `{4, 16, 32}` so a before/after pass fits the time box.
 
 ## Reproduce
