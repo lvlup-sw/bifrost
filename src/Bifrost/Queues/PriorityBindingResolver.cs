@@ -23,9 +23,9 @@ namespace Bifrost.Queues;
 /// <para>
 /// <see cref="PriorityBinding.Auto"/> resolves by comparing the MultiQueue's
 /// expected rank error to the queue capacity: when the error reaches half the
-/// capacity (<see cref="AutoLockRankErrorFraction"/> = 0.5), the locking binding
-/// is chosen because the relaxed dequeue can no longer honor priority order at
-/// that scale. Below that threshold the MultiQueue is chosen.
+/// capacity, the locking binding is chosen because the relaxed dequeue can no
+/// longer honor priority order at that scale. Below that threshold the MultiQueue
+/// is chosen.
 /// </para>
 /// <para>
 /// The integer-safe predicate equivalent to <c>(5/6)·n ≥ capacity × 0.5</c>
@@ -41,14 +41,16 @@ namespace Bifrost.Queues;
 /// </remarks>
 internal static class PriorityBindingResolver
 {
+    /// <summary>Numerator of the MultiQueue's expected rank error <c>(5/6)·n</c>.</summary>
+    private const int RankErrorNumerator = 5;
+
     /// <summary>
-    /// The rank-error fraction at which the resolver switches from MultiQueue to Locking.
-    /// An <see cref="PriorityBinding.Auto"/> binding selects <see cref="DispatchStrategy.PriorityLocking"/>
-    /// when <c>(5/6)·n ≥ capacity × AutoLockRankErrorFraction</c>. The integer-safe
-    /// equivalent used in <see cref="Resolve"/> is <c>5·n ≥ 3·capacity</c>
-    /// (clearing the division: multiply both sides by 6 and substitute 0.5 = 3/6).
+    /// Capacity multiplier in the Auto threshold. <see cref="PriorityBinding.Auto"/> selects
+    /// <see cref="DispatchStrategy.PriorityLocking"/> when <c>(5/6)·n ≥ capacity × ½</c>; cleared
+    /// of division (multiply by 6) this is <c>5·n ≥ 3·capacity</c>, so the multiplier is
+    /// <c>3 = 6 × ½</c>. Raising it biases toward the MultiQueue; lowering it biases toward the lock.
     /// </summary>
-    private const double AutoLockRankErrorFraction = 0.5;
+    private const int CapacityThresholdMultiplier = 3;
 
     /// <summary>
     /// Returns the default sub-queue count for a given processor count, mirroring
@@ -61,7 +63,10 @@ internal static class PriorityBindingResolver
     /// given processor count.
     /// </returns>
     internal static int SubQueueCountFor(int processorCount)
-        => (int)BitOperations.RoundUpToPowerOf2((uint)(4 * processorCount));
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(processorCount);
+        return (int)BitOperations.RoundUpToPowerOf2((uint)(4 * processorCount));
+    }
 
     /// <summary>
     /// Resolves a <see cref="PriorityBinding"/> intent to a concrete
@@ -95,7 +100,7 @@ internal static class PriorityBindingResolver
     private static DispatchStrategy ResolveAuto(int processorCount, int capacity)
     {
         var n = SubQueueCountFor(processorCount);
-        return 5 * n >= 3 * capacity
+        return RankErrorNumerator * n >= CapacityThresholdMultiplier * capacity
             ? DispatchStrategy.PriorityLocking
             : DispatchStrategy.PriorityMultiQueue;
     }

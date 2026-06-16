@@ -115,4 +115,51 @@ public class WorkOrchestratorBindingResolutionTests
 
         await Assert.That(orchestrator.ResolvedBinding).IsEqualTo(expectedBinding);
     }
+
+    /// <summary>
+    /// Verifies the <see cref="PriorityBinding.Auto"/> path actually feeds the configured
+    /// capacity to the resolver: a tiny capacity resolves to Locking and the maximum capacity
+    /// resolves to MultiQueue on any realistic host (ProcessorCount ≤ 1024), so a regression
+    /// that dropped or transposed the capacity argument would flip at least one assertion.
+    /// Machine-independent without hardcoding a single absolute outcome.
+    /// </summary>
+    [Test]
+    public async Task Constructor_Auto_CapacityFlowsThroughToResolver()
+    {
+        await using var lockingByTinyCapacity = CreateOrchestrator(new WorkOrchestratorOptions
+        {
+            WorkerCount = 0,
+            Capacity = 1,
+            DispatchStrategy = DispatchStrategy.Priority,
+            Priority = { Binding = PriorityBinding.Auto },
+        });
+        await using var multiQueueByHugeCapacity = CreateOrchestrator(new WorkOrchestratorOptions
+        {
+            WorkerCount = 0,
+            Capacity = 10_000,
+            DispatchStrategy = DispatchStrategy.Priority,
+            Priority = { Binding = PriorityBinding.Auto },
+        });
+
+        await Assert.That(lockingByTinyCapacity.ResolvedBinding).IsEqualTo(PriorityBinding.Locking);
+        await Assert.That(multiQueueByHugeCapacity.ResolvedBinding).IsEqualTo(PriorityBinding.MultiQueue);
+    }
+
+    /// <summary>
+    /// Verifies <see cref="WorkOrchestrator{TWork}.ResolvedBinding"/> is populated even when the
+    /// concrete <see cref="DispatchStrategy.PriorityLocking"/> strategy is set directly, bypassing
+    /// the <see cref="DispatchStrategy.Priority"/> sentinel (and <c>UsePriorityDispatch</c>).
+    /// </summary>
+    [Test]
+    public async Task Constructor_DirectPriorityLockingStrategy_ResolvedBindingIsLocking()
+    {
+        await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
+        {
+            WorkerCount = 0,
+            DispatchStrategy = DispatchStrategy.PriorityLocking,
+        });
+
+        await Assert.That(orchestrator.ResolvedBinding).IsEqualTo(PriorityBinding.Locking);
+        await Assert.That(orchestrator.WorkQueue).IsTypeOf<LockingPriorityWorkQueue<string>>();
+    }
 }

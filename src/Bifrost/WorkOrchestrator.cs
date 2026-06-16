@@ -155,15 +155,19 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             _ => null,
         };
 
-        // Log the binding decision once at construction (DR-4 observability).
+        // Log the binding decision once at construction (DR-4 observability), including the
+        // sub-queue count and expected rank error (5/6)·n that drove the Auto threshold.
         if (opts.DispatchStrategy == DispatchStrategy.Priority)
         {
+            var subQueueCount = PriorityBindingResolver.SubQueueCountFor(Environment.ProcessorCount);
             _logger.LogInformation(
-                "Priority binding resolved: requested={RequestedBinding}, resolved={ResolvedBinding}, processorCount={ProcessorCount}, capacity={Capacity}",
+                "Priority binding resolved: requested={RequestedBinding}, resolved={ResolvedBinding}, processorCount={ProcessorCount}, capacity={Capacity}, subQueueCount={SubQueueCount}, expectedRankError={ExpectedRankError}",
                 opts.Priority.Binding,
                 _resolvedBinding,
                 Environment.ProcessorCount,
-                opts.Capacity);
+                opts.Capacity,
+                subQueueCount,
+                5 * subQueueCount / 6);
         }
 
         // Start worker tasks
@@ -177,11 +181,15 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     }
 
     /// <summary>
-    /// Gets the concrete priority-queue binding that was chosen at construction when
-    /// <see cref="DispatchStrategy.Priority"/> was selected, or <see langword="null"/>
-    /// when the orchestrator uses the <see cref="DispatchStrategy.Fifo"/> strategy (no
-    /// priority binding to resolve). Exposed for observability and testing; the resolved
-    /// choice is also logged once at construction.
+    /// Gets the concrete priority-queue binding in effect: for the
+    /// <see cref="DispatchStrategy.Priority"/> path, the result of the
+    /// <see cref="PriorityBinding.Auto"/> heuristic or the explicit
+    /// <see cref="PriorityBinding.Locking"/>/<see cref="PriorityBinding.MultiQueue"/> override;
+    /// for a directly-configured <see cref="DispatchStrategy.PriorityLocking"/> or
+    /// <see cref="DispatchStrategy.PriorityMultiQueue"/> strategy, the corresponding binding.
+    /// <see langword="null"/> when the orchestrator uses <see cref="DispatchStrategy.Fifo"/>.
+    /// Exposed for observability and testing; for the <see cref="DispatchStrategy.Priority"/>
+    /// path the resolved choice is also logged once at construction.
     /// </summary>
     public PriorityBinding? ResolvedBinding => _resolvedBinding;
 

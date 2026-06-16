@@ -27,12 +27,13 @@ namespace Bifrost.Core;
 /// enqueue documentation for the full semantics table.
 /// </para>
 /// <para>
-/// <b>Choosing between the priority strategies.</b> Indicative soak measurements
-/// (<c>docs/benchmarks/2026-06-cpq-soak.md</c>) currently favor
-/// <see cref="PriorityLocking"/> in the 1–8-worker, seconds-long regime typical of
-/// this orchestrator; <see cref="PriorityMultiQueue"/> targets higher producer
-/// concurrency. Treat the soak numbers as indicative until the release-run
-/// benchmarks finalize the guidance.
+/// <b>Choosing between the priority strategies.</b> The recommended entry point is
+/// <c>UsePriorityDispatch</c> with <see cref="PriorityBinding.Auto"/> (the default),
+/// which resolves to <see cref="PriorityLocking"/> or <see cref="PriorityMultiQueue"/>
+/// at construction from the host's processor count and the queue capacity. The 600 s
+/// release soak (<c>docs/benchmarks/2026-06-cpq-soak.md</c>) favors
+/// <see cref="PriorityLocking"/> in the 1–8-worker, seconds-long regime typical of this
+/// orchestrator; <see cref="PriorityMultiQueue"/> targets higher producer concurrency.
 /// </para>
 /// </remarks>
 public enum DispatchStrategy
