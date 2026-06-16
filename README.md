@@ -6,7 +6,7 @@
 
 **A work-orchestration library for .NET 10.**
 
-Bifrost runs background work — emails, webhooks, sandboxed jobs, anything that shouldn't block a request — on a pool of workers behind a bounded channel. You give it a work type and a handler; it owns admission, dispatch, retries, dead-lettering, autoscaling, and observability around them. It's built on `System.Threading.Channels`, trim- and AOT-compatible, and split into focused packages so you depend only on the parts you use, with optional priority dispatch backed by a state-of-the-art, scalable concurrent priority queue.
+Bifrost runs background work (such as emails, webhooks, and sandboxed jobs) on a pool of workers behind a bounded channel. You give it a work type and a handler; it owns admission, dispatch, retries, dead-lettering, autoscaling, and observability around them. It's built on `System.Threading.Channels`, trim- and AOT-compatible, offers a priority dispatch backed by a state-of-the-art, scalable concurrent priority queue, and is split into focused packages so you depend only on the parts you use.
 
 ## How it works
 
@@ -40,11 +40,9 @@ if (!result.IsAccepted)
 }
 ```
 
-That last part is deliberate. Admission outcomes are values: a rejected enqueue returns `EnqueueResult.Rejected(reason)` rather than throwing. The only thing `EnqueueAsync` throws is `OperationCanceledException`, and only when your own token is canceled — the same as any async API.
-
 ## What you compose on
 
-Past the core queue, every capability is an opt-in decorator you add to the orchestrator. Take what you need; pay for nothing else.
+Past the core queue, every capability is an opt-in decorator you add to the orchestrator.
 
 - **Autoscaling.** Workers scale on queue utilization between a floor and a ceiling, with high/low watermarks and a cooldown.
 - **Resilience.** Polly retry, timeout, and circuit breaker around each handler call.
@@ -80,7 +78,7 @@ dotnet add package LevelUp.Bifrost
 
 ## Priority dispatch
 
-By default everything runs through one strict-FIFO queue. When latency-sensitive and batch work share an orchestrator, a batch burst sitting ahead of an interactive item turns straight into user-visible latency, and FIFO can't reorder around it. Priority dispatch fixes that with class-aware ordering — but it ships default-off on purpose. Measure first, turn it on when the numbers say to.
+By default everything runs through one strict-FIFO queue. With some workloads, it is useful to reorder queue elements. Priority dispatch provides this functionality with class-aware ordering.
 
 **Measure.** Tag work with a `WorkClass` (`Interactive`, `Default`, `Batch`) and enable OpenTelemetry. The `bifrost.orchestrator.queue_wait` histogram shows what each class actually waits.
 
@@ -90,22 +88,20 @@ services.AddWorkOrchestrator<SandboxJob>(/* ... */)
     .WithOpenTelemetry();
 ```
 
-**Enable** once a threshold you picked in advance gets crossed (say, interactive p95 queue-wait over 500 ms while batch work is co-resident):
+**Enable** once a threshold you picked in advance gets crossed (say, interactive p95 queue-wait over 500 ms while batch work is co-resident with latency-sensitive work):
 
 ```csharp
 services.AddWorkOrchestrator<SandboxJob>(/* ... */).UsePriorityDispatch();
 ```
 
-Priority dispatch orders the queue by a virtual-time key, so interactive work jumps ahead by at most a bounded window (default 30 s), and anything that has waited longer than the window outranks fresh arrivals. That window is the starvation bound. Under pressure, admission sheds the lowest class first: Batch at 0.90× capacity, Default at 0.95, Interactive to full. It's also fail-fast — at capacity `EnqueueAsync` rejects rather than waits, because making a producer wait would let queued batch work block an interactive producer and reintroduce the inversion you were trying to remove.
+Priority dispatch orders the queue by a virtual-time key, so interactive work jumps ahead by at most a bounded window (default 30s), and anything that has waited longer than the window outranks fresh arrivals. That window is the starvation bound. Under pressure, admission sheds the lowest class first: Batch at 0.90× capacity, Default at 0.95, Interactive to full.
 
-Two bindings ship, and `Auto` (the default) picks one at construction from processor count and capacity:
+Two bindings ship, and `Auto` (the default) picks one at construction from hardware processor count and capacity:
 
 | Binding | Ordering | Built for |
 |---|---|---|
 | `Locking` | Exact min-key under a global lock | Few workers, longer work items, low contention |
-| `MultiQueue` | Relaxed two-choice, bounded rank error | Many workers hammering tiny work items |
-
-The 600 s soak favors locking for the low-contention regime most orchestrators run in: interactive p95 queue-wait of 1.0 s against 15.4 s at 8 workers. The full numbers, the MultiQueue algorithm, and the rank-error math are in [BACKGROUND.md](src/Bifrost.Concurrency/BACKGROUND.md) and the [soak report](docs/benchmarks/2026-06-cpq-soak.md).
+| `MultiQueue` | Relaxed two-choice, bounded rank error | Many workers hammering numerous work items |
 
 ### When to stay on FIFO
 
@@ -144,8 +140,6 @@ public interface IWorkHandler<TWork>
     ValueTask HandleAsync(TWork work, CancellationToken ct);
 }
 ```
-
-**Coming from 0.4.x?** `EnqueueAsync` now returns `EnqueueResult` instead of a bare `ValueTask`, and the `ChannelWriter<TWork> Writer` escape hatch is gone — the queue is a pluggable dispatch binding now, not always a `Channel`. The [CHANGELOG](CHANGELOG.md) has the migration snippets.
 
 ## Build
 
