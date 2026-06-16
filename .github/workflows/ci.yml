@@ -1,5 +1,11 @@
 name: CI
 
+# Bifrost consumes the org composable CI layer (lvlup-sw/.github, #39): the
+# build/test/coverage/AOT/benchmark logic lives in the org composite actions and
+# reusable workflows, pinned to the v1.2 release SHA. Only bifrost-specific
+# concerns stay here — the gated Stress proofs and the test-filter that keeps
+# them out of the per-PR run.
+
 on:
   pull_request:
   push:
@@ -10,8 +16,7 @@ env:
   DOTNET_VERSION: '10.0.x'
   DOTNET_QUALITY: 'ga'
   SOLUTION_PATH: 'src/Bifrost.sln'
-  COVERAGE_THRESHOLD: 80
-  # Enable new Microsoft Testing Platform integration for .NET 10+
+  # Microsoft Testing Platform integration for .NET 10 + TUnit.
   DOTNET_CLI_TESTINGPLATFORM_ENABLE: '1'
 
 jobs:
@@ -22,118 +27,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # MinVer needs full history/tags
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@9a946fdbd5fb07b82b2f5a4466058b876ab72bb2 # v5.3.0
+      # Restore → build → run every test project with --coverage → merge via
+      # ReportGenerator → upload the 'coverage-reports' artifact. The action
+      # sets up .NET (reused by the smoke steps below in this job). test-filter
+      # excludes the [Category=Stress] proofs, which run in the gated
+      # stress-tests job — they starve/flake under --coverage on a 4-vcpu runner.
+      - name: Build & test
+        uses: lvlup-sw/.github/actions/dotnet-build-test@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
         with:
+          solution-path: ${{ env.SOLUTION_PATH }}
+          test-project-patterns: src/Bifrost.Tests*/*.csproj
+          test-filter: '/*/*/*/*[Category!=Stress]'
           dotnet-version: ${{ env.DOTNET_VERSION }}
           dotnet-quality: ${{ env.DOTNET_QUALITY }}
 
-      - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_PATH }}
-
-      - name: Build
-        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release
-
-      - name: Run tests with coverage
-        run: |
-          # .NET 10 + TUnit (Microsoft.Testing.Platform): run each test project individually.
-          # The glob must match every test project, NOT just src/Bifrost.Tests/ — the trailing
-          # '*' also picks up sibling dirs like src/Bifrost.Tests.Concurrency/ (otherwise those
-          # tests never run in CI and their coverage is never measured).
-          mkdir -p ./TestResults
-          failed=0
-          for proj in src/Bifrost.Tests*/*.csproj; do
-            echo "=========================================="
-            echo "Running tests for $proj"
-            echo "=========================================="
-            projname=$(basename "$proj" .csproj)
-            # Use absolute path for coverage output
-            coverage_path="${GITHUB_WORKSPACE}/TestResults/${projname}.cobertura.xml"
-            # Exclude the heavy [Category=Stress] proofs (ConservationStressTests /
-            # ThreadChurnTests): they are CPU-bound multi-core contention tests that run
-            # in the dedicated 'stress-tests' job (see below), not on every PR. The
-            # '!=Stress' predicate still runs all uncategorized tests, and excluding them
-            # leaves Bifrost.Concurrency coverage well above threshold (96.9% line / 94% branch).
-            if ! dotnet run --project "$proj" --configuration Release -- \
-              --treenode-filter "/*/*/*/*[Category!=Stress]" \
-              --coverage \
-              --coverage-output-format cobertura \
-              --coverage-output "$coverage_path"; then
-              echo "Tests failed for $proj"
-              failed=1
-            fi
-          done
-          exit $failed
-
-      - name: Benchmark smoke test
+      # BenchmarkDotNet --job Dry: proves the benchmarks compile and execute.
+      # Non-blocking (matches the pre-migration behavior).
+      - name: Benchmark smoke
         continue-on-error: true
-        run: dotnet run --project src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj -c Release -- --job Dry --filter "*"
-
-      - name: AOT smoke — install native toolchain
-        # NativeAOT publish requires clang and zlib-dev on Ubuntu 22.04.
-        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
-
-      - name: AOT smoke — publish native binary (DR-13)
-        # Publishes samples/Bifrost.Scheduling.AotSmoke as a fully ahead-of-time
-        # compiled native binary. PublishAot=true is passed on the command line rather
-        # than hardcoded in the project so a regular `dotnet build` of the solution
-        # does not require the native toolchain (and can run on any developer machine).
-        run: |
-          dotnet publish samples/Bifrost.Scheduling.AotSmoke/Bifrost.Scheduling.AotSmoke.csproj \
-            -c Release \
-            /p:PublishAot=true \
-            -o ./aot-publish
-
-      - name: AOT smoke — run native binary
-        # The binary exits 0 on success, non-zero on failure. A non-zero exit here
-        # fails the build, which is the intended behaviour for DR-13 gating.
-        run: ./aot-publish/Bifrost.Scheduling.AotSmoke
-
-      - name: AOT smoke (concurrency) — publish native binary (CPQ DR-1)
-        # Publishes samples/Bifrost.Concurrency.AotSmoke as a fully ahead-of-time
-        # compiled native binary, enforcing that the buffered ConcurrentPriorityQueue
-        # reference-type path (ESA 2021 §4 buffers) is NativeAOT-clean (no IL2xxx/IL3050).
-        # Reuses the clang toolchain installed above; PublishAot=true is passed on the
-        # command line so a regular solution `dotnet build` needs no native toolchain.
-        run: |
-          dotnet publish samples/Bifrost.Concurrency.AotSmoke/Bifrost.Concurrency.AotSmoke.csproj \
-            -c Release \
-            /p:PublishAot=true \
-            -o ./aot-publish-concurrency
-
-      - name: AOT smoke (concurrency) — run native binary
-        # Exercises the buffered (bufferCapacity:16) reference-type enqueue/dequeue under
-        # NativeAOT. Exits 0 on success, non-zero on failure; a non-zero exit fails the build.
-        run: ./aot-publish-concurrency/Bifrost.Concurrency.AotSmoke
-
-      - name: Merge coverage reports
-        if: always()
-        run: |
-          dotnet tool install -g dotnet-reportgenerator-globaltool || true
-          if ls ./TestResults/*.cobertura.xml 1> /dev/null 2>&1; then
-            reportgenerator \
-              -reports:"./TestResults/*.cobertura.xml" \
-              -targetdir:"./TestResults" \
-              -reporttypes:"Cobertura" \
-              -verbosity:Warning
-            # Create the expected output file
-            if [ -f "./TestResults/Cobertura.xml" ]; then
-              cp ./TestResults/Cobertura.xml ./TestResults/coverage.cobertura.xml
-            fi
-          else
-            echo "WARNING: No coverage files found."
-            # Create empty coverage file to not break downstream
-            echo '<?xml version="1.0"?><coverage version="1"></coverage>' > ./TestResults/coverage.cobertura.xml
-          fi
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: lvlup-sw/.github/actions/benchmark-smoke@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
         with:
-          name: coverage-reports
-          path: ./TestResults/coverage.cobertura.xml
-          retention-days: 7
+          benchmark-project: src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj
+          filter: '*'
+
+      # AOT smoke (DR-13): publish + run the scheduling sample as a NativeAOT
+      # native binary. A non-zero exit fails the build (the intended gate).
+      - name: AOT smoke (scheduling)
+        uses: lvlup-sw/.github/actions/aot-smoke@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
+        with:
+          project-path: samples/Bifrost.Scheduling.AotSmoke/Bifrost.Scheduling.AotSmoke.csproj
+
+      # AOT smoke (CPQ DR-1): the buffered ConcurrentPriorityQueue reference-type
+      # path (ESA 2021 §4 buffers) must be NativeAOT-clean. Distinct output-dir
+      # so it doesn't clobber the scheduling publish above.
+      - name: AOT smoke (concurrency)
+        uses: lvlup-sw/.github/actions/aot-smoke@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
+        with:
+          project-path: samples/Bifrost.Concurrency.AotSmoke/Bifrost.Concurrency.AotSmoke.csproj
+          output-dir: ./aot-publish-concurrency
 
   stress-tests:
     name: Stress / churn proofs (heavy, gated)
@@ -151,6 +84,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # MinVer needs full history/tags
 
       - name: Setup .NET
         uses: actions/setup-dotnet@9a946fdbd5fb07b82b2f5a4466058b876ab72bb2 # v5.3.0
@@ -173,97 +108,29 @@ jobs:
 
   coverage-gate:
     name: Coverage Gate
+    # Per-assembly enforcement (#24): every shipping assembly (<package> in the
+    # merged Cobertura report) must independently meet the threshold on BOTH line
+    # and branch. The gate logic is the org shared script (upstreamed from the
+    # former scripts/ci/coverage-gate.sh fork), internally SHA-pinned by the
+    # reusable workflow.
     needs: build-test
-    runs-on: blacksmith-4vcpu-ubuntu-2204
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
       pull-requests: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@9a946fdbd5fb07b82b2f5a4466058b876ab72bb2 # v5.3.0
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-          dotnet-quality: ${{ env.DOTNET_QUALITY }}
-
-      - name: Download coverage
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: coverage-reports
-          path: ./coverage-reports
-
-      - name: Install ReportGenerator
-        run: dotnet tool install -g dotnet-reportgenerator-globaltool
-
-      - name: Merge coverage reports
-        run: |
-          reportgenerator \
-            -reports:"./coverage-reports/**/coverage.cobertura.xml" \
-            -targetdir:"./coverage-merged" \
-            -reporttypes:"Cobertura;TextSummary"
-
-      - name: Run coverage gate
-        id: coverage
-        # Per-ASSEMBLY enforcement (#24): every shipping assembly (<package> in the merged
-        # Cobertura report) must independently meet the threshold on BOTH line and branch.
-        # This replaces the old aggregate line-only gate, which let a low-coverage package be
-        # averaged up by the rest. The per-assembly metric is the meaningful unit — gating each
-        # per-test-project file instead would red on incidental cross-assembly coverage (e.g.
-        # the scheduling suite loads Bifrost.Concurrency but does not test it).
-        run: |
-          chmod +x ./scripts/ci/coverage-gate.sh
-          ./scripts/ci/coverage-gate.sh \
-            --per-assembly ./coverage-merged/Cobertura.xml \
-            --threshold ${{ env.COVERAGE_THRESHOLD }} \
-            --output-dir ./coverage-merged
-
-      - name: Post PR comment
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh pr comment ${{ github.event.pull_request.number }} \
-            --body-file ./coverage-merged/pr-comment.md \
-            --edit-last || \
-          gh pr comment ${{ github.event.pull_request.number }} \
-            --body-file ./coverage-merged/pr-comment.md
+    uses: lvlup-sw/.github/.github/workflows/coverage-gate.yml@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
+    with:
+      coverage-threshold: 80
+      gate-mode: per-assembly
+      metrics: line+branch
+      runner: blacksmith-4vcpu-ubuntu-2204
+      dotnet-version: '10.0.x'
 
   update-baseline:
     name: Update Coverage Baseline
-    runs-on: blacksmith-4vcpu-ubuntu-2204
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: build-test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@9a946fdbd5fb07b82b2f5a4466058b876ab72bb2 # v5.3.0
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-          dotnet-quality: ${{ env.DOTNET_QUALITY }}
-
-      - name: Download coverage artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: coverage-reports
-          path: ./coverage-reports
-
-      - name: Install ReportGenerator
-        run: dotnet tool install -g dotnet-reportgenerator-globaltool
-
-      - name: Generate merged report
-        run: |
-          reportgenerator \
-            -reports:"./coverage-reports/**/coverage.cobertura.xml" \
-            -targetdir:"./coverage-merged" \
-            -reporttypes:"JsonSummary"
-
-      - name: Cache baseline coverage
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ./coverage-merged/Summary.json
-          key: coverage-baseline-${{ github.sha }}
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    uses: lvlup-sw/.github/.github/workflows/update-baseline.yml@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
+    with:
+      runner: blacksmith-4vcpu-ubuntu-2204
+      dotnet-version: '10.0.x'
