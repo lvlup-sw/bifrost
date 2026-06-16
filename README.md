@@ -180,13 +180,16 @@ operator-configurable — the point is to pick one *before* looking at the dashb
 ```csharp
 services.AddWorkOrchestrator<SandboxJob>(/* ... */)
     .WithHandler<SandboxHandler>()
-    .UsePriorityDispatch(useLockingBinding: true);  // strategy choice: see below
+    .UsePriorityDispatch();  // binding defaults to Auto (hardware × capacity) — see below
 ```
 
 Priority dispatch orders the queue by a virtual-time key (`enqueueTicks − classBoost`):
 interactive work jumps at most the boost window (default 30 s) ahead, and any item that has
-waited longer than the window outranks every fresh arrival — the starvation bound holds by
-construction, with no aging scans. Under pressure, admission sheds the lowest class first:
+waited longer than the window outranks every fresh arrival. Under the exact-ordering locking
+binding the starvation bound therefore holds by construction, with no aging scans; the relaxed
+MultiQueue binding only approximates that order, so it treats the bound as best-effort (it
+exceeded the bound at 2 workers in the soak — see *Choosing a strategy*). Under pressure,
+admission sheds the lowest class first:
 Batch is rejected at 0.90 × capacity, Default at 0.95, Interactive admits to full capacity
 (all configurable via `PriorityDispatchOptions`).
 
@@ -199,13 +202,21 @@ keeps its producer-wait behavior.
 
 ### Choosing a strategy
 
-Two priority bindings ship. Both use the same virtual-time key and the same watermarks; they
-differ in how exactly they honor the ordering:
+Two priority bindings ship, selected by the `binding:` argument to `UsePriorityDispatch`
+(`PriorityBinding`, default `Auto`). Both use the same virtual-time key and the same watermarks;
+they differ in how exactly they honor the ordering:
 
-| Strategy | Ordering | Built for |
+| Binding | Ordering | Built for |
 |---|---|---|
-| `PriorityLocking` | Exact min-key dequeue under a global lock | Few workers (1–8), seconds-long work items, low queue contention |
-| `PriorityMultiQueue` | Relaxed two-choice dequeue, expected rank error `(5/6)·n` (n ≈ 4 × processor count) | Many workers hammering the queue with micro work items |
+| `Locking` | Exact min-key dequeue under a global lock | Few workers (1–8), seconds-long work items, low queue contention |
+| `MultiQueue` | Relaxed two-choice dequeue, expected rank error `(5/6)·n` (n ≈ 4 × processor count) | Many workers hammering the queue with micro work items |
+
+`Auto` (the default) resolves the binding at orchestrator construction from the host's processor
+count and the configured capacity: it estimates the MultiQueue's expected rank error `(5/6)·n` and
+chooses the exact `Locking` binding when that reaches half the capacity — where the relaxed
+ordering would wash out and the starvation bound is at risk — and `MultiQueue` otherwise. Pass
+`binding: PriorityBinding.Locking` or `PriorityBinding.MultiQueue` to force one; the orchestrator's
+`ResolvedBinding` property reports what `Auto` chose.
 
 The 600 s release soak ([docs/benchmarks/2026-06-cpq-soak.md](docs/benchmarks/2026-06-cpq-soak.md))
 favors the **locking binding** for the consumer-shaped regime this orchestrator typically runs in:

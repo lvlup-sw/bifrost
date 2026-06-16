@@ -27,12 +27,13 @@ namespace Bifrost.Core;
 /// enqueue documentation for the full semantics table.
 /// </para>
 /// <para>
-/// <b>Choosing between the priority strategies.</b> Indicative soak measurements
-/// (<c>docs/benchmarks/2026-06-cpq-soak.md</c>) currently favor
-/// <see cref="PriorityLocking"/> in the 1–8-worker, seconds-long regime typical of
-/// this orchestrator; <see cref="PriorityMultiQueue"/> targets higher producer
-/// concurrency. Treat the soak numbers as indicative until the release-run
-/// benchmarks finalize the guidance.
+/// <b>Choosing between the priority strategies.</b> The recommended entry point is
+/// <c>UsePriorityDispatch</c> with <see cref="PriorityBinding.Auto"/> (the default),
+/// which resolves to <see cref="PriorityLocking"/> or <see cref="PriorityMultiQueue"/>
+/// at construction from the host's processor count and the queue capacity. The 600 s
+/// release soak (<c>docs/benchmarks/2026-06-cpq-soak.md</c>) favors
+/// <see cref="PriorityLocking"/> in the 1–8-worker, seconds-long regime typical of this
+/// orchestrator; <see cref="PriorityMultiQueue"/> targets higher producer concurrency.
 /// </para>
 /// </remarks>
 public enum DispatchStrategy
@@ -43,6 +44,17 @@ public enum DispatchStrategy
     /// enqueue path, no class-based ordering or admission policy.
     /// </summary>
     Fifo = 0,
+
+    /// <summary>
+    /// Priority dispatch whose concrete binding is resolved at orchestrator
+    /// construction from <c>PriorityDispatchOptions.Binding</c>.
+    /// <see cref="PriorityBinding.Locking"/> resolves to
+    /// <see cref="PriorityLocking"/>; <see cref="PriorityBinding.MultiQueue"/>
+    /// resolves to <see cref="PriorityMultiQueue"/>; <see cref="PriorityBinding.Auto"/>
+    /// applies the hardware×capacity heuristic in
+    /// <c>PriorityBindingResolver</c> to choose between them.
+    /// </summary>
+    Priority = 3,
 
     /// <summary>
     /// Lock-free MultiQueue-based priority binding: class-aware virtual-time

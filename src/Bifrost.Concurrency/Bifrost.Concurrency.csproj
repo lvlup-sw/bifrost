@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Bifrost.Tests.Concurrency" />
+    <InternalsVisibleTo Include="Bifrost.Tests" />
   </ItemGroup>
 
   <ItemGroup>

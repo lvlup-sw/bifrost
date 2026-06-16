@@ -25,15 +25,19 @@ public static class PriorityDispatchExtensions
     /// <param name="configure">
     /// Optional configuration of the <see cref="PriorityDispatchOptions"/> — boost
     /// windows and admission watermarks. When null, the documented defaults apply.
+    /// The <paramref name="binding"/> is set before the delegate is invoked, so
+    /// <paramref name="configure"/> may inspect or override it as an escape hatch.
     /// </param>
-    /// <param name="useLockingBinding">
-    /// When <c>true</c>, selects <see cref="DispatchStrategy.PriorityLocking"/>
-    /// (coarse-locking heap: exact ordering and admission boundaries); when
-    /// <c>false</c> (default), selects
-    /// <see cref="DispatchStrategy.PriorityMultiQueue"/> (lock-free MultiQueue:
-    /// relaxed ordering, higher producer concurrency). Indicative soak measurements
-    /// (<c>docs/benchmarks/2026-06-cpq-soak.md</c>) currently favor the locking
-    /// binding in the 1–8-worker, seconds-long regime.
+    /// <param name="binding">
+    /// The binding intent for the priority queue. <see cref="PriorityBinding.Auto"/>
+    /// (the default) selects the binding at orchestrator construction based on the
+    /// current hardware and queue capacity — specifically, whether the MultiQueue's
+    /// expected rank error would materially degrade priority ordering.
+    /// <see cref="PriorityBinding.Locking"/> forces the coarse-locking heap
+    /// (exact ordering, the by-construction starvation bound);
+    /// <see cref="PriorityBinding.MultiQueue"/> forces the lock-free MultiQueue
+    /// (relaxed ordering, higher producer concurrency). See the 600 s soak results
+    /// (<c>docs/benchmarks/2026-06-cpq-soak.md</c>) for the regime analysis.
     /// </param>
     /// <returns>The builder for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when builder is null.</exception>
@@ -49,23 +53,22 @@ public static class PriorityDispatchExtensions
     /// </para>
     /// <para>
     /// Strategy selection is enum/factory-based and applied at orchestrator
-    /// construction — no reflective resolution (trim/AOT-safe).
+    /// construction — no reflective resolution (trim/AOT-safe). The resolved
+    /// binding is logged once at construction and exposed via
+    /// <c>WorkOrchestrator.ResolvedBinding</c>.
     /// </para>
     /// </remarks>
     public static WorkOrchestratorBuilder<TWork> UsePriorityDispatch<TWork>(
         this WorkOrchestratorBuilder<TWork> builder,
         Action<PriorityDispatchOptions>? configure = null,
-        bool useLockingBinding = false)
+        PriorityBinding binding = PriorityBinding.Auto)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        var strategy = useLockingBinding
-            ? DispatchStrategy.PriorityLocking
-            : DispatchStrategy.PriorityMultiQueue;
-
         builder.Services.Configure<WorkOrchestratorOptions>(options =>
         {
-            options.DispatchStrategy = strategy;
+            options.DispatchStrategy = DispatchStrategy.Priority;
+            options.Priority.Binding = binding;
             configure?.Invoke(options.Priority);
         });
 

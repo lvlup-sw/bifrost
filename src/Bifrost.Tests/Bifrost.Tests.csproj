@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Bifrost.Concurrency\Bifrost.Concurrency.csproj" />
     <ProjectReference Include="..\Bifrost.Core\Bifrost.Core.csproj" />
     <ProjectReference Include="..\Bifrost.HealthChecks\Bifrost.HealthChecks.csproj" />
     <ProjectReference Include="..\Bifrost.OpenTelemetry\Bifrost.OpenTelemetry.csproj" />

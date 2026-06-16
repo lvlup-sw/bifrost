@@ -72,6 +72,13 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     private int _disposedGate;
 
     /// <summary>
+    /// The concrete binding that was chosen at construction when
+    /// <see cref="DispatchStrategy.Priority"/> was selected; <see langword="null"/> for
+    /// <see cref="DispatchStrategy.Fifo"/> (no priority binding to resolve).
+    /// </summary>
+    private readonly PriorityBinding? _resolvedBinding;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestrator{TWork}"/> class.
     /// </summary>
     /// <param name="handler">The handler that processes work items.</param>
@@ -119,9 +126,16 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         var opts = options.Value;
         _capacity = opts.Capacity;
 
+        // Resolve the Priority sentinel to a concrete strategy.
+        // Explicit PriorityMultiQueue / PriorityLocking values are passed through unchanged.
+        // The Priority sentinel is resolved once here from hardware + capacity context (DR-3).
+        var effective = opts.DispatchStrategy == DispatchStrategy.Priority
+            ? PriorityBindingResolver.Resolve(opts.Priority.Binding, Environment.ProcessorCount, opts.Capacity)
+            : opts.DispatchStrategy;
+
         // DR-4: enum/factory-based strategy selection — a direct switch constructing
         // the sealed binding, no reflective resolution (trim/AOT-safe).
-        _queue = opts.DispatchStrategy switch
+        _queue = effective switch
         {
             DispatchStrategy.Fifo =>
                 new FifoChannelWorkQueue<WorkEnvelope<TWork>>(opts.Capacity),
@@ -133,6 +147,29 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                 nameof(options), opts.DispatchStrategy, "Unknown dispatch strategy."),
         };
 
+        // Derive and store the resolved binding for observability (DR-4).
+        _resolvedBinding = effective switch
+        {
+            DispatchStrategy.PriorityLocking => PriorityBinding.Locking,
+            DispatchStrategy.PriorityMultiQueue => PriorityBinding.MultiQueue,
+            _ => null,
+        };
+
+        // Log the binding decision once at construction (DR-4 observability), including the
+        // sub-queue count and expected rank error (5/6)·n that drove the Auto threshold.
+        if (opts.DispatchStrategy == DispatchStrategy.Priority)
+        {
+            var subQueueCount = PriorityBindingResolver.SubQueueCountFor(Environment.ProcessorCount);
+            _logger.LogInformation(
+                "Priority binding resolved: requested={RequestedBinding}, resolved={ResolvedBinding}, processorCount={ProcessorCount}, capacity={Capacity}, subQueueCount={SubQueueCount}, expectedRankError={ExpectedRankError}",
+                opts.Priority.Binding,
+                _resolvedBinding,
+                Environment.ProcessorCount,
+                opts.Capacity,
+                subQueueCount,
+                5 * subQueueCount / 6);
+        }
+
         // Start worker tasks
         _workers = Enumerable.Range(0, opts.WorkerCount)
             .Select(i => Task.Factory.StartNew(
@@ -142,6 +179,19 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                 TaskScheduler.Default).Unwrap())
             .ToArray();
     }
+
+    /// <summary>
+    /// Gets the concrete priority-queue binding in effect: for the
+    /// <see cref="DispatchStrategy.Priority"/> path, the result of the
+    /// <see cref="PriorityBinding.Auto"/> heuristic or the explicit
+    /// <see cref="PriorityBinding.Locking"/>/<see cref="PriorityBinding.MultiQueue"/> override;
+    /// for a directly-configured <see cref="DispatchStrategy.PriorityLocking"/> or
+    /// <see cref="DispatchStrategy.PriorityMultiQueue"/> strategy, the corresponding binding.
+    /// <see langword="null"/> when the orchestrator uses <see cref="DispatchStrategy.Fifo"/>.
+    /// Exposed for observability and testing; for the <see cref="DispatchStrategy.Priority"/>
+    /// path the resolved choice is also logged once at construction.
+    /// </summary>
+    public PriorityBinding? ResolvedBinding => _resolvedBinding;
 
     /// <inheritdoc/>
     public int PendingCount => _queue.Count;

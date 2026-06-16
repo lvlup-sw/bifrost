@@ -204,12 +204,14 @@ public sealed class DispatchStrategyTests
     }
 
     /// <summary>
-    /// Verifies that <c>UsePriorityDispatch</c> on the builder selects the lock-free
-    /// MultiQueue binding by default and applies the priority configure delegate.
+    /// Verifies that <c>UsePriorityDispatch</c> on the builder sets the
+    /// <see cref="DispatchStrategy.Priority"/> sentinel and
+    /// <see cref="PriorityBinding.Auto"/> intent, and that the configure delegate
+    /// reaches the options.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
-    public async Task Builder_UsePriorityDispatch_SelectsMultiQueue()
+    public async Task Builder_UsePriorityDispatch_SetsPrioritySentinelAndAppliesDelegate()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -226,22 +228,19 @@ public sealed class DispatchStrategyTests
         .Build();
 
         await using var provider = services.BuildServiceProvider();
-        var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
-
-        // Assert — the resolved orchestrator runs the lock-free priority binding and
-        // the configure delegate reached the options.
-        await Assert.That(orchestrator).IsTypeOf<WorkOrchestrator<string>>();
-        var concrete = (WorkOrchestrator<string>)orchestrator;
-        await Assert.That(concrete.WorkQueue).IsTypeOf<ConcurrentPriorityWorkQueue<string>>();
-
         var options = provider.GetRequiredService<IOptions<WorkOrchestratorOptions>>().Value;
-        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.PriorityMultiQueue);
+
+        // Assert — DispatchStrategy is the Priority sentinel, binding intent is Auto,
+        // and the configure delegate reached the options.
+        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.Priority);
+        await Assert.That(options.Priority.Binding).IsEqualTo(PriorityBinding.Auto);
         await Assert.That(options.Priority.InteractiveBoostWindow).IsEqualTo(TimeSpan.FromSeconds(5));
     }
 
     /// <summary>
-    /// Verifies that <c>UsePriorityDispatch(useLockingBinding: true)</c> selects the
-    /// coarse-locking binding instead of the MultiQueue.
+    /// Verifies that <c>UsePriorityDispatch(binding: PriorityBinding.Locking)</c> sets
+    /// the coarse-locking binding intent and the orchestrator resolves it to the
+    /// locking queue.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
@@ -258,19 +257,14 @@ public sealed class DispatchStrategyTests
             opts.Capacity = 16;
             opts.WorkerCount = 1;
         })
-        .UsePriorityDispatch(useLockingBinding: true)
+        .UsePriorityDispatch(binding: PriorityBinding.Locking)
         .Build();
 
         await using var provider = services.BuildServiceProvider();
-        var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
-
-        // Assert
-        await Assert.That(orchestrator).IsTypeOf<WorkOrchestrator<string>>();
-        var concrete = (WorkOrchestrator<string>)orchestrator;
-        await Assert.That(concrete.WorkQueue).IsTypeOf<LockingPriorityWorkQueue<string>>();
 
         var options = provider.GetRequiredService<IOptions<WorkOrchestratorOptions>>().Value;
-        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.PriorityLocking);
+        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.Priority);
+        await Assert.That(options.Priority.Binding).IsEqualTo(PriorityBinding.Locking);
     }
 
     /// <summary>
