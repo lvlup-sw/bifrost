@@ -94,9 +94,9 @@ services.AddWorkOrchestrator<SandboxJob>(/* ... */)
 services.AddWorkOrchestrator<SandboxJob>(/* ... */).UsePriorityDispatch();
 ```
 
-Priority dispatch orders the queue by a virtual-time key, so interactive work jumps ahead by at most a bounded window (default 30s), and anything that has waited longer than the window outranks fresh arrivals. That window is the starvation bound. Under pressure, admission sheds the lowest class first: Batch at 0.90× capacity, Default at 0.95, Interactive to full. It's also fail-fast — at capacity `EnqueueAsync` rejects rather than waits, because making a producer wait would let queued batch work block an interactive producer and reintroduce the inversion you were trying to remove.
+Priority dispatch orders the queue by a virtual-time key, so interactive work jumps ahead by at most a bounded window (default 30s), and anything that has waited longer than the window outranks fresh arrivals. That window is the starvation bound. Under pressure, admission sheds the lowest class first: Batch at 0.90× capacity, Default at 0.95, Interactive to full.
 
-Two bindings ship, and `Auto` (the default) picks one at construction from processor count and capacity:
+Two bindings ship, and `Auto` (the default) picks one at construction from hardware processor count and capacity:
 
 | Binding | Ordering | Built for |
 |---|---|---|
