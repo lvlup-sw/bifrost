@@ -4,9 +4,9 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-Background work queues for .NET 10. You give it a work type and a handler; it runs the work on a pool of workers behind a bounded channel, with backpressure, retries, dead-lettering, autoscaling, and metrics already wired up.
+**A work-orchestration library for .NET 10.**
 
-The usual alternative is a `Channel<T>`, a `BackgroundService`, and a worker loop you write yourself. That holds up until you need admission control, a retry-then-dead-letter path, scaling under load, and OpenTelemetry — and then you're building the same plumbing for the third time. Bifrost is that plumbing, written once and AOT-compatible.
+Bifrost runs background work — emails, webhooks, sandboxed jobs, anything that shouldn't block a request — on a pool of workers behind a bounded channel. You give it a work type and a handler; it owns admission, dispatch, retries, dead-lettering, autoscaling, and observability around them. It's built on `System.Threading.Channels`, trim- and AOT-compatible, and split into focused packages so you depend only on the parts you use, with optional priority dispatch backed by a state-of-the-art, scalable concurrent priority queue.
 
 ## How it works
 
