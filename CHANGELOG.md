@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-16
+
 ### Breaking
 
 The deliberate v0.5.0 break: admission outcomes move into the type system. The compiler does
@@ -87,6 +89,14 @@ the finding — every `EnqueueAsync` call site that consumed the old `ValueTask`
   in `.github/workflows/soak.yml`, results in `docs/benchmarks/2026-06-cpq-soak.md`), contended
   throughput sweep (`throughput` verb), CPQ latency benchmarks, and the FIFO no-regression gate
   (`docs/benchmarks/2026-06-cpq-orchestrator-baseline.md`)
+- **Durable scheduling (`LevelUp.Bifrost.Scheduling`, `.Scheduling.Core`, `.Scheduling.Testing`):**
+  a virtual-time tick engine that fires jobs on a `Cadence` — `Cadence.Interval`, `Cadence.Cron`
+  (Cronos-backed, optional `TimeZoneInfo`), `Cadence.At`, and `Cadence.After`, with optional jitter
+  — registered via `AddScheduler()`. Jobs dispatch through the work orchestrator, run under a
+  per-fire DI scope, and honor a missed-fire policy (e.g. `Coalesce`) across downtime. Ships
+  scheduler lifecycle events, a `SchedulerHealthCheck`, and a deterministic `FakeTimeProvider`-driven
+  `SchedulerTestHarness` (in `LevelUp.Bifrost.Scheduling.Testing`). NativeAOT-clean (AOT smoke in
+  CI). Cron parsing via Cronos 0.13.0
 
 ## [0.4.0] - 2026-03-15
 
@@ -194,7 +204,8 @@ the finding — every `EnqueueAsync` call site that consumed the old `ValueTask`
 - Renamed from `Levelup.Channels` to `Bifrost` per naming convention decision
 - Restructured repository to follow lvlup-sw conventions (src/ layout)
 
-[Unreleased]: https://github.com/lvlup-sw/bifrost/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/lvlup-sw/bifrost/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/lvlup-sw/bifrost/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/lvlup-sw/bifrost/compare/v0.3.5...v0.4.0
 [0.3.5]: https://github.com/lvlup-sw/bifrost/compare/v0.3.0...v0.3.5
 [0.3.0]: https://github.com/lvlup-sw/bifrost/compare/v0.2.0...v0.3.0
