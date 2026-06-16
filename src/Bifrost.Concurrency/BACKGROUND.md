@@ -76,11 +76,11 @@ Contended throughput first, the regime the MultiQueue exists for. The relaxed st
 
 <p align="center"><img src="diagrams/chart-throughput-contended.svg" width="720" alt="MultiQueue throughput climbs from 15 to about 82 M ops/s with thread count while the locking baseline falls from 22 to about 13."/></p>
 
-Then the [consumer-shaped soak](../../docs/benchmarks/2026-06-cpq-soak.md), which is the regime Bifrost actually runs in: a handful of workers, seconds-long work items, a queue that is barely contended. Here the trade inverts, and it inverts for exactly the reason §3 predicts. With capacity 128 and n ≈ 128 sub-queues on a 32-core host, the expected rank error is the same order as the entire population, so the MultiQueue's class ordering washes out, while a global lock touched once per multi-second work item never convoys. These are 45-second smoke runs, indicative until the 600-second nightly artifact lands, but the gap is not subtle:
+Then the [consumer-shaped soak](../../docs/benchmarks/2026-06-cpq-soak.md), which is the regime Bifrost actually runs in: a handful of workers, seconds-long work items, a queue that is barely contended. Here the trade inverts, and it inverts for exactly the reason §3 predicts. With capacity 128 and n ≈ 128 sub-queues on a 32-core host, the expected rank error is the same order as the entire population, so the MultiQueue's class ordering washes out, while a global lock touched once per multi-second work item never convoys. These are the 600 s release-soak numbers, and the gap is not subtle:
 
-<p align="center"><img src="diagrams/chart-soak-interactive-p95.svg" width="720" alt="Interactive p95 queue wait: locking binding 8.4 s versus MultiQueue 31.0 s at 2 workers; 1.8 s versus 17.8 s at 8 workers."/></p>
+<p align="center"><img src="diagrams/chart-soak-interactive-p95.svg" width="720" alt="Interactive p95 queue wait: locking binding 33.4 s versus MultiQueue 93.3 s at 2 workers; 1.0 s versus 15.4 s at 8 workers."/></p>
 
-This is why both bindings ship and why the README's draft guidance defaults the priority strategy to `LockingPriorityWorkQueue`. Each binding's home regime is guarded by its own benchmark, so neither can quietly regress.
+This is why both bindings ship and why the README's guidance defaults the priority strategy to `LockingPriorityWorkQueue`. Each binding's home regime is guarded by its own benchmark, so neither can quietly regress.
 
 Finally the [DR-7 FIFO gate](../../docs/benchmarks/2026-06-cpq-orchestrator-baseline.md), which enforced that users who never opt into priority dispatch pay nothing for the port. The first `IWorkQueue` rewrite failed it, roughly 2× latency from async-wrapper boxing. The remediation (forwarding the channel's pooled `ValueTask` directly, plus a try-write-first enqueue) restored the deterministic 0 B/op single-worker profile; what remains is the priced-in cost of the envelope feature itself.
 

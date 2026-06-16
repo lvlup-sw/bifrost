@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 460" font-family="ui-sans-serif, system-ui, sans-serif" role="img" aria-label="Per-class p95 queue-wait — locking vs MultiQueue">
+<text x="460.0" y="26.0" font-size="16" text-anchor="middle" fill="#8b949e" font-weight="bold">Per-class p95 queue-wait — locking vs MultiQueue</text>
+<text x="460.0" y="45.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">600 s consumer-shaped soak · lower is better · the exact min-key binding separates the classes the relaxed dequeue washes out</text>
+<rect x="320" y="57" width="12" height="12" rx="2" fill="#58a6ff"/>
+<text x="338.0" y="67.0" font-size="12" text-anchor="start" fill="#8b949e" font-weight="normal">LockingPriority</text>
+<rect x="454.0" y="57" width="12" height="12" rx="2" fill="#f0883e"/>
+<text x="472.0" y="67.0" font-size="12" text-anchor="start" fill="#8b949e" font-weight="normal">MultiQueuePriority</text>
+<text x="261.0" y="98.0" font-size="13" text-anchor="middle" fill="#c9d1d9" font-weight="bold">2 workers</text>
+<line x1="76" y1="392.0" x2="446" y2="392.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="70.0" y="396.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">0.0</text>
+<line x1="76" y1="335.6" x2="446" y2="335.6" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="70.0" y="339.6" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">40.0</text>
+<line x1="76" y1="279.2" x2="446" y2="279.2" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="70.0" y="283.2" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">80.0</text>
+<line x1="76" y1="222.8" x2="446" y2="222.8" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="70.0" y="226.8" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">120.0</text>
+<line x1="76" y1="166.4" x2="446" y2="166.4" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="70.0" y="170.4" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">160.0</text>
+<line x1="76" y1="110.0" x2="446" y2="110.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="70.0" y="114.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">200.0</text>
+<text x="32.0" y="251.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">p95 wait (s)</text>
+<text x="137.7" y="408.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">Interactive</text>
+<rect x="92.0" y="344.9" width="41.1" height="47.1" rx="2" fill="#58a6ff"/>
+<text x="112.6" y="339.9" font-size="9" text-anchor="middle" fill="#58a6ff" font-weight="bold">33.4</text>
+<rect x="137.7" y="260.4" width="41.1" height="131.6" rx="2" fill="#f0883e"/>
+<text x="158.2" y="255.4" font-size="9" text-anchor="middle" fill="#f0883e" font-weight="bold">93.3</text>
+<text x="261.0" y="408.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">Default</text>
+<rect x="215.4" y="298.1" width="41.1" height="93.9" rx="2" fill="#58a6ff"/>
+<text x="235.9" y="293.1" font-size="9" text-anchor="middle" fill="#58a6ff" font-weight="bold">66.6</text>
+<rect x="261.0" y="204.4" width="41.1" height="187.6" rx="2" fill="#f0883e"/>
+<text x="281.5" y="199.4" font-size="9" text-anchor="middle" fill="#f0883e" font-weight="bold">133.0</text>
+<text x="384.3" y="408.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">Batch</text>
+<rect x="338.7" y="300.1" width="41.1" height="91.9" rx="2" fill="#58a6ff"/>
+<text x="359.2" y="295.1" font-size="9" text-anchor="middle" fill="#58a6ff" font-weight="bold">65.2</text>
+<rect x="384.3" y="222.7" width="41.1" height="169.3" rx="2" fill="#f0883e"/>
+<text x="404.9" y="217.7" font-size="9" text-anchor="middle" fill="#f0883e" font-weight="bold">120.1</text>
+<text x="705.0" y="98.0" font-size="13" text-anchor="middle" fill="#c9d1d9" font-weight="bold">8 workers</text>
+<line x1="520" y1="392.0" x2="890" y2="392.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="514.0" y="396.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">0.0</text>
+<line x1="520" y1="335.6" x2="890" y2="335.6" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="514.0" y="339.6" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">5.0</text>
+<line x1="520" y1="279.2" x2="890" y2="279.2" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="514.0" y="283.2" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">10.0</text>
+<line x1="520" y1="222.8" x2="890" y2="222.8" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="514.0" y="226.8" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">15.0</text>
+<line x1="520" y1="166.4" x2="890" y2="166.4" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="514.0" y="170.4" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">20.0</text>
+<line x1="520" y1="110.0" x2="890" y2="110.0" stroke="#8b949e" stroke-opacity="0.2" stroke-width="1"/>
+<text x="514.0" y="114.0" font-size="10" text-anchor="end" fill="#8b949e" font-weight="normal">25.0</text>
+<text x="476.0" y="251.0" font-size="10" text-anchor="middle" fill="#8b949e" font-weight="normal">p95 wait (s)</text>
+<text x="581.7" y="408.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">Interactive</text>
+<rect x="536.0" y="380.7" width="41.1" height="11.3" rx="2" fill="#58a6ff"/>
+<text x="556.6" y="375.7" font-size="9" text-anchor="middle" fill="#58a6ff" font-weight="bold">1.0</text>
+<rect x="581.7" y="218.1" width="41.1" height="173.9" rx="2" fill="#f0883e"/>
+<text x="602.2" y="213.1" font-size="9" text-anchor="middle" fill="#f0883e" font-weight="bold">15.4</text>
+<text x="705.0" y="408.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">Default</text>
+<rect x="659.4" y="200.4" width="41.1" height="191.6" rx="2" fill="#58a6ff"/>
+<text x="679.9" y="195.4" font-size="9" text-anchor="middle" fill="#58a6ff" font-weight="bold">17.0</text>
+<rect x="705.0" y="154.2" width="41.1" height="237.8" rx="2" fill="#f0883e"/>
+<text x="725.5" y="149.2" font-size="9" text-anchor="middle" fill="#f0883e" font-weight="bold">21.1</text>
+<text x="828.3" y="408.0" font-size="11" text-anchor="middle" fill="#8b949e" font-weight="normal">Batch</text>
+<rect x="782.7" y="209.3" width="41.1" height="182.7" rx="2" fill="#58a6ff"/>
+<text x="803.2" y="204.3" font-size="9" text-anchor="middle" fill="#58a6ff" font-weight="bold">16.2</text>
+<rect x="828.3" y="160.9" width="41.1" height="231.1" rx="2" fill="#f0883e"/>
+<text x="848.9" y="155.9" font-size="9" text-anchor="middle" fill="#f0883e" font-weight="bold">20.5</text>
+</svg>

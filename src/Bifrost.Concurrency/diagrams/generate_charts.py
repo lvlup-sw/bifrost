@@ -98,17 +98,17 @@ def chart_throughput():
 
 
 def chart_soak_p95():
-    """Interactive-class p95 queue wait from the consumer-shaped soak (45 s smoke runs).
+    """Interactive-class p95 queue wait from the consumer-shaped soak (600 s release runs).
 
-    Source: docs/benchmarks/2026-06-cpq-soak.md per-class table (INDICATIVE).
+    Source: docs/benchmarks/2026-06-cpq-soak.md per-class table.
     """
     groups = ["2 workers", "8 workers"]
-    locking = [8.417, 1.780]     # seconds
-    multiq = [30.964, 17.798]    # seconds
+    locking = [33.375, 1.003]    # seconds
+    multiq = [93.318, 15.417]    # seconds
 
     w, h = 720, 400
     px0, px1, py0, py1 = 70, 690, 56, 330
-    ymax = 35.0
+    ymax = 100.0
     gw = (px1 - px0) / len(groups)
     bw = 90
 
@@ -116,10 +116,10 @@ def chart_soak_p95():
         return py1 - (v / ymax) * (py1 - py0)
 
     L = svg_open(w, h, "Soak: interactive p95 queue wait by binding")
-    L.append(text(w / 2, 24, "Interactive-class p95 queue wait — consumer-shaped soak (45 s smoke, INDICATIVE)",
+    L.append(text(w / 2, 24, "Interactive-class p95 queue wait — consumer-shaped soak (600 s release)",
                   size=15, weight="bold"))
     L.append(text(w / 2, 42, "Lower is better · docs/benchmarks/2026-06-cpq-soak.md", size=11))
-    y_axis(L, px0, px1, yf, range(0, 36, 5), fmt=lambda t: f"{t}s")
+    y_axis(L, px0, px1, yf, range(0, 101, 20), fmt=lambda t: f"{t}s")
 
     for g, (name, lv, mv) in enumerate(zip(groups, locking, multiq)):
         cx = px0 + gw * (g + 0.5)

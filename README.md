@@ -207,17 +207,16 @@ differ in how exactly they honor the ordering:
 | `PriorityLocking` | Exact min-key dequeue under a global lock | Few workers (1–8), seconds-long work items, low queue contention |
 | `PriorityMultiQueue` | Relaxed two-choice dequeue, expected rank error `(5/6)·n` (n ≈ 4 × processor count) | Many workers hammering the queue with micro work items |
 
-Indicative soak measurements ([docs/benchmarks/2026-06-cpq-soak.md](docs/benchmarks/2026-06-cpq-soak.md),
-45 s smoke runs — **not** release numbers) currently favor the **locking binding** for the
-consumer-shaped regime this orchestrator typically runs in: interactive p95 queue-wait of
-8.4 s vs 31.0 s at 2 workers and 1.8 s vs 17.8 s at 8 workers (locking vs MultiQueue), with
-identical shed behavior, identical starvation-bound adherence, and equally flat allocations.
-On a many-core host the MultiQueue's rank error is the same order as a small queue's entire
-population, so class ordering washes out — its relaxation buys contended throughput
-(DataFerry's published contended results: 1.7–17.5× over the lock baseline from 4 threads up),
-and the low-contention regime has none to sell. The 600 s nightly soak runs
-(`.github/workflows/soak.yml`) finalize this guidance; treat the numbers above as indicative
-until then.
+The 600 s release soak ([docs/benchmarks/2026-06-cpq-soak.md](docs/benchmarks/2026-06-cpq-soak.md))
+favors the **locking binding** for the consumer-shaped regime this orchestrator typically runs in:
+interactive p95 queue-wait of 1.0 s vs 15.4 s at 8 workers and 33.4 s vs 93.3 s at 2 workers
+(locking vs MultiQueue), with the classes cleanly separated rather than compressed together,
+identical shed behavior, and equally flat allocations (zero collections). The locking binding also
+holds the starvation bound at both worker counts, where the relaxed MultiQueue — which carries no
+by-construction ordering guarantee — exceeds it at 2 workers. On a many-core host the MultiQueue's
+rank error is the same order as a small queue's entire population, so class ordering washes out —
+its relaxation buys contended throughput (DataFerry's published contended results: 1.7–17.5× over
+the lock baseline from 4 threads up), and the low-contention regime has none to sell.
 
 ### When NOT to use priority dispatch
 

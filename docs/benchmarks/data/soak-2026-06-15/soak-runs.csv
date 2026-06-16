@@ -1,0 +1,11 @@
+# Bifrost CPQ consumer-shaped soak (DR-8) — generated 2026-06-16 02:07:12Z
+# ProcessorCount: 32
+# OS: Pop!_OS 24.04 LTS
+# CPU arch: X64
+# Runtime: .NET 10.0.6
+# GC mode: Workstation, Concurrent: Interactive
+Binding,Workers,Seconds,Capacity,Residual,MeanOccupancyPct,MaxOccupancyPct,InBandPct,AllocBytesPerMinMean,AllocBytesPerMinMin,AllocBytesPerMinMax,Gen0,Gen1,Gen2,MaxBatchWaitSeconds,BoostWindowSeconds,DepthAdjustedBoundSeconds,StarvationBoundHeld
+LockingPriority,2,600,128,83,72.69,90.63,12.68,52977,0,922434,0,0,0,74.68,30,98.79,true
+LockingPriority,8,600,128,5,42.17,95.31,22.02,171087,0,392260,0,0,0,19.87,30,47.2,true
+MultiQueuePriority,2,600,128,69,72.14,90.63,13.34,54694,0,389006,0,0,0,225.46,30,98.79,false
+MultiQueuePriority,8,600,128,64,41.74,96.09,25.69,177777,0,392331,0,0,0,44.78,30,47.2,true

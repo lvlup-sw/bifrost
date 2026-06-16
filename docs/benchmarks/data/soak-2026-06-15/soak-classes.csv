@@ -1,0 +1,19 @@
+# Bifrost CPQ consumer-shaped soak (DR-8) — generated 2026-06-16 02:07:12Z
+# ProcessorCount: 32
+# OS: Pop!_OS 24.04 LTS
+# CPU arch: X64
+# Runtime: .NET 10.0.6
+# GC mode: Workstation, Concurrent: Interactive
+Binding,Workers,Seconds,Class,Offered,Rejected,Dispatched,OfferedSharePct,DispatchSharePct,WaitP50Ms,WaitP95Ms,WaitP99Ms,WaitMaxMs
+LockingPriority,2,600,Interactive,111,0,107,6.92,9.68,16002.32,33375.05,40677.18,40791.06
+LockingPriority,2,600,Default,111,0,102,6.92,9.23,52013.85,66574.66,73166.6,74922.32
+LockingPriority,2,600,Batch,1381,415,896,86.15,81.09,51833.47,65193.25,72543.33,74680.12
+LockingPriority,8,600,Interactive,656,0,656,14.15,15.14,160.26,1002.57,1561.59,2031.05
+LockingPriority,8,600,Default,1039,32,1007,22.41,23.23,10464.93,16986.42,19485.71,20121.5
+LockingPriority,8,600,Batch,2942,266,2671,63.45,61.63,9601.36,16198.95,18264.22,19869.56
+MultiQueuePriority,2,600,Interactive,109,0,106,6.85,9.37,21443.97,93318.09,128359.32,148268.3
+MultiQueuePriority,2,600,Default,109,0,103,6.85,9.11,36068.66,133022.67,153757.92,165821.16
+MultiQueuePriority,2,600,Batch,1373,391,922,86.3,81.52,38309.95,120089.69,160214.89,225456.66
+MultiQueuePriority,8,600,Interactive,663,0,658,14.22,15.23,3040.2,15416.83,18878.42,25497.03
+MultiQueuePriority,8,600,Default,1035,17,990,22.19,22.92,5483.68,21077.66,24363.97,47447.53
+MultiQueuePriority,8,600,Batch,2966,263,2672,63.59,61.85,6287.38,20490.45,25834.25,44778.86
