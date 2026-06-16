@@ -45,6 +45,17 @@ public enum DispatchStrategy
     Fifo = 0,
 
     /// <summary>
+    /// Priority dispatch whose concrete binding is resolved at orchestrator
+    /// construction from <c>PriorityDispatchOptions.Binding</c>.
+    /// <see cref="PriorityBinding.Locking"/> resolves to
+    /// <see cref="PriorityLocking"/>; <see cref="PriorityBinding.MultiQueue"/>
+    /// resolves to <see cref="PriorityMultiQueue"/>; <see cref="PriorityBinding.Auto"/>
+    /// applies the hardware×capacity heuristic in
+    /// <c>PriorityBindingResolver</c> to choose between them.
+    /// </summary>
+    Priority = 3,
+
+    /// <summary>
     /// Lock-free MultiQueue-based priority binding: class-aware virtual-time
     /// ordering with watermark admission, relaxed (approximate) ordering and
     /// counting under concurrency, fail-fast admission.
