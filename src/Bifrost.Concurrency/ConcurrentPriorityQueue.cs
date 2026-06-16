@@ -182,6 +182,14 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     private int _boundedCount;
 
     /// <summary>
+    /// The number of sub-queues this instance was constructed with.
+    /// Exposed as an internal test accessor so callers can assert that
+    /// <c>PriorityBindingResolver.SubQueueCountFor(Environment.ProcessorCount)</c>
+    /// agrees with the actual queue construction (T6, InternalsVisibleTo).
+    /// </summary>
+    internal int SubQueueCount => _queues.Length;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ConcurrentPriorityQueue{TElement, TPriority}"/>
     /// class that is unbounded and orders priorities with <see cref="Comparer{T}.Default"/>.
     /// </summary>

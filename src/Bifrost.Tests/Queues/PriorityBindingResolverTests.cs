@@ -4,6 +4,7 @@
 // </copyright>
 // =============================================================================
 
+using Bifrost.Concurrency;
 using Bifrost.Core;
 using Bifrost.Queues;
 
@@ -116,5 +117,20 @@ public class PriorityBindingResolverTests
     }
 
     // ─── T6: SubQueueCountFor matches actual ConcurrentPriorityQueue sub-queue count ───
-    // (test added here after T6 implementation adds the SubQueueCount accessor)
+
+    /// <summary>
+    /// Verifies that <see cref="PriorityBindingResolver.SubQueueCountFor"/> returns the
+    /// same count that a freshly-constructed <see cref="ConcurrentPriorityQueue{TElement,TPriority}"/>
+    /// uses for its internal sub-queues, ensuring the resolver's heuristic and the actual
+    /// queue construction stay in agreement.
+    /// </summary>
+    [Test]
+    public async Task SubQueueCountFor_MatchesConcurrentPriorityQueueActualCount()
+    {
+        var resolverCount = PriorityBindingResolver.SubQueueCountFor(Environment.ProcessorCount);
+        var queue = new ConcurrentPriorityQueue<int, long>();
+        var actualCount = queue.SubQueueCount;
+
+        await Assert.That(resolverCount).IsEqualTo(actualCount);
+    }
 }
