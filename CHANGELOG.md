@@ -65,12 +65,18 @@ the finding — every `EnqueueAsync` call site that consumed the old `ValueTask`
   overload, plus an options-level classifier via `WithClassifier()` (a per-call class other than
   `Default` wins; the classifier is consulted otherwise)
 - **Dispatch strategies:** `WorkOrchestratorOptions.DispatchStrategy`
-  (`Fifo` default / `PriorityMultiQueue` / `PriorityLocking`) behind the `IWorkQueue<T>`
-  abstraction, with the `UsePriorityDispatch()` builder extension; selection is enum/factory-based
-  (no reflection, trim/AOT-safe)
+  (`Fifo` default / `PriorityMultiQueue` / `PriorityLocking` / `Priority` resolution sentinel)
+  behind the `IWorkQueue<T>` abstraction, with the `UsePriorityDispatch()` builder extension;
+  selection is enum/factory-based (no reflection, trim/AOT-safe). The priority binding is chosen
+  via `PriorityBinding { Auto, Locking, MultiQueue }` (the `binding:` argument, default `Auto`);
+  `Auto` resolves at construction from processor count × capacity — the exact lock when the
+  MultiQueue's expected rank error `(5/6)·n` would reach half the capacity (ordering washes out),
+  the MultiQueue otherwise — and the orchestrator exposes the outcome as `ResolvedBinding`
 - **Virtual-time priority key + watermark admission:** WFQ-style key
   `enqueueTicks − classBoost` — Interactive jumps at most the boost window (default 30s), which
-  doubles as the starvation bound by construction; class-aware admission watermarks shed the
+  doubles as the starvation bound by construction under the exact-ordering locking binding (the
+  relaxed MultiQueue approximates the order and treats the bound as best-effort); class-aware
+  admission watermarks shed the
   lowest class first under pressure (Batch at 0.90 × capacity, Default at 0.95, Interactive to
   full capacity; configurable via `PriorityDispatchOptions`)
 - **Queue-wait observability:** `bifrost.orchestrator.queue_wait` histogram (ms, tagged

@@ -13,6 +13,7 @@ In this regime the exact min-key locking binding wins decisively: at 8 workers i
 | Host | Intel Core i9-13900K, 32 logical / 24 physical cores, Pop!\_OS 24.04 LTS, x86-64 |
 | Runtime | .NET 10.0.6, Release, Workstation GC |
 | Harness | `soak` CLI verb (`Bifrost.Benchmarks`), 600 s window × 4 runs (both bindings × workers {2, 8}), seed 42 |
+| MultiQueue tuning | `Balanced` profile (the default); for the value-type `WorkEnvelope<int>` this resolves to stickiness 1, buffering off — the MultiQueue's tightest ordering, so the gap below is not a tuning artifact (no profile narrows it; `LowConcurrency` would widen it) |
 | Workload | work items log-uniform 50 ms – 5 s (`Task.Delay`-simulated); arrival mix Interactive 20 % / Default 30 % / Batch 50 %, feedback-steered toward a 40–60 % occupancy band; Batch bursts of 64 every 30 s; capacity 128, watermarks Batch 0.90 / Default 0.95 / Interactive 1.0; boost window 30 s |
 | Raw data | [`data/soak-2026-06-15/`](data/soak-2026-06-15/) — `soak-classes.csv`, `soak-runs.csv`, `soak.md` |
 
