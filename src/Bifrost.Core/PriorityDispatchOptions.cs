@@ -185,6 +185,20 @@ public class PriorityDispatchOptions
     }
 
     /// <summary>
+    /// Gets or sets the binding intent for the priority queue used by the work orchestrator.
+    /// </summary>
+    /// <value>The selected binding. Default is <see cref="PriorityBinding.Auto"/>.</value>
+    /// <remarks>
+    /// <see cref="PriorityBinding.Auto"/> (the default) lets the orchestrator pick the concrete
+    /// binding at construction based on the current hardware and queue capacity — specifically,
+    /// whether the MultiQueue's expected rank error would materially degrade priority ordering.
+    /// <see cref="PriorityBinding.Locking"/> and <see cref="PriorityBinding.MultiQueue"/> bypass
+    /// the heuristic and select the binding unconditionally. The resolved binding is logged once
+    /// at construction and exposed via <c>WorkOrchestrator.ResolvedBinding</c>.
+    /// </remarks>
+    public PriorityBinding Binding { get; set; } = PriorityBinding.Auto;
+
+    /// <summary>
     /// Gets or sets the tuning profile for the relaxed MultiQueue the priority queue is built on.
     /// </summary>
     /// <value>The selected profile. Default is <see cref="CpqTuningProfile.Balanced"/>.</value>
