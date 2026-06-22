@@ -215,6 +215,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         IJobDispatcher dispatcher,
         CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ValidateName(name);
         ArgumentNullException.ThrowIfNull(cadence);
         ArgumentNullException.ThrowIfNull(dispatcher);
@@ -290,6 +291,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     /// <inheritdoc/>
     public async ValueTask<bool> UnregisterAsync(string name, CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
 
         if (!this.jobs.ContainsKey(name))
@@ -314,6 +316,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     /// <inheritdoc/>
     public async ValueTask PauseAsync(string name, CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
 
         if (!this.jobs.TryGetValue(name, out var record))
@@ -333,6 +336,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     /// <inheritdoc/>
     public async ValueTask ResumeAsync(string name, CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
 
         if (!this.jobs.TryGetValue(name, out var record))
@@ -356,6 +360,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         MissedFirePolicy missedFirePolicy,
         CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(cadence);
 
@@ -405,6 +410,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     /// <inheritdoc/>
     public async ValueTask TriggerAsync(string name, CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
 
         if (!this.jobs.ContainsKey(name))
@@ -553,6 +559,19 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
     private async ValueTask PostAsync(RegistryCommand command, CancellationToken ct)
         => await this.commands.Writer.WriteAsync(command, ct).ConfigureAwait(false);
+
+    /// <summary>
+    /// Throws <see cref="ObjectDisposedException"/> when the registry has been disposed.
+    /// Called at the start of every public mutating / command-posting method — before any
+    /// durable or in-memory mutation — so a disposed registry rejects the call cleanly
+    /// rather than committing the change and only failing later at the closed-channel
+    /// <see cref="PostAsync"/>, which would leave the caller seeing a committed change
+    /// reported as failed. Read-only query accessors do not call this: a snapshot of a
+    /// disposed registry is harmless.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">The registry has been disposed.</exception>
+    private void ThrowIfDisposed()
+        => ObjectDisposedException.ThrowIf(Volatile.Read(ref this.disposed) != 0, this);
 
     /// <summary>
     /// Disposes the registry by completing its command-channel writer, signalling the

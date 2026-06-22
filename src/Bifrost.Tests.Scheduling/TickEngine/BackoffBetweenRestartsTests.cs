@@ -178,6 +178,55 @@ public sealed class BackoffBetweenRestartsTests
     }
 
     /// <summary>
+    /// Verifies disposing the registry while the loop is parked on a repeated-fault backoff
+    /// wakes the loop promptly — the dispose-as-stop cousin of the HIGH-1 fix. With a backoff
+    /// far longer than any clock advance, fault #1 (no backoff) re-faults into fault #2, which
+    /// arms the long backoff; the loop is then parked on it. Disposing the registry completes
+    /// its command-channel writer — WITHOUT advancing the fake clock past the backoff and
+    /// WITHOUT cancelling the stopping token — which the backoff race must observe so
+    /// <see cref="BackgroundService.ExecuteTask"/> completes promptly. Without the race the
+    /// loop waits out the full (hour-long) backoff that the fake clock never advances, so
+    /// <c>ExecuteTask</c> never completes and the bounded wait times out, failing the test.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task DisposeRegistryDuringBackoff_WithoutCancel_StopsLoopPromptly()
+    {
+        // A backoff far longer than the test could ever advance, so once the loop parks on it
+        // the only thing that can release it is the registry-dispose channel completion.
+        var sink = new FaultRecordingEventSink { ThrowOnFiredCount = int.MaxValue };
+        var fx = await Fixture.StartAsync(
+            sink,
+            new SchedulerOptions
+            {
+                RestartBackoff = TimeSpan.FromHours(1),
+                MaxRestartsInWindow = 1000,
+                RestartWindow = TimeSpan.FromHours(1),
+            }).ConfigureAwait(false);
+        _ = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
+
+        // Fault #1 (first in window, no backoff) re-faults into fault #2, which arms the
+        // hour-long backoff. After two faults the loop is parked on the backoff.
+        fx.Time.Advance(TimeSpan.FromMinutes(30));
+        await sink.WaitForFaultCountAsync(2, TestTimeout).ConfigureAwait(false);
+
+        var executeTask = ((BackgroundService)fx.Loop).ExecuteTask;
+        await Assert.That(executeTask is not null).IsTrue();
+
+        // Dispose the registry WITHOUT cancelling the stopping token and WITHOUT advancing the
+        // fake clock past the backoff. Completing the command-channel writer must wake the loop
+        // out of the backoff so it re-checks ShouldStop and exits cleanly.
+        await fx.Registry.DisposeAsync().ConfigureAwait(false);
+
+        await Assert.That(async () => await executeTask!.WaitAsync(TestTimeout).ConfigureAwait(false))
+            .ThrowsNothing();
+        await Assert.That(executeTask!.IsCompleted).IsTrue();
+        await Assert.That(fx.Loop.IsFaulted).IsFalse();
+
+        fx.Loop.Dispose();
+    }
+
+    /// <summary>
     /// A test harness owning a started <see cref="ScheduleTickLoop"/> with a fault-recording
     /// event sink, mirroring the fixture used by the loop's other fault tests.
     /// </summary>

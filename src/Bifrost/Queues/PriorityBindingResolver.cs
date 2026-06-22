@@ -69,6 +69,10 @@ internal static class PriorityBindingResolver
 
             // Auto and explicit MultiQueue both resolve to the relaxed lock-free queue.
             // Auto never selects Locking — that is a deliberate, explicit choice only.
-            _ => DispatchStrategy.PriorityMultiQueue,
+            PriorityBinding.Auto or PriorityBinding.MultiQueue => DispatchStrategy.PriorityMultiQueue,
+
+            // Any other value is an out-of-range cast (e.g. (PriorityBinding)999): fail
+            // fast rather than silently defaulting it to a strategy the caller never named.
+            _ => throw new ArgumentOutOfRangeException(nameof(requested), requested, "Unknown priority binding."),
         };
 }

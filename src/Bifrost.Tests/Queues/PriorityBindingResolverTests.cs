@@ -93,6 +93,19 @@ public class PriorityBindingResolverTests
         await Assert.That(result).IsEqualTo(DispatchStrategy.PriorityMultiQueue);
     }
 
+    /// <summary>
+    /// Verifies an out-of-range <see cref="PriorityBinding"/> cast (a value outside the
+    /// declared enum members) fails fast with <see cref="ArgumentOutOfRangeException"/>
+    /// rather than silently defaulting to a strategy the caller never named. Guards the
+    /// fail-fast arm replacing the former catch-all default.
+    /// </summary>
+    [Test]
+    public async Task Resolve_UnknownBinding_Throws()
+    {
+        await Assert.That(() => PriorityBindingResolver.Resolve((PriorityBinding)999))
+            .Throws<ArgumentOutOfRangeException>();
+    }
+
     // ─── T6: SubQueueCountFor matches actual ConcurrentPriorityQueue sub-queue count ───
 
     /// <summary>

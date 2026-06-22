@@ -122,9 +122,11 @@ internal sealed class SchedulerBuilder : ISchedulerBuilder
     /// <summary>
     /// Fails fast on a misconfigured <see cref="SchedulerOptions"/>, naming the
     /// offending properties: each fault-recovery knob must be in range, and the
-    /// cross-field constraint <c>RestartBackoff * MaxRestartsInWindow &lt; RestartWindow</c>
-    /// must hold so the DR-10 give-up transition stays reachable (see
-    /// <see cref="SchedulerOptions.RestartBackoff"/>).
+    /// cross-field conservative bound <c>RestartBackoff * MaxRestartsInWindow &lt; RestartWindow</c>
+    /// must hold so the DR-10 give-up transition stays reliably reachable (see
+    /// <see cref="SchedulerOptions.RestartBackoff"/>). The bound is a conservative sufficient
+    /// condition, not the exact necessary boundary — the runtime tolerates more — but it is
+    /// enforced with margin deliberately to keep the guarantee robust.
     /// </summary>
     /// <param name="options">The configured options to validate.</param>
     /// <exception cref="InvalidOperationException">A constraint is violated.</exception>
@@ -152,22 +154,27 @@ internal sealed class SchedulerBuilder : ISchedulerBuilder
         }
 
         // Cross-field (DR-10): a backoff that spaces consecutive faults at least as far
-        // apart as the window lets each fault slide out of the sliding RestartWindow
+        // apart as the window can let each fault slide out of the sliding RestartWindow
         // before the next arrives, so the restart count never exceeds
         // MaxRestartsInWindow and the loop backs off forever instead of ever reaching
-        // its give-up/faulted state. Require the spacing to stay strictly inside the
-        // window. (A zero backoff disables spacing, so the constraint does not apply.)
+        // its give-up/faulted state. This is a CONSERVATIVE SUFFICIENT bound, not the exact
+        // necessary boundary (the runtime tolerates more — the first fault is not backed off
+        // and give-up triggers at Count > MaxRestartsInWindow), but it is enforced with margin
+        // deliberately so the give-up guarantee is robust. Require the spacing to stay strictly
+        // inside the window. (A zero backoff disables spacing, so the constraint does not apply.)
         if (options.RestartBackoff > TimeSpan.Zero &&
             options.RestartBackoff * options.MaxRestartsInWindow >= options.RestartWindow)
         {
             throw new InvalidOperationException(
-                $"SchedulerOptions fault-recovery settings are unsatisfiable: " +
+                $"SchedulerOptions fault-recovery settings violate the conservative bound that keeps " +
+                $"the DR-10 give-up transition reliably reachable: " +
                 $"{nameof(SchedulerOptions.RestartBackoff)} ({options.RestartBackoff}) * " +
                 $"{nameof(SchedulerOptions.MaxRestartsInWindow)} ({options.MaxRestartsInWindow}) " +
-                $"must be < {nameof(SchedulerOptions.RestartWindow)} ({options.RestartWindow}). " +
-                "Otherwise the backoff slides faults out of the sliding window faster than they " +
-                "accumulate, so the tick loop never reaches its DR-10 give-up state and backs off " +
-                $"forever. Lower {nameof(SchedulerOptions.RestartBackoff)}, lower " +
+                $"should stay < {nameof(SchedulerOptions.RestartWindow)} ({options.RestartWindow}). " +
+                "This bound is conservative (the runtime tolerates somewhat more), but it is enforced " +
+                "with margin so a crash loop cannot space its faults out of the sliding window faster " +
+                "than they accumulate and back off forever instead of reaching its DR-10 give-up state. " +
+                $"Lower {nameof(SchedulerOptions.RestartBackoff)}, lower " +
                 $"{nameof(SchedulerOptions.MaxRestartsInWindow)}, or raise " +
                 $"{nameof(SchedulerOptions.RestartWindow)}.");
         }
