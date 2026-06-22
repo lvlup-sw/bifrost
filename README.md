@@ -96,12 +96,14 @@ services.AddWorkOrchestrator<SandboxJob>(/* ... */).UsePriorityDispatch();
 
 Priority dispatch orders the queue by a virtual-time key, so interactive work jumps ahead by at most a bounded window (default 30s), and anything that has waited longer than the window outranks fresh arrivals. That window is the starvation bound. Under pressure, admission sheds the lowest class first: Batch at 0.90× capacity, Default at 0.95, Interactive to full.
 
-Two bindings ship, and `Auto` (the default) picks one at construction from hardware processor count and capacity:
+Two bindings ship. `Auto` (the default) always resolves to `MultiQueue`; `Locking` never engages on its own — opt into it explicitly with `PriorityBinding.Locking` when you need exact ordering:
 
 | Binding | Ordering | Built for |
 |---|---|---|
-| `Locking` | Exact min-key under a global lock | Few workers, longer work items, low contention |
-| `MultiQueue` | Relaxed two-choice, bounded rank error | Many workers hammering numerous work items |
+| `Locking` | Exact min-key under a global lock | Explicit opt-in: strict rank ordering at high capacity, few workers, longer work items, low contention |
+| `MultiQueue` | Relaxed two-choice, bounded rank error | The default (`Auto`): many workers hammering numerous work items |
+
+`MultiQueue`'s relaxed ordering trades a little rank accuracy for scalability, and that rank error grows with capacity — so at high capacity, choose `Locking` explicitly if you need strict priority order. `Auto` keeps the lock-free `MultiQueue` regardless of capacity.
 
 ### When to stay on FIFO
 

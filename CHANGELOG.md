@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`SchedulerOptions.RestartBackoff`** (#32) — the tick loop now backs off (default 1s) between *repeated* fault restarts within the restart window, so a crash loop no longer spins a core. A single transient fault still restarts immediately, and the give-up transition (`MaxRestartsInWindow` within `RestartWindow`) is unaffected.
+- **`ScheduleRegistry` implements `IAsyncDisposable` and `IDisposable`** (#32) — disposing it completes the command-channel writer so the tick loop drains its backlog and stops cleanly instead of blocking on a never-completed channel.
+
+### Changed
+
+- **`PriorityBinding.Auto` never selects the locking dispatcher** (#46) — `Auto` (the default priority binding) now always resolves to the lock-free `MultiQueue`. The previous capacity/rank-error heuristic that could silently switch `Auto` to the coarse global-locking heap at high capacity is removed; `Locking` is reachable only via an explicit `PriorityBinding.Locking`. No public API change — behavior only. Choose `Locking` explicitly when you need strict min-key ordering at high capacity, where the relaxed `MultiQueue`'s rank accuracy decreases.
+
+### Fixed
+
+- **Scheduler post-MVP follow-ups** (#32) — the tick loop stops cleanly when its registry's command channel completes (no CPU spin on dispose-while-running); fault-restart backoff prevents crash-loop spin; deferred test-hygiene fixes (deterministic event-stream disposal, guarded hosted-service startup, thread-pool-floor failure check, loop teardown in `finally`, fixture nullability). In-flight double-decrement isolation and scope-fault event observability were confirmed already-correct and locked in with regression tests. `UpdateAsync` is now documented in the durable-scheduling design.
+
 ## [0.5.0] - 2026-06-16
 
 ### Breaking
