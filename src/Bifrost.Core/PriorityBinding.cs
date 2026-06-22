@@ -8,39 +8,45 @@ namespace Bifrost.Core;
 
 /// <summary>
 /// Expresses the caller's intent for the concrete priority-queue binding used
-/// by the work orchestrator. Resolved once at orchestrator construction from the
-/// hardware and capacity context when <see cref="Auto"/> is chosen.
+/// by the work orchestrator. Resolved once at orchestrator construction.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="Auto"/> is the default and the recommended choice. It selects
-/// <see cref="Locking"/> when the MultiQueue's expected rank error
-/// (<c>(5/6)·n</c>, where <c>n = RoundUpToPowerOf2(4 × ProcessorCount)</c>)
-/// reaches half the queue capacity — a regime where the relaxed dequeue cannot
-/// honor priority order. Below that threshold it selects <see cref="MultiQueue"/>.
+/// <see cref="Auto"/> is the default and always resolves to <see cref="MultiQueue"/>
+/// — the lock-free relaxed queue. It never selects <see cref="Locking"/>; the
+/// coarse-locking heap is a deliberate opt-in only.
 /// </para>
 /// <para>
-/// <see cref="Locking"/> and <see cref="MultiQueue"/> bypass the heuristic
-/// entirely and select the binding unconditionally, for callers who know their
-/// workload.
+/// <see cref="Locking"/> is the explicit opt-in for strict rank ordering at high
+/// capacity. There is a documented tradeoff: the relaxed (lock-free) MultiQueue's
+/// expected rank error (<c>(5/6)·n</c>, where <c>n = RoundUpToPowerOf2(4 × ProcessorCount)</c>)
+/// grows with capacity, so a high-capacity <see cref="Auto"/> queue keeps relaxed
+/// ordering unless the caller opts into <see cref="Locking"/>.
+/// </para>
+/// <para>
+/// Each value selects its binding unconditionally: <see cref="Auto"/> and
+/// <see cref="MultiQueue"/> both resolve to the MultiQueue; <see cref="Locking"/>
+/// resolves to the locking heap.
 /// </para>
 /// </remarks>
 public enum PriorityBinding
 {
     /// <summary>
-    /// Hardware×capacity-aware automatic selection (the default). The orchestrator
-    /// chooses <see cref="Locking"/> when the relaxed dequeue's expected rank error
-    /// would materially degrade priority ordering; otherwise <see cref="MultiQueue"/>.
-    /// The resolved choice is logged once at construction and exposed via
-    /// <c>WorkOrchestrator.ResolvedBinding</c>.
+    /// Automatic selection (the default). Always resolves to <see cref="MultiQueue"/>
+    /// — it never selects <see cref="Locking"/>. The resolved choice is logged once
+    /// at construction and exposed via <c>WorkOrchestrator.ResolvedBinding</c>.
     /// </summary>
     Auto = 0,
 
     /// <summary>
     /// Unconditionally selects the coarse-locking binary-heap binding
     /// (<see cref="DispatchStrategy.PriorityLocking"/>): exact ordering and exact
-    /// admission boundaries under a global lock. Use when strict priority ordering
-    /// or the by-construction starvation bound is required regardless of core count.
+    /// admission boundaries under a global lock. The explicit opt-in for strict rank
+    /// ordering at high capacity — <see cref="Auto"/> never selects this, so callers
+    /// who need exact priority order (rather than the MultiQueue's relaxed ordering,
+    /// whose rank error grows with capacity) must request it deliberately. Use when
+    /// strict priority ordering or the by-construction starvation bound is required
+    /// regardless of core count.
     /// </summary>
     Locking,
 

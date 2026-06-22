@@ -30,14 +30,15 @@ public static class PriorityDispatchExtensions
     /// </param>
     /// <param name="binding">
     /// The binding intent for the priority queue. <see cref="PriorityBinding.Auto"/>
-    /// (the default) selects the binding at orchestrator construction based on the
-    /// current hardware and queue capacity — specifically, whether the MultiQueue's
-    /// expected rank error would materially degrade priority ordering.
-    /// <see cref="PriorityBinding.Locking"/> forces the coarse-locking heap
-    /// (exact ordering, the by-construction starvation bound);
-    /// <see cref="PriorityBinding.MultiQueue"/> forces the lock-free MultiQueue
-    /// (relaxed ordering, higher producer concurrency). See the 600 s soak results
-    /// (<c>docs/benchmarks/2026-06-cpq-soak.md</c>) for the regime analysis.
+    /// (the default) always resolves to the lock-free MultiQueue — it never selects
+    /// locking. <see cref="PriorityBinding.Locking"/> is the explicit opt-in for the
+    /// coarse-locking heap (exact ordering, the by-construction starvation bound);
+    /// it is the only way to get locking, since <see cref="PriorityBinding.Auto"/>
+    /// keeps relaxed ordering even at high capacity (where the MultiQueue's expected
+    /// rank error grows). <see cref="PriorityBinding.MultiQueue"/> forces the
+    /// lock-free MultiQueue (relaxed ordering, higher producer concurrency). See the
+    /// 600 s soak results (<c>docs/benchmarks/2026-06-cpq-soak.md</c>) for the regime
+    /// analysis.
     /// </param>
     /// <returns>The builder for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when builder is null.</exception>

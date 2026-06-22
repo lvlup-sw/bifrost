@@ -128,9 +128,10 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
         // Resolve the Priority sentinel to a concrete strategy.
         // Explicit PriorityMultiQueue / PriorityLocking values are passed through unchanged.
-        // The Priority sentinel is resolved once here from hardware + capacity context (DR-3).
+        // The Priority sentinel is resolved once here from the binding intent (DR-3): Auto
+        // always selects MultiQueue; Locking is reachable only via explicit PriorityBinding.Locking.
         var effective = opts.DispatchStrategy == DispatchStrategy.Priority
-            ? PriorityBindingResolver.Resolve(opts.Priority.Binding, Environment.ProcessorCount, opts.Capacity)
+            ? PriorityBindingResolver.Resolve(opts.Priority.Binding)
             : opts.DispatchStrategy;
 
         // DR-4: enum/factory-based strategy selection — a direct switch constructing
@@ -156,18 +157,18 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         };
 
         // Log the binding decision once at construction (DR-4 observability), including the
-        // sub-queue count and expected rank error (5/6)·n that drove the Auto threshold.
+        // MultiQueue sub-queue count for the resolved relaxed queue. Auto always resolves to
+        // MultiQueue; Locking is reached only by explicit request.
         if (opts.DispatchStrategy == DispatchStrategy.Priority)
         {
             var subQueueCount = PriorityBindingResolver.SubQueueCountFor(Environment.ProcessorCount);
             _logger.LogInformation(
-                "Priority binding resolved: requested={RequestedBinding}, resolved={ResolvedBinding}, processorCount={ProcessorCount}, capacity={Capacity}, subQueueCount={SubQueueCount}, expectedRankError={ExpectedRankError}",
+                "Priority binding resolved: requested={RequestedBinding}, resolved={ResolvedBinding}, processorCount={ProcessorCount}, capacity={Capacity}, subQueueCount={SubQueueCount}",
                 opts.Priority.Binding,
                 _resolvedBinding,
                 Environment.ProcessorCount,
                 opts.Capacity,
-                subQueueCount,
-                5 * subQueueCount / 6);
+                subQueueCount);
         }
 
         // Start worker tasks
@@ -182,9 +183,10 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
     /// <summary>
     /// Gets the concrete priority-queue binding in effect: for the
-    /// <see cref="DispatchStrategy.Priority"/> path, the result of the
-    /// <see cref="PriorityBinding.Auto"/> heuristic or the explicit
-    /// <see cref="PriorityBinding.Locking"/>/<see cref="PriorityBinding.MultiQueue"/> override;
+    /// <see cref="DispatchStrategy.Priority"/> path, the resolved binding —
+    /// <see cref="PriorityBinding.Auto"/> always resolves to
+    /// <see cref="PriorityBinding.MultiQueue"/>, and
+    /// <see cref="PriorityBinding.Locking"/> is selected only when explicitly requested;
     /// for a directly-configured <see cref="DispatchStrategy.PriorityLocking"/> or
     /// <see cref="DispatchStrategy.PriorityMultiQueue"/> strategy, the corresponding binding.
     /// <see langword="null"/> when the orchestrator uses <see cref="DispatchStrategy.Fifo"/>.
