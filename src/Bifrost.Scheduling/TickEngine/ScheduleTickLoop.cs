@@ -428,6 +428,11 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </remarks>
     /// <param name="stoppingToken">The loop's stopping token, cancelled on shutdown.</param>
     /// <returns>A task that completes when the backoff elapses or the loop should exit.</returns>
+    [SuppressMessage(
+        "Usage",
+        "VSTHRD003:Avoid awaiting foreign Tasks",
+        Justification = "The command-readiness wait is the loop's own cached single-reader " +
+            "channel wait; racing the backoff against it is the intended dispose-wake.")]
     private async Task AwaitRestartBackoffAsync(CancellationToken stoppingToken)
     {
         var backoff = this.options.RestartBackoff;
@@ -435,18 +440,36 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // restartTimes holds the faults inside the current sliding window (just updated by
         // HandleTickLoopFault). Count == 1 means this is the first fault in the window — a
         // one-off blip — so recover immediately; back off only from the second consecutive
-        // fault onward, which is the crash loop this delay exists to tame.
+        // fault onward, which is the crash loop this delay exists to tame. ShouldStop also
+        // skips the backoff when the registry's command channel has already completed (the
+        // registry was disposed), so a dispose-as-stop never parks on a full backoff.
         if (backoff <= TimeSpan.Zero
             || this.IsFaulted
             || this.restartTimes.Count <= 1
-            || stoppingToken.IsCancellationRequested)
+            || this.ShouldStop(stoppingToken))
         {
             return;
         }
 
         try
         {
-            await Task.Delay(backoff, this.timeProvider, stoppingToken).ConfigureAwait(false);
+            // Race the backoff against the command channel so a dispose mid-backoff wakes
+            // the loop instead of leaving it parked for the full RestartBackoff. The
+            // registry completes its command-channel writer on dispose, which completes
+            // CommandReadyTask (WaitToReadAsync returns false); a real command arriving also
+            // completes it. Either way we return so the fault-recovery loop re-checks
+            // ShouldStop and exits cleanly on completion (or re-enters and drains the
+            // command). CommandReadyTask is the existing cached single-reader wait, reused
+            // here on the same tick thread — the only reader — so a single outstanding
+            // waiter remains correct.
+            var delay = Task.Delay(backoff, this.timeProvider, stoppingToken);
+            var commandReady = this.CommandReadyTask(stoppingToken);
+            var winner = await Task.WhenAny(delay, commandReady).ConfigureAwait(false);
+            if (winner == delay)
+            {
+                // Observe the delay's completion/cancellation (no-op when it ran to term).
+                await delay.ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

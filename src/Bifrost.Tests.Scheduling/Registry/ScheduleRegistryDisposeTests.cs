@@ -98,24 +98,28 @@ public sealed class ScheduleRegistryDisposeTests
     }
 
     /// <summary>
-    /// Verifies posting a command after dispose behaves sanely: the write surfaces as an
-    /// observable <see cref="ChannelClosedException"/> to the awaiting caller rather than
-    /// being silently dropped or faulting unobserved. A caller using a disposed registry
-    /// gets a clear, awaited error.
+    /// Verifies a command-posting method after dispose fails fast with a clear
+    /// <see cref="ObjectDisposedException"/> rather than the late
+    /// <see cref="ChannelClosedException"/> the bare closed-channel post would surface.
+    /// The dispose guard (see <see cref="MutatingMethods_AfterDispose_Throw"/>) runs before
+    /// the post, so a caller using a disposed registry gets a clear, awaited error that names
+    /// the disposed object instead of a leaked channel fault — and, critically, no state is
+    /// committed before that failure.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
-    public async Task PostAfterDispose_SurfacesObservableChannelClosed()
+    public async Task PostAfterDispose_FailsFastWithObjectDisposed()
     {
         var store = Substitute.For<IScheduleStore>();
         var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
 
         await registry.DisposeAsync().ConfigureAwait(false);
 
-        // TriggerAsync posts unconditionally for a registered job; over a completed
-        // writer the write faults, and that fault is observed by the awaiting caller.
+        // TriggerAsync would post unconditionally for a registered job; the dispose guard
+        // now rejects it up front with ObjectDisposedException, before it reaches the
+        // completed-writer post (which would otherwise throw ChannelClosedException).
         await Assert.That(async () => await registry.TriggerAsync("daily-report").ConfigureAwait(false))
-            .Throws<ChannelClosedException>();
+            .Throws<ObjectDisposedException>();
     }
 
     /// <summary>
@@ -145,6 +149,54 @@ public sealed class ScheduleRegistryDisposeTests
             using var sp = services.BuildServiceProvider();
             _ = sp.GetRequiredService<IScheduleRegistry>();
         }).ThrowsNothing();
+    }
+
+    /// <summary>
+    /// Verifies that after the registry is disposed every public mutating / command-posting
+    /// method fails fast with <see cref="ObjectDisposedException"/> — before it can commit a
+    /// durable or in-memory change. Without the guard a mutation commits and only the trailing
+    /// closed-channel post fails, so the caller sees a committed change reported as failed.
+    /// <c>RegisterAsync</c> (no prior job) and <c>PauseAsync</c>/<c>UpdateAsync</c>/
+    /// <c>ResumeAsync</c>/<c>UnregisterAsync</c>/<c>TriggerAsync</c> (a previously-registered
+    /// job) all reject the call rather than committing.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task MutatingMethods_AfterDispose_Throw()
+    {
+        var store = Substitute.For<IScheduleStore>();
+        var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
+
+        await registry.DisposeAsync().ConfigureAwait(false);
+
+        // Forget the SaveAsync the setup registration recorded so the no-store assertion
+        // below scopes only to the calls made AFTER dispose.
+        store.ClearReceivedCalls();
+
+        // RegisterAsync of a NEW job rejects before claiming the name slot or persisting.
+        await Assert.That(async () => await registry.RegisterAsync(
+                "new-job", new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher())
+            .ConfigureAwait(false))
+            .Throws<ObjectDisposedException>();
+
+        // Mutations over the already-registered job reject before they touch the store.
+        await Assert.That(async () => await registry.PauseAsync("daily-report").ConfigureAwait(false))
+            .Throws<ObjectDisposedException>();
+        await Assert.That(async () => await registry.ResumeAsync("daily-report").ConfigureAwait(false))
+            .Throws<ObjectDisposedException>();
+        await Assert.That(async () => await registry.UpdateAsync(
+                "daily-report", new IntervalCadence(TimeSpan.FromMinutes(30)), MissedFirePolicy.Coalesce)
+            .ConfigureAwait(false))
+            .Throws<ObjectDisposedException>();
+        await Assert.That(async () => await registry.UnregisterAsync("daily-report").ConfigureAwait(false))
+            .Throws<ObjectDisposedException>();
+        await Assert.That(async () => await registry.TriggerAsync("daily-report").ConfigureAwait(false))
+            .Throws<ObjectDisposedException>();
+
+        // The guard runs before any durable mutation: the store was never written through
+        // (no Save/Delete) by any of the rejected calls after dispose.
+        await store.DidNotReceive().SaveAsync(Arg.Any<JobRecord>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await store.DidNotReceive().DeleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     private static async Task<ScheduleRegistry> RegisterJobAsync(IScheduleStore store, string name)
