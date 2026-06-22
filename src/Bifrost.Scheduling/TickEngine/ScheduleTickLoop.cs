@@ -302,8 +302,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // SchedulerFaultedEvent, and the tick loop restarts after a bounded backoff so a
         // persistent fault does not spin the CPU at full tilt. Too many restarts in the
         // window indicates a crash loop, not a transient fault, so the scheduler
-        // transitions to its faulted state and stops ticking.
-        while (!stoppingToken.IsCancellationRequested && !this.IsFaulted)
+        // transitions to its faulted state and stops ticking. The loop also stops when the
+        // registry's command channel completes (the registry was disposed) so a
+        // dispose-while-running cannot hot-spin the empty-heap wait over a completed channel.
+        while (!this.ShouldStop(stoppingToken) && !this.IsFaulted)
         {
             try
             {
@@ -344,14 +346,38 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     bool ISchedulerFaultSource.IsFaulted => this.IsFaulted;
 
     /// <summary>
-    /// Runs the tick loop until cancelled, re-arming the loop's notion of "now" each
-    /// iteration so a non-monotonic clock is handled (DR-10).
+    /// Returns whether the tick loop should stop cleanly: either the host requested a
+    /// stop (<paramref name="stoppingToken"/> cancelled) or the registry's command
+    /// channel has completed.
+    /// </summary>
+    /// <remarks>
+    /// The command channel is single-reader (only this tick thread reads it), so once
+    /// its writer completes — which happens exactly when the registry is disposed — no
+    /// further command can ever arrive. Treating completion as a stop signal lets the
+    /// loop exit cleanly when the registry is disposed while the loop is still running
+    /// (the public <see cref="IDisposable"/>/<see cref="IAsyncDisposable"/> surface, a
+    /// manual lifecycle, or a custom disposal order), rather than re-parking on an
+    /// already-completed channel that returns synchronously and hot-spinning the CPU. In
+    /// the normal <see cref="IHostedService"/> lifecycle the stopping token is cancelled
+    /// before the singleton registry is disposed, so this condition only fires on the
+    /// dispose-while-running path and never changes steady-state operation.
+    /// </remarks>
+    /// <param name="stoppingToken">The loop's stopping token.</param>
+    /// <returns><see langword="true"/> when the loop should stop.</returns>
+    private bool ShouldStop(CancellationToken stoppingToken)
+        => stoppingToken.IsCancellationRequested
+            || this.registry.Commands.Completion.IsCompleted;
+
+    /// <summary>
+    /// Runs the tick loop until cancelled or the registry's command channel completes,
+    /// re-arming the loop's notion of "now" each iteration so a non-monotonic clock is
+    /// handled (DR-10).
     /// </summary>
     /// <param name="stoppingToken">The loop's stopping token.</param>
     /// <returns>A task that completes when the loop is cancelled.</returns>
     private async Task RunTickLoopAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        while (!this.ShouldStop(stoppingToken))
         {
             await this.RunTickAsync(stoppingToken).ConfigureAwait(false);
         }

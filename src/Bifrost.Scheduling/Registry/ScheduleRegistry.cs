@@ -556,10 +556,13 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
     /// <summary>
     /// Disposes the registry by completing its command-channel writer, signalling the
-    /// tick loop's reader that no further wake commands will arrive so it drains the
-    /// remaining backlog and exits cleanly instead of blocking forever on
+    /// tick loop's reader that no further wake commands will arrive. The command channel
+    /// is single-reader, so once the writer completes no further command can arrive: the
+    /// loop drains the remaining backlog, observes the completion as a clean-stop signal,
+    /// and exits its tick loop instead of blocking forever on
     /// <see cref="ChannelReader{T}.WaitToReadAsync"/> over a writer that is never
-    /// completed. Idempotent: a second call (sync or async) is a no-op (a single-shot
+    /// completed — or re-parking on an already-completed channel and hot-spinning the CPU.
+    /// Idempotent: a second call (sync or async) is a no-op (a single-shot
     /// <see cref="Interlocked"/> guard ensures the writer is completed exactly once,
     /// since completing an already-completed channel would otherwise throw).
     /// </summary>
