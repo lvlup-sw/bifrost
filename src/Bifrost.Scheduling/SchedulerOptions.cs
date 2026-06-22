@@ -58,4 +58,23 @@ public sealed class SchedulerOptions
     /// against <see cref="MaxRestartsInWindow"/> (DR-10).
     /// </summary>
     public TimeSpan RestartWindow { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Gets or sets the delay the loop waits before re-entering the tick loop after a
+    /// repeated fault, so a crash loop backs off instead of spinning the CPU at full tilt
+    /// until <see cref="MaxRestartsInWindow"/> is reached (DR-10).
+    /// </summary>
+    /// <remarks>
+    /// The delay is measured on the injected <see cref="TimeProvider"/>, not the wall
+    /// clock, and is cancelled by shutdown — cancelling during the backoff exits the loop
+    /// cleanly as a normal stop. It is skipped for an isolated first fault in the restart
+    /// window (a one-off blip recovers immediately) and applies only from the second
+    /// consecutive fault onward — the same crash-loop signal counted against
+    /// <see cref="MaxRestartsInWindow"/>. The give-up transition (restart count exceeding
+    /// <see cref="MaxRestartsInWindow"/> within <see cref="RestartWindow"/>) is unaffected,
+    /// and that final iteration does not back off. Set to <see cref="TimeSpan.Zero"/> to
+    /// restart immediately (the pre-backoff behaviour). The default is one second: short
+    /// enough to recover promptly, long enough to keep a crash loop from saturating a core.
+    /// </remarks>
+    public TimeSpan RestartBackoff { get; set; } = TimeSpan.FromSeconds(1);
 }

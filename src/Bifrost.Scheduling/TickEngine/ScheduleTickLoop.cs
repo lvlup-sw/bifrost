@@ -299,7 +299,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
         // Fault-recovery loop (DR-10). A fault in the loop's own code — not an isolated
         // dispatch, which the router catches — is logged critical, surfaced as a
-        // SchedulerFaultedEvent, and the tick loop restarts. Too many restarts in the
+        // SchedulerFaultedEvent, and the tick loop restarts after a bounded backoff so a
+        // persistent fault does not spin the CPU at full tilt. Too many restarts in the
         // window indicates a crash loop, not a transient fault, so the scheduler
         // transitions to its faulted state and stops ticking.
         while (!stoppingToken.IsCancellationRequested && !this.IsFaulted)
@@ -318,6 +319,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 #pragma warning restore CA1031
             {
                 this.HandleTickLoopFault(ex);
+
+                // Back off before re-entering the loop so a crash loop does not spin the
+                // CPU. Skipped for an isolated first fault (recover immediately) and on the
+                // give-up iteration (HandleTickLoopFault set the faulted state) — that final
+                // iteration exits via the loop condition with no delay. Cancellation during
+                // the backoff exits cleanly as a normal stop.
+                await this.AwaitRestartBackoffAsync(stoppingToken).ConfigureAwait(false);
             }
         }
 
@@ -375,6 +383,49 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             Volatile.Write(ref this.faultedState, 1);
             this.LogTickLoopGaveUp(this.options.MaxRestartsInWindow, this.options.RestartWindow.TotalSeconds);
             this.ReleaseFaultedBarrier();
+        }
+    }
+
+    /// <summary>
+    /// Waits <see cref="SchedulerOptions.RestartBackoff"/> on the injected
+    /// <see cref="TimeProvider"/> before the fault-recovery loop re-enters the tick loop,
+    /// so a crash loop backs off rather than spinning the CPU (DR-10).
+    /// </summary>
+    /// <remarks>
+    /// A no-op when the backoff is non-positive, the loop has already given up (its faulted
+    /// state was set by <see cref="HandleTickLoopFault"/>), or this is the first fault in the
+    /// current restart window — an isolated, transient fault recovers immediately, and only a
+    /// repeated fault (the crash-loop signal, the same window <see cref="HandleTickLoopFault"/>
+    /// counts against <see cref="SchedulerOptions.MaxRestartsInWindow"/>) pays the backoff.
+    /// Cancellation during the wait is absorbed as a normal shutdown — the caller's loop
+    /// condition then exits — so no exception leaks from a stop issued mid-backoff.
+    /// </remarks>
+    /// <param name="stoppingToken">The loop's stopping token, cancelled on shutdown.</param>
+    /// <returns>A task that completes when the backoff elapses or the loop should exit.</returns>
+    private async Task AwaitRestartBackoffAsync(CancellationToken stoppingToken)
+    {
+        var backoff = this.options.RestartBackoff;
+
+        // restartTimes holds the faults inside the current sliding window (just updated by
+        // HandleTickLoopFault). Count == 1 means this is the first fault in the window — a
+        // one-off blip — so recover immediately; back off only from the second consecutive
+        // fault onward, which is the crash loop this delay exists to tame.
+        if (backoff <= TimeSpan.Zero
+            || this.IsFaulted
+            || this.restartTimes.Count <= 1
+            || stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(backoff, this.timeProvider, stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Shutdown requested during the backoff: exit cleanly. The fault-recovery
+            // loop's condition observes the cancellation and stops without re-entering.
         }
     }
 

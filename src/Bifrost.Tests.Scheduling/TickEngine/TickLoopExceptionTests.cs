@@ -81,6 +81,13 @@ public sealed class TickLoopExceptionTests
         {
             MaxRestartsInWindow = 3,
             RestartWindow = TimeSpan.FromSeconds(60),
+
+            // Disable the inter-restart backoff so this test exercises the give-up
+            // transition in isolation: every queued occurrence re-faults on the single
+            // advance below, as before the backoff was added. The backoff itself — the
+            // delay between restarts, that give-up is still reached WITH a backoff, and
+            // clean cancellation during a backoff — is covered by BackoffBetweenRestartsTests.
+            RestartBackoff = TimeSpan.Zero,
         };
         await using var fx = await Fixture.StartAsync(sink, options).ConfigureAwait(false);
         var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
