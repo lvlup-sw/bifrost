@@ -46,10 +46,19 @@ public sealed class SchedulerOptions
     /// faulted state and stops ticking (DR-10).
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A fault in the loop's own code is caught, logged, surfaced as a
     /// <see cref="Bifrost.Scheduling.Core.Events.SchedulerFaultedEvent"/>, and the
     /// loop restarts. If the loop fails this many times within the window — a tight
     /// crash loop rather than a transient fault — it gives up rather than spinning.
+    /// </para>
+    /// <para>
+    /// <strong>Constraint (see <see cref="RestartBackoff"/>):</strong> for the give-up
+    /// transition to be reachable, faults must accumulate inside <see cref="RestartWindow"/>
+    /// faster than the backoff lets them slide out of it — keep
+    /// <c>RestartBackoff * MaxRestartsInWindow &lt; RestartWindow</c>. The defaults satisfy
+    /// this (1s × 3 &lt; 60s).
+    /// </para>
     /// </remarks>
     public int MaxRestartsInWindow { get; set; } = 3;
 
@@ -57,6 +66,11 @@ public sealed class SchedulerOptions
     /// Gets or sets the sliding window over which consecutive restarts are counted
     /// against <see cref="MaxRestartsInWindow"/> (DR-10).
     /// </summary>
+    /// <remarks>
+    /// <strong>Constraint (see <see cref="RestartBackoff"/>):</strong> set this larger than
+    /// <c>RestartBackoff * MaxRestartsInWindow</c> so a crash loop reaches the give-up
+    /// transition rather than backing off forever. The defaults satisfy this (1s × 3 &lt; 60s).
+    /// </remarks>
     public TimeSpan RestartWindow { get; set; } = TimeSpan.FromSeconds(60);
 
     /// <summary>
@@ -65,6 +79,7 @@ public sealed class SchedulerOptions
     /// until <see cref="MaxRestartsInWindow"/> is reached (DR-10).
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The delay is measured on the injected <see cref="TimeProvider"/>, not the wall
     /// clock, and is cancelled by shutdown — cancelling during the backoff exits the loop
     /// cleanly as a normal stop. It is skipped for an isolated first fault in the restart
@@ -75,6 +90,17 @@ public sealed class SchedulerOptions
     /// and that final iteration does not back off. Set to <see cref="TimeSpan.Zero"/> to
     /// restart immediately (the pre-backoff behaviour). The default is one second: short
     /// enough to recover promptly, long enough to keep a crash loop from saturating a core.
+    /// </para>
+    /// <para>
+    /// <strong>Constraint — keep <c>RestartBackoff * MaxRestartsInWindow &lt; RestartWindow</c>:</strong>
+    /// because the backoff spaces consecutive faults apart, a backoff large enough that
+    /// <c>RestartBackoff * MaxRestartsInWindow &gt;= RestartWindow</c> lets each fault slide out
+    /// of the sliding <see cref="RestartWindow"/> before the next arrives. The restart count
+    /// then never exceeds <see cref="MaxRestartsInWindow"/>, so the loop backs off
+    /// <em>forever</em> instead of ever reaching its DR-10 give-up/faulted state. The defaults
+    /// (1s backoff × 3 restarts = 3s &lt; 60s window) are safe; preserve this inequality when
+    /// tuning any of the three.
+    /// </para>
     /// </remarks>
     public TimeSpan RestartBackoff { get; set; } = TimeSpan.FromSeconds(1);
 }
