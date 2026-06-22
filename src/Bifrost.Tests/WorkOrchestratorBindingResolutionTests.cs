@@ -87,9 +87,9 @@ public class WorkOrchestratorBindingResolutionTests
 
     /// <summary>
     /// Verifies that <see cref="PriorityBinding.Auto"/> resolution is consistent with
-    /// <see cref="PriorityBindingResolver"/> for the current machine's
-    /// <see cref="Environment.ProcessorCount"/> and the configured capacity.
-    /// Machine-independent: asserts consistency with the resolver, not a hardcoded value.
+    /// <see cref="PriorityBindingResolver"/> — which now always resolves Auto to the
+    /// MultiQueue regardless of capacity or core count (#46). Asserts consistency with
+    /// the resolver rather than a hardcoded value.
     /// </summary>
     [Test]
     public async Task Constructor_Auto_ResolvedBindingMatchesResolver()
@@ -103,46 +103,61 @@ public class WorkOrchestratorBindingResolutionTests
             Priority = { Binding = PriorityBinding.Auto },
         });
 
-        // What the resolver says Auto should pick on this machine.
-        var resolvedStrategy = PriorityBindingResolver.Resolve(
-            PriorityBinding.Auto,
-            Environment.ProcessorCount,
-            capacity);
+        // The resolver now resolves Auto to MultiQueue unconditionally.
+        var resolvedStrategy = PriorityBindingResolver.Resolve(PriorityBinding.Auto);
 
         var expectedBinding = resolvedStrategy == DispatchStrategy.PriorityLocking
             ? PriorityBinding.Locking
             : PriorityBinding.MultiQueue;
 
         await Assert.That(orchestrator.ResolvedBinding).IsEqualTo(expectedBinding);
+        await Assert.That(orchestrator.ResolvedBinding).IsEqualTo(PriorityBinding.MultiQueue);
     }
 
     /// <summary>
-    /// Verifies the <see cref="PriorityBinding.Auto"/> path actually feeds the configured
-    /// capacity to the resolver: a tiny capacity resolves to Locking and the maximum capacity
-    /// resolves to MultiQueue on any realistic host (ProcessorCount ≤ 1024), so a regression
-    /// that dropped or transposed the capacity argument would flip at least one assertion.
-    /// Machine-independent without hardcoding a single absolute outcome.
+    /// Verifies that <see cref="PriorityBinding.Auto"/> never selects Locking, even at a very
+    /// high capacity where the old heuristic would have flipped to the locking heap (#46): the
+    /// resolved binding stays <see cref="PriorityBinding.MultiQueue"/> and the constructed queue
+    /// is the MultiQueue-backed <see cref="ConcurrentPriorityWorkQueue{TWork}"/>, not
+    /// <see cref="LockingPriorityWorkQueue{TWork}"/>.
     /// </summary>
     [Test]
-    public async Task Constructor_Auto_CapacityFlowsThroughToResolver()
+    [Arguments(1)]
+    [Arguments(128)]
+    [Arguments(10_000)]
+    public async Task Constructor_Auto_AtAnyCapacity_YieldsMultiQueueNeverLocking(int capacity)
     {
-        await using var lockingByTinyCapacity = CreateOrchestrator(new WorkOrchestratorOptions
+        await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 0,
-            Capacity = 1,
-            DispatchStrategy = DispatchStrategy.Priority,
-            Priority = { Binding = PriorityBinding.Auto },
-        });
-        await using var multiQueueByHugeCapacity = CreateOrchestrator(new WorkOrchestratorOptions
-        {
-            WorkerCount = 0,
-            Capacity = 10_000,
+            Capacity = capacity,
             DispatchStrategy = DispatchStrategy.Priority,
             Priority = { Binding = PriorityBinding.Auto },
         });
 
-        await Assert.That(lockingByTinyCapacity.ResolvedBinding).IsEqualTo(PriorityBinding.Locking);
-        await Assert.That(multiQueueByHugeCapacity.ResolvedBinding).IsEqualTo(PriorityBinding.MultiQueue);
+        await Assert.That(orchestrator.ResolvedBinding).IsEqualTo(PriorityBinding.MultiQueue);
+        await Assert.That(orchestrator.WorkQueue).IsTypeOf<ConcurrentPriorityWorkQueue<string>>();
+    }
+
+    /// <summary>
+    /// Verifies that the <see cref="LockingPriorityWorkQueue{TWork}"/> is constructed ONLY for an
+    /// explicit <see cref="PriorityBinding.Locking"/> request (#46): an explicit Locking binding,
+    /// even at a small capacity where the old Auto heuristic would also have chosen locking, is the
+    /// sole route to the locking heap.
+    /// </summary>
+    [Test]
+    public async Task Constructor_ExplicitLocking_IsTheOnlyRouteToLockingQueue()
+    {
+        await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
+        {
+            WorkerCount = 0,
+            Capacity = 32,
+            DispatchStrategy = DispatchStrategy.Priority,
+            Priority = { Binding = PriorityBinding.Locking },
+        });
+
+        await Assert.That(orchestrator.ResolvedBinding).IsEqualTo(PriorityBinding.Locking);
+        await Assert.That(orchestrator.WorkQueue).IsTypeOf<LockingPriorityWorkQueue<string>>();
     }
 
     /// <summary>

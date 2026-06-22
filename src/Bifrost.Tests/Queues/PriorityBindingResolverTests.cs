@@ -22,97 +22,74 @@ public class PriorityBindingResolverTests
 
     /// <summary>
     /// Verifies that explicit <see cref="PriorityBinding.Locking"/> always resolves
-    /// to <see cref="DispatchStrategy.PriorityLocking"/>, regardless of processorCount
-    /// or capacity.
+    /// to <see cref="DispatchStrategy.PriorityLocking"/> — the only path to locking.
     /// </summary>
     [Test]
     public async Task Resolve_ExplicitLocking_ReturnsPriorityLocking()
     {
-        var result = PriorityBindingResolver.Resolve(PriorityBinding.Locking, processorCount: 4, capacity: 128);
+        var result = PriorityBindingResolver.Resolve(PriorityBinding.Locking);
         await Assert.That(result).IsEqualTo(DispatchStrategy.PriorityLocking);
     }
 
     /// <summary>
     /// Verifies that explicit <see cref="PriorityBinding.MultiQueue"/> always resolves
-    /// to <see cref="DispatchStrategy.PriorityMultiQueue"/>, regardless of processorCount
-    /// or capacity.
+    /// to <see cref="DispatchStrategy.PriorityMultiQueue"/>.
     /// </summary>
     [Test]
     public async Task Resolve_ExplicitMultiQueue_ReturnsPriorityMultiQueue()
     {
-        var result = PriorityBindingResolver.Resolve(PriorityBinding.MultiQueue, processorCount: 4, capacity: 128);
+        var result = PriorityBindingResolver.Resolve(PriorityBinding.MultiQueue);
         await Assert.That(result).IsEqualTo(DispatchStrategy.PriorityMultiQueue);
     }
 
-    // ─── T5: Auto heuristic matrix ───────────────────────────────────────────
+    // ─── T5: Auto NEVER resolves to Locking (#46) ────────────────────────────
 
     /// <summary>
-    /// cap=128, pc=16: n=RoundUpToPow2(64)=64; rankErr=5*64/6=53; 53 >= 64 → false → MultiQueue.
+    /// Verifies that <see cref="PriorityBinding.Auto"/> resolves to
+    /// <see cref="DispatchStrategy.PriorityMultiQueue"/> for every capacity ×
+    /// (former) processor-count combination — Auto must never select Locking, which
+    /// is now reachable only via an explicit <see cref="PriorityBinding.Locking"/>
+    /// request. The capacity/processor-count matrix is retained from the old
+    /// heuristic's input space (including the cases that previously flipped to
+    /// Locking, e.g. cap=32/pc=8 and cap=128/pc=17) so a regression that reintroduced
+    /// any capacity- or core-sensitive selection would fail here. The arguments no
+    /// longer feed <c>Resolve</c> (it takes only the binding now); they document the
+    /// regime space the old heuristic spanned.
     /// </summary>
     [Test]
-    public async Task Resolve_Auto_Cap128_Pc16_ReturnsMultiQueue()
+    [Arguments(32, 1)]
+    [Arguments(32, 4)]
+    [Arguments(32, 8)]
+    [Arguments(32, 16)]
+    [Arguments(32, 17)]
+    [Arguments(32, 32)]
+    [Arguments(128, 1)]
+    [Arguments(128, 4)]
+    [Arguments(128, 8)]
+    [Arguments(128, 16)]
+    [Arguments(128, 17)]
+    [Arguments(128, 32)]
+    [Arguments(256, 1)]
+    [Arguments(256, 4)]
+    [Arguments(256, 8)]
+    [Arguments(256, 16)]
+    [Arguments(256, 17)]
+    [Arguments(256, 32)]
+    [Arguments(1024, 1)]
+    [Arguments(1024, 4)]
+    [Arguments(1024, 8)]
+    [Arguments(1024, 16)]
+    [Arguments(1024, 17)]
+    [Arguments(1024, 32)]
+    public async Task Resolve_Auto_AlwaysResolvesToMultiQueue(int capacity, int processorCount)
     {
-        // n = RoundUpToPow2(4*16) = RoundUpToPow2(64) = 64
-        // 5*64 = 320, 3*128 = 384 → 320 < 384 → MultiQueue
-        var result = PriorityBindingResolver.Resolve(PriorityBinding.Auto, processorCount: 16, capacity: 128);
-        await Assert.That(result).IsEqualTo(DispatchStrategy.PriorityMultiQueue);
-    }
+        // capacity/processorCount document the regime once spanned by the heuristic;
+        // they intentionally have no effect on the result anymore.
+        _ = capacity;
+        _ = processorCount;
 
-    /// <summary>
-    /// cap=128, pc=17: n=RoundUpToPow2(68)=128; 5*128=640 >= 3*128=384 → Locking.
-    /// </summary>
-    [Test]
-    public async Task Resolve_Auto_Cap128_Pc17_ReturnsLocking()
-    {
-        // n = RoundUpToPow2(4*17) = RoundUpToPow2(68) = 128
-        // 5*128 = 640, 3*128 = 384 → 640 >= 384 → Locking
-        var result = PriorityBindingResolver.Resolve(PriorityBinding.Auto, processorCount: 17, capacity: 128);
-        await Assert.That(result).IsEqualTo(DispatchStrategy.PriorityLocking);
-    }
+        var result = PriorityBindingResolver.Resolve(PriorityBinding.Auto);
 
-    /// <summary>
-    /// cap=128, pc=32: n=RoundUpToPow2(128)=128; 5*128=640 >= 3*128=384 → Locking.
-    /// </summary>
-    [Test]
-    public async Task Resolve_Auto_Cap128_Pc32_ReturnsLocking()
-    {
-        var result = PriorityBindingResolver.Resolve(PriorityBinding.Auto, processorCount: 32, capacity: 128);
-        await Assert.That(result).IsEqualTo(DispatchStrategy.PriorityLocking);
-    }
-
-    /// <summary>
-    /// cap=1024, pc=32: n=RoundUpToPow2(128)=128; 5*128=640, 3*1024=3072 → 640 &lt; 3072 → MultiQueue.
-    /// </summary>
-    [Test]
-    public async Task Resolve_Auto_Cap1024_Pc32_ReturnsMultiQueue()
-    {
-        // n = RoundUpToPow2(4*32) = 128
-        // 5*128 = 640, 3*1024 = 3072 → 640 < 3072 → MultiQueue
-        var result = PriorityBindingResolver.Resolve(PriorityBinding.Auto, processorCount: 32, capacity: 1024);
-        await Assert.That(result).IsEqualTo(DispatchStrategy.PriorityMultiQueue);
-    }
-
-    /// <summary>
-    /// cap=32, pc=8: n=RoundUpToPow2(32)=32; 5*32=160 >= 3*32=96 → Locking.
-    /// </summary>
-    [Test]
-    public async Task Resolve_Auto_Cap32_Pc8_ReturnsLocking()
-    {
-        // n = RoundUpToPow2(4*8) = 32
-        // 5*32 = 160, 3*32 = 96 → 160 >= 96 → Locking
-        var result = PriorityBindingResolver.Resolve(PriorityBinding.Auto, processorCount: 8, capacity: 32);
-        await Assert.That(result).IsEqualTo(DispatchStrategy.PriorityLocking);
-    }
-
-    /// <summary>
-    /// cap=32, pc=4: n=RoundUpToPow2(16)=16; 5*16=80, 3*32=96 → 80 &lt; 96 → MultiQueue.
-    /// </summary>
-    [Test]
-    public async Task Resolve_Auto_Cap32_Pc4_ReturnsMultiQueue()
-    {
-        // n = RoundUpToPow2(4*4) = 16
-        // 5*16 = 80, 3*32 = 96 → 80 < 96 → MultiQueue
-        var result = PriorityBindingResolver.Resolve(PriorityBinding.Auto, processorCount: 4, capacity: 32);
         await Assert.That(result).IsEqualTo(DispatchStrategy.PriorityMultiQueue);
     }
 
@@ -121,8 +98,8 @@ public class PriorityBindingResolverTests
     /// <summary>
     /// Verifies that <see cref="PriorityBindingResolver.SubQueueCountFor"/> returns the
     /// same count that a freshly-constructed <see cref="ConcurrentPriorityQueue{TElement,TPriority}"/>
-    /// uses for its internal sub-queues, ensuring the resolver's heuristic and the actual
-    /// queue construction stay in agreement.
+    /// uses for its internal sub-queues, ensuring the resolver's sub-queue arithmetic and
+    /// the actual queue construction stay in agreement.
     /// </summary>
     [Test]
     public async Task SubQueueCountFor_MatchesConcurrentPriorityQueueActualCount()
