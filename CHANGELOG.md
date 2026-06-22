@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`ISchedulerBuilder.ConfigureOptions(Action<SchedulerOptions>)`** (#32) — first-class configuration of the scheduler's tick-loop options at `AddScheduler` (e.g. `services.AddScheduler(b => b.ConfigureOptions(o => o.RestartBackoff = TimeSpan.FromSeconds(2)))`). The fault-recovery cross-field constraint (`RestartBackoff × MaxRestartsInWindow < RestartWindow`) is validated and fails fast with an actionable message on a bad combination.
 - **`SchedulerOptions.RestartBackoff`** (#32) — the tick loop now backs off (default 1s) between *repeated* fault restarts within the restart window, so a crash loop no longer spins a core. A single transient fault still restarts immediately, and the give-up transition (`MaxRestartsInWindow` within `RestartWindow`) is unaffected.
 - **`ScheduleRegistry` implements `IAsyncDisposable` and `IDisposable`** (#32) — disposing it completes the command-channel writer so the tick loop drains its backlog and stops cleanly instead of blocking on a never-completed channel.
 

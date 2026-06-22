@@ -527,6 +527,10 @@ public interface ISchedulerBuilder
     IJobBuilder<TWork> AddJob<TWork>(string name);
     IInlineJobBuilder AddInlineJob(string name);
     ISchedulerBuilder UseStore<TStore>() where TStore : class, IScheduleStore;
+    // Tune the tick-loop SchedulerOptions (fault-recovery thresholds + backoff,
+    // shutdown grace). Composes across calls; validated at AddScheduler (e.g. the
+    // RestartBackoff * MaxRestartsInWindow < RestartWindow constraint).
+    ISchedulerBuilder ConfigureOptions(Action<SchedulerOptions> configure);
 }
 ```
 
