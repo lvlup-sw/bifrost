@@ -96,14 +96,16 @@ public sealed class AddSchedulerTestingTests
 
         await using var provider = services.BuildServiceProvider();
 
-        // Start all hosted services (registration service + tick loop).
-        foreach (var hosted in provider.GetServices<IHostedService>())
-        {
-            await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-
         try
         {
+            // Start all hosted services (registration service + tick loop). Kept inside
+            // the guarded scope so the finally stops any services already started if a
+            // later StartAsync throws.
+            foreach (var hosted in provider.GetServices<IHostedService>())
+            {
+                await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
             var harness = provider.GetRequiredService<ISchedulerTestHarness>();
 
             // Wait for initial idle (loop started, job registered).

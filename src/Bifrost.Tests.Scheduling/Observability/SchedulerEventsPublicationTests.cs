@@ -148,7 +148,7 @@ public sealed class SchedulerEventsPublicationTests
     [Test]
     public async Task MissedFire_PublishesJobMissedFireEvent()
     {
-        var events = new SchedulerEventStream();
+        using var events = new SchedulerEventStream();
         using var sub = new Subscription<JobMissedFireEvent>(events);
 
         var time = new FakeTimeProvider(Start);
@@ -192,7 +192,7 @@ public sealed class SchedulerEventsPublicationTests
     [Test]
     public async Task Faulted_PublishesSchedulerFaultedEvent()
     {
-        var events = new SchedulerEventStream();
+        using var events = new SchedulerEventStream();
         using var sub = new Subscription<SchedulerFaultedEvent>(events);
 
         ((ISchedulerEventSink)events).Publish(
