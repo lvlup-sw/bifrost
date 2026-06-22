@@ -57,7 +57,9 @@ public sealed class SchedulerOptions
     /// transition to be reachable, faults must accumulate inside <see cref="RestartWindow"/>
     /// faster than the backoff lets them slide out of it — keep
     /// <c>RestartBackoff * MaxRestartsInWindow &lt; RestartWindow</c>. The defaults satisfy
-    /// this (1s × 3 &lt; 60s).
+    /// this (1s × 3 &lt; 60s). This constraint is <strong>enforced at
+    /// <see cref="DependencyInjection.SchedulerServiceCollectionExtensions.AddScheduler"/></strong>:
+    /// a violating configuration throws there with a message naming the offending properties.
     /// </para>
     /// </remarks>
     public int MaxRestartsInWindow { get; set; } = 3;
@@ -70,6 +72,9 @@ public sealed class SchedulerOptions
     /// <strong>Constraint (see <see cref="RestartBackoff"/>):</strong> set this larger than
     /// <c>RestartBackoff * MaxRestartsInWindow</c> so a crash loop reaches the give-up
     /// transition rather than backing off forever. The defaults satisfy this (1s × 3 &lt; 60s).
+    /// This constraint is <strong>enforced at
+    /// <see cref="DependencyInjection.SchedulerServiceCollectionExtensions.AddScheduler"/></strong>:
+    /// a violating configuration throws there with a message naming the offending properties.
     /// </remarks>
     public TimeSpan RestartWindow { get; set; } = TimeSpan.FromSeconds(60);
 
@@ -99,7 +104,9 @@ public sealed class SchedulerOptions
     /// then never exceeds <see cref="MaxRestartsInWindow"/>, so the loop backs off
     /// <em>forever</em> instead of ever reaching its DR-10 give-up/faulted state. The defaults
     /// (1s backoff × 3 restarts = 3s &lt; 60s window) are safe; preserve this inequality when
-    /// tuning any of the three.
+    /// tuning any of the three. This inequality is <strong>enforced at
+    /// <see cref="DependencyInjection.SchedulerServiceCollectionExtensions.AddScheduler"/></strong>:
+    /// a violating configuration throws there with a message naming the offending properties.
     /// </para>
     /// </remarks>
     public TimeSpan RestartBackoff { get; set; } = TimeSpan.FromSeconds(1);

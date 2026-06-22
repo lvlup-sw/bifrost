@@ -31,6 +31,7 @@ internal sealed class SchedulerBuilder : ISchedulerBuilder
 {
     private readonly IServiceCollection services;
     private readonly List<IJobDefinitionSource> jobSources = [];
+    private Action<SchedulerOptions>? configureOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SchedulerBuilder"/> class.
@@ -80,5 +81,95 @@ internal sealed class SchedulerBuilder : ISchedulerBuilder
         this.services.RemoveAll<IScheduleStore>();
         this.services.AddSingleton<IScheduleStore, TStore>();
         return this;
+    }
+
+    /// <inheritdoc/>
+    public ISchedulerBuilder ConfigureOptions(Action<SchedulerOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        // Compose multiple calls into one delegate run in order, so a later call sees
+        // (and can override) the values an earlier one set.
+        var previous = this.configureOptions;
+        this.configureOptions = previous is null
+            ? configure
+            : options =>
+            {
+                previous(options);
+                configure(options);
+            };
+        return this;
+    }
+
+    /// <summary>
+    /// Materializes the configured <see cref="SchedulerOptions"/>: a fresh default
+    /// mutated by the accumulated <see cref="ConfigureOptions"/> callbacks, then
+    /// validated. Called by <c>AddScheduler</c> after its configure callback runs so
+    /// the consumer's tuning is honored.
+    /// </summary>
+    /// <returns>The validated options the tick loop consumes.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The configured options violate a <see cref="SchedulerOptions"/> constraint.
+    /// </exception>
+    internal SchedulerOptions BuildOptions()
+    {
+        var options = new SchedulerOptions();
+        this.configureOptions?.Invoke(options);
+        Validate(options);
+        return options;
+    }
+
+    /// <summary>
+    /// Fails fast on a misconfigured <see cref="SchedulerOptions"/>, naming the
+    /// offending properties: each fault-recovery knob must be in range, and the
+    /// cross-field constraint <c>RestartBackoff * MaxRestartsInWindow &lt; RestartWindow</c>
+    /// must hold so the DR-10 give-up transition stays reachable (see
+    /// <see cref="SchedulerOptions.RestartBackoff"/>).
+    /// </summary>
+    /// <param name="options">The configured options to validate.</param>
+    /// <exception cref="InvalidOperationException">A constraint is violated.</exception>
+    private static void Validate(SchedulerOptions options)
+    {
+        if (options.RestartBackoff < TimeSpan.Zero)
+        {
+            throw new InvalidOperationException(
+                $"SchedulerOptions.{nameof(SchedulerOptions.RestartBackoff)} must be >= TimeSpan.Zero, " +
+                $"but was {options.RestartBackoff}.");
+        }
+
+        if (options.MaxRestartsInWindow <= 0)
+        {
+            throw new InvalidOperationException(
+                $"SchedulerOptions.{nameof(SchedulerOptions.MaxRestartsInWindow)} must be > 0, " +
+                $"but was {options.MaxRestartsInWindow}.");
+        }
+
+        if (options.RestartWindow <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException(
+                $"SchedulerOptions.{nameof(SchedulerOptions.RestartWindow)} must be > TimeSpan.Zero, " +
+                $"but was {options.RestartWindow}.");
+        }
+
+        // Cross-field (DR-10): a backoff that spaces consecutive faults at least as far
+        // apart as the window lets each fault slide out of the sliding RestartWindow
+        // before the next arrives, so the restart count never exceeds
+        // MaxRestartsInWindow and the loop backs off forever instead of ever reaching
+        // its give-up/faulted state. Require the spacing to stay strictly inside the
+        // window. (A zero backoff disables spacing, so the constraint does not apply.)
+        if (options.RestartBackoff > TimeSpan.Zero &&
+            options.RestartBackoff * options.MaxRestartsInWindow >= options.RestartWindow)
+        {
+            throw new InvalidOperationException(
+                $"SchedulerOptions fault-recovery settings are unsatisfiable: " +
+                $"{nameof(SchedulerOptions.RestartBackoff)} ({options.RestartBackoff}) * " +
+                $"{nameof(SchedulerOptions.MaxRestartsInWindow)} ({options.MaxRestartsInWindow}) " +
+                $"must be < {nameof(SchedulerOptions.RestartWindow)} ({options.RestartWindow}). " +
+                "Otherwise the backoff slides faults out of the sliding window faster than they " +
+                "accumulate, so the tick loop never reaches its DR-10 give-up state and backs off " +
+                $"forever. Lower {nameof(SchedulerOptions.RestartBackoff)}, lower " +
+                $"{nameof(SchedulerOptions.MaxRestartsInWindow)}, or raise " +
+                $"{nameof(SchedulerOptions.RestartWindow)}.");
+        }
     }
 }
