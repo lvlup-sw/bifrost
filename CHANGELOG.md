@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-06-22
+
 ### Added
 
 - **`ISchedulerBuilder.ConfigureOptions(Action<SchedulerOptions>)`** (#32) — first-class configuration of the scheduler's tick-loop options at `AddScheduler` (e.g. `services.AddScheduler(b => b.ConfigureOptions(o => o.RestartBackoff = TimeSpan.FromSeconds(2)))`). The fault-recovery cross-field constraint (`RestartBackoff × MaxRestartsInWindow < RestartWindow`) is validated and fails fast with an actionable message on a bad combination.
@@ -218,7 +220,8 @@ the finding — every `EnqueueAsync` call site that consumed the old `ValueTask`
 - Renamed from `Levelup.Channels` to `Bifrost` per naming convention decision
 - Restructured repository to follow lvlup-sw conventions (src/ layout)
 
-[Unreleased]: https://github.com/lvlup-sw/bifrost/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/lvlup-sw/bifrost/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/lvlup-sw/bifrost/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/lvlup-sw/bifrost/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/lvlup-sw/bifrost/compare/v0.3.5...v0.4.0
 [0.3.5]: https://github.com/lvlup-sw/bifrost/compare/v0.3.0...v0.3.5
