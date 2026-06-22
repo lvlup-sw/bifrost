@@ -45,6 +45,32 @@ public interface ISchedulerBuilder
     IInlineJobBuilder AddInlineJob(string name);
 
     /// <summary>
+    /// Tunes the scheduler's tick-loop <see cref="SchedulerOptions"/> — the shutdown
+    /// grace window and the fault-recovery thresholds (restart budget, window, and
+    /// backoff) the loop cannot derive from a job's cadence.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The callback runs against a fresh default <see cref="SchedulerOptions"/> at
+    /// <see cref="SchedulerServiceCollectionExtensions.AddScheduler"/> time, and the
+    /// resulting options are validated and registered as the singleton the tick loop
+    /// consumes. Without a call, the loop uses the default options unchanged.
+    /// </para>
+    /// <para>
+    /// Calling this more than once composes the callbacks in order — a later call sees
+    /// the values an earlier one set and can override them. The combined configuration
+    /// is validated once, after all callbacks run; the fault-recovery cross-field
+    /// constraint (<c>RestartBackoff * MaxRestartsInWindow &lt; RestartWindow</c>, see
+    /// <see cref="SchedulerOptions.RestartBackoff"/>) is enforced at that point and
+    /// throws if violated.
+    /// </para>
+    /// </remarks>
+    /// <param name="configure">The callback that mutates the options.</param>
+    /// <returns>This builder, for chaining.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="configure"/> is null.</exception>
+    ISchedulerBuilder ConfigureOptions(Action<SchedulerOptions> configure);
+
+    /// <summary>
     /// Replaces the default in-memory store with a durable
     /// <see cref="IScheduleStore"/> implementation. Calling this more than once
     /// keeps the last store specified.

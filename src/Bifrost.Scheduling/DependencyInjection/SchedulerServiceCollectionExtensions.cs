@@ -115,8 +115,6 @@ public static class SchedulerServiceCollectionExtensions
         services.TryAddSingleton<ITickHealthMonitor>(
             static sp => sp.GetRequiredService<TickHealthMonitor>());
 
-        services.TryAddSingleton<SchedulerOptions>();
-
         // The router carries the shared sink so a throwing dispatcher surfaces on the
         // same timeline as fires.
         services.TryAddSingleton<IJobDispatcherRouter>(
@@ -173,9 +171,16 @@ public static class SchedulerServiceCollectionExtensions
                 tags: ["scheduling"]));
 
         // Run the configure callback after the defaults are in place so UseStore can
-        // replace the default store and AddJob/AddInlineJob accumulate definitions.
+        // replace the default store, AddJob/AddInlineJob accumulate definitions, and
+        // ConfigureOptions accumulates the SchedulerOptions tuning.
         var builder = new SchedulerBuilder(services);
         configure?.Invoke(builder);
+
+        // Register the configured, validated tick-loop options now that the callback
+        // has run. Every consumer (notably the tick loop factory above) resolves
+        // SchedulerOptions lazily, so post-configure registration honors the consumer's
+        // ConfigureOptions; BuildOptions throws here on an unsatisfiable configuration.
+        services.AddSingleton(builder.BuildOptions());
 
         // Materialize the DI-time job definitions once, now that the callback has run,
         // and register the startup hosted service that wires them into the registry.
