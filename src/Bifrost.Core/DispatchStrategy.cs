@@ -49,10 +49,10 @@ public enum DispatchStrategy
     /// Priority dispatch whose concrete binding is resolved at orchestrator
     /// construction from <c>PriorityDispatchOptions.Binding</c>.
     /// <see cref="PriorityBinding.Locking"/> resolves to
-    /// <see cref="PriorityLocking"/>; <see cref="PriorityBinding.MultiQueue"/>
-    /// resolves to <see cref="PriorityMultiQueue"/>; <see cref="PriorityBinding.Auto"/>
-    /// applies the hardware×capacity heuristic in
-    /// <c>PriorityBindingResolver</c> to choose between them.
+    /// <see cref="PriorityLocking"/>; both <see cref="PriorityBinding.MultiQueue"/>
+    /// and <see cref="PriorityBinding.Auto"/> resolve to
+    /// <see cref="PriorityMultiQueue"/> via <c>PriorityBindingResolver</c> — Auto
+    /// never selects locking.
     /// </summary>
     Priority = 3,
 

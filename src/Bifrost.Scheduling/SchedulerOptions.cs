@@ -46,10 +46,26 @@ public sealed class SchedulerOptions
     /// faulted state and stops ticking (DR-10).
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A fault in the loop's own code is caught, logged, surfaced as a
     /// <see cref="Bifrost.Scheduling.Core.Events.SchedulerFaultedEvent"/>, and the
     /// loop restarts. If the loop fails this many times within the window — a tight
     /// crash loop rather than a transient fault — it gives up rather than spinning.
+    /// </para>
+    /// <para>
+    /// <strong>Constraint (see <see cref="RestartBackoff"/>):</strong> for the give-up
+    /// transition to stay reliably reachable, faults must accumulate inside
+    /// <see cref="RestartWindow"/> faster than the backoff lets them slide out of it. The
+    /// bound <c>RestartBackoff * MaxRestartsInWindow &lt; RestartWindow</c> is a
+    /// <em>conservative sufficient</em> condition — not the exact necessary boundary — and
+    /// is <strong>enforced with margin at
+    /// <see cref="DependencyInjection.SchedulerServiceCollectionExtensions.AddScheduler"/></strong>:
+    /// a violating configuration throws there with a message naming the offending properties.
+    /// The runtime actually tolerates more than this bound implies (the first fault in the
+    /// window is never backed off, and give-up triggers at <c>Count &gt; MaxRestartsInWindow</c>),
+    /// so some configurations the bound rejects would in fact give up; the conservative bound
+    /// is enforced deliberately to keep the guarantee robust. The defaults satisfy it (1s × 3 &lt; 60s).
+    /// </para>
     /// </remarks>
     public int MaxRestartsInWindow { get; set; } = 3;
 
@@ -57,5 +73,54 @@ public sealed class SchedulerOptions
     /// Gets or sets the sliding window over which consecutive restarts are counted
     /// against <see cref="MaxRestartsInWindow"/> (DR-10).
     /// </summary>
+    /// <remarks>
+    /// <strong>Constraint (see <see cref="RestartBackoff"/>):</strong> keeping this larger than
+    /// <c>RestartBackoff * MaxRestartsInWindow</c> is a <em>conservative sufficient</em>
+    /// condition (not the exact necessary boundary) that guarantees a crash loop reaches the
+    /// give-up transition rather than backing off forever. It is <strong>enforced with margin at
+    /// <see cref="DependencyInjection.SchedulerServiceCollectionExtensions.AddScheduler"/></strong>:
+    /// a violating configuration throws there with a message naming the offending properties.
+    /// The runtime is more forgiving than the bound (the first fault is not backed off, and
+    /// give-up triggers at <c>Count &gt; MaxRestartsInWindow</c>); the conservative bound is
+    /// enforced deliberately. The defaults satisfy it (1s × 3 &lt; 60s).
+    /// </remarks>
     public TimeSpan RestartWindow { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Gets or sets the delay the loop waits before re-entering the tick loop after a
+    /// repeated fault, so a crash loop backs off instead of spinning the CPU at full tilt
+    /// until <see cref="MaxRestartsInWindow"/> is reached (DR-10).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The delay is measured on the injected <see cref="TimeProvider"/>, not the wall
+    /// clock, and is cancelled by shutdown — cancelling during the backoff exits the loop
+    /// cleanly as a normal stop. It is skipped for an isolated first fault in the restart
+    /// window (a one-off blip recovers immediately) and applies only from the second
+    /// consecutive fault onward — the same crash-loop signal counted against
+    /// <see cref="MaxRestartsInWindow"/>. The give-up transition (restart count exceeding
+    /// <see cref="MaxRestartsInWindow"/> within <see cref="RestartWindow"/>) is unaffected,
+    /// and that final iteration does not back off. Set to <see cref="TimeSpan.Zero"/> to
+    /// restart immediately (the pre-backoff behaviour). The default is one second: short
+    /// enough to recover promptly, long enough to keep a crash loop from saturating a core.
+    /// </para>
+    /// <para>
+    /// <strong>Constraint — keep <c>RestartBackoff * MaxRestartsInWindow &lt; RestartWindow</c>:</strong>
+    /// because the backoff spaces consecutive faults apart, a backoff large enough that
+    /// <c>RestartBackoff * MaxRestartsInWindow &gt;= RestartWindow</c> can let each fault slide out
+    /// of the sliding <see cref="RestartWindow"/> before the next arrives, so the restart count
+    /// never exceeds <see cref="MaxRestartsInWindow"/> and the loop backs off <em>forever</em>
+    /// instead of ever reaching its DR-10 give-up/faulted state. This inequality is a
+    /// <em>conservative sufficient</em> condition, not the exact necessary boundary: the runtime
+    /// tolerates more than it implies because the <em>first</em> fault in the window is never
+    /// backed off (only the second consecutive fault onward pays the delay) and give-up triggers
+    /// at <c>Count &gt; MaxRestartsInWindow</c>, so a configuration the bound rejects may still
+    /// reach give-up. It is <strong>enforced with margin at
+    /// <see cref="DependencyInjection.SchedulerServiceCollectionExtensions.AddScheduler"/></strong>
+    /// — the conservative bound is enforced deliberately so the give-up guarantee is robust —
+    /// with a message naming the offending properties. The defaults (1s backoff × 3 restarts = 3s
+    /// &lt; 60s window) are safe; preserve this inequality when tuning any of the three.
+    /// </para>
+    /// </remarks>
+    public TimeSpan RestartBackoff { get; set; } = TimeSpan.FromSeconds(1);
 }

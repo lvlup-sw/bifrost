@@ -81,6 +81,13 @@ public sealed class TickLoopExceptionTests
         {
             MaxRestartsInWindow = 3,
             RestartWindow = TimeSpan.FromSeconds(60),
+
+            // Disable the inter-restart backoff so this test exercises the give-up
+            // transition in isolation: every queued occurrence re-faults on the single
+            // advance below, as before the backoff was added. The backoff itself — the
+            // delay between restarts, that give-up is still reached WITH a backoff, and
+            // clean cancellation during a backoff — is covered by BackoffBetweenRestartsTests.
+            RestartBackoff = TimeSpan.Zero,
         };
         await using var fx = await Fixture.StartAsync(sink, options).ConfigureAwait(false);
         var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
@@ -113,12 +120,17 @@ public sealed class TickLoopExceptionTests
         var sink = new FaultInjectingEventSink();
         var logger = new CapturingLogger<ScheduleTickLoop>();
         await using var fx = await Fixture.StartSkewableAsync(sink, logger).ConfigureAwait(false);
+
+        // The skewable fixture always supplies a skew provider; bind it once.
+        await Assert.That(fx.Skew).IsNotNull();
+        var skew = fx.Skew!;
+
         var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
         // Inject a backwards skew, then wake the loop. The loop reads the earlier time,
         // detects the regression, warns, and re-arms against the current time rather
         // than sleeping on a stale absolute deadline.
-        fx.Skew.SkewBy(TimeSpan.FromMinutes(-10));
+        skew.SkewBy(TimeSpan.FromMinutes(-10));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
         await Assert.That(logger.Any(LogLevel.Warning)).IsTrue();
@@ -127,7 +139,7 @@ public sealed class TickLoopExceptionTests
         // Clear the skew and let the loop re-arm at the correct delay against the
         // (un-skewed) current time, then advance the underlying clock to the
         // occurrence: the loop still fires it exactly once (no lost or duplicate fire).
-        fx.Skew.SkewBy(TimeSpan.Zero);
+        skew.SkewBy(TimeSpan.Zero);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
@@ -148,14 +160,14 @@ public sealed class TickLoopExceptionTests
             ScheduleTickLoop loop)
         {
             this.Time = time;
-            this.Skew = skew!;
+            this.Skew = skew;
             this.Registry = registry;
             this.Loop = loop;
         }
 
         public FakeTimeProvider Time { get; }
 
-        public SkewableTimeProvider Skew { get; }
+        public SkewableTimeProvider? Skew { get; }
 
         public ScheduleRegistry Registry { get; }
 

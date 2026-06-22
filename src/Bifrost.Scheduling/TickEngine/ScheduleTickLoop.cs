@@ -299,10 +299,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
         // Fault-recovery loop (DR-10). A fault in the loop's own code — not an isolated
         // dispatch, which the router catches — is logged critical, surfaced as a
-        // SchedulerFaultedEvent, and the tick loop restarts. Too many restarts in the
+        // SchedulerFaultedEvent, and the tick loop restarts after a bounded backoff so a
+        // persistent fault does not spin the CPU at full tilt. Too many restarts in the
         // window indicates a crash loop, not a transient fault, so the scheduler
-        // transitions to its faulted state and stops ticking.
-        while (!stoppingToken.IsCancellationRequested && !this.IsFaulted)
+        // transitions to its faulted state and stops ticking. The loop also stops when the
+        // registry's command channel completes (the registry was disposed) so a
+        // dispose-while-running cannot hot-spin the empty-heap wait over a completed channel.
+        while (!this.ShouldStop(stoppingToken) && !this.IsFaulted)
         {
             try
             {
@@ -318,6 +321,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 #pragma warning restore CA1031
             {
                 this.HandleTickLoopFault(ex);
+
+                // Back off before re-entering the loop so a crash loop does not spin the
+                // CPU. Skipped for an isolated first fault (recover immediately) and on the
+                // give-up iteration (HandleTickLoopFault set the faulted state) — that final
+                // iteration exits via the loop condition with no delay. Cancellation during
+                // the backoff exits cleanly as a normal stop.
+                await this.AwaitRestartBackoffAsync(stoppingToken).ConfigureAwait(false);
             }
         }
 
@@ -336,14 +346,38 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     bool ISchedulerFaultSource.IsFaulted => this.IsFaulted;
 
     /// <summary>
-    /// Runs the tick loop until cancelled, re-arming the loop's notion of "now" each
-    /// iteration so a non-monotonic clock is handled (DR-10).
+    /// Returns whether the tick loop should stop cleanly: either the host requested a
+    /// stop (<paramref name="stoppingToken"/> cancelled) or the registry's command
+    /// channel has completed.
+    /// </summary>
+    /// <remarks>
+    /// The command channel is single-reader (only this tick thread reads it), so once
+    /// its writer completes — which happens exactly when the registry is disposed — no
+    /// further command can ever arrive. Treating completion as a stop signal lets the
+    /// loop exit cleanly when the registry is disposed while the loop is still running
+    /// (the public <see cref="IDisposable"/>/<see cref="IAsyncDisposable"/> surface, a
+    /// manual lifecycle, or a custom disposal order), rather than re-parking on an
+    /// already-completed channel that returns synchronously and hot-spinning the CPU. In
+    /// the normal <see cref="IHostedService"/> lifecycle the stopping token is cancelled
+    /// before the singleton registry is disposed, so this condition only fires on the
+    /// dispose-while-running path and never changes steady-state operation.
+    /// </remarks>
+    /// <param name="stoppingToken">The loop's stopping token.</param>
+    /// <returns><see langword="true"/> when the loop should stop.</returns>
+    private bool ShouldStop(CancellationToken stoppingToken)
+        => stoppingToken.IsCancellationRequested
+            || this.registry.Commands.Completion.IsCompleted;
+
+    /// <summary>
+    /// Runs the tick loop until cancelled or the registry's command channel completes,
+    /// re-arming the loop's notion of "now" each iteration so a non-monotonic clock is
+    /// handled (DR-10).
     /// </summary>
     /// <param name="stoppingToken">The loop's stopping token.</param>
     /// <returns>A task that completes when the loop is cancelled.</returns>
     private async Task RunTickLoopAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        while (!this.ShouldStop(stoppingToken))
         {
             await this.RunTickAsync(stoppingToken).ConfigureAwait(false);
         }
@@ -375,6 +409,72 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             Volatile.Write(ref this.faultedState, 1);
             this.LogTickLoopGaveUp(this.options.MaxRestartsInWindow, this.options.RestartWindow.TotalSeconds);
             this.ReleaseFaultedBarrier();
+        }
+    }
+
+    /// <summary>
+    /// Waits <see cref="SchedulerOptions.RestartBackoff"/> on the injected
+    /// <see cref="TimeProvider"/> before the fault-recovery loop re-enters the tick loop,
+    /// so a crash loop backs off rather than spinning the CPU (DR-10).
+    /// </summary>
+    /// <remarks>
+    /// A no-op when the backoff is non-positive, the loop has already given up (its faulted
+    /// state was set by <see cref="HandleTickLoopFault"/>), or this is the first fault in the
+    /// current restart window — an isolated, transient fault recovers immediately, and only a
+    /// repeated fault (the crash-loop signal, the same window <see cref="HandleTickLoopFault"/>
+    /// counts against <see cref="SchedulerOptions.MaxRestartsInWindow"/>) pays the backoff.
+    /// Cancellation during the wait is absorbed as a normal shutdown — the caller's loop
+    /// condition then exits — so no exception leaks from a stop issued mid-backoff.
+    /// </remarks>
+    /// <param name="stoppingToken">The loop's stopping token, cancelled on shutdown.</param>
+    /// <returns>A task that completes when the backoff elapses or the loop should exit.</returns>
+    [SuppressMessage(
+        "Usage",
+        "VSTHRD003:Avoid awaiting foreign Tasks",
+        Justification = "The command-readiness wait is the loop's own cached single-reader " +
+            "channel wait; racing the backoff against it is the intended dispose-wake.")]
+    private async Task AwaitRestartBackoffAsync(CancellationToken stoppingToken)
+    {
+        var backoff = this.options.RestartBackoff;
+
+        // restartTimes holds the faults inside the current sliding window (just updated by
+        // HandleTickLoopFault). Count == 1 means this is the first fault in the window — a
+        // one-off blip — so recover immediately; back off only from the second consecutive
+        // fault onward, which is the crash loop this delay exists to tame. ShouldStop also
+        // skips the backoff when the registry's command channel has already completed (the
+        // registry was disposed), so a dispose-as-stop never parks on a full backoff.
+        if (backoff <= TimeSpan.Zero
+            || this.IsFaulted
+            || this.restartTimes.Count <= 1
+            || this.ShouldStop(stoppingToken))
+        {
+            return;
+        }
+
+        try
+        {
+            // Race the backoff against the command channel so a dispose mid-backoff wakes
+            // the loop instead of leaving it parked for the full RestartBackoff. The
+            // registry completes its command-channel writer on dispose, which completes
+            // CommandReadyTask (WaitToReadAsync returns false); a real command arriving also
+            // completes it. Either way we return so the fault-recovery loop re-checks
+            // ShouldStop and exits cleanly on completion (or re-enters and drains the
+            // command). CommandReadyTask is the existing cached single-reader wait, reused
+            // here on the same tick thread — the only reader — so a single outstanding
+            // waiter remains correct.
+            var delay = Task.Delay(backoff, this.timeProvider, stoppingToken);
+            var commandReady = this.CommandReadyTask(stoppingToken);
+            var winner = await Task.WhenAny(delay, commandReady).ConfigureAwait(false);
+            if (winner == delay)
+            {
+                // Observe the delay's completion/cancellation (no-op when it ran to term).
+                await delay.ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Shutdown requested during the backoff: exit cleanly. The fault-recovery
+            // loop's condition observes the cancellation and stops without re-entering.
         }
     }
 

@@ -30,6 +30,12 @@ internal static class TestThreadPoolInitializer
     {
         ThreadPool.GetMinThreads(out int workerThreads, out int completionPortThreads);
         int target = Math.Max(workerThreads, Environment.ProcessorCount * 8);
-        ThreadPool.SetMinThreads(target, Math.Max(completionPortThreads, target));
+        if (!ThreadPool.SetMinThreads(target, Math.Max(completionPortThreads, target)))
+        {
+            // A failed thread-pool floor must not pass silently: the tests rely on this
+            // minimum to avoid injection stalls under --coverage on few-core runners.
+            throw new InvalidOperationException(
+                $"Failed to raise the thread-pool floor to {target} worker/IO threads.");
+        }
     }
 }

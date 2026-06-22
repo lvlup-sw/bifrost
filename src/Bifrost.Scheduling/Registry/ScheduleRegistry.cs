@@ -32,7 +32,7 @@ namespace Bifrost.Scheduling.Registry;
 /// store-failure-rolls-back invariant. Names are the identity key and are validated
 /// against a compiled lowercase pattern.
 /// </remarks>
-public sealed partial class ScheduleRegistry : IScheduleRegistry
+public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposable, IDisposable
 {
     private readonly IScheduleStore store;
     private readonly TimeProvider timeProvider;
@@ -46,6 +46,12 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
             SingleReader = true,
             SingleWriter = false,
         });
+
+    // Single-shot dispose guard (0 = not disposed). Interlocked so a concurrent or
+    // repeated dispose completes the command writer exactly once: a second
+    // Writer.Complete() throws ChannelClosedException, so the guard makes disposal
+    // idempotent across both the sync (Dispose) and async (DisposeAsync) paths.
+    private int disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScheduleRegistry"/> class.
@@ -209,6 +215,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         IJobDispatcher dispatcher,
         CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ValidateName(name);
         ArgumentNullException.ThrowIfNull(cadence);
         ArgumentNullException.ThrowIfNull(dispatcher);
@@ -284,6 +291,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
     /// <inheritdoc/>
     public async ValueTask<bool> UnregisterAsync(string name, CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
 
         if (!this.jobs.ContainsKey(name))
@@ -308,6 +316,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
     /// <inheritdoc/>
     public async ValueTask PauseAsync(string name, CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
 
         if (!this.jobs.TryGetValue(name, out var record))
@@ -327,6 +336,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
     /// <inheritdoc/>
     public async ValueTask ResumeAsync(string name, CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
 
         if (!this.jobs.TryGetValue(name, out var record))
@@ -350,6 +360,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
         MissedFirePolicy missedFirePolicy,
         CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(cadence);
 
@@ -399,6 +410,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
     /// <inheritdoc/>
     public async ValueTask TriggerAsync(string name, CancellationToken ct = default)
     {
+        this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
 
         if (!this.jobs.ContainsKey(name))
@@ -547,4 +559,66 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry
 
     private async ValueTask PostAsync(RegistryCommand command, CancellationToken ct)
         => await this.commands.Writer.WriteAsync(command, ct).ConfigureAwait(false);
+
+    /// <summary>
+    /// Throws <see cref="ObjectDisposedException"/> when the registry has been disposed.
+    /// Called at the start of every public mutating / command-posting method — before any
+    /// durable or in-memory mutation — so a disposed registry rejects the call cleanly
+    /// rather than committing the change and only failing later at the closed-channel
+    /// <see cref="PostAsync"/>, which would leave the caller seeing a committed change
+    /// reported as failed. Read-only query accessors do not call this: a snapshot of a
+    /// disposed registry is harmless.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">The registry has been disposed.</exception>
+    private void ThrowIfDisposed()
+        => ObjectDisposedException.ThrowIf(Volatile.Read(ref this.disposed) != 0, this);
+
+    /// <summary>
+    /// Disposes the registry by completing its command-channel writer, signalling the
+    /// tick loop's reader that no further wake commands will arrive. The command channel
+    /// is single-reader, so once the writer completes no further command can arrive: the
+    /// loop drains the remaining backlog, observes the completion as a clean-stop signal,
+    /// and exits its tick loop instead of blocking forever on
+    /// <see cref="ChannelReader{T}.WaitToReadAsync"/> over a writer that is never
+    /// completed — or re-parking on an already-completed channel and hot-spinning the CPU.
+    /// Idempotent: a second call (sync or async) is a no-op (a single-shot
+    /// <see cref="Interlocked"/> guard ensures the writer is completed exactly once,
+    /// since completing an already-completed channel would otherwise throw).
+    /// </summary>
+    /// <remarks>
+    /// The registry implements both <see cref="IAsyncDisposable"/> and
+    /// <see cref="IDisposable"/> so it tears down cleanly under either disposal path:
+    /// completing the writer is a synchronous, non-blocking operation, so the async path
+    /// returns a completed <see cref="ValueTask"/> and shares this same logic. Both are
+    /// provided deliberately — a DI container disposed synchronously
+    /// (<c>ServiceProvider.Dispose()</c>) throws if a resolved service implements
+    /// <see cref="IAsyncDisposable"/> but not <see cref="IDisposable"/>, and a consumer
+    /// calling only <c>Dispose</c> on an async-only type would never complete the writer
+    /// (leaking the reader). Completing the writer does not discard queued commands: any
+    /// already-posted command remains readable, and the reader observes completion only
+    /// after it has drained them.
+    /// </remarks>
+    /// <returns>A completed <see cref="ValueTask"/>.</returns>
+    public ValueTask DisposeAsync()
+    {
+        this.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// Disposes the registry by completing its command-channel writer so the tick loop's
+    /// reader drains and exits. See <see cref="DisposeAsync"/> for the full contract;
+    /// this synchronous path exists so a synchronously-disposed DI container or a
+    /// <c>using</c> consumer tears the registry down correctly. Idempotent across both
+    /// the sync and async paths via a shared single-shot <see cref="Interlocked"/> guard.
+    /// </summary>
+    public void Dispose()
+    {
+        // Idempotent: only the first caller completes the writer; a second Complete()
+        // would throw, so the guard makes double-dispose (sync or async) safe.
+        if (Interlocked.Exchange(ref this.disposed, 1) == 0)
+        {
+            this.commands.Writer.Complete();
+        }
+    }
 }

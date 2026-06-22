@@ -16,42 +16,25 @@ namespace Bifrost.Queues;
 /// </summary>
 /// <remarks>
 /// <para>
+/// <see cref="PriorityBinding.Auto"/> always resolves to
+/// <see cref="DispatchStrategy.PriorityMultiQueue"/>: the lock-free relaxed queue
+/// is the default. The coarse-locking heap
+/// (<see cref="DispatchStrategy.PriorityLocking"/>) is reachable only via an
+/// explicit <see cref="PriorityBinding.Locking"/> request — it is never selected
+/// automatically.
+/// </para>
+/// <para>
 /// Explicit <see cref="PriorityBinding.Locking"/> and
-/// <see cref="PriorityBinding.MultiQueue"/> values are returned unconditionally
-/// without consulting the heuristic.
+/// <see cref="PriorityBinding.MultiQueue"/> values are returned unconditionally.
 /// </para>
 /// <para>
-/// <see cref="PriorityBinding.Auto"/> resolves by comparing the MultiQueue's
-/// expected rank error to the queue capacity: when the error reaches half the
-/// capacity, the locking binding is chosen because the relaxed dequeue can no
-/// longer honor priority order at that scale. Below that threshold the MultiQueue
-/// is chosen.
-/// </para>
-/// <para>
-/// The integer-safe predicate equivalent to <c>(5/6)·n ≥ capacity × 0.5</c>
-/// is <c>5 × n ≥ 3 × capacity</c> (multiply both sides by 6, substitute
-/// <c>0.5 = 3/6</c>). This avoids floating-point arithmetic on the hot path
-/// and is exact for any integer inputs.
-/// </para>
-/// <para>
-/// The sub-queue count <c>n</c> mirrors <c>ConcurrentPriorityQueue.s_defaultSubQueueCount</c>
-/// exactly; <see cref="SubQueueCountFor"/> is exposed so the orchestrator and tests
-/// can assert agreement between the resolver and the actual queue.
+/// <see cref="SubQueueCountFor"/> is exposed so the orchestrator and tests can
+/// assert agreement between the resolver and the actual queue; the sub-queue count
+/// <c>n</c> mirrors <c>ConcurrentPriorityQueue.s_defaultSubQueueCount</c> exactly.
 /// </para>
 /// </remarks>
 internal static class PriorityBindingResolver
 {
-    /// <summary>Numerator of the MultiQueue's expected rank error <c>(5/6)·n</c>.</summary>
-    private const int RankErrorNumerator = 5;
-
-    /// <summary>
-    /// Capacity multiplier in the Auto threshold. <see cref="PriorityBinding.Auto"/> selects
-    /// <see cref="DispatchStrategy.PriorityLocking"/> when <c>(5/6)·n ≥ capacity × ½</c>; cleared
-    /// of division (multiply by 6) this is <c>5·n ≥ 3·capacity</c>, so the multiplier is
-    /// <c>3 = 6 × ½</c>. Raising it biases toward the MultiQueue; lowering it biases toward the lock.
-    /// </summary>
-    private const int CapacityThresholdMultiplier = 3;
-
     /// <summary>
     /// Returns the default sub-queue count for a given processor count, mirroring
     /// <c>ConcurrentPriorityQueue.s_defaultSubQueueCount</c> exactly.
@@ -73,35 +56,23 @@ internal static class PriorityBindingResolver
     /// <see cref="DispatchStrategy"/>.
     /// </summary>
     /// <param name="requested">The caller's binding intent.</param>
-    /// <param name="processorCount">
-    /// The number of logical processors; used only when <paramref name="requested"/>
-    /// is <see cref="PriorityBinding.Auto"/>. Pass <see cref="Environment.ProcessorCount"/>
-    /// at the call site so the heuristic is unit-testable across hardware shapes.
-    /// </param>
-    /// <param name="capacity">
-    /// The queue's bounded capacity; used only when <paramref name="requested"/>
-    /// is <see cref="PriorityBinding.Auto"/>.
-    /// </param>
     /// <returns>
-    /// <see cref="DispatchStrategy.PriorityLocking"/> or
-    /// <see cref="DispatchStrategy.PriorityMultiQueue"/>.
+    /// <see cref="DispatchStrategy.PriorityLocking"/> only for an explicit
+    /// <see cref="PriorityBinding.Locking"/>; otherwise
+    /// <see cref="DispatchStrategy.PriorityMultiQueue"/> (including
+    /// <see cref="PriorityBinding.Auto"/>).
     /// </returns>
-    internal static DispatchStrategy Resolve(PriorityBinding requested, int processorCount, int capacity)
+    internal static DispatchStrategy Resolve(PriorityBinding requested)
         => requested switch
         {
             PriorityBinding.Locking => DispatchStrategy.PriorityLocking,
-            PriorityBinding.MultiQueue => DispatchStrategy.PriorityMultiQueue,
 
-            // Auto: pick Locking when rank error (5/6)·n reaches half the capacity.
-            // Integer-safe predicate: 5·n >= 3·capacity  (equivalent to (5/6)·n >= capacity·0.5).
-            _ => ResolveAuto(processorCount, capacity),
+            // Auto and explicit MultiQueue both resolve to the relaxed lock-free queue.
+            // Auto never selects Locking — that is a deliberate, explicit choice only.
+            PriorityBinding.Auto or PriorityBinding.MultiQueue => DispatchStrategy.PriorityMultiQueue,
+
+            // Any other value is an out-of-range cast (e.g. (PriorityBinding)999): fail
+            // fast rather than silently defaulting it to a strategy the caller never named.
+            _ => throw new ArgumentOutOfRangeException(nameof(requested), requested, "Unknown priority binding."),
         };
-
-    private static DispatchStrategy ResolveAuto(int processorCount, int capacity)
-    {
-        var n = SubQueueCountFor(processorCount);
-        return RankErrorNumerator * n >= CapacityThresholdMultiplier * capacity
-            ? DispatchStrategy.PriorityLocking
-            : DispatchStrategy.PriorityMultiQueue;
-    }
 }

@@ -85,6 +85,9 @@ The scheduler must expose a central registry (`IScheduleRegistry`) where jobs ca
 - Given a registered job
   When `registry.TriggerAsync("ingest-docs")` is called
   Then the job is dispatched immediately regardless of `NextFireAt`, and the subsequent fire schedule is unchanged.
+- Given a registered job
+  When `registry.UpdateAsync("ingest-docs", Cadence.Cron("0 */2 * * *"), MissedFirePolicy.Coalesce, ct)` is called
+  Then the job's cadence and missed-fire policy are replaced, `NextFireAt` is recomputed from the new schedule alone, and the tick loop re-arms the job from the updated record — without firing it as a side effect of the write (R10). A relative one-shot is resolved against the registry's injected `TimeProvider` at update time (same contract as `RegisterAsync`), and updating to a one-shot instant already in the past throws `ArgumentOutOfRangeException` rather than firing immediately. Updating an unknown name throws `JobNotFoundException`.
 - Registering a job with a duplicate name throws `DuplicateJobNameException`.
 - Job names must match `^[a-z0-9][a-z0-9-_.]{0,127}$` — enforced at registration time.
 - Registering a one-shot cadence whose fire time is already past (`Cadence.At(past)`) throws at
@@ -524,6 +527,10 @@ public interface ISchedulerBuilder
     IJobBuilder<TWork> AddJob<TWork>(string name);
     IInlineJobBuilder AddInlineJob(string name);
     ISchedulerBuilder UseStore<TStore>() where TStore : class, IScheduleStore;
+    // Tune the tick-loop SchedulerOptions (fault-recovery thresholds + backoff,
+    // shutdown grace). Composes across calls; validated at AddScheduler (e.g. the
+    // RestartBackoff * MaxRestartsInWindow < RestartWindow constraint).
+    ISchedulerBuilder ConfigureOptions(Action<SchedulerOptions> configure);
 }
 ```
 

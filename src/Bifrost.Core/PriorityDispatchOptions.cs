@@ -189,12 +189,12 @@ public class PriorityDispatchOptions
     /// </summary>
     /// <value>The selected binding. Default is <see cref="PriorityBinding.Auto"/>.</value>
     /// <remarks>
-    /// <see cref="PriorityBinding.Auto"/> (the default) lets the orchestrator pick the concrete
-    /// binding at construction based on the current hardware and queue capacity — specifically,
-    /// whether the MultiQueue's expected rank error would materially degrade priority ordering.
-    /// <see cref="PriorityBinding.Locking"/> and <see cref="PriorityBinding.MultiQueue"/> bypass
-    /// the heuristic and select the binding unconditionally. The resolved binding is logged once
-    /// at construction and exposed via <c>WorkOrchestrator.ResolvedBinding</c>.
+    /// <see cref="PriorityBinding.Auto"/> (the default) always resolves to the lock-free
+    /// <see cref="PriorityBinding.MultiQueue"/> — it never selects locking.
+    /// <see cref="PriorityBinding.Locking"/> is the explicit opt-in for the coarse-locking heap
+    /// (strict rank ordering at high capacity), reachable only by requesting it directly.
+    /// The resolved binding is logged once at construction and exposed via
+    /// <c>WorkOrchestrator.ResolvedBinding</c>.
     /// </remarks>
     public PriorityBinding Binding { get; set; } = PriorityBinding.Auto;
 

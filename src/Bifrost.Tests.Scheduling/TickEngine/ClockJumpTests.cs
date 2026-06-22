@@ -65,34 +65,39 @@ public sealed class ClockJumpTests
             serviceProvider: Services);
 
         await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        try
+        {
+            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Register a job due in 5 minutes.
-        var dispatcher = new CountingDispatcher();
-        await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, dispatcher)
-            .ConfigureAwait(false);
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            // Register a job due in 5 minutes.
+            var dispatcher = new CountingDispatcher();
+            await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, dispatcher)
+                .ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Inject a backward skew of 3 days. The loop's next GetUtcNow() read sees a
-        // time far in the past. The loop must detect the regression (log warning) and
-        // re-arm against the skewed time (extending the delay). It must NOT hang on a
-        // stale timer that will never fire.
-        skewable.SkewBy(TimeSpan.FromDays(-3));
+            // Inject a backward skew of 3 days. The loop's next GetUtcNow() read sees a
+            // time far in the past. The loop must detect the regression (log warning) and
+            // re-arm against the skewed time (extending the delay). It must NOT hang on a
+            // stale timer that will never fire.
+            skewable.SkewBy(TimeSpan.FromDays(-3));
 
-        // Wake the loop (idle barrier) so it re-evaluates with the backward clock.
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            // Wake the loop (idle barrier) so it re-evaluates with the backward clock.
+            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Clear the skew and let the loop settle.
-        skewable.SkewBy(TimeSpan.Zero);
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            // Clear the skew and let the loop settle.
+            skewable.SkewBy(TimeSpan.Zero);
+            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Now advance past the original scheduled instant: must fire exactly once.
-        time.Advance(TimeSpan.FromMinutes(5));
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
-        await Assert.That(dispatcher.FireCount).IsEqualTo(1);
-
-        await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
-        loop.Dispose();
+            // Now advance past the original scheduled instant: must fire exactly once.
+            time.Advance(TimeSpan.FromMinutes(5));
+            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await Assert.That(dispatcher.FireCount).IsEqualTo(1);
+        }
+        finally
+        {
+            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            loop.Dispose();
+        }
     }
 
     /// <summary>
