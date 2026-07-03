@@ -19,6 +19,7 @@ namespace Bifrost.Tests.Decorators;
 /// <summary>
 /// Tests for <see cref="EventStreamOrchestrator{TWork}"/> decorator.
 /// </summary>
+[ParallelLimiter<EventStreamParallelLimit>]
 public class EventStreamOrchestratorTests
 {
     private IWorkOrchestrator<string> _inner = null!;
