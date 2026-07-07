@@ -155,6 +155,8 @@ public class BifrostHttpResilienceHandlerTests
     [Arguments("no-retry-client-bifrost-http", "bifrost-http", "no-retry-client")]
     [Arguments("-bifrost-http", "bifrost-http", "")]
     [Arguments("control-plane-streaming-bifrost-http", "bifrost-http", "control-plane-streaming")]
+    // A builder name without the pipeline suffix is returned unchanged (defensive no-suffix branch).
+    [Arguments("no-suffix-name", "bifrost-http", "no-suffix-name")]
     public async Task GetClientName_StripsPipelineSuffix(string builderName, string pipelineName, string expected)
     {
         await Assert.That(BifrostHttpResilienceExtensions.GetClientName(builderName, pipelineName))
@@ -238,6 +240,26 @@ public class BifrostHttpResilienceHandlerTests
         var streaming = options.ResolvePolicy("control-plane-streaming");
         await Assert.That(streaming.MaxRetries).IsEqualTo(0);
         await Assert.That(streaming.TotalRequestTimeout).IsEqualTo(TimeSpan.FromHours(1));
+    }
+
+    /// <summary>
+    /// Covers the exponential-backoff branch of
+    /// <see cref="BifrostHttpResilienceExtensions.ConfigurePipeline"/> — the handler tests above force
+    /// constant backoff (<c>UseExponentialBackoff = false</c>), so building a pipeline with it enabled
+    /// exercises the <see cref="DelayBackoffType.Exponential"/> path.
+    /// </summary>
+    [Test]
+    public async Task ConfigurePipeline_ExponentialBackoff_BuildsPipeline()
+    {
+        var builder = new ResiliencePipelineBuilder<HttpResponseMessage>();
+        BifrostHttpResilienceExtensions.ConfigurePipeline(builder, new BifrostHttpResiliencePolicy
+        {
+            MaxRetries = 2,
+            UseExponentialBackoff = true,
+            RetryBaseDelay = TimeSpan.FromMilliseconds(1),
+        });
+
+        await Assert.That(builder.Build()).IsNotNull();
     }
 
     /// <summary>Queued primary handler: each call dequeues the next pre-loaded response, else 200.</summary>
