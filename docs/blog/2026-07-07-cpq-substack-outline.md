@@ -2,31 +2,41 @@ Somewhere in the mid-2000s, processor clock speeds stopped climbing. Individual 
 
 As an unashamed dotnet evangelist, I spend a lot of my time working with the standard collections Microsoft ships in the Base Class Library (BCL). And the BCL's concurrent collections are genuinely excellent: FIFO queues (`ConcurrentQueue`), stacks (`ConcurrentStack`), unordered bags (`ConcurrentBag`), and of course the ubiquitous hash map (`ConcurrentDictionary`).
 
-But what if you want a queue of prioritized items? Well, there's `PriorityQueue`, but it's not thread-safe, and there's no `ConcurrentPriorityQueue` (CPQ) in the BCL. In fact, almost no major runtime ships one — the lone exception being Java's `PriorityBlockingQueue`. Unfortunately, it's literally a lock around a binary heap, which makes it functionally useless for most of the concurrent workloads you'd want it for.
+But what if you want a queue of prioritized items? Well, there's `PriorityQueue`, but it's not thread-safe, and there's no `ConcurrentPriorityQueue` (CPQ) in the BCL. In fact, almost no major runtime ships one as part of their standard library—the lone exception being Java's `PriorityBlockingQueue`. Unfortunately, it's literally a lock around a binary heap, which makes it functionally useless for most of the concurrent workloads you'd want it for.
 
-This struck me as genuinely strange when I stumbled onto it over four years ago, during the pandemic (man, time flies). Why aren't there any CPQs *anywhere*?! Surely it couldn't be *that* hard to implement, right? Spoiler: It turns out that maintaining strict global order across dozens of threads without relying on a massive, performance-killing lock is an absolute nightmare. Who would've thought?
+This struck me as genuinely strange when I stumbled onto it some four years ago. Why aren't there CPQs *anywhere*?! Surely it couldn't be *that* hard to implement, right? Spoiler: It turns out that maintaining strict global order across dozens of threads without relying on a massive, performance-killing lock is an absolute nightmare. Who would've thought?
 
 So began my foray into the wonderfully complicated world of concurrent programming! The result: the first truly scalable concurrent priority queue in dotnet.
 
 ---
 
-## 1. Hook — the missing shelf in the concurrent toolbox
+## What a priority queue is (and where you've already used one)
 
-- Multicore era: performance comes from parallelism now, not clock speed. Software has to actually use the cores.
-- Concurrent data structures are how you do that — the shared building blocks under every parallel workload.
-- .NET ships a solid set: `ConcurrentQueue` (FIFO), `ConcurrentStack` (LIFO), `ConcurrentBag` (unordered).
-- The pattern: every one is *no ordering* or *trivial ordering*. Need **priority** ordering and the shelf is empty.
-- The tell: `PriorityQueue<T>` exists — and shipped *deliberately* not thread-safe. No concurrent counterpart in the BCL, or the ecosystem.
-- The claim, flat: this is the only scalable concurrent priority queue in .NET.
-- *→ of all the concurrent collections, why is priority the one nobody shipped?*
+A **priority queue** is a collection where every item carries a priority, and the only item you can pull out is the most important one currently inside. Arrival order doesn't matter: unlike a FIFO queue or a stack, a high-priority item added last still comes out first. Two operations carry the whole thing: **insert** an item with a priority, and **delete-min**, which pops the current best. (.NET's `PriorityQueue<TElement, TPriority>` is a min-queue, so dequeue returns the smallest priority.)
 
-## 2. Why a lock is the ceiling
+You've used one whether you noticed or not. Dijkstra's shortest path and A\* pathfinding are priority queues at heart, always expanding the nearest node next. So is every discrete-event simulation, every Huffman compressor, every OS scheduler, bandwidth shaper, and timer wheel. Any time code asks "what's the most important thing to do right now?", odds are a priority queue is answering.
 
-- Wrap `PriorityQueue` in a lock → correct, trivial, **flat at 5–8M ops/s no matter the core count.**
-- Not lazy code — the *spec*: every consumer fights over the one smallest element. A serial point by definition.
-- Lock-free doesn't save you — the head is still the bottleneck.
-- That's why .NET shipped the other three and skipped this one. Priority is the hard one.
-- *→ how do you scale past a point that's serial by definition?*
+## Why a *concurrent* one is so hard
+
+Every other concurrent collection scales for one reason: the threads can stay out of each other's way. Two threads pushing a `ConcurrentQueue` touch opposite ends. Two threads writing different keys in a `ConcurrentDictionary` land in different buckets. Spread the work out, and more threads just means more throughput.
+
+A priority queue can't spread anything out, and that's not an implementation problem. It's the definition. Every `delete-min` wants the single smallest element in the whole structure, so that one element becomes a spot every consumer is contractually required to fight over. Be as clever as you want underneath. If the contract says "give me the global minimum," then every deleting thread has to agree on what the minimum *is*, and getting threads to agree is the one thing that never scales.
+
+There's the whole problem in a sentence: strict ordering hands you a single hot spot that every consumer has to pile onto. Lock the structure and the lock is your ceiling. Go lock-free and the hottest pointer is your ceiling. The bottleneck comes welded to the contract.
+
+## Two data structures that should have worked
+
+Abstract enough. Here are the two structures people actually build these out of.
+
+The textbook priority queue, and the one under .NET's `PriorityQueue`, is a **binary heap** (a 4-ary heap, in .NET's case): a complete tree packed into a flat array. Sequentially it's a joy. Insert and delete-min are O(log n), peeking the min is O(1), and the whole thing lives in one cache-friendly array with no pointers to chase. Then you look at where the work actually lands. The minimum sits at the root, every `delete-min` tears out that root, and every `insert` can bubble a new item straight back up to it. The one node every operation touches is the same node, and the paths they walk overlap all the way down. Fine-grained locking turns into a deadlock-ordering puzzle (an insert climbing up runs headlong into a delete sinking down), so the only thing that reliably works is one big lock around the whole heap. Right back where we started: correct, and flat.
+
+So people got clever and moved to a **skiplist**: a sorted linked list with randomized express lanes stacked on top, O(log n) search and nothing to rebalance. Skiplists come with elegant lock-free algorithms that have been studied to death, and they had the one property that looked like a way out. Inserts scatter. An item with a random priority splices in at a random spot, so writers hardly ever collide. For fifteen years the best concurrent priority queues we had were skiplist-based: Lotan–Shavit, Sundell–Tsigas, and the genuinely clever Lindén–Jonsson design that got delete-min down to roughly one compare-and-swap on the happy path.
+
+And they do beat a locked heap. For a while. Then you keep adding threads and they go flat, usually somewhere between 8 and 32 cores. The inserts scatter, fine, but the minimum in a sorted list is always sitting at the *front*, and every `delete-min` still races for that same front. Lindén–Jonsson pushed the idea about as far as it goes: delete nodes logically, unlink them in bulk, keep threads off the head wherever you can. It helps. It can't win, because the front of a sorted list is just the root of the heap in a different outfit. The structure changed; the serial point didn't. (The strict designs that aren't skiplists, Mounds and CBPQ, run into the same wall.)
+
+That's the thing the field took a decade to fully admit: the bottleneck was never the heap or the skiplist or the lock. It's strict ordering, full stop. As long as every consumer insists on the exact global minimum, they're all reaching for the same spot, and no data structure ever invented can spread out a fight that everybody wants to have in one place.
+
+Which leaves one deeply uncomfortable question. What if `delete-min` didn't have to give back the real minimum?
 
 ## 3. Stop asking for *the* smallest
 
