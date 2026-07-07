@@ -1,13 +1,12 @@
-# The Concurrent Priority Queue .NET Never Shipped — Substack outline
+Somewhere in the mid-2000s, processor clock speeds stopped climbing. Individual cores were bumping into hard physical limits on power and heat, so instead of getting faster, chips got wider: more cores, not quicker ones. The clock speed on my current desktop is barely ahead of the one I had in college; the difference is that it now has 24 cores. Making software *fast* turned into making software *parallel*, and parallel code is built on a handful of shared, thread-safe building blocks called **concurrent data structures**.
 
-**Working titles (number-first, pick one):**
-- *118 Million Ops/Sec: .NET's First Scalable Concurrent Priority Queue*
-- *The Concurrent Priority Queue .NET Never Shipped*
-- *The Missing Shelf: Building a Scalable Concurrent Priority Queue for .NET*
+As an unashamed dotnet evangelist, I spend a lot of my time working with the standard collections Microsoft ships in the Base Class Library (BCL). And the BCL's concurrent collections are genuinely excellent. You get FIFO queues (`ConcurrentQueue`), stacks (`ConcurrentStack`), an unordered bag (`ConcurrentBag`), and of course the ubiquitous hash map (`ConcurrentDictionary`).
 
-**Spine:** you can't have one → because strict can't scale → so relax it → here's the .NET build → here are the numbers.
+But what if you want a queue of prioritized items? Well, there's `PriorityQueue`, but it's not thread-safe, and there's no `ConcurrentPriorityQueue` (CPQ) in the BCL. Almost no major runtime ships one. The lone exception is Java's `PriorityBlockingQueue`, and the name gives it away: it's literally a lock around a binary heap, which makes it functionally useless for most of the concurrent workloads you'd want it for.
 
-**Voice:** von Geijer — intuition before mechanism, figures carry the argument, caveats stated flat. One idea per line.
+This struck me as genuinely strange when I stumbled onto it over four years ago, during the pandemic. Why aren't there any CPQs *anywhere*?! Surely it couldn't be *that* hard to implement, right? (wrong)
+
+So began my foray into the wonderfully complicated world of concurrent programming. The result: the first scalable concurrent priority queue in dotnet.
 
 ---
 
