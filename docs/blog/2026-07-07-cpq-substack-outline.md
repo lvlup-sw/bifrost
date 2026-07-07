@@ -4,7 +4,7 @@ As an unashamed dotnet evangelist, I spend a lot of my time working with the sta
 
 But what if you want a queue of prioritized items? Well, there's `PriorityQueue`, but it's not thread-safe, and there's no `ConcurrentPriorityQueue` (CPQ) in the BCL. In fact, almost no major runtime ships one -- the lone exception being Java's `PriorityBlockingQueue`. Unfortunately, it's literally a lock around a binary heap, which makes it functionally useless for most of the concurrent workloads you'd want it for.
 
-This struck me as genuinely strange when I stumbled onto it over four years ago, during the pandemic (man, time flies). Why aren't there any CPQs *anywhere*?! Surely it couldn't be *that* hard to implement, right? I mean, all a priority queue does is hand back the top item — it's not like that makes every thread reach for the exact same one at once. Reader, it does exactly that, and that's exactly the problem. A decade of research papers and a working knowledge of every way a CPU can lie to you later, I can confirm: it was that hard.
+This struck me as genuinely strange when I stumbled onto it over four years ago, during the pandemic (man, time flies). Why aren't there any CPQs *anywhere*?! Surely it couldn't be *that* hard to implement, right? It's an active area of research. I did not know that yet.
 
 So began my foray into the wonderfully complicated world of concurrent programming. The result: the first scalable concurrent priority queue in dotnet.
 
