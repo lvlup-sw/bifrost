@@ -20,15 +20,20 @@ For these reasons, PQs are very typically implemented as binary heaps. In this d
 
 ## So why is a *concurrent* one so hard?
 
-Step back for a second, because there's a design principle sitting under every concurrent data structure. The promise of a multicore machine is doing many things at once, and a good concurrent collection is one that actually delivers on it: independent operations run in parallel, and two threads stop to coordinate only when they truly touch the same memory. Most collections manage this beautifully. Two threads pushing a `ConcurrentQueue` work at opposite ends; two threads writing different keys in a `ConcurrentDictionary` land in different buckets. They stay out of each other's way, so they almost never wait. Every place threads *are* forced to take turns is a tax on that promise, and the whole craft is driving those places toward zero.
+The promise of a concurrent data structure is straightforward: independent operations can run in parallel, ideally without ever blocking each other. A well-designed one therefore optimizes for *parallelizable* work, keeping operations off the same memory wherever it can. When they do have to touch shared state, that work has to happen in a *linearizable* fashion, and that coordination is almost always a tax on throughput. So the whole craft of designing concurrent data structures comes down to driving the frequency of that coordination toward zero.
 
-Now give a binary heap the same treatment: let a couple dozen threads call `insert` and `delete-min` on one shared heap, with no coordination at all. It comes apart almost immediately, because neither operation is atomic. Each one is a multi-step edit to shared state — the array, the `count`, a chain of parent-child swaps — and threads interleave right in the middle of those steps. A partial tour of the wreckage:
+Okay, so how is a conventional PQ different from a thread-safe one? Let's try making our original binary heap concurrent: let a couple dozen threads call `insert` and `delete-min` on one shared heap, with no coordination at all. 
 
-- **Lost dequeues.** Two `delete-min`s read the same root, both hand it back, and one thread's write buries the other's. The same element comes out twice, and whatever should have come out next is silently gone.
-- **A broken heap.** One `insert` sifts a node up while a `delete-min` sifts another down through the same stretch of tree; their swaps interleave and leave something that is no longer a valid heap. Every operation after that runs on garbage.
-- **Torn reads.** A thread peeks or pops while another is mid-sift and sees a node that's been copied but not yet overwritten: a duplicate, a stale value, or a hole where an element should be.
-- **A trampled array.** The backing array and the `count` are shared. Two inserts claim the same free slot, or both bump the count, and elements clobber each other while the size drifts away from reality.
-- **Vanishing writes.** One `insert` outgrows the array and swaps in a bigger copy. A thread still working against the old array writes into something that's already been thrown away, and its update simply disappears.
+<p align="center"><img src="assets/naive-heap-races.svg" width="560" alt="Four threads — two running insert, two running delete-min — all firing arrows at the single root node of one shared binary heap, with a red burst marking the collision at the root."></p>
+
+*With no coordination, every thread reaches for the same root at once, and the heap corrupts itself almost instantly.*
+
+As you can see, it comes apart almost immediately, because neither operation is atomic. Each one is a multi-step edit to shared state (the underlying array, the `count`, parent-child pointers) and threads interleave right in the middle of those steps. A partial tour of the wreckage:
+
+- Two `delete-min`s read the same root and both return it, so one element comes out twice while the next one is lost.
+- An `insert` sifting up collides with a `delete-min` sifting down, their swaps interleave, and the tree is no longer a valid heap.
+- A reader peeks mid-sift and catches a node copied but not yet overwritten, handing back a duplicate or a stale value.
+- Two inserts race on the shared array and `count` (or one grows the array out from under the other), so writes land in the wrong slot or vanish entirely.
 
 Every one of these is a data race, and the standard cure is a synchronization primitive: a **lock**. Wrap each operation in one — acquire, insert or delete-min, release — and the races evaporate, because now exactly one thread is inside the heap at any moment. This is precisely what Java's `PriorityBlockingQueue` does, and what you get by throwing a `lock` around .NET's `PriorityQueue`. And to be clear, it *works*: it's correct, it's simple, and for a handful of threads it's genuinely fine.
 
