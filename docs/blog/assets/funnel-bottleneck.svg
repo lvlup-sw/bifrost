@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 480" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <rect x="8" y="8" width="704" height="464" rx="16" fill="#fbfbfd" stroke="#e5e7eb" stroke-width="1"/>
+
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="5.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/>
+    </marker>
+    <marker id="ahr" markerWidth="9" markerHeight="9" refX="5.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#dc2626"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="36" text-anchor="middle" font-size="17" font-weight="700" fill="#111827">Many threads, one lock</text>
+
+  <!-- threads -->
+  <g font-size="15" font-weight="700" text-anchor="middle">
+    <rect x="40"  y="58" width="80" height="38" rx="8" fill="#2563eb"/><text x="80"  y="83" fill="#fff">T1</text>
+    <rect x="152" y="58" width="80" height="38" rx="8" fill="#0891b2"/><text x="192" y="83" fill="#fff">T2</text>
+    <rect x="264" y="58" width="80" height="38" rx="8" fill="#7c3aed"/><text x="304" y="83" fill="#fff">T3</text>
+    <rect x="376" y="58" width="80" height="38" rx="8" fill="#db2777"/><text x="416" y="83" fill="#fff">T4</text>
+    <rect x="488" y="58" width="80" height="38" rx="8" fill="#ea580c"/><text x="528" y="83" fill="#fff">T5</text>
+    <rect x="600" y="58" width="80" height="38" rx="8" fill="#16a34a"/><text x="640" y="83" fill="#fff">T6</text>
+  </g>
+
+  <!-- converging arrows -->
+  <g stroke="#6b7280" stroke-width="2" marker-end="url(#ah)">
+    <line x1="80"  y1="98" x2="150" y2="116"/>
+    <line x1="192" y1="98" x2="220" y2="116"/>
+    <line x1="304" y1="98" x2="316" y2="116"/>
+    <line x1="416" y1="98" x2="404" y2="116"/>
+    <line x1="528" y1="98" x2="500" y2="116"/>
+    <line x1="640" y1="98" x2="570" y2="116"/>
+  </g>
+
+  <!-- funnel -->
+  <polygon points="70,122 650,122 392,300 328,300" fill="#eef2f7" stroke="#9ca3af" stroke-width="1.5"/>
+
+  <!-- lock neck -->
+  <rect x="326" y="300" width="68" height="70" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2.5"/>
+  <path d="M348,330 C348,313 372,313 372,330" fill="none" stroke="#dc2626" stroke-width="3" stroke-linecap="round"/>
+  <rect x="344" y="330" width="32" height="20" rx="3" fill="#dc2626"/>
+  <text x="360" y="366" text-anchor="middle" font-size="13" font-weight="700" fill="#dc2626">LOCK</text>
+
+  <!-- single output -->
+  <line x1="360" y1="370" x2="360" y2="406" stroke="#6b7280" stroke-width="2.5" marker-end="url(#ah)"/>
+  <text x="378" y="392" font-size="13" fill="#6b7280" text-anchor="start">one operation at a time</text>
+
+  <!-- heap -->
+  <rect x="276" y="412" width="168" height="46" rx="10" fill="#111827"/>
+  <text x="360" y="441" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">binary heap</text>
+
+  <!-- annotation -->
+  <text x="612" y="236" text-anchor="middle" font-size="13" font-weight="700" fill="#dc2626">the bottleneck</text>
+  <line x1="590" y1="246" x2="398" y2="330" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ahr)"/>
+</svg>
