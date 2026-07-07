@@ -10,13 +10,13 @@ So began my foray into the wonderfully complicated world of concurrent programmi
 
 ---
 
-## What a priority queue is (and where you've already used one)
+## What is a priority queue anyway?
 
 A **priority queue** is a collection where every item carries a priority, and the only item you can pull out is the most important one currently inside. Arrival order doesn't matter: unlike a FIFO queue or a stack, a high-priority item added last still comes out first. Two operations carry the whole thing: **insert** an item with a priority, and **delete-min**, which pops the current best. (.NET's `PriorityQueue<TElement, TPriority>` is a min-queue, so dequeue returns the smallest priority.)
 
 You've used one whether you noticed or not. Dijkstra's shortest path and A\* pathfinding are priority queues at heart, always expanding the nearest node next. So is every discrete-event simulation, every Huffman compressor, every OS scheduler, bandwidth shaper, and timer wheel. Any time code asks "what's the most important thing to do right now?", odds are a priority queue is answering.
 
-## Why a *concurrent* one is so hard
+## So why is a *concurrent* one so hard?
 
 Every other concurrent collection scales for one reason: the threads can stay out of each other's way. Two threads pushing a `ConcurrentQueue` touch opposite ends. Two threads writing different keys in a `ConcurrentDictionary` land in different buckets. Spread the work out, and more threads just means more throughput.
 
@@ -24,7 +24,7 @@ A priority queue can't spread anything out, and that's not an implementation pro
 
 There's the whole problem in a sentence: strict ordering hands you a single hot spot that every consumer has to pile onto. Lock the structure and the lock is your ceiling. Go lock-free and the hottest pointer is your ceiling. The bottleneck comes welded to the contract.
 
-## Two data structures that should have worked
+## Hasn't someone already solved this?
 
 Abstract enough. Here are the two structures people actually build these out of.
 
