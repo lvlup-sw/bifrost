@@ -34,7 +34,7 @@ jobs:
   # ============================================================
   label-sync:
     if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
-    uses: lvlup-sw/.github/.github/workflows/label-sync.yml@778433e667a510e15b61e52fdbfd55e3664f286f # main
+    uses: lvlup-sw/.github/.github/workflows/label-sync.yml@1853c9388a112295954f9ce6dcf094407031fa08 # main
     secrets: inherit
 
   # ============================================================
