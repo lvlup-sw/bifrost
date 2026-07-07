@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`IHttpClientBuilder.AddBifrostResilienceHandler()`** — Bifrost-generated HttpClient resilience, the intended replacement for `AddStandardResilienceHandler`. Attaches a Polly v8 `ResiliencePipeline<HttpResponseMessage>` (total-request timeout → retry → circuit breaker → per-attempt timeout, with HTTP-aware transient handling) whose policy is resolved by the HttpClient's name from `BifrostHttpResilienceOptions` — a `Default` policy plus per-name `Policies` overrides. The options are bound from the `Bifrost:Resilience` configuration section automatically (source-generated binding, trim/AOT-clean), so policies are config-driven with no explicit binding in consumer code. The call is idempotent and override-safe: it strips any resilience handler already present (e.g. a blanket default inherited from `ConfigureHttpClientDefaults`) so per-client overrides never double-stack, confining the experimental `RemoveAllResilienceHandlers` (EXTEXP0001) surface to the library so consumers never write it. Apply once via `ConfigureHttpClientDefaults` for a keyed default across every client, then call it on a named client to apply that client's keyed policy — long-running clients (SSE streams, slow provisioning) tune timeout/retry purely through configuration instead of bypassing resilience.
+
 ## [0.5.1] - 2026-06-22
 
 ### Added
