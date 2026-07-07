@@ -1,12 +1,12 @@
 Somewhere in the mid-2000s, processor clock speeds stopped climbing. Individual cores were bumping into hard physical limits on power and heat, so instead of getting faster, chips got wider: more cores, not quicker ones. For instance, the clock speed on my current desktop is barely ahead of the one I had in college; the difference is that it now has 24 cores. Making software *fast* has turned into making software *parallel*, and parallel code is built on a handful of shared, thread-safe building blocks called **concurrent data structures**.
 
-As an unashamed dotnet evangelist, I spend a lot of my time working with the standard collections Microsoft ships in the Base Class Library (BCL). And the BCL's concurrent collections are genuinely excellent: FIFO queues (`ConcurrentQueue`), stacks (`ConcurrentStack`), unordered bags (`ConcurrentBag`), and of course the ubiquitous hash map (`ConcurrentDictionary`) among others.
+As an unashamed dotnet evangelist, I spend a lot of my time working with the standard collections Microsoft ships in the Base Class Library (BCL). And the BCL's concurrent collections are genuinely excellent: FIFO queues (`ConcurrentQueue`), stacks (`ConcurrentStack`), unordered bags (`ConcurrentBag`), and of course the ubiquitous hash map (`ConcurrentDictionary`).
 
-But what if you want a queue of prioritized items? Well, there's `PriorityQueue`, but it's not thread-safe, and there's no `ConcurrentPriorityQueue` (CPQ) in the BCL. In fact, almost no major runtime ships one -- the lone exception being Java's `PriorityBlockingQueue`. Unfortunately, it's literally a lock around a binary heap, which makes it functionally useless for most of the concurrent workloads you'd want it for.
+But what if you want a queue of prioritized items? Well, there's `PriorityQueue`, but it's not thread-safe, and there's no `ConcurrentPriorityQueue` (CPQ) in the BCL. In fact, almost no major runtime ships one — the lone exception being Java's `PriorityBlockingQueue`. Unfortunately, it's literally a lock around a binary heap, which makes it functionally useless for most of the concurrent workloads you'd want it for.
 
-This struck me as genuinely strange when I stumbled onto it over four years ago, during the pandemic (man, time flies). Why aren't there any CPQs *anywhere*?! Surely it couldn't be *that* hard to implement, right? It's an active area of research. I did not know that yet.
+This struck me as genuinely strange when I stumbled onto it over four years ago, during the pandemic (man, time flies). Why aren't there any CPQs *anywhere*?! Surely it couldn't be *that* hard to implement, right? Spoiler: It turns out that maintaining strict global order across dozens of threads without relying on a massive, performance-killing lock is an absolute nightmare. Who would've thought?
 
-So began my foray into the wonderfully complicated world of concurrent programming. The result: the first scalable concurrent priority queue in dotnet.
+So began my foray into the wonderfully complicated world of concurrent programming! The result: the first truly scalable concurrent priority queue in dotnet.
 
 ---
 
