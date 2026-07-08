@@ -12,7 +12,6 @@
     .accs { stroke: oklch(0.62 0.19 27); }
     .neck { fill: oklch(0.94 0.045 30); stroke: oklch(0.62 0.19 27); }
     .deep { fill: oklch(0.33 0.07 266); }
-    @media (prefers-reduced-motion: reduce) { .flow, .pulse { display: none; } }
   </style>
 
   <defs>
@@ -50,14 +49,15 @@
   <!-- funnel -->
   <polygon class="fn" points="70,122 650,122 392,300 328,300" fill="#ebedf8" stroke="#b7bce2" stroke-width="1.5"/>
 
-  <!-- animated flow: parallel in, single-file through the neck -->
-  <g class="flow">
-    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M80,126 L360,300 L360,410"  dur="3s" begin="0s"   repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="0s"   repeatCount="indefinite"/></circle>
-    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M192,126 L360,300 L360,410" dur="3s" begin="0.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="0.5s" repeatCount="indefinite"/></circle>
-    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M304,126 L360,300 L360,410" dur="3s" begin="1s"   repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="1s"   repeatCount="indefinite"/></circle>
-    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M416,126 L360,300 L360,410" dur="3s" begin="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="1.5s" repeatCount="indefinite"/></circle>
-    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M528,126 L360,300 L360,410" dur="3s" begin="2s"   repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="2s"   repeatCount="indefinite"/></circle>
-    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M640,126 L360,300 L360,410" dur="3s" begin="2.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="2.5s" repeatCount="indefinite"/></circle>
+  <!-- tokens frozen mid-flight: many queued above, one passing the neck -->
+  <g class="tok" fill="#4c53c2">
+    <circle cx="250" cy="150" r="6.5"/>
+    <circle cx="360" cy="150" r="6.5"/>
+    <circle cx="470" cy="150" r="6.5"/>
+    <circle cx="322" cy="226" r="6.5"/>
+    <circle cx="398" cy="226" r="6.5"/>
+    <circle cx="360" cy="334" r="6.5"/>
+    <circle cx="360" cy="392" r="6.5"/>
   </g>
 
   <!-- lock neck -->
@@ -65,12 +65,6 @@
   <path d="M348,330 C348,313 372,313 372,330" fill="none" stroke="#df523c" stroke-width="3" stroke-linecap="round"/>
   <rect class="acc" x="344" y="330" width="32" height="20" rx="3" fill="#df523c"/>
   <text class="acc" x="360" y="366" text-anchor="middle" font-size="13" font-weight="700" fill="#df523c">LOCK</text>
-
-  <!-- gate pulse -->
-  <circle class="pulse acc" cx="360" cy="333" r="8" fill="#df523c" opacity="0">
-    <animate attributeName="r" values="6;26" dur="1.5s" begin="0s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.16 1 0.3 1"/>
-    <animate attributeName="opacity" values="0.45;0" dur="1.5s" begin="0s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.16 1 0.3 1"/>
-  </circle>
 
   <!-- single output -->
   <line class="muts" x1="360" y1="372" x2="360" y2="406" stroke="#747a94" stroke-width="2.5" marker-end="url(#ah)"/>
