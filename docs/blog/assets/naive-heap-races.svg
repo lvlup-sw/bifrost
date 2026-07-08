@@ -30,7 +30,7 @@
   <text class="acc" x="502" y="192" text-anchor="middle" font-size="26" font-weight="700" fill="#df523c">&#8250;</text>
 
   <!-- ===== Panel 1: both pops read the root ===== -->
-  <text class="step" x="140" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#454b66">1 &#183; both pops read 3</text>
+  <text class="step" x="140" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#454b66">both pops read 3</text>
   <g text-anchor="middle" font-size="12" font-weight="700">
     <rect class="th" x="76"  y="66" width="48" height="24" rx="7" fill="#4c53c2"/><text class="onc" x="100" y="83" fill="#f7f8fb">T1</text>
     <rect class="th" x="156" y="66" width="48" height="24" rx="7" fill="#4c53c2"/><text class="onc" x="180" y="83" fill="#f7f8fb">T2</text>
@@ -43,7 +43,7 @@
   <text class="th" x="140" y="202" text-anchor="middle" font-size="16" font-weight="700" fill="#4c53c2">3</text>
 
   <!-- ===== Panel 2: both grab the same value ===== -->
-  <text class="step" x="380" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#454b66">2 &#183; both grab the same 3</text>
+  <text class="step" x="380" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#454b66">both grab the same 3</text>
   <g text-anchor="middle" font-size="12" font-weight="700">
     <rect class="th" x="316" y="66" width="48" height="24" rx="7" fill="#4c53c2"/><text class="onc" x="340" y="83" fill="#f7f8fb">T1</text>
     <rect class="th" x="396" y="66" width="48" height="24" rx="7" fill="#4c53c2"/><text class="onc" x="420" y="83" fill="#f7f8fb">T2</text>
@@ -61,7 +61,7 @@
   <text class="acc" x="380" y="202" text-anchor="middle" font-size="16" font-weight="700" fill="#df523c">3</text>
 
   <!-- ===== Panel 3: the value comes out twice ===== -->
-  <text class="step" x="620" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#454b66">3 &#183; 3 comes out twice</text>
+  <text class="step" x="620" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#454b66">3 comes out twice</text>
   <g text-anchor="middle" font-size="12" font-weight="700">
     <circle class="rootf accs" cx="586" cy="104" r="12" fill="#f7f8fb" stroke="#df523c" stroke-width="2"/><text class="acc" x="586" y="108" fill="#df523c">3</text>
     <circle class="rootf accs" cx="654" cy="104" r="12" fill="#f7f8fb" stroke="#df523c" stroke-width="2"/><text class="acc" x="654" y="108" fill="#df523c">3</text>
