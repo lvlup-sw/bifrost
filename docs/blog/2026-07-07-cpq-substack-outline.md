@@ -24,16 +24,16 @@ The promise of a concurrent data structure is straightforward: independent opera
 
 Okay, so how is a conventional PQ different from a thread-safe one? Let's try making our original binary heap concurrent: let a couple dozen threads call `insert` and `delete-min` on one shared heap, with no coordination at all. 
 
-<p align="center"><img src="assets/naive-heap-races.svg" width="560" alt="Four threads — two running insert, two running delete-min — all firing arrows at the single root node of one shared binary heap, with a red burst marking the collision at the root."></p>
+<p align="center"><img src="assets/naive-heap-races.svg" width="560" alt="Four threads, two running insert and two running delete-min, all firing arrows at the single root node of one shared binary heap, with a red burst marking the collision at the root."></p>
 
 *With no coordination, every thread reaches for the same root at once, and the heap corrupts itself almost instantly.*
 
 As you can see, it comes apart almost immediately, because neither operation is atomic. Each one is a multi-step edit to shared state (the underlying array, the `count`, parent-child pointers) and threads interleave right in the middle of those steps. A partial tour of the wreckage:
 
-- Two `delete-min`s read the same root and both return it, so one element comes out twice while the next one is lost.
-- An `insert` sifting up collides with a `delete-min` sifting down, their swaps interleave, and the tree is no longer a valid heap.
-- A reader peeks mid-sift and catches a node copied but not yet overwritten, handing back a duplicate or a stale value.
-- Two inserts race on the shared array and `count` (or one grows the array out from under the other), so writes land in the wrong slot or vanish entirely.
+- Delete-min is a non-atomic read-modify-write on the root, so two threads read the same root before either writes back, and one element is returned twice while the next is lost.
+- Insert's sift-up and delete-min's sift-down mutate overlapping nodes with no mutual exclusion, so their swaps interleave and the heap invariant breaks for every operation that follows.
+- Reads and writes are never isolated, so a peek can land mid-sift on a node copied but not yet overwritten and hand back a duplicate or a stale value.
+- The backing array and `count` are unsynchronized shared state, so two inserts collide on one slot (or a resize swaps the array out mid-write) and writes land in the wrong place or vanish.
 
 Every one of these is a data race, and the standard cure is a synchronization primitive: a **lock**. Wrap each operation in one — acquire, insert or delete-min, release — and the races evaporate, because now exactly one thread is inside the heap at any moment. This is precisely what Java's `PriorityBlockingQueue` does, and what you get by throwing a `lock` around .NET's `PriorityQueue`. And to be clear, it *works*: it's correct, it's simple, and for a handful of threads it's genuinely fine.
 
@@ -41,7 +41,7 @@ It just doesn't scale, and the reason is contention. "One thread at a time" mean
 
 <p align="center"><img src="assets/funnel-bottleneck.svg" width="600" alt="Six parallel threads T1 to T6 feed into a wide funnel that narrows to a single neck labeled LOCK; one arrow leaves the bottom into a binary heap, tagged one operation at a time, with an annotation pointing at the neck reading the bottleneck."></p>
 
-*Every thread's work narrows to a single point of serialization. Add cores and you only lengthen the queue at the neck — the lock is the bottleneck.*
+*Every thread's work narrows to a single point of serialization. Add cores and you only lengthen the queue at the neck. The lock is the bottleneck.*
 
 So for the better part of two decades, the state of the art moved off heaps and onto **skiplists**: sorted linked lists with randomized express lanes, and a deep bench of lock-free algorithms to match. Skiplists had one property that looked like the escape hatch — inserts scatter. An element with a random priority splices in at a random spot, so writers rarely collide. A line of increasingly clever designs built genuinely lock-free priority queues on that idea: Lotan–Shavit, Sundell–Tsigas, and Lindén–Jonsson, which shaved delete-min down to roughly a single compare-and-swap.
 
