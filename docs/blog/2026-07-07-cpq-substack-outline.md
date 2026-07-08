@@ -43,7 +43,7 @@ It just doesn't scale, and the reason is contention. "One thread at a time" mean
 
 *Every thread's work narrows to a single point of serialization. Add cores and you only lengthen the queue at the neck. The lock is the bottleneck.*
 
-How much does that lock actually cost? Let's measure. The queue itself is only a few lines: take the BCL's `PriorityQueue` and wrap every operation in a lock.
+How much does that lock actually cost? Let's measure. We'll take .NET's `PriorityQueue` and wrap every operation in a lock. This is basically what Java ships as `PriorityBlockingQueue`.
 
 ```csharp
 public sealed class LockingPriorityQueue<TElement, TPriority>
@@ -65,21 +65,36 @@ public sealed class LockingPriorityQueue<TElement, TPriority>
 }
 ```
 
-That's the whole thing, and it's exactly what Java ships as `PriorityBlockingQueue`. Now point a growing number of threads at one shared instance, have each hammer a 50/50 mix of enqueue and dequeue for a fixed window, and count operations per second. On a 64-core Xeon running .NET 10:
+Now point a growing number of threads at one shared instance, have each hammer a 50/50 mix of enqueue and dequeue for a fixed window, and count operations per second. On a 64-core Xeon running .NET 10:
 
 > *[benchmark chart: throughput vs thread count, the lock line flat.]*
 
-The line is flat. One thread or sixty-four, the lock serves the same 5 to 8 million ops per second, because only one thread is ever inside the heap. Every core you add just waits in line. That is the funnel, measured.
+The line is flat. One thread or sixty-four, the lock serves the same 5 to 8 million ops per second, because only one thread is ever inside the heap. Every core you add just waits in line. That is the "funnel" analogy in action.
 
-Could you do better *without* giving up strict ordering? For the better part of two decades the answer was "sort of," using lock-free skiplists, and that attempt is a big enough story to be its own post. We'll get to it in Part 2.
+Could you do better *without* giving up strict ordering? For the better part of two decades the answer was "sort of," using lock-free skiplists. I tried my hand at a .NET implementation based on skiplists (on and off again for 3 years), but never quite got a workable version. Here's the theoretical benchmarks for comparison, though:
 
-Here's the ending, though. Swap in the relaxed MultiQueue this whole series is building toward, same hardware, same workload:
+The researchers who invented the MultiQueue already ran this exact comparison, on one machine, against the best skiplist queues of the day. [*Engineering MultiQueues*](https://arxiv.org/abs/2107.01350) (ESA 2021) put a MultiQueue up against the Lindén–Jonsson skiplist, the SprayList, the k-LSM, and the contention-avoiding CAPQ on a 64-core AMD EPYC. The result is exactly what the funnel predicts:
+
+| Design | How far it scales |
+|---|---|
+| Lindén–Jonsson, SprayList | barely past a handful of threads |
+| k-LSM | to ~16 threads, then flat |
+| CAPQ | fastest to ~32, then contention takes over |
+| **MultiQueue** | **still climbing at 64 and beyond** |
+
+Every skiplist design hits its wall early; the MultiQueue just keeps going. The [original 2015 paper](https://arxiv.org/abs/1411.1209) found it from another angle: at 56 threads its MultiQueue ran roughly **2 to 2.5× faster than the SprayList** (the strongest skiplist of the bunch), and it returned better-ordered results while doing it, with as little as a quarter of the SprayList's rank error at the 75th percentile.
+
+That's the whole reason this design took over the field. The skiplists gave up strict ordering to chase throughput and *still* couldn't scale. The MultiQueue keeps a bounded ordering guarantee and scales anyway.
+
+
+
+Now, before we end, I'll give a brief teaser for the next Part using our _actual_ MultiQueue-based implementation:
 
 > *[benchmark chart: the lock flat near 6M while the MultiQueue climbs to ~118M at 64 threads.]*
 
 It crosses the lock by **four threads** and keeps climbing to roughly **118 million ops per second at sixty-four**, a **12 to 25× gap** depending on the workload. Where the lock convoys, the MultiQueue scales.
 
-So that's the whole problem, plus a look at the payoff: a priority queue that gets *faster* as you add cores, something no mainstream runtime ships. In **Part 2** we rewind to the lock-free skiplist designs that got closest over twenty years, and pin down exactly why they still hit the wall. Then we build the MultiQueue that finally clears it.
+So that's the whole problem, plus a look at the payoff: a priority queue that gets *faster* as you add cores, something no mainstream runtime ships to my knowledge. In **Part 2** we rewind to the lock-free skiplist designs that got closest over twenty years, and explain exactly why they still hit the wall. Then we build the MultiQueue that represents the new SoTA.
 
 PT2: SkipLists and the previous SoTA
 
