@@ -2,9 +2,9 @@ As an unashamed dotnet evangelist, I spend a lot of my time working with the sta
 
 But what if you want a queue of prioritized elements? Well, there's `PriorityQueue`, but it's not thread-safe, and there's no `ConcurrentPriorityQueue` (CPQ) in the BCL. In fact, almost no major runtime ships one as part of their standard library—the lone exception being Java's `PriorityBlockingQueue` which is literally a lock around a binary heap and thus functionally useless for most concurrent workloads.
 
-This fact struck me as genuinely strange when I stumbled onto it some four years ago. Why aren't there CPQs *anywhere*?! Surely it couldn't be *that* hard to implement, right? Spoiler: It turns out that maintaining strict global order across dozens of threads without relying on a massive, performance-killing lock is an absolute nightmare. Who would've thought?
+This fact struck me as genuinely strange when I stumbled onto it some four years ago. Why aren't there CPQs *anywhere*?! Surely it couldn't be *that* hard to implement, right? <Spoiler: It turns out that maintaining strict global order across dozens of threads without relying on a massive, performance-killing lock is an absolute nightmare. Who would've thought?
 
-So began my foray into the wonderfully complicated world of concurrent programming! The result: the first truly scalable concurrent priority queue in dotnet.
+So began my foray into the wonderfully complicated world of concurrent programming! The result: the first truly scalable concurrent priority queue in dotnet.>
 
 ---
 
@@ -18,7 +18,7 @@ PQs have a lot of interesting properties. Unlike a standard FIFO queue or stack,
 
 For these reasons, PQs are very typically implemented as binary heaps. In this data structure, the *root* of a heap is always the highest priority item, so we preserve the $O(1)$ time for explicit lookups (peek). Because a binary heap is a tree structure, and it stays perfectly balanced, we know its height is always $\log_2(n)$. Thus, the maximum distance from top to bottom is $\log n$, which nets us $O(\log n)$ insertion time—a significant improvement over an Array or List. This does mean we have to rebalance the collection on delete-min operations, so those degrade to $O(\log n)$ as well. Overall, it's a trade-off well worth making.
 
-## So why is a *concurrent* one so hard?
+## So why is a *concurrent* PQ so hard?
 
 The promise of a concurrent data structure is straightforward: independent operations can run in parallel, ideally without ever blocking each other. A well-designed one therefore optimizes for *parallelizable* work, keeping operations off the same memory wherever it can. When they do have to touch shared state, that work has to happen in a *linearizable* fashion, and that coordination is almost always a tax on throughput. So the whole craft of designing concurrent data structures comes down to driving the frequency of that coordination toward zero.
 
@@ -28,11 +28,11 @@ Okay, so how is a conventional PQ different from a thread-safe one? Let's try ma
 
 *Zoom in on a single race: two pops read the same root, both return 3, and the value comes out twice. No lock, no safety.*
 
-As you can see, it comes apart almost immediately, because neither operation is atomic. Each one is a multi-step edit to shared state (the underlying array, the `count`, parent-child pointers) and threads interleave right in the middle of those steps. A partial tour of the wreckage:
+As you can see, it comes apart almost immediately, because neither operation is atomic. Each one is a multi-step edit to shared state (the underlying array, the `count`, parent-child pointers) and threads interleave right in the middle of those steps. A partial tour of the possible wreckage:
 
 - Two pops fire at once, both grab the same root, and it comes out twice while the next value is lost.
-- An insert climbing up and a delete sinking down swap the same nodes at the same time, leaving the heap out of order for good.
-- A reader catches the tree mid-shuffle and hands back a duplicate or a stale value.
+- An insert climbing up and a delete sinking down swap the same nodes at the same time, leaving the heap out of order.
+- A reader catches the tree mid-rebalancing and hands back a duplicate or a stale value.
 - Two inserts grab the same array slot (or one resizes it mid-write), so a value lands in the wrong place or vanishes.
 
 Every one of these is a data race, and the standard cure is a synchronization primitive: a **lock**. Wrap each operation in one — acquire, insert or delete-min, release — and the races evaporate, because now exactly one thread is inside the heap at any moment. This is precisely what Java's `PriorityBlockingQueue` does, and what you get by throwing a `lock` around .NET's `PriorityQueue`. And to be clear, it *works*: it's correct, it's simple, and for a handful of threads it's genuinely fine.
@@ -42,6 +42,46 @@ It just doesn't scale, and the reason is contention. "One thread at a time" mean
 <p align="center"><img src="assets/funnel-bottleneck.svg" width="600" alt="Six parallel threads T1 to T6 feed into a wide funnel that narrows to a single neck labeled LOCK; one arrow leaves the bottom into a binary heap, tagged one operation at a time, with an annotation pointing at the neck reading the bottleneck."></p>
 
 *Every thread's work narrows to a single point of serialization. Add cores and you only lengthen the queue at the neck. The lock is the bottleneck.*
+
+How much does that lock actually cost? Let's measure. The queue itself is only a few lines: take the BCL's `PriorityQueue` and wrap every operation in a lock.
+
+```csharp
+public sealed class LockingPriorityQueue<TElement, TPriority>
+{
+    private readonly PriorityQueue<TElement, TPriority> _heap = new();
+    private readonly Lock _gate = new();
+
+    public void Enqueue(TElement element, TPriority priority)
+    {
+        lock (_gate)
+            _heap.Enqueue(element, priority);
+    }
+
+    public bool TryDequeue(out TElement? element, out TPriority? priority)
+    {
+        lock (_gate)
+            return _heap.TryDequeue(out element, out priority);
+    }
+}
+```
+
+That's the whole thing, and it's exactly what Java ships as `PriorityBlockingQueue`. Now point a growing number of threads at one shared instance, have each hammer a 50/50 mix of enqueue and dequeue for a fixed window, and count operations per second. On a 64-core Xeon running .NET 10:
+
+> *[benchmark chart: throughput vs thread count, the lock line flat.]*
+
+The line is flat. One thread or sixty-four, the lock serves the same 5 to 8 million ops per second, because only one thread is ever inside the heap. Every core you add just waits in line. That is the funnel, measured.
+
+Could you do better *without* giving up strict ordering? For the better part of two decades the answer was "sort of," using lock-free skiplists, and that attempt is a big enough story to be its own post. We'll get to it in Part 2.
+
+Here's the ending, though. Swap in the relaxed MultiQueue this whole series is building toward, same hardware, same workload:
+
+> *[benchmark chart: the lock flat near 6M while the MultiQueue climbs to ~118M at 64 threads.]*
+
+It crosses the lock by **four threads** and keeps climbing to roughly **118 million ops per second at sixty-four**, a **12 to 25× gap** depending on the workload. Where the lock convoys, the MultiQueue scales.
+
+So that's the whole problem, plus a look at the payoff: a priority queue that gets *faster* as you add cores, something no mainstream runtime ships. In **Part 2** we rewind to the lock-free skiplist designs that got closest over twenty years, and pin down exactly why they still hit the wall. Then we build the MultiQueue that finally clears it.
+
+PT2: SkipLists and the previous SoTA
 
 So for the better part of two decades, the state of the art moved off heaps and onto **skiplists**: sorted linked lists with randomized express lanes, and a deep bench of lock-free algorithms to match. Skiplists had one property that looked like the escape hatch — inserts scatter. An element with a random priority splices in at a random spot, so writers rarely collide. A line of increasingly clever designs built genuinely lock-free priority queues on that idea: Lotan–Shavit, Sundell–Tsigas, and Lindén–Jonsson, which shaved delete-min down to roughly a single compare-and-swap.
 
