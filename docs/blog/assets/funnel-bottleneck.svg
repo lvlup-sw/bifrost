@@ -1,45 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 480" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
   <style>
-    .bg   { fill: oklch(0.985 0.004 255); }
-    .ttl  { fill: oklch(0.34 0.02 264); }
-    .fn   { fill: oklch(0.955 0.006 255); stroke: oklch(0.80 0.012 255); }
-    .mut  { fill: oklch(0.60 0.015 258); }
-    .muts { stroke: oklch(0.62 0.015 258); }
-    .t1{fill:oklch(0.60 0.16 256);} .t2{fill:oklch(0.66 0.12 214);} .t3{fill:oklch(0.56 0.18 300);}
-    .t4{fill:oklch(0.60 0.19 352);} .t5{fill:oklch(0.70 0.16 56);}  .t6{fill:oklch(0.66 0.14 152);}
-    .red  { fill: oklch(0.57 0.20 27); }
-    .reds { stroke: oklch(0.57 0.20 27); }
-    .halo { fill: oklch(0.90 0.09 27); }
-    .neck { fill: oklch(0.93 0.05 27); stroke: oklch(0.57 0.20 27); }
-    .dark { fill: oklch(0.34 0.03 262); }
-    .lite { fill: oklch(0.985 0.004 255); }
+    .bg   { fill: oklch(0.985 0.005 255); }
+    .ttl  { fill: oklch(0.30 0.03 265); }
+    .fn   { fill: oklch(0.95 0.012 266); stroke: oklch(0.82 0.025 266); }
+    .mut  { fill: oklch(0.58 0.02 262); }
+    .muts { stroke: oklch(0.58 0.02 262); }
+    .th   { fill: oklch(0.52 0.13 266); }
+    .tok  { fill: oklch(0.52 0.13 266); }
+    .onc  { fill: oklch(0.98 0.005 255); }
+    .acc  { fill: oklch(0.62 0.19 27); }
+    .accs { stroke: oklch(0.62 0.19 27); }
+    .neck { fill: oklch(0.94 0.045 30); stroke: oklch(0.62 0.19 27); }
+    .deep { fill: oklch(0.33 0.07 266); }
     @media (prefers-reduced-motion: reduce) { .flow, .pulse { display: none; } }
   </style>
 
   <defs>
     <marker id="ah" markerWidth="9" markerHeight="9" refX="5.5" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L6,3 L0,6 Z" fill="#767c8a"/>
+      <path d="M0,0 L6,3 L0,6 Z" fill="#747a94"/>
     </marker>
     <marker id="ahr" markerWidth="9" markerHeight="9" refX="5.5" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L6,3 L0,6 Z" fill="#d63b28"/>
+      <path d="M0,0 L6,3 L0,6 Z" fill="#df523c"/>
     </marker>
   </defs>
 
-  <rect class="bg" x="8" y="8" width="704" height="464" rx="16" fill="#f7f8fb" stroke="#e5e7ef" stroke-width="1"/>
-  <text class="ttl" x="360" y="36" text-anchor="middle" font-size="17" font-weight="700" fill="#2c3140">Many threads, one lock</text>
+  <rect class="bg" x="8" y="8" width="704" height="464" rx="16" fill="#f7f8fb" stroke="#e7e9f0" stroke-width="1"/>
+  <text class="ttl" x="360" y="36" text-anchor="middle" font-size="17" font-weight="700" fill="#2a2e40">Many threads, one lock</text>
 
   <!-- threads -->
-  <g text-anchor="middle" font-size="15" font-weight="700" fill="#fbfcff">
-    <rect class="t1" x="40"  y="58" width="80" height="38" rx="8" fill="#2f6bd6"/><text x="80"  y="83">T1</text>
-    <rect class="t2" x="152" y="58" width="80" height="38" rx="8" fill="#1290ad"/><text x="192" y="83">T2</text>
-    <rect class="t3" x="264" y="58" width="80" height="38" rx="8" fill="#7b46c9"/><text x="304" y="83">T3</text>
-    <rect class="t4" x="376" y="58" width="80" height="38" rx="8" fill="#cf3a86"/><text x="416" y="83">T4</text>
-    <rect class="t5" x="488" y="58" width="80" height="38" rx="8" fill="#db7a1e"/><text x="528" y="83">T5</text>
-    <rect class="t6" x="600" y="58" width="80" height="38" rx="8" fill="#1f9d69"/><text x="640" y="83">T6</text>
+  <g text-anchor="middle" font-size="15" font-weight="700">
+    <rect class="th" x="40"  y="58" width="80" height="38" rx="9" fill="#4c53c2"/><text class="onc" x="80"  y="83" fill="#f7f8fb">T1</text>
+    <rect class="th" x="152" y="58" width="80" height="38" rx="9" fill="#4c53c2"/><text class="onc" x="192" y="83" fill="#f7f8fb">T2</text>
+    <rect class="th" x="264" y="58" width="80" height="38" rx="9" fill="#4c53c2"/><text class="onc" x="304" y="83" fill="#f7f8fb">T3</text>
+    <rect class="th" x="376" y="58" width="80" height="38" rx="9" fill="#4c53c2"/><text class="onc" x="416" y="83" fill="#f7f8fb">T4</text>
+    <rect class="th" x="488" y="58" width="80" height="38" rx="9" fill="#4c53c2"/><text class="onc" x="528" y="83" fill="#f7f8fb">T5</text>
+    <rect class="th" x="600" y="58" width="80" height="38" rx="9" fill="#4c53c2"/><text class="onc" x="640" y="83" fill="#f7f8fb">T6</text>
   </g>
 
   <!-- converging arrows -->
-  <g class="muts" stroke="#767c8a" stroke-width="2" marker-end="url(#ah)">
+  <g class="muts" stroke="#747a94" stroke-width="2" marker-end="url(#ah)">
     <line x1="80"  y1="98" x2="150" y2="116"/>
     <line x1="192" y1="98" x2="220" y2="116"/>
     <line x1="304" y1="98" x2="316" y2="116"/>
@@ -49,39 +48,39 @@
   </g>
 
   <!-- funnel -->
-  <polygon class="fn" points="70,122 650,122 392,300 328,300" fill="#edf0f6" stroke="#b7bdca" stroke-width="1.5"/>
+  <polygon class="fn" points="70,122 650,122 392,300 328,300" fill="#ebedf8" stroke="#b7bce2" stroke-width="1.5"/>
 
   <!-- animated flow: parallel in, single-file through the neck -->
   <g class="flow">
-    <circle class="t1" r="6.5" fill="#2f6bd6"><animateMotion path="M80,126 L360,300 L360,410" dur="3s" begin="0s"   repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="0s"   repeatCount="indefinite"/></circle>
-    <circle class="t2" r="6.5" fill="#1290ad"><animateMotion path="M192,126 L360,300 L360,410" dur="3s" begin="0.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="0.5s" repeatCount="indefinite"/></circle>
-    <circle class="t3" r="6.5" fill="#7b46c9"><animateMotion path="M304,126 L360,300 L360,410" dur="3s" begin="1s"   repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="1s"   repeatCount="indefinite"/></circle>
-    <circle class="t4" r="6.5" fill="#cf3a86"><animateMotion path="M416,126 L360,300 L360,410" dur="3s" begin="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="1.5s" repeatCount="indefinite"/></circle>
-    <circle class="t5" r="6.5" fill="#db7a1e"><animateMotion path="M528,126 L360,300 L360,410" dur="3s" begin="2s"   repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="2s"   repeatCount="indefinite"/></circle>
-    <circle class="t6" r="6.5" fill="#1f9d69"><animateMotion path="M640,126 L360,300 L360,410" dur="3s" begin="2.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="2.5s" repeatCount="indefinite"/></circle>
+    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M80,126 L360,300 L360,410"  dur="3s" begin="0s"   repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="0s"   repeatCount="indefinite"/></circle>
+    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M192,126 L360,300 L360,410" dur="3s" begin="0.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="0.5s" repeatCount="indefinite"/></circle>
+    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M304,126 L360,300 L360,410" dur="3s" begin="1s"   repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="1s"   repeatCount="indefinite"/></circle>
+    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M416,126 L360,300 L360,410" dur="3s" begin="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="1.5s" repeatCount="indefinite"/></circle>
+    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M528,126 L360,300 L360,410" dur="3s" begin="2s"   repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="2s"   repeatCount="indefinite"/></circle>
+    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M640,126 L360,300 L360,410" dur="3s" begin="2.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="3s" begin="2.5s" repeatCount="indefinite"/></circle>
   </g>
 
   <!-- lock neck -->
-  <rect class="neck" x="326" y="300" width="68" height="70" rx="6" fill="#fbe0d9" stroke="#d63b28" stroke-width="2.5"/>
-  <path d="M348,330 C348,313 372,313 372,330" fill="none" stroke="#d63b28" stroke-width="3" stroke-linecap="round"/>
-  <rect class="red" x="344" y="330" width="32" height="20" rx="3" fill="#d63b28"/>
-  <text class="red" x="360" y="366" text-anchor="middle" font-size="13" font-weight="700" fill="#d63b28">LOCK</text>
+  <rect class="neck" x="326" y="300" width="68" height="70" rx="6" fill="#fbe1d8" stroke="#df523c" stroke-width="2.5"/>
+  <path d="M348,330 C348,313 372,313 372,330" fill="none" stroke="#df523c" stroke-width="3" stroke-linecap="round"/>
+  <rect class="acc" x="344" y="330" width="32" height="20" rx="3" fill="#df523c"/>
+  <text class="acc" x="360" y="366" text-anchor="middle" font-size="13" font-weight="700" fill="#df523c">LOCK</text>
 
   <!-- gate pulse -->
-  <circle class="pulse red" cx="360" cy="333" r="8" fill="#d63b28" opacity="0">
+  <circle class="pulse acc" cx="360" cy="333" r="8" fill="#df523c" opacity="0">
     <animate attributeName="r" values="6;26" dur="1.5s" begin="0s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.16 1 0.3 1"/>
-    <animate attributeName="opacity" values="0.5;0" dur="1.5s" begin="0s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.16 1 0.3 1"/>
+    <animate attributeName="opacity" values="0.45;0" dur="1.5s" begin="0s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.16 1 0.3 1"/>
   </circle>
 
   <!-- single output -->
-  <line class="muts" x1="360" y1="372" x2="360" y2="406" stroke="#767c8a" stroke-width="2.5" marker-end="url(#ah)"/>
-  <text class="mut" x="378" y="392" font-size="13" fill="#767c8a" text-anchor="start">one operation at a time</text>
+  <line class="muts" x1="360" y1="372" x2="360" y2="406" stroke="#747a94" stroke-width="2.5" marker-end="url(#ah)"/>
+  <text class="mut" x="378" y="392" font-size="13" fill="#747a94" text-anchor="start">one operation at a time</text>
 
   <!-- heap -->
-  <rect class="dark" x="276" y="412" width="168" height="46" rx="10" fill="#333a4d"/>
-  <text class="lite" x="360" y="441" text-anchor="middle" font-size="15" font-weight="700" fill="#f7f8fb">binary heap</text>
+  <rect class="deep" x="276" y="412" width="168" height="46" rx="10" fill="#313763"/>
+  <text class="onc" x="360" y="441" text-anchor="middle" font-size="15" font-weight="700" fill="#f7f8fb">binary heap</text>
 
   <!-- annotation -->
-  <text class="red" x="612" y="236" text-anchor="middle" font-size="13" font-weight="700" fill="#d63b28">the bottleneck</text>
-  <line class="reds" x1="590" y1="246" x2="398" y2="330" stroke="#d63b28" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ahr)"/>
+  <text class="acc" x="612" y="236" text-anchor="middle" font-size="13" font-weight="700" fill="#df523c">the bottleneck</text>
+  <line class="accs" x1="590" y1="246" x2="398" y2="330" stroke="#df523c" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ahr)"/>
 </svg>

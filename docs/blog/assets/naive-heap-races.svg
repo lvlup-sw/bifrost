@@ -1,32 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 430" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
   <style>
-    .bg   { fill: oklch(0.985 0.004 255); }
-    .ttl  { fill: oklch(0.34 0.02 264); }
-    .edge { stroke: oklch(0.80 0.012 255); }
-    .muts { stroke: oklch(0.62 0.015 258); }
-    .leaf { fill: oklch(0.94 0.008 255); stroke: oklch(0.83 0.012 255); }
-    .child{ fill: oklch(0.90 0.010 255); stroke: oklch(0.80 0.012 255); }
-    .nlab { fill: oklch(0.45 0.02 260); }
-    .t1{fill:oklch(0.60 0.16 256);} .t2{fill:oklch(0.66 0.12 214);}
-    .t3{fill:oklch(0.56 0.18 300);} .t4{fill:oklch(0.60 0.19 352);}
-    .red  { fill: oklch(0.57 0.20 27); }
-    .reds { stroke: oklch(0.57 0.20 27); }
-    .halo { fill: oklch(0.90 0.09 27); }
-    .rootf{ fill: oklch(0.985 0.004 255); }
+    .bg   { fill: oklch(0.985 0.005 255); }
+    .ttl  { fill: oklch(0.30 0.03 265); }
+    .edge { stroke: oklch(0.82 0.025 266); }
+    .muts { stroke: oklch(0.58 0.02 262); }
+    .leaf { fill: oklch(0.94 0.012 262); stroke: oklch(0.86 0.02 264); }
+    .child{ fill: oklch(0.90 0.014 264); stroke: oklch(0.82 0.025 266); }
+    .nlab { fill: oklch(0.42 0.03 265); }
+    .th   { fill: oklch(0.52 0.13 266); }
+    .tok  { fill: oklch(0.52 0.13 266); }
+    .onc  { fill: oklch(0.98 0.005 255); }
+    .acc  { fill: oklch(0.62 0.19 27); }
+    .accs { stroke: oklch(0.62 0.19 27); }
+    .halo { fill: oklch(0.90 0.07 30); }
+    .rootf{ fill: oklch(0.985 0.005 255); }
     @media (prefers-reduced-motion: reduce) { .flow, .pulse { display: none; } }
   </style>
 
   <defs>
     <marker id="ah" markerWidth="9" markerHeight="9" refX="5.5" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L6,3 L0,6 Z" fill="#767c8a"/>
+      <path d="M0,0 L6,3 L0,6 Z" fill="#747a94"/>
     </marker>
   </defs>
 
-  <rect class="bg" x="8" y="8" width="704" height="414" rx="16" fill="#f7f8fb" stroke="#e5e7ef" stroke-width="1"/>
-  <text class="ttl" x="360" y="36" text-anchor="middle" font-size="16" font-weight="700" fill="#2c3140">No coordination: everyone grabs the root at once</text>
+  <rect class="bg" x="8" y="8" width="704" height="424" rx="16" fill="#f7f8fb" stroke="#e7e9f0" stroke-width="1"/>
+  <text class="ttl" x="360" y="36" text-anchor="middle" font-size="16" font-weight="700" fill="#2a2e40">No coordination: everyone grabs the root at once</text>
 
   <!-- heap edges -->
-  <g class="edge" stroke="#b7bdca" stroke-width="2">
+  <g class="edge" stroke="#b7bce2" stroke-width="2">
     <line x1="360" y1="248" x2="306" y2="316"/>
     <line x1="360" y1="248" x2="414" y2="316"/>
     <line x1="306" y1="316" x2="280" y2="378"/>
@@ -35,57 +36,62 @@
     <line x1="414" y1="316" x2="440" y2="378"/>
   </g>
 
-  <!-- static collision burst -->
-  <circle class="halo" cx="360" cy="248" r="44" fill="#f6cabf" opacity="0.5"/>
-  <g class="reds" stroke="#d63b28" stroke-width="3" stroke-linecap="round">
-    <line x1="392" y1="248" x2="410" y2="248"/>
-    <line x1="328" y1="248" x2="310" y2="248"/>
-    <line x1="360" y1="216" x2="360" y2="198"/>
-    <line x1="360" y1="280" x2="360" y2="298"/>
-    <line x1="382" y1="226" x2="395" y2="213"/>
-    <line x1="338" y1="226" x2="325" y2="213"/>
-    <line x1="382" y1="270" x2="395" y2="283"/>
-    <line x1="338" y1="270" x2="325" y2="283"/>
+  <!-- static collision halo -->
+  <circle class="halo" cx="360" cy="248" r="42" fill="#f8cfc3" opacity="0.45"/>
+
+  <!-- aligned aim arrows: box-bottom-center to root ring edge -->
+  <g class="muts" stroke="#747a94" stroke-width="2" marker-end="url(#ah)" opacity="0.4">
+    <line x1="94"  y1="88" x2="332" y2="231"/>
+    <line x1="276" y1="78" x2="346" y2="218"/>
+    <line x1="444" y1="78" x2="374" y2="218"/>
+    <line x1="626" y1="88" x2="388" y2="231"/>
   </g>
 
-  <!-- static aim arrows -->
-  <g class="muts" stroke="#767c8a" stroke-width="2.2" marker-end="url(#ah)" opacity="0.45">
-    <line x1="110" y1="88" x2="338" y2="232"/>
-    <line x1="290" y1="78" x2="374" y2="222"/>
-    <line x1="430" y1="78" x2="348" y2="222"/>
-    <line x1="616" y1="88" x2="384" y2="232"/>
-  </g>
-
-  <!-- animated tokens: all rush the root together -->
+  <!-- animated tokens rush the root together (same lines as arrows) -->
   <g class="flow">
-    <circle class="t1" r="6.5" fill="#2f6bd6"><animateMotion path="M110,88 L334,236" dur="1.8s" begin="0s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.6;1" calcMode="linear"/><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.12;0.55;0.66;1" dur="1.8s" begin="0s" repeatCount="indefinite"/></circle>
-    <circle class="t2" r="6.5" fill="#1290ad"><animateMotion path="M290,80 L352,222" dur="1.8s" begin="0s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.6;1" calcMode="linear"/><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.12;0.55;0.66;1" dur="1.8s" begin="0s" repeatCount="indefinite"/></circle>
-    <circle class="t3" r="6.5" fill="#7b46c9"><animateMotion path="M430,80 L368,222" dur="1.8s" begin="0s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.6;1" calcMode="linear"/><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.12;0.55;0.66;1" dur="1.8s" begin="0s" repeatCount="indefinite"/></circle>
-    <circle class="t4" r="6.5" fill="#cf3a86"><animateMotion path="M616,88 L386,236" dur="1.8s" begin="0s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.6;1" calcMode="linear"/><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.12;0.55;0.66;1" dur="1.8s" begin="0s" repeatCount="indefinite"/></circle>
+    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M94,88 L332,231"  dur="3s" begin="0s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.5;1" calcMode="linear"/><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.1;0.47;0.53;1" dur="3s" begin="0s" repeatCount="indefinite"/></circle>
+    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M276,78 L346,218" dur="3s" begin="0s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.5;1" calcMode="linear"/><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.1;0.47;0.53;1" dur="3s" begin="0s" repeatCount="indefinite"/></circle>
+    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M444,78 L374,218" dur="3s" begin="0s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.5;1" calcMode="linear"/><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.1;0.47;0.53;1" dur="3s" begin="0s" repeatCount="indefinite"/></circle>
+    <circle class="tok" r="6.5" fill="#4c53c2"><animateMotion path="M626,88 L388,231" dur="3s" begin="0s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.5;1" calcMode="linear"/><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.1;0.47;0.53;1" dur="3s" begin="0s" repeatCount="indefinite"/></circle>
   </g>
 
-  <!-- collision shock -->
-  <circle class="pulse reds" cx="360" cy="248" r="10" fill="none" stroke="#d63b28" stroke-width="2.5" opacity="0">
-    <animate attributeName="r" values="10;46" dur="1.8s" begin="0.95s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.16 1 0.3 1"/>
-    <animate attributeName="opacity" values="0.6;0" dur="1.8s" begin="0.95s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.16 1 0.3 1"/>
+  <!-- collision shock, fires at ~52% of the loop -->
+  <circle class="pulse accs" cx="360" cy="248" r="10" fill="none" stroke="#df523c" stroke-width="2.5" opacity="0">
+    <animate attributeName="r" values="10;10;48;48" keyTimes="0;0.5;0.66;1" dur="3s" begin="0s" repeatCount="indefinite" calcMode="spline" keySplines="0 0 1 1;0.16 1 0.3 1;0 0 1 1"/>
+    <animate attributeName="opacity" values="0;0;0.65;0;0" keyTimes="0;0.5;0.56;0.74;1" dur="3s" begin="0s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- the consequence: two duplicate roots ejected (same element returned twice) -->
+  <g class="flow">
+    <g><circle class="rootf accs" r="13" fill="#f7f8fb" stroke="#df523c" stroke-width="2"/><text class="acc" y="5" text-anchor="middle" font-size="13" font-weight="700" fill="#df523c">3</text>
+       <animateMotion path="M360,248 L246,150" dur="3s" begin="0s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.52;0.8;1" calcMode="spline" keySplines="0 0 1 1;0.16 1 0.3 1;0 0 1 1"/>
+       <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.52;0.58;0.72;0.86;1" dur="3s" begin="0s" repeatCount="indefinite"/></g>
+    <g><circle class="rootf accs" r="13" fill="#f7f8fb" stroke="#df523c" stroke-width="2"/><text class="acc" y="5" text-anchor="middle" font-size="13" font-weight="700" fill="#df523c">3</text>
+       <animateMotion path="M360,248 L474,150" dur="3s" begin="0s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.52;0.8;1" calcMode="spline" keySplines="0 0 1 1;0.16 1 0.3 1;0 0 1 1"/>
+       <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.52;0.58;0.72;0.86;1" dur="3s" begin="0s" repeatCount="indefinite"/></g>
+  </g>
+
+  <!-- corruption spreads: a child flashes as the invariant breaks -->
+  <circle class="pulse acc" cx="306" cy="316" r="21" fill="#df523c" opacity="0">
+    <animate attributeName="opacity" values="0;0;0.7;0;0" keyTimes="0;0.54;0.62;0.84;1" dur="3s" begin="0s" repeatCount="indefinite"/>
   </circle>
 
   <!-- nodes -->
   <g text-anchor="middle">
-    <circle class="leaf"  cx="280" cy="378" r="15" fill="#e9edf3" stroke="#cbd5e1" stroke-width="1.5"/><text class="nlab" x="280" y="383" font-size="12" font-weight="600" fill="#475569">9</text>
-    <circle class="leaf"  cx="334" cy="378" r="15" fill="#e9edf3" stroke="#cbd5e1" stroke-width="1.5"/><text class="nlab" x="334" y="383" font-size="12" font-weight="600" fill="#475569">7</text>
-    <circle class="leaf"  cx="386" cy="378" r="15" fill="#e9edf3" stroke="#cbd5e1" stroke-width="1.5"/><text class="nlab" x="386" y="383" font-size="12" font-weight="600" fill="#475569">8</text>
-    <circle class="leaf"  cx="440" cy="378" r="15" fill="#e9edf3" stroke="#cbd5e1" stroke-width="1.5"/><text class="nlab" x="440" y="383" font-size="12" font-weight="600" fill="#475569">6</text>
-    <circle class="child" cx="306" cy="316" r="21" fill="#dfe4ec" stroke="#b7bdca" stroke-width="1.5"/><text class="nlab" x="306" y="322" font-size="14" font-weight="700" fill="#374151">5</text>
-    <circle class="child" cx="414" cy="316" r="21" fill="#dfe4ec" stroke="#b7bdca" stroke-width="1.5"/><text class="nlab" x="414" y="322" font-size="14" font-weight="700" fill="#374151">8</text>
-    <circle class="rootf" cx="360" cy="248" r="27" fill="#f7f8fb" stroke="#d63b28" stroke-width="3"/><text class="red" x="360" y="254" font-size="16" font-weight="700" fill="#d63b28">3</text>
+    <circle class="leaf"  cx="280" cy="378" r="15" fill="#e8ebf5" stroke="#cfd4ea" stroke-width="1.5"/><text class="nlab" x="280" y="383" font-size="12" font-weight="600" fill="#454b66">9</text>
+    <circle class="leaf"  cx="334" cy="378" r="15" fill="#e8ebf5" stroke="#cfd4ea" stroke-width="1.5"/><text class="nlab" x="334" y="383" font-size="12" font-weight="600" fill="#454b66">7</text>
+    <circle class="leaf"  cx="386" cy="378" r="15" fill="#e8ebf5" stroke="#cfd4ea" stroke-width="1.5"/><text class="nlab" x="386" y="383" font-size="12" font-weight="600" fill="#454b66">8</text>
+    <circle class="leaf"  cx="440" cy="378" r="15" fill="#e8ebf5" stroke="#cfd4ea" stroke-width="1.5"/><text class="nlab" x="440" y="383" font-size="12" font-weight="600" fill="#454b66">6</text>
+    <circle class="child" cx="306" cy="316" r="21" fill="#dde1f1" stroke="#b7bce2" stroke-width="1.5"/><text class="nlab" x="306" y="322" font-size="14" font-weight="700" fill="#454b66">5</text>
+    <circle class="child" cx="414" cy="316" r="21" fill="#dde1f1" stroke="#b7bce2" stroke-width="1.5"/><text class="nlab" x="414" y="322" font-size="14" font-weight="700" fill="#454b66">8</text>
+    <circle class="rootf" cx="360" cy="248" r="27" fill="#f7f8fb" stroke="#df523c" stroke-width="3"/><text class="acc" x="360" y="254" font-size="16" font-weight="700" fill="#df523c">3</text>
   </g>
 
   <!-- threads -->
-  <g text-anchor="middle" font-size="12" font-weight="700" fill="#fbfcff">
-    <rect class="t1" x="36"  y="54" width="116" height="32" rx="8" fill="#2f6bd6"/><text x="94"  y="74">delete-min</text>
-    <rect class="t2" x="230" y="44" width="92"  height="32" rx="8" fill="#1290ad"/><text x="276" y="64">insert</text>
-    <rect class="t3" x="398" y="44" width="92"  height="32" rx="8" fill="#7b46c9"/><text x="444" y="64">insert</text>
-    <rect class="t4" x="568" y="54" width="116" height="32" rx="8" fill="#cf3a86"/><text x="626" y="74">delete-min</text>
+  <g text-anchor="middle" font-size="12" font-weight="700" fill="#f7f8fb">
+    <rect class="th" x="36"  y="54" width="116" height="32" rx="9" fill="#4c53c2"/><text class="onc" x="94"  y="74">delete-min</text>
+    <rect class="th" x="230" y="44" width="92"  height="32" rx="9" fill="#4c53c2"/><text class="onc" x="276" y="64">insert</text>
+    <rect class="th" x="398" y="44" width="92"  height="32" rx="9" fill="#4c53c2"/><text class="onc" x="444" y="64">insert</text>
+    <rect class="th" x="568" y="54" width="116" height="32" rx="9" fill="#4c53c2"/><text class="onc" x="626" y="74">delete-min</text>
   </g>
 </svg>
