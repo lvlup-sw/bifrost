@@ -19,6 +19,7 @@ namespace Bifrost.Tests.Decorators;
 /// <summary>
 /// Tests for correlation ID filtering in <see cref="EventStreamOrchestrator{TWork}"/>.
 /// </summary>
+[ParallelLimiter<EventStreamParallelLimit>]
 public class EventStreamCorrelationTests
 {
     private IWorkOrchestrator<string> _inner = null!;
