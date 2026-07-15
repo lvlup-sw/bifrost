@@ -239,6 +239,18 @@ public class ThreadChurnTests
         // NOTE (port): the Task.Yield() awaits below are the mechanism under test — they deliberately
         // allow continuations to land on different pool threads. YieldAwaitable exposes no
         // ConfigureAwait, so the awaits stay bare by necessity and by intent.
+        // Deterministic calibration floor — see the distinctHandles assertion below. Whether the
+        // Task.Yield() continuations land on distinct pool threads is otherwise the scheduler's
+        // choice, and under --coverage on a few-core runner a starved pool can serialize every
+        // continuation onto ONE thread, so only one handle is observed and the calibration flakes
+        // (issue #44). Force the floor rather than hope for it: the first two tasks to start
+        // rendezvous — the first blocks until the second arrives — so two tasks are provably alive on
+        // two distinct pool threads and record two distinct handles. Only two tasks gate and the
+        // pre-seeded pool floor supplies many more threads, so this cannot stall; the timeout is a
+        // fallback that degrades to the old probabilistic behaviour, never a hang.
+        using var pairArrived = new ManualResetEventSlim(false);
+        int pairArrivals = 0;
+
         var tasks = new Task[AsyncTaskCount];
         for (int t = 0; t < AsyncTaskCount; t++)
         {
@@ -250,6 +262,19 @@ public class ThreadChurnTests
                 long second = first + 1;
 
                 ObserveCurrentHandle(observedHandles);
+
+                // Pair-rendezvous (see above): the first two arrivals pin themselves on distinct pool
+                // threads so the calibration observes >1 handle deterministically; the rest fall through.
+                int ticket = Interlocked.Increment(ref pairArrivals);
+                if (ticket == 1)
+                {
+                    pairArrived.Wait(TimeSpan.FromSeconds(10));
+                }
+                else if (ticket == 2)
+                {
+                    pairArrived.Set();
+                }
+
                 queue.Enqueue(first, first);
                 produced.Add(first);
 
@@ -286,7 +311,8 @@ public class ThreadChurnTests
             consumed.Add(element);
         }
 
-        // Assert — calibration: pool tasks ran across more than one handle lifetime.
+        // Assert — calibration: pool tasks ran across more than one handle lifetime (guaranteed by
+        // the pair-rendezvous above, not left to scheduler luck).
         int distinctHandles = observedHandles.Count;
         await Assert.That(distinctHandles).IsGreaterThan(1).Because(
             $"async yields must span more than one pool-thread ThreadHandle or the re-fetch path is " +

@@ -78,20 +78,29 @@ public sealed class JobDispatcherRouterTests
         var dispatcher = new RecordingDispatcher();
         var router = new JobDispatcherRouter(sink);
 
-        // Issue the (fire-and-forget) dispatch from a dedicated NON-pool thread so the
-        // "ran on a different thread than the caller" assertion is deterministic. A pool
-        // thread caller (the TUnit runner in Release) can be recycled to run the queued
-        // dispatch, making the two ids coincide by chance; a foreground Thread cannot.
+        // Issue the (fire-and-forget) dispatch from a dedicated NON-pool foreground thread and keep
+        // that thread ALIVE until the pool dispatch has been observed. A terminated thread's
+        // ManagedThreadId is recycled by the runtime, so if the driver were joined before the
+        // dispatch ran, the pool thread that runs the queued dispatch could be handed the driver's
+        // freed id — making the two ids coincide by chance (the historical flake, issue #44). While
+        // the driver stays blocked its id is reserved, so the pool thread is guaranteed a different
+        // id and "ran on a thread other than the caller" holds deterministically, not by luck.
         var callerThreadId = 0;
+        using var releaseDriver = new ManualResetEventSlim(false);
         var driver = new Thread(() =>
         {
             callerThreadId = Environment.CurrentManagedThreadId;
             router.Dispatch(dispatcher, Context(), CancellationToken.None);
+            releaseDriver.Wait();
         });
         driver.Start();
+
+        // The dispatcher records its thread id before it increments Invocations, so once we observe
+        // the invocation the id is already captured — and the driver is still alive holding its own.
+        var observed = await WaitUntilAsync(() => dispatcher.Invocations > 0).ConfigureAwait(false);
+        releaseDriver.Set();
         driver.Join();
 
-        var observed = await WaitUntilAsync(() => dispatcher.Invocations > 0).ConfigureAwait(false);
         await Assert.That(observed).IsTrue();
         await Assert.That(dispatcher.RanOnPoolThread).IsTrue();
         await Assert.That(dispatcher.RanOnThreadId).IsNotEqualTo(callerThreadId);
