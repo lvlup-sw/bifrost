@@ -157,3 +157,5 @@ Tests run on TUnit over the Microsoft Testing Platform, so they take `--solution
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).
+
+<!-- ci-lanes scratch proof: docs-only PR for targeting. -->
