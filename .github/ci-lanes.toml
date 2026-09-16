@@ -1,0 +1,40 @@
+# CI lanes for bifrost. Read by lvlup-sw/.github actions/ci-lanes.
+# This repo is the org canary-build-test fixture.
+
+schema_version = 1
+
+[lanes.build_test]
+description = "Build & Test (inline), coverage-gate, benchmark/AOT smokes."
+workflows = ["ci.yml"]
+paths = [
+  "src/**",
+  "samples/**",
+  "src/Bifrost.sln",
+  "src/Directory.Build.props",
+  "src/Directory.Packages.props",
+  "samples/Directory.Build.props",
+  "samples/Directory.Packages.props",
+  "global.json",
+]
+
+[lanes.stress]
+description = "Stress / churn proofs (heavy). On PRs, only when concurrency stress tests change; every non-PR event runs this lane."
+workflows = ["ci.yml"]
+paths = [
+  "src/Bifrost.Tests.Concurrency/**",
+]
+
+[[fixtures]]
+name = "docs-only change"
+files = ["README.md"]
+expect = { build_test = false, stress = false }
+
+[[fixtures]]
+name = "concurrency stress tests"
+files = ["src/Bifrost.Tests.Concurrency/ConservationStressTests.cs"]
+expect = { build_test = true, stress = true }
+
+[[fixtures]]
+name = "non-concurrency source change"
+files = ["src/Bifrost/WorkOrchestrator.cs"]
+expect = { build_test = true, stress = false }

@@ -1,10 +1,11 @@
 name: CI
 
-# Bifrost consumes the org composable CI layer (lvlup-sw/.github, #39): the
-# build/test/coverage/AOT/benchmark logic lives in the org composite actions and
-# reusable workflows, pinned to the v1.2 release SHA. Only bifrost-specific
-# concerns stay here — the gated Stress proofs and the test-filter that keeps
-# them out of the per-PR run.
+# Bifrost consumes the org composable CI layer (lvlup-sw/.github), pinned at
+# `@v1`. Never pin `@main`. This repo is the org canary-build-test fixture.
+#
+# Only bifrost-specific concerns stay here — the gated Stress proofs and the
+# test-filter that keeps them out of the per-PR run. ci-lanes skips jobs whose
+# paths a PR did not touch; every non-PR event runs every lane.
 
 on:
   pull_request:
@@ -20,8 +21,36 @@ env:
   DOTNET_CLI_TESTINGPLATFORM_ENABLE: '1'
 
 jobs:
+  plan:
+    name: CI Lane Plan
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    outputs:
+      lanes: ${{ steps.plan.outputs.lanes }}
+    steps:
+      - name: Checkout (full history, no file contents)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - name: Plan lanes
+        id: plan
+        uses: lvlup-sw/.github/actions/ci-lanes@v1
+
+  lanes-check:
+    name: CI Lanes Check
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Check lane contract
+        uses: lvlup-sw/.github/actions/ci-lanes@v1
+        with:
+          mode: check
+
   build-test:
     name: Build & Test
+    needs: plan
+    if: ${{ always() && (needs.plan.result != 'success' || fromJSON(needs.plan.outputs.lanes).build_test != 'false') }}
     runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - name: Checkout
@@ -35,7 +64,7 @@ jobs:
       # excludes the [Category=Stress] proofs, which run in the gated
       # stress-tests job — they starve/flake under --coverage on a 4-vcpu runner.
       - name: Build & test
-        uses: lvlup-sw/.github/actions/dotnet-build-test@c0c3803d5c3e23c2d5ae2593ea9bc9c35096b47c # v1.5
+        uses: lvlup-sw/.github/actions/dotnet-build-test@v1
         with:
           solution-path: ${{ env.SOLUTION_PATH }}
           test-project-patterns: src/Bifrost.Tests*/*.csproj
@@ -55,7 +84,7 @@ jobs:
       # Non-blocking (matches the pre-migration behavior).
       - name: Benchmark smoke
         continue-on-error: true
-        uses: lvlup-sw/.github/actions/benchmark-smoke@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
+        uses: lvlup-sw/.github/actions/benchmark-smoke@v1
         with:
           benchmark-project: src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj
           filter: '*'
@@ -63,7 +92,7 @@ jobs:
       # AOT smoke (DR-13): publish + run the scheduling sample as a NativeAOT
       # native binary. A non-zero exit fails the build (the intended gate).
       - name: AOT smoke (scheduling)
-        uses: lvlup-sw/.github/actions/aot-smoke@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
+        uses: lvlup-sw/.github/actions/aot-smoke@v1
         with:
           project-path: samples/Bifrost.Scheduling.AotSmoke/Bifrost.Scheduling.AotSmoke.csproj
 
@@ -71,7 +100,7 @@ jobs:
       # path (ESA 2021 §4 buffers) must be NativeAOT-clean. Distinct output-dir
       # so it doesn't clobber the scheduling publish above.
       - name: AOT smoke (concurrency)
-        uses: lvlup-sw/.github/actions/aot-smoke@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
+        uses: lvlup-sw/.github/actions/aot-smoke@v1
         with:
           project-path: samples/Bifrost.Concurrency.AotSmoke/Bifrost.Concurrency.AotSmoke.csproj
           output-dir: ./aot-publish-concurrency
@@ -81,13 +110,11 @@ jobs:
     # The [Category=Stress] proofs (ConservationStressTests, ThreadChurnTests) are
     # multi-million-op conservation + multi-core thread-churn tests calibrated for a
     # >=4-core runner; they are excluded from the per-PR build-test run (they add
-    # minutes and starve on small runners). Run them ONLY when needed: on every push
-    # to main (post-merge correctness gate), on manual dispatch, and on PRs that carry
-    # the 'run-stress' label. The correctness assertions themselves stay strict.
-    if: >-
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.pull_request.labels.*.name, 'run-stress')
+    # minutes and starve on small runners). ci-lanes runs them when the PR touches
+    # this lane; every non-PR event (push to main, workflow_dispatch) runs every
+    # lane, so main stays the post-merge correctness gate.
+    needs: plan
+    if: ${{ always() && (needs.plan.result != 'success' || fromJSON(needs.plan.outputs.lanes).stress != 'false') }}
     runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - name: Checkout
@@ -121,13 +148,14 @@ jobs:
     # and branch. The gate logic is the org shared script (upstreamed from the
     # former scripts/ci/coverage-gate.sh fork), internally SHA-pinned by the
     # reusable workflow.
-    needs: build-test
-    if: github.event_name == 'pull_request'
+    needs: [plan, build-test]
+    if: ${{ always() && github.event_name == 'pull_request' && needs.build-test.result != 'failure' && needs.build-test.result != 'cancelled' }}
     permissions:
       contents: read
       pull-requests: write
-    uses: lvlup-sw/.github/.github/workflows/coverage-gate.yml@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
+    uses: lvlup-sw/.github/.github/workflows/coverage-gate.yml@v1
     with:
+      enabled: ${{ needs.plan.result != 'success' || fromJSON(needs.plan.outputs.lanes).build_test != 'false' }}
       coverage-threshold: 80
       gate-mode: per-assembly
       metrics: line+branch
@@ -138,7 +166,7 @@ jobs:
     name: Update Coverage Baseline
     needs: build-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    uses: lvlup-sw/.github/.github/workflows/update-baseline.yml@f18b25baa238aa6b1f2331160cb7369a9d84b79e # v1.2
+    uses: lvlup-sw/.github/.github/workflows/update-baseline.yml@v1
     with:
       runner: blacksmith-4vcpu-ubuntu-2204
       dotnet-version: '10.0.x'
