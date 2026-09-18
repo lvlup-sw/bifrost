@@ -1,0 +1,23 @@
+{
+  "revision": "3a17ed0f45dfd64d953712ccda286b0915bef838",
+  "sdk": "10.0.303",
+  "tfm": "net10.0",
+  "lang_version": "latest (C#14)",
+  "analysis_level": "latest",
+  "policy_version": "BannedApiAnalyzers 4.14.0; Lvlup.Build 1.4.0; skill 1.1.0 catalog 2026-09",
+  "packaged_artifact": "not produced; hashes are managed build inputs/outputs only",
+  "subjects": {
+    "src/Bifrost/bin/Release/net10.0/Bifrost.dll": "f603922f20e9fafec4f900431909eaf7e6b7931aa206ecfac30d87c73e2f11e0",
+    "src/Bifrost.Scheduling/bin/Release/net10.0/Bifrost.Scheduling.dll": "48808633719b25657473571ba09934ff47eab7096a51a9c453e8f4599d7fe2cf",
+    "src/Bifrost.Scheduling.Core/bin/Release/net10.0/Bifrost.Scheduling.Core.dll": "9e1a20891e0bd9bb451aebff40e6d3dfa144461244065aedb396038b0ca1495d",
+    "src/Bifrost.Tests/bin/Release/net10.0/Bifrost.Tests.dll": "fbd569dd42e23563c03c6fdd815611af8bcd88800811a6a9305b460f6f0383cc",
+    "src/Bifrost.Tests.Scheduling/bin/Release/net10.0/Bifrost.Tests.Scheduling.dll": "cff85ff16843610dfda20e3858d23c5cbc437b8d668100b4a0758acb662e0ef4",
+    "src/Bifrost.Scheduling.Core/BannedSymbols.txt": "67df6ce237c635a13a216a999101e59839a2de2d91226633983ed51aaab666f3",
+    "src/Bifrost.Concurrency/BannedSymbols.txt": "a38e8af97f73d33a4abeeec18a19bb7c49f2e0b8e6813e83fc4614e1e2f4f8bc",
+    ".editorconfig": "b1af62e26f1496e09785dff4340b477ba72b316f030fd213517505edda615861",
+    "src/Directory.Build.props": "46dacd3c7fc1303bbf0324fcb303ee8848e29778d45ea9ee1586d7b40895be6d",
+    "src/Directory.Packages.props": "9b2f3ef5c8b59f827d52545ad4d5650bca49715ded5eebe1cc9b2e986aa9f136",
+    "global.json": "a9dc86b62ea00b1d88909f43082e22d83c83d46d4ffff484b895d9a829ee0492",
+    "/home/reedsalus/.nuget/packages/lvlup.build/1.4.0/build/Lvlup.Build.props": "f1784007d6db127cf55f47e2e098444c58aeb139c9c2446ab650dce702df7916"
+  }
+}
