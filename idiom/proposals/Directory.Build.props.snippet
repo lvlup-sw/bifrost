@@ -1,0 +1,20 @@
+<!-- PROPOSAL ONLY. Extends skill scripts/templates/Directory.Build.props.snippet.
+Merge into src/Directory.Build.props only after remediating current call sites.
+Existing Lvlup.Build already owns nullable/analyzers/warnings; do not duplicate its floor.
+Keep existing scheduling AdditionalFiles references. Put Time policy under src/IdiomPolicy.
+The test policy is separate so watchdogs can explicitly call the TimeProvider.System overload.
+-->
+<Project>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Bifrost' Or '$(MSBuildProjectName)' == 'Bifrost.Tests'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Bifrost'">
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)IdiomPolicy/BannedSymbols.Time.txt" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Bifrost.Tests'">
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)IdiomPolicy/BannedSymbols.TestTime.txt" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Bifrost' Or '$(MSBuildProjectName)' == 'Bifrost.Tests'">
+    <WarningsAsErrors>$(WarningsAsErrors);RS0030</WarningsAsErrors>
+  </PropertyGroup>
+</Project>
