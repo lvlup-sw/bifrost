@@ -1,6 +1,6 @@
 # Background: the MultiQueue inside Bifrost.Concurrency
 
-The [README's priority-dispatch guide](../../README.md#priority-dispatch) covers the *how*: instrument on FIFO first, enable priority dispatch when the numbers say so. This file covers the *why*. What the data structure actually is, what it trades away, the bounds that govern the trade, and how the orchestrator builds class-aware scheduling on top of it. The figures are animated SVGs and play inline on GitHub; each loops every 10–14 seconds.
+The [README's priority-dispatch overview](../../README.md#priority-dispatch) describes the available bindings. This file explains the design behind them. What the data structure actually is, what it trades away, the bounds that govern the trade, and how the orchestrator builds class-aware scheduling on top of it. The figures are animated SVGs and play inline on GitHub; each loops every 10–14 seconds.
 
 Everything here is distilled from the research corpus this port descends from (the DataFerry repo, frozen at `2bf0456`: `docs/research/2026-06-09-cpq-v2-theoretical-basis.md`, the v2 and stickiness design docs, and the BCL API proposal) plus the papers in [References](#references).
 
@@ -58,7 +58,7 @@ The CPQ orders whatever keys it is given. The orchestrator's contribution is pol
 
 <p align="center"><img src="diagrams/anim-virtual-time-boost.svg" width="880" alt="Animated illustration: an Interactive arrival at t=42 takes key 12 and passes a fresh Batch item, but cannot pass one that has already waited longer than the 30-second window."/></p>
 
-I find this construction genuinely satisfying: the boost window *is* the starvation bound. An item that has waited longer than the window carries a smaller key than any fresh arrival of any class, so the worst-case overtake equals the window, full stop. No aging scans, no escalation timers, no bookkeeping that can fall behind. Under the MultiQueue binding the ordering holds in the relaxed, rank-error sense above; under the locking binding it is exact.
+With the default class offsets, an item that has waited longer than the boost window has a smaller key than a fresh arrival. The window bounds the advantage in the key, not the time an item can wait: worker availability and the number of older items also matter. The locking binding selects the minimum key; MultiQueue can select a different key because its ordering is relaxed.
 
 ### Watermark admission
 
@@ -66,7 +66,7 @@ Ordering decides who goes first. Watermarks decide who gets in when the bounded 
 
 <p align="center"><img src="diagrams/anim-watermark-admission.svg" width="880" alt="Animated illustration: Batch is rejected above 0.90 of capacity, Default above 0.95, Interactive admits to the brim, and every rejection returns immediately as an EnqueueResult."/></p>
 
-Admission is fail-fast on purpose. Waiting for space at capacity would hand the priority inversion right back, because a queued Batch backlog would then block an Interactive *producer* at the door. That reasoning is the root of the v0.5.0 breaking change: `EnqueueAsync` returns `ValueTask<EnqueueResult>`, a rejection is a value rather than an exception, and it dead-letters with `AttemptCount = 0` so the shed is visible in telemetry.
+Admission is fail-fast on purpose. Waiting for space at capacity would hand the priority inversion right back, because a queued Batch backlog would then block an Interactive *producer* at the door. That reasoning is the root of the v0.5.0 breaking change: `EnqueueAsync` returns `ValueTask<EnqueueResult>`, a rejection is a value rather than an exception, and eligible admission rejections are dead-lettered with `AttemptCount = 0` when a dead-letter queue is configured.
 
 ## What the benchmarks say
 
