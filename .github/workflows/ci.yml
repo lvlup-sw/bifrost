@@ -28,7 +28,7 @@ jobs:
       lanes: ${{ steps.plan.outputs.lanes }}
     steps:
       - name: Checkout (full history, no file contents)
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           filter: blob:none
@@ -41,7 +41,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check lane contract
         uses: lvlup-sw/.github/actions/ci-lanes@v1
         with:
@@ -54,7 +54,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # MinVer needs full history/tags
 
@@ -64,11 +64,7 @@ jobs:
       # excludes the [Category=Stress] proofs, which run in the gated
       # stress-tests job — they starve/flake under --coverage on a 4-vcpu runner.
       - name: Build & test
-<<<<<<< HEAD
-        uses: lvlup-sw/.github/actions/dotnet-build-test@d0c22ae8eb67bea344404c779469869369aba531 # v1.8
-=======
         uses: lvlup-sw/.github/actions/dotnet-build-test@v1
->>>>>>> refs/backup/consolidation-pr-60
         with:
           solution-path: ${{ env.SOLUTION_PATH }}
           test-project-patterns: src/Bifrost.Tests*/*.csproj
@@ -122,7 +118,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # MinVer needs full history/tags
 
@@ -170,11 +166,7 @@ jobs:
     name: Update Coverage Baseline
     needs: build-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-<<<<<<< HEAD
-    uses: lvlup-sw/.github/.github/workflows/update-baseline.yml@d0c22ae8eb67bea344404c779469869369aba531 # v1.8
-=======
     uses: lvlup-sw/.github/.github/workflows/update-baseline.yml@v1
->>>>>>> refs/backup/consolidation-pr-60
     with:
       runner: blacksmith-4vcpu-ubuntu-2204
       dotnet-version: '10.0.x'
