@@ -8,6 +8,8 @@ Bifrost is a library for running background work through a bounded queue and a p
 
 ## How it works
 
+![Application producers and an optional scheduler feed a bounded in-memory queue, which dispatches accepted work to workers that invoke handlers. Admission can reject work.](docs/images/how-it-works.svg)
+
 An orchestrator accepts work items into a bounded queue and dispatches them to a pool of workers. Each worker invokes the handler registered for that work type. Admission confirms that an item entered the queue; it does not mean the handler has completed successfully. The default work queue is in memory and does not survive a process restart.
 
 The default FIFO queue applies asynchronous backpressure when full. Producers can also attempt nonblocking admission. Optional priority dispatch instead rejects work immediately when its class reaches an admission watermark. An orchestrator can be drained to finish queued work or aborted by canceling its workers.

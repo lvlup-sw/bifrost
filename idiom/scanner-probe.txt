@@ -1,4 +1,0 @@
-Fixture HasMetadata=False
-BannedTimeApiTests.FindMemberReferenceViolations: invalid subject returned 0 violations (caller would accept empty)
-BannedTimeApiTests.FindNonTimeProviderTaskDelayViolations: invalid subject returned 0 violations (caller would accept empty)
-AotSafetyTests.FindMemberReferenceViolations: invalid subject returned 0 violations (caller would accept empty)

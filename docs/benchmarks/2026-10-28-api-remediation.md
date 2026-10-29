@@ -2,7 +2,7 @@
 
 > Performance follow-up: the [optimized implementation and new three-way measurements](2026-10-28-api-performance-followup.md) supersede the initial performance results below. The original measurements remain as the record of the first safe implementation.
 
-Date: 2026-10-28. Baseline: `6800ae0`. This records the breaking implementation of the [review](../../exa-results/bifrost-api-review-2026-10-27/review.md) and [revised plan](../../exa-results/bifrost-api-review-2026-10-27/implementation-amendment.md). See the [consumer migration](../migrations/2026-10-priority-api.md) for the new public contracts.
+Date: 2026-10-28. Baseline: `6800ae0`. This records the breaking implementation of the [review](https://github.com/lvlup-sw/bifrost/blob/86dcd919696214aa1d3c0541b6070b392bebffc6/exa-results/bifrost-api-review-2026-10-27/review.md) and [revised plan](https://github.com/lvlup-sw/bifrost/blob/86dcd919696214aa1d3c0541b6070b392bebffc6/exa-results/bifrost-api-review-2026-10-27/implementation-amendment.md). See the [consumer migration](../migrations/2026-10-priority-api.md) for the new public contracts.
 
 ## Findings and disposition
 
