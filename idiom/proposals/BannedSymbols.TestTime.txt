@@ -1,7 +1,0 @@
-# PROPOSAL ONLY: extends existing scheduling delay policy and skill time template.
-M:System.Threading.Tasks.Task.Delay(System.TimeSpan);Banned: use Task.Delay(TimeSpan, TimeProvider, CancellationToken) instead (DR-7). The bare overload uses the system clock and defeats fake-time testing.
-M:System.Threading.Tasks.Task.Delay(System.Int32);Banned: use Task.Delay(TimeSpan, TimeProvider, CancellationToken) instead (DR-7).
-M:System.Threading.Tasks.Task.Delay(System.TimeSpan,System.Threading.CancellationToken);Banned: use Task.Delay(TimeSpan, TimeProvider, CancellationToken) instead (DR-7). The 2-arg overload uses the system clock and defeats fake-time testing.
-M:System.Threading.Tasks.Task.Delay(System.Int32,System.Threading.CancellationToken);Banned: use Task.Delay(TimeSpan, TimeProvider, CancellationToken) instead (DR-7).
-M:System.Threading.Thread.Sleep(System.Int32);Advance FakeTimeProvider or use a barrier.
-M:System.Threading.Thread.Sleep(System.TimeSpan);Advance FakeTimeProvider or use a barrier.

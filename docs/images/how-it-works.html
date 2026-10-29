@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How Bifrost runs background work</title>
+  <style>
+    body { margin: 0; background: #fcfcfb; color: #0b0b0b; }
+    main { max-width: 960px; min-width: 0; margin: auto; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 960px; }
+    .paper { fill: #fcfcfb; }
+    .panel { fill: #f0efec; stroke: #52514e; stroke-width: 1; }
+    .node { fill: #fcfcfb; stroke: #52514e; stroke-width: 1; }
+    .queue { fill: #fcfcfb; stroke: #2a78d6; stroke-width: 2; }
+    .slot { fill: #2a78d6; }
+    .empty { fill: none; stroke: #52514e; stroke-width: 1; stroke-dasharray: 3 3; }
+    .flow { fill: none; stroke: #52514e; stroke-width: 2; }
+    .optional { stroke-dasharray: 5 4; }
+    .arrow { fill: #52514e; }
+    .rule { stroke: #d5d4cf; stroke-width: 1; }
+    text { fill: #0b0b0b; font-family: Geist, system-ui, sans-serif; font-size: 12px; }
+    .heading { font-family: 'Instrument Serif', Georgia, serif; font-size: 28px; }
+    .name { font-weight: 600; }
+    .sub { fill: #52514e; }
+    .tag { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 8px; letter-spacing: 1px; }
+    .detail { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 9px; }
+    .note { padding: 0 24px 24px; font: 12px/1.6 system-ui, sans-serif; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #1a1a19; color: #ffffff; }
+      .paper { fill: #1a1a19; }
+      .panel { fill: #272726; stroke: #c3c2b7; }
+      .node { fill: #1a1a19; stroke: #c3c2b7; }
+      .queue { fill: #1a1a19; stroke: #3987e5; }
+      .slot { fill: #3987e5; }
+      .empty, .flow { stroke: #c3c2b7; }
+      .arrow { fill: #c3c2b7; }
+      .rule { stroke: #454541; }
+      text { fill: #ffffff; }
+      .sub { fill: #c3c2b7; }
+    }
+    @media print {
+      .diagram-container { overflow-x: visible; }
+      svg { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <div class="diagram-container">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" role="img" aria-labelledby="how-it-works-title how-it-works-desc">
+      <title id="how-it-works-title">How Bifrost runs background work</title>
+      <desc id="how-it-works-desc">Application producers and an optional scheduler submit work to a bounded in-memory queue, which dispatches accepted items to workers that invoke handlers, while admission can reject work.</desc>
+      <defs>
+        <marker id="how-it-works-arrow" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse">
+          <path class="arrow" d="M0 0 8 4 0 8Z"/>
+        </marker>
+      </defs>
+      <rect class="paper" width="960" height="600"/>
+      <text class="heading" x="48" y="64">From admission to execution</text>
+      <text class="sub" x="48" y="96">A bounded queue decouples producers from handler execution.</text>
+
+      <!-- The worker pool is a containing region, not an extra processing hop. -->
+      <rect class="panel" x="704" y="152" width="208" height="288" rx="8"/>
+      <text class="name" x="728" y="180">Worker pool</text>
+      <text class="detail sub" x="728" y="196">Each worker invokes a handler</text>
+
+      <!-- Each ingress and dispatch path has its own attachment point. -->
+      <g class="flow" marker-end="url(#how-it-works-arrow)">
+        <path d="M224 220H320"/>
+        <path class="optional" d="M224 348H256Q264 348 264 340V332Q264 324 272 324H320"/>
+        <path d="M608 248H640Q648 248 648 240Q648 232 656 232H728"/>
+        <path d="M608 276H656Q664 276 664 284V288Q664 296 672 296H728"/>
+        <path d="M608 304H672Q680 304 680 312V352Q680 360 688 360H728"/>
+        <path d="M464 384V432"/>
+      </g>
+
+      <rect class="node" x="48" y="188" width="176" height="64" rx="6"/>
+      <text class="name" x="64" y="216">Your application</text>
+      <text class="detail sub" x="64" y="236">Enqueue / EnqueueAsync</text>
+      <rect class="node optional" x="48" y="316" width="176" height="64" rx="6"/>
+      <text class="name" x="64" y="344">Scheduler</text>
+      <text class="detail sub" x="64" y="364">Optional scheduled dispatch</text>
+
+      <rect class="queue" x="320" y="168" width="288" height="216" rx="6"/>
+      <text class="name" x="344" y="200">Bounded work queue</text>
+      <text class="tag sub" x="344" y="220">IN MEMORY · ADMISSION + ORDERING</text>
+      <rect class="slot" x="344" y="244" width="44" height="48" rx="4"/>
+      <rect class="slot" x="400" y="244" width="44" height="48" rx="4"/>
+      <rect class="slot" x="456" y="244" width="44" height="48" rx="4"/>
+      <rect class="empty" x="512" y="244" width="44" height="48" rx="4"/>
+      <text class="detail sub" x="344" y="312">Illustrative snapshot: 3 / 4 slots occupied</text>
+      <text x="344" y="340">FIFO can wait when full.</text>
+      <text x="344" y="360">Priority rejects at class watermarks.</text>
+
+      <rect class="node" x="728" y="208" width="160" height="48" rx="6"/>
+      <text class="name" x="744" y="236">Worker 1</text>
+      <rect class="node" x="728" y="272" width="160" height="48" rx="6"/>
+      <text class="name" x="744" y="300">Worker 2</text>
+      <rect class="node" x="728" y="336" width="160" height="48" rx="6"/>
+      <text class="name" x="744" y="364">Worker 3</text>
+
+      <rect class="node" x="320" y="432" width="288" height="48" rx="6"/>
+      <text class="name" x="344" y="452">Rejected admission</text>
+      <text class="detail sub" x="344" y="468">Capacity · watermark · shutdown</text>
+      <text x="48" y="512">Accepted means queued; it does not mean the handler has finished.</text>
+
+      <line class="rule" x1="48" y1="536" x2="912" y2="536"/>
+      <path class="flow" d="M48 564H80" marker-end="url(#how-it-works-arrow)"/>
+      <text class="sub" x="92" y="568">Work flow</text>
+      <path class="flow optional" d="M256 564H288"/>
+      <text class="sub" x="300" y="568">Optional source</text>
+      <rect class="queue" x="512" y="556" width="16" height="16" rx="2"/>
+      <text class="sub" x="540" y="568">Bounded queue</text>
+    </svg>
+  </div>
+  <p class="note">Schematic, not runtime telemetry. Three workers and four queue slots are illustrative; capacity and worker count are configurable. Uses the dataviz blue accent and neutral surfaces, with separate light and dark tokens. System font fallbacks keep the README export self-contained.</p>
+</main>
+</body>
+</html>
