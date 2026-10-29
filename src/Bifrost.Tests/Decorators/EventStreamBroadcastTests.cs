@@ -38,7 +38,7 @@ public class EventStreamBroadcastTests
         _inner.PendingCount.Returns(5);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
-        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Accepted);
 
         return Task.CompletedTask;
@@ -290,7 +290,7 @@ public class EventStreamBroadcastTests
     public async Task TryEnqueue_BroadcastsToMultipleSubscribers()
     {
         // Arrange
-        _inner.TryEnqueue(Arg.Any<string>()).Returns(true);
+        _inner.Enqueue(Arg.Any<string>()).Returns(EnqueueResult.Accepted);
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriber1Events = new ConcurrentBag<IOrchestratorEvent>();
         var subscriber2Events = new ConcurrentBag<IOrchestratorEvent>();

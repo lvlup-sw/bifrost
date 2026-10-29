@@ -133,7 +133,7 @@ public class PriorityComparerHelpersTests
         // A descending comparer makes the strict-min path drain LARGEST-first.
         int previous = int.MaxValue;
         int popped = 0;
-        while (queue.TryDequeueMin(out _, out int priority))
+        while (queue.TryDequeueBestObserved(out _, out int priority))
         {
             await Assert.That(priority).IsLessThanOrEqualTo(previous).Because(
                 "the descending comparer makes the strict-min drain return non-increasing priorities");

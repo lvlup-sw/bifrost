@@ -21,21 +21,10 @@ namespace Bifrost.Core;
 /// "forward in time" Batch work is deferred. Default work is never adjusted.
 /// </para>
 /// <para>
-/// The boost window doubles as the starvation bound, by construction: any item that
-/// has waited longer than <see cref="InteractiveBoostWindow"/> outranks a freshly
-/// enqueued Interactive item — no aging scans or re-scoring required.
-/// </para>
-/// <para>
-/// <b>Admission watermarks.</b> The watermark fractions parameterize the
-/// complementary admission-side policy: a bounded priority queue sheds the LOWEST
-/// class FIRST at admission — Batch is rejected once the queue count reaches
-/// <see cref="BatchAdmissionWatermark"/> × capacity, Default at
-/// <see cref="DefaultAdmissionWatermark"/> × capacity, and Interactive is admitted up
-/// to <see cref="InteractiveAdmissionWatermark"/> × capacity (the full queue by
-/// default) — the WRED / priority-load-shedding precedent, with no eviction
-/// machinery. The two knobs are complementary, not overlapping: watermarks decide the
-/// admission-side shed order under pressure; the virtual-time key's bounded boost
-/// window provides the dequeue-side starvation bound for whatever was admitted.
+/// The virtual-time key expresses an ordering preference, not a service-time guarantee.
+/// An older Batch key outranks a fresh Interactive key only after the boost plus batch penalty.
+/// Exact dispatch selects the minimum admitted key; MultiQueue may select a different key.
+/// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
 /// </para>
 /// <para>
 /// Each watermark fraction must lie in <c>(0, 1]</c>, enforced by its setter. The
@@ -67,7 +56,7 @@ public class PriorityDispatchOptions
     /// <remarks>
     /// An Interactive item dispatches ahead of Default or Batch items enqueued up to
     /// this window earlier. Equivalently, this is the maximum extra wait the boost can
-    /// impose on lower-class work — the starvation bound. Must be non-negative;
+    /// apply to the ordering key of lower-class work. This is not a waiting-time bound. Must be non-negative;
     /// <see cref="TimeSpan.Zero"/> disables the boost entirely.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -183,20 +172,6 @@ public class PriorityDispatchOptions
             _interactiveAdmissionWatermark = value;
         }
     }
-
-    /// <summary>
-    /// Gets or sets the binding intent for the priority queue used by the work orchestrator.
-    /// </summary>
-    /// <value>The selected binding. Default is <see cref="PriorityBinding.Auto"/>.</value>
-    /// <remarks>
-    /// <see cref="PriorityBinding.Auto"/> (the default) always resolves to the lock-free
-    /// <see cref="PriorityBinding.MultiQueue"/> — it never selects locking.
-    /// <see cref="PriorityBinding.Locking"/> is the explicit opt-in for the coarse-locking heap
-    /// (strict rank ordering at high capacity), reachable only by requesting it directly.
-    /// The resolved binding is logged once at construction and exposed via
-    /// <c>WorkOrchestrator.ResolvedBinding</c>.
-    /// </remarks>
-    public PriorityBinding Binding { get; set; } = PriorityBinding.Auto;
 
     /// <summary>
     /// Gets or sets the tuning profile for the relaxed MultiQueue the priority queue is built on.

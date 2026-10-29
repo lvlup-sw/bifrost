@@ -10,85 +10,56 @@ using System.Runtime.CompilerServices;
 
 namespace Bifrost.Concurrency;
 
-/// <summary>
-/// A thread-safe priority queue (bounded or unbounded) built as a <i>MultiQueue</i>: an
-/// array of lock-striped min-heaps (<see cref="SubQueue{TElement, TPriority}"/>) sized to a
-/// power-of-two multiple of the processor count. Enqueues scatter across sub-queues to spread
-/// lock contention; dequeues sample two random sub-queues and pop the better cached top, trading
-/// bounded rank error for near-linear scaling. Later partial-class files add the enqueue, dequeue,
-/// inspection, and collection surfaces.
-/// </summary>
-/// <typeparam name="TElement">The element type stored alongside each priority.</typeparam>
-/// <typeparam name="TPriority">The priority type ordered by the queue's comparer.</typeparam>
+/// <summary>A thread-safe MultiQueue with lock-striped heaps and relaxed two-choice removal.</summary>
+/// <typeparam name="TElement">The element type.</typeparam>
+/// <typeparam name="TPriority">The priority type.</typeparam>
 /// <remarks>
-/// <para>
-/// The default sub-queue count is <c>RoundUpToPowerOf2(4 × ProcessorCount)</c>. The multiplier 4
-/// is a well-established quality/throughput ratio for relaxed priority queues, and a power-of-two
-/// count lets the two-choice sampler pick a sub-queue with a single <c>rng &amp; (count − 1)</c>
-/// mask instead of a modulo. The count folds into a <c>static readonly</c> field so the JIT treats
-/// it as a constant.
-/// </para>
-/// <para>
-/// Sizing the sub-queue array to the processor count keeps the two-choice load-balance invariant
-/// constant across machines: at most <c>p</c> of the <c>4p</c> sub-queues can be locked at once, so
-/// an operation finds a free sub-queue in O(1) expected attempts on any host. The consequence is
-/// that the relaxed dequeue's expected rank error, <c>(5/6)·n = (5/6)·4·ProcessorCount</c>, grows
-/// with the core count: a pop is looser on a 64-core server (<c>n = 256</c>, error ≈ 213) than on
-/// an 8-core laptop (<c>n = 32</c>, error ≈ 27). Relaxation and parallelism rise together, so
-/// <see cref="TryDequeue"/>'s distance from the true minimum is a property of the hardware, not a
-/// fixed constant.
-/// </para>
-/// <para>
-/// The queue stores the same normalized comparer that each sub-queue stores
-/// (<see cref="PriorityComparerHelpers.InitializeComparer{TPriority}"/>): <see langword="null"/>
-/// for a value-type priority whose effective comparer is <see cref="Comparer{T}.Default"/>, which
-/// selects the devirtualized default-comparer path; any explicit comparer is kept as-is. The public
-/// <see cref="Comparer"/> property is never null. It projects a stored null back to
-/// <see cref="Comparer{T}.Default"/>, matching the <see cref="PriorityQueue{TElement, TPriority}"/>
-/// precedent.
-/// </para>
-/// <para>
-/// Bounding is opt-in through the <c>boundedCapacity</c> constructor; <see cref="BoundedCapacity"/>
-/// returns <c>-1</c> when the queue is unbounded (the
-/// <see cref="System.Collections.Concurrent.BlockingCollection{T}.BoundedCapacity"/> precedent). A
-/// single shared atomic gate (<c>_boundedCount</c>) enforces it: an enqueue reserves a slot before
-/// touching any sub-queue, and every successful removal releases one. The gate is touched only on
-/// the bounded path (guarded by <c>_boundedCapacity &gt; 0</c>), so an unbounded queue runs no
-/// <see cref="System.Threading.Interlocked"/> instruction against it.
-/// </para>
-/// <para>
-/// <b>Choosing a configuration.</b> This queue is built for contention. It draws even with a single
-/// global lock only once several threads compete for the queue and pulls ahead from there; at very low
-/// thread counts an uncontended lock is faster, so prefer this queue when threads genuinely contend. Two
-/// constructor dials, <c>stickiness</c> and <c>bufferCapacity</c>, trade dequeue quality for throughput;
-/// both are safe to leave at their defaults and matter only in the regimes below.
-/// </para>
-/// <para>
-/// <c>stickiness</c> lets a thread reuse its sampled sub-queue for several consecutive operations,
-/// hiding the cost of re-sampling. Its weak spot is one or two threads, where that fixed cost is not yet
-/// buried under contention: raising the dial there lifts throughput and is what lets the relaxed queue
-/// overtake a plain lock in the low-thread regime. Under real contention leave it at one, which keeps a
-/// pop closest to the true minimum. The price is looseness: expected rank error scales with the dial.
-/// </para>
-/// <para>
-/// <c>bufferCapacity</c> gives each sub-queue small insertion and deletion buffers so the deep heap is
-/// touched only about once per <c>C</c> operations. It helps at low thread counts, on drain-heavy
-/// workloads, and for reference-type elements whose comparisons and moves are expensive, where it lowers
-/// single-thread latency on a deep queue. On a saturated machine running a cheap value-type mix it is
-/// roughly neutral, sometimes slightly slower, which is why it ships off. Neither dial allocates per
-/// operation.
-/// </para>
-/// <para>
-/// <b>Thread Safety:</b> All public and protected members of
-/// <see cref="ConcurrentPriorityQueue{TElement, TPriority}"/> are thread-safe and may be used
-/// concurrently from multiple threads (the <see cref="System.Collections.Concurrent.ConcurrentQueue{T}"/>
-/// precedent).
-/// </para>
+/// <para>Default stripes are RoundUpToPowerOf2(4 × ProcessorCount), stickiness is one, and
+/// buffering is disabled. ProcessorCount is a sizing heuristic, not a bound on participating threads.
+/// Operations use stripe locks and retries; the queue is neither lock-free nor wait-free.
+/// A stalled lock holder can delay an operation indefinitely.</para>
+/// <para>TryDequeue is relaxed. No deterministic rank-error or wall-clock waiting bound is promised.
+/// The ESA 2025 stationary formula applies to an idealized deletion-only, with-replacement model;
+/// this implementation samples distinct stripes and includes stickiness, buffers and fallback scans.
+/// Measure ordering quality for the intended workload. Equal priorities are not FIFO-stable.</para>
+/// <para>Use Create with explicit options for bounded capacity and tuning. Capacity is an item limit,
+/// not an initial allocation size. Unbounded operations do not touch a global capacity counter.</para>
+/// <para>A thrown comparer leaves the failing operation's resident contents and capacity reservation
+/// unchanged. Other concurrent operations may proceed. Comparers must define a consistent ordering,
+/// be safe for concurrent calls, and must not reenter or mutate this queue. Mutating stored priority
+/// values is unsupported. Allocation failures and process-fatal failures are outside this guarantee.</para>
+/// <para>Count, IsEmpty, inspection and enumeration are observations, not synchronization protocols.
+/// Collection copies visit one stripe at a time and are not point-in-time snapshots.</para>
 /// </remarks>
 [DebuggerDisplay("Count = {Count}")]
 [DebuggerTypeProxy(typeof(ConcurrentPriorityQueueDebugView<,>))]
 public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 {
+    /// <summary>Creates a queue with explicit capacity and algorithm tuning.</summary>
+    /// <param name="options">Settings copied at construction.</param>
+    /// <returns>A new queue.</returns>
+    public static ConcurrentPriorityQueue<TElement, TPriority> Create(ConcurrentPriorityQueueOptions<TPriority> options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        if (options.Capacity is <= 0) throw new ArgumentOutOfRangeException(nameof(options));
+        if (options.Stickiness < 1) throw new ArgumentOutOfRangeException(nameof(options));
+        return new(subQueueCount: options.SubQueueCount ?? s_defaultSubQueueCount,
+            boundedCapacity: options.Capacity ?? -1, comparer: options.Comparer,
+            stickiness: options.Stickiness, bufferCapacity: options.BufferCapacity);
+    }
+
+    /// <summary>Gets the maximum item count, or null for an unbounded queue.</summary>
+    public int? Capacity => _boundedCapacity > 0 ? _boundedCapacity : null;
+
+    /// <summary>Gets the actual power-of-two stripe count.</summary>
+    public int SubQueueCount => _queues.Length;
+
+    /// <summary>Gets the configured sampling stickiness.</summary>
+    public int Stickiness => _stickiness;
+
+    /// <summary>Gets the configured per-stripe buffer capacity.</summary>
+    public int BufferCapacity => _bufferCapacity;
+
     /// <summary>
     /// The default number of sub-queues: <c>RoundUpToPowerOf2(4 × ProcessorCount)</c>. Computed
     /// once into a <c>static readonly</c> field so it folds to a JIT constant; the multiplier 4 is a
@@ -156,7 +127,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <summary>
     /// The stickiness factor <c>s</c>: the number of consecutive operations a thread reuses a sampled
     /// sub-queue selection before re-sampling. <c>1</c> leaves the relaxed-dequeue contract unchanged;
-    /// larger values trade dequeue quality (expected rank error scales to <c>s·(5/6)·n</c>) for
+    /// larger values trade dequeue quality (rank error can increase) for
     /// throughput when per-operation overhead dominates. Resolved once in the core constructor.
     /// </summary>
     private readonly int _stickiness;
@@ -180,14 +151,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// write.
     /// </summary>
     private int _boundedCount;
-
-    /// <summary>
-    /// The number of sub-queues this instance was constructed with.
-    /// Exposed as an internal test accessor so callers can assert that
-    /// <c>PriorityBindingResolver.SubQueueCountFor(Environment.ProcessorCount)</c>
-    /// agrees with the actual queue construction (T6, InternalsVisibleTo).
-    /// </summary>
-    internal int SubQueueCount => _queues.Length;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ConcurrentPriorityQueue{TElement, TPriority}"/>
@@ -222,7 +185,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="boundedCapacity"/> is less than or equal to zero.
     /// </exception>
-    public ConcurrentPriorityQueue(int boundedCapacity, IComparer<TPriority>? comparer = null)
+    internal ConcurrentPriorityQueue(int boundedCapacity, IComparer<TPriority>? comparer = null)
         : this(s_defaultSubQueueCount, boundedCapacity: ValidateBoundedCapacity(boundedCapacity), comparer: comparer)
     {
     }
@@ -244,7 +207,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// as four) only in the low-thread regime, where the fixed sampling cost is not yet buried under
     /// contention and a higher <c>s</c> lifts throughput; under real contention leave it at one, which
     /// keeps a pop closest to the true minimum. The price is dequeue quality: the relaxed
-    /// <see cref="TryDequeue"/>'s expected rank error scales to <c>s·(5/6)·n</c>, so a pop grows looser
+    /// <see cref="TryDequeue"/>'s rank error can increase, so a pop grows looser
     /// as this dial rises, on top of how that looseness already grows with the core count. Keep it small
     /// — one or four are the safe choices.
     /// </param>
@@ -255,7 +218,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <paramref name="boundedCapacity"/> is zero or less than <c>-1</c>, or
     /// <paramref name="stickiness"/> is less than one and not the <c>-1</c> default sentinel.
     /// </exception>
-    public ConcurrentPriorityQueue(int boundedCapacity, int stickiness, IComparer<TPriority>? comparer = null)
+    internal ConcurrentPriorityQueue(int boundedCapacity, int stickiness, IComparer<TPriority>? comparer = null)
         : this(s_defaultSubQueueCount, ValidateBoundedCapacityOrUnbounded(boundedCapacity), comparer, stickiness)
     {
     }
@@ -293,7 +256,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// is less than one and not the <c>-1</c> default sentinel; or <paramref name="bufferCapacity"/> is
     /// outside <c>[0, SubQueue.BufferCapacityMax]</c>.
     /// </exception>
-    public ConcurrentPriorityQueue(int boundedCapacity, int stickiness, int bufferCapacity, IComparer<TPriority>? comparer = null)
+    internal ConcurrentPriorityQueue(int boundedCapacity, int stickiness, int bufferCapacity, IComparer<TPriority>? comparer = null)
         : this(s_defaultSubQueueCount, ValidateBoundedCapacityOrUnbounded(boundedCapacity), comparer, stickiness, ValidateBufferCapacity(bufferCapacity))
     {
     }
@@ -393,7 +356,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// Gets the bounded capacity of the queue, or <c>-1</c> when the queue is unbounded, the
     /// <see cref="System.Collections.Concurrent.BlockingCollection{T}.BoundedCapacity"/> precedent.
     /// </summary>
-    public int BoundedCapacity => _boundedCapacity;
+    internal int BoundedCapacity => _boundedCapacity;
 
     /// <summary>Gets the number of sub-queues. Exposed for tests; equals <c>_queues.Length</c>.</summary>
     internal int SubQueueCountForTest => _queues.Length;
@@ -483,7 +446,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// bounded, atomically decrements the shared gate (<see cref="_boundedCount"/>). Every
     /// successful-removal path funnels through this single release point: <c>TryPopFrom</c>'s
     /// success branch (covering both two-choice sampling and the verification scan) and
-    /// <c>TryDequeueMin</c>'s success path. The reservation accounting therefore has exactly one
+    /// <c>TryDequeueBestObserved</c>'s success path. The reservation accounting therefore has exactly one
     /// decrement site, matching the one increment site in <c>EnqueueCore</c>. On an unbounded queue
     /// (<c>_boundedCapacity &lt; 0</c>) it is a no-op that runs no
     /// <see cref="System.Threading.Interlocked"/> instruction.

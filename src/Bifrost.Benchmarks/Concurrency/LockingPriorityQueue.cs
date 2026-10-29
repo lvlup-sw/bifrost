@@ -7,7 +7,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Bifrost.Concurrency;
+namespace Bifrost.Benchmarks.Concurrency;
 
 /// <summary>
 /// A thread-safe priority queue with exact (non-relaxed) ordering that wraps
@@ -51,7 +51,7 @@ namespace Bifrost.Concurrency;
 /// </list>
 /// </remarks>
 [DebuggerDisplay("Count = {Count}")]
-public sealed class LockingPriorityQueue<TElement, TPriority>
+internal sealed class LockingPriorityQueue<TElement, TPriority>
 {
     private readonly PriorityQueue<TElement, TPriority> _innerQueue;
     private readonly Lock _lock = new();

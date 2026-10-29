@@ -37,7 +37,7 @@ public class EventStreamCorrelationTests
         _inner.PendingCount.Returns(5);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
-        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Accepted);
 
         return Task.CompletedTask;
@@ -117,13 +117,13 @@ public class EventStreamCorrelationTests
         await Task.Delay(150).ConfigureAwait(false);
 
         // Act - enqueue events with different correlation IDs
-        await decorator.EnqueueAsync("test1", targetCorrelationId).ConfigureAwait(false);
+        await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: targetCorrelationId)).ConfigureAwait(false);
         await Task.Delay(20).ConfigureAwait(false);
-        await decorator.EnqueueAsync("test2", "different-correlation").ConfigureAwait(false);
+        await decorator.EnqueueAsync("test2", new WorkEnqueueOptions(CorrelationId: "different-correlation")).ConfigureAwait(false);
         await Task.Delay(20).ConfigureAwait(false);
-        await decorator.EnqueueAsync("test3", targetCorrelationId).ConfigureAwait(false);
+        await decorator.EnqueueAsync("test3", new WorkEnqueueOptions(CorrelationId: targetCorrelationId)).ConfigureAwait(false);
         await Task.Delay(20).ConfigureAwait(false);
-        await decorator.EnqueueAsync("test4", "another-correlation").ConfigureAwait(false);
+        await decorator.EnqueueAsync("test4", new WorkEnqueueOptions(CorrelationId: "another-correlation")).ConfigureAwait(false);
 
         await subscriberTask.ConfigureAwait(false);
 
@@ -171,9 +171,9 @@ public class EventStreamCorrelationTests
         await Task.Delay(100).ConfigureAwait(false);
 
         // Act - enqueue events with different case correlation IDs
-        await decorator.EnqueueAsync("test1", "correlation-abc").ConfigureAwait(false);  // lowercase
-        await decorator.EnqueueAsync("test2", "CORRELATION-ABC").ConfigureAwait(false);  // uppercase
-        await decorator.EnqueueAsync("test3", "Correlation-ABC").ConfigureAwait(false);  // exact match
+        await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: "correlation-abc")).ConfigureAwait(false);  // lowercase
+        await decorator.EnqueueAsync("test2", new WorkEnqueueOptions(CorrelationId: "CORRELATION-ABC")).ConfigureAwait(false);  // uppercase
+        await decorator.EnqueueAsync("test3", new WorkEnqueueOptions(CorrelationId: "Correlation-ABC")).ConfigureAwait(false);  // exact match
 
         await subscriberTask.ConfigureAwait(false);
 
@@ -214,8 +214,8 @@ public class EventStreamCorrelationTests
         await Task.Delay(100).ConfigureAwait(false);
 
         // Act - enqueue events without correlation ID (null)
-        await decorator.EnqueueAsync("test1", (string?)null).ConfigureAwait(false);
-        await decorator.EnqueueAsync("test2", (string?)null).ConfigureAwait(false);
+        await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: null)).ConfigureAwait(false);
+        await decorator.EnqueueAsync("test2", new WorkEnqueueOptions(CorrelationId: null)).ConfigureAwait(false);
 
         await subscriberTask.ConfigureAwait(false);
 
@@ -273,7 +273,7 @@ public class EventStreamCorrelationTests
         await Task.Delay(100).ConfigureAwait(false);
 
         // Act
-        await decorator.EnqueueAsync("test1", targetCorrelationId).ConfigureAwait(false);
+        await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: targetCorrelationId)).ConfigureAwait(false);
 
         await subscriberTask.ConfigureAwait(false);
 
@@ -307,7 +307,7 @@ public class EventStreamCorrelationTests
         await Task.Delay(100).ConfigureAwait(false);
 
         // Act
-        await decorator.EnqueueAsync("test-work", "my-correlation-id").ConfigureAwait(false);
+        await decorator.EnqueueAsync("test-work", new WorkEnqueueOptions(CorrelationId: "my-correlation-id")).ConfigureAwait(false);
 
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
@@ -322,7 +322,7 @@ public class EventStreamCorrelationTests
     public async Task TryEnqueue_WithCorrelationId_IsAvailable()
     {
         // Arrange
-        _inner.TryEnqueue(Arg.Any<string>()).Returns(true);
+        _inner.Enqueue(Arg.Any<string>(), Arg.Any<WorkEnqueueOptions>()).Returns(EnqueueResult.Accepted);
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<ICorrelatedEvent>();
 
@@ -341,7 +341,7 @@ public class EventStreamCorrelationTests
         await Task.Delay(100).ConfigureAwait(false);
 
         // Act
-        var result = decorator.TryEnqueue("test-work", "my-correlation-id");
+        var result = decorator.TryEnqueue("test-work", new WorkEnqueueOptions(CorrelationId: "my-correlation-id"));
 
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 

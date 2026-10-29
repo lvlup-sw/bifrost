@@ -6,67 +6,15 @@
 
 namespace Bifrost.Core;
 
-/// <summary>
-/// Selects the work-queue binding the orchestrator constructs.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Selection is enum/factory-based by design: the orchestrator switches on this
-/// value and constructs the binding directly — no reflective resolution, keeping
-/// the factory trim/AOT-safe. All bindings are sealed so the default path
-/// devirtualizes.
-/// </para>
-/// <para>
-/// <b>Enqueue semantics differ by strategy.</b> <see cref="Fifo"/> keeps
-/// producer-wait semantics on the asynchronous enqueue path (await space at
-/// capacity). The priority strategies are FAIL-FAST at admission: an enqueue at
-/// capacity — or above the work class's admission watermark — is rejected
-/// immediately rather than waited out, because producer-wait at capacity would
-/// reintroduce admission-side priority inversion. See
-/// <see cref="WorkOrchestratorOptions.DispatchStrategy"/> and the orchestrator's
-/// enqueue documentation for the full semantics table.
-/// </para>
-/// <para>
-/// <b>Choosing between the priority strategies.</b> The recommended entry point is
-/// <c>UsePriorityDispatch</c> with <see cref="PriorityBinding.Auto"/> (the default),
-/// which resolves to <see cref="PriorityLocking"/> or <see cref="PriorityMultiQueue"/>
-/// at construction from the host's processor count and the queue capacity. The 600 s
-/// release soak (<c>docs/benchmarks/2026-06-cpq-soak.md</c>) favors
-/// <see cref="PriorityLocking"/> in the 1–8-worker, seconds-long regime typical of this
-/// orchestrator; <see cref="PriorityMultiQueue"/> targets higher producer concurrency.
-/// </para>
-/// </remarks>
+/// <summary>The ordering policy used to dispatch admitted items.</summary>
 public enum DispatchStrategy
 {
-    /// <summary>
-    /// Strict-FIFO bounded-channel queue — the default, preserving the
-    /// orchestrator's pre-existing semantics: producer-wait on the asynchronous
-    /// enqueue path, no class-based ordering or admission policy.
-    /// </summary>
-    Fifo = 0,
+    /// <summary>First in, first out.</summary>
+    Fifo,
 
-    /// <summary>
-    /// Priority dispatch whose concrete binding is resolved at orchestrator
-    /// construction from <c>PriorityDispatchOptions.Binding</c>.
-    /// <see cref="PriorityBinding.Locking"/> resolves to
-    /// <see cref="PriorityLocking"/>; both <see cref="PriorityBinding.MultiQueue"/>
-    /// and <see cref="PriorityBinding.Auto"/> resolve to
-    /// <see cref="PriorityMultiQueue"/> via <c>PriorityBindingResolver</c> — Auto
-    /// never selects locking.
-    /// </summary>
-    Priority = 3,
+    /// <summary>Exact minimum virtual-time priority under one lock.</summary>
+    PriorityExact,
 
-    /// <summary>
-    /// Lock-free MultiQueue-based priority binding: class-aware virtual-time
-    /// ordering with watermark admission, relaxed (approximate) ordering and
-    /// counting under concurrency, fail-fast admission.
-    /// </summary>
-    PriorityMultiQueue = 1,
-
-    /// <summary>
-    /// Coarse-locking binary-heap priority binding: class-aware virtual-time
-    /// ordering with watermark admission, exact ordering and exact admission
-    /// boundaries under a global lock, fail-fast admission.
-    /// </summary>
-    PriorityLocking = 2,
+    /// <summary>MultiQueue relaxed two-choice priority ordering.</summary>
+    PriorityRelaxed,
 }

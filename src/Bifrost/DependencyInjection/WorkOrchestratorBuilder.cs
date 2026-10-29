@@ -122,6 +122,7 @@ public sealed class WorkOrchestratorBuilder<TWork>
         var handlerLifetime = HandlerLifetime;
         var classifier = Classifier;
 
+        Services.AddSingleton<IWorkWriter<TWork>>(sp => sp.GetRequiredService<IWorkOrchestrator<TWork>>());
         Services.AddSingleton<IWorkOrchestrator<TWork>>(sp =>
         {
             // Resolve handler: use ScopedHandlerProxy for scoped lifetime,
@@ -147,7 +148,7 @@ public sealed class WorkOrchestratorBuilder<TWork>
             // Start with base implementation using the decorated handler
             IWorkOrchestrator<TWork> orchestrator = new WorkOrchestrator<TWork>(
                 handler,
-                sp.GetRequiredService<IOptions<WorkOrchestratorOptions>>(),
+                Options.Create(sp.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<TWork>())),
                 sp.GetRequiredService<ILogger<WorkOrchestrator<TWork>>>(),
                 classifier: classifier);
 

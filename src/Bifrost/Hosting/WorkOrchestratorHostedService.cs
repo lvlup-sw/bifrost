@@ -83,9 +83,9 @@ public sealed class WorkOrchestratorHostedService<TWork> : IHostedService
     /// <param name="ct">Cancellation token to cancel shutdown.</param>
     /// <returns>A <see cref="Task"/> that completes when the orchestrator has stopped.</returns>
     /// <remarks>
-    /// This method calls <see cref="IWorkOrchestrator{TWork}.StopAsync"/> to trigger
-    /// graceful shutdown, allowing pending work items to complete before the channel
-    /// is closed.
+    /// This method calls <see cref="IWorkOrchestrator{TWork}.DrainAsync"/> to trigger
+    /// graceful shutdown, closing admission and allowing admitted work to drain.
+    /// If the host deadline expires, it signals abort; disposal still waits for worker exit.
     /// </remarks>
     public async Task StopAsync(CancellationToken ct)
     {
@@ -94,10 +94,23 @@ public sealed class WorkOrchestratorHostedService<TWork> : IHostedService
             typeof(TWork).Name,
             _orchestrator.PendingCount);
 
-        await _orchestrator.StopAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _orchestrator.DrainAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            try
+            {
+                await _orchestrator.AbortAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+            }
+        }
 
         _logger.LogInformation(
-            "WorkOrchestrator<{WorkType}> stopped",
+            "Host shutdown finished for WorkOrchestrator<{WorkType}>",
             typeof(TWork).Name);
     }
 }

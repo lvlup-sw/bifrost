@@ -77,7 +77,7 @@ public class WorkOrchestratorShutdownTests
         var token = orchestrator.GetShutdownToken();
 
         // Act
-        await orchestrator.StopAsync().ConfigureAwait(false);
+        await orchestrator.AbortAsync().ConfigureAwait(false);
 
         // Assert
         await Assert.That(token.IsCancellationRequested).IsTrue();
@@ -144,7 +144,7 @@ public class WorkOrchestratorShutdownTests
         });
 
         // Act
-        await orchestrator.StopAsync().ConfigureAwait(false);
+        await orchestrator.AbortAsync().ConfigureAwait(false);
         var result = await shutdownReceived.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
         // Assert

@@ -66,7 +66,7 @@ public class OrchestratorEnqueueSurfaceTests
         var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
 
         await using var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
-        await orchestrator.StopAsync().ConfigureAwait(false);
+        await orchestrator.AbortAsync().ConfigureAwait(false);
 
         // Act — must not throw ChannelClosedException
         var afterStop = await orchestrator.EnqueueAsync("after-stop").ConfigureAwait(false);

@@ -52,7 +52,7 @@ public class WorkOrchestratorHostedServiceTests
         await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
         // Assert
-        await orchestrator.Received(1).StopAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await orchestrator.Received(1).DrainAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -99,7 +99,7 @@ public class WorkOrchestratorHostedServiceTests
         await service.StopAsync(cts.Token).ConfigureAwait(false);
 
         // Assert - Verify the token was passed
-        await orchestrator.Received(1).StopAsync(cts.Token).ConfigureAwait(false);
+        await orchestrator.Received(1).DrainAsync(cts.Token).ConfigureAwait(false);
     }
 
     /// <summary>

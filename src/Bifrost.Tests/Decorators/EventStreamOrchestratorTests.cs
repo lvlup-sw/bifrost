@@ -37,7 +37,7 @@ public class EventStreamOrchestratorTests
         _inner.PendingCount.Returns(5);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
-        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Accepted);
 
         return Task.CompletedTask;
@@ -72,7 +72,7 @@ public class EventStreamOrchestratorTests
         await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
 
         // Assert
-        await _inner.Received(1).EnqueueAsync("test-work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("test-work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(evt.Work).IsEqualTo("test-work");
@@ -171,7 +171,7 @@ public class EventStreamOrchestratorTests
     public async Task TryEnqueue_DelegatesToInner()
     {
         // Arrange
-        _inner.TryEnqueue(Arg.Any<string>()).Returns(true);
+        _inner.Enqueue(Arg.Any<string>()).Returns(EnqueueResult.Accepted);
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
         // Act
@@ -179,7 +179,7 @@ public class EventStreamOrchestratorTests
 
         // Assert
         await Assert.That(result).IsTrue();
-        _inner.Received(1).TryEnqueue("test-work");
+        _inner.Received(1).Enqueue("test-work");
     }
 
     /// <summary>
@@ -189,7 +189,7 @@ public class EventStreamOrchestratorTests
     public async Task TryEnqueue_WhenSuccessful_PublishesEvent()
     {
         // Arrange
-        _inner.TryEnqueue(Arg.Any<string>()).Returns(true);
+        _inner.Enqueue(Arg.Any<string>()).Returns(EnqueueResult.Accepted);
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<WorkEnqueuedEvent<string>>();
 
@@ -223,7 +223,7 @@ public class EventStreamOrchestratorTests
     public async Task TryEnqueue_WhenFails_DoesNotPublishEvent()
     {
         // Arrange
-        _inner.TryEnqueue(Arg.Any<string>()).Returns(false);
+        _inner.Enqueue(Arg.Any<string>()).Returns(EnqueueResult.Rejected(RejectionReason.CapacityExceeded));
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
@@ -270,10 +270,10 @@ public class EventStreamOrchestratorTests
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
         // Act
-        await decorator.StopAsync().ConfigureAwait(false);
+        await decorator.AbortAsync().ConfigureAwait(false);
 
         // Assert
-        await _inner.Received(1).StopAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -299,7 +299,7 @@ public class EventStreamOrchestratorTests
     public async Task EnqueueAsync_Rejected_DoesNotPublishEvent()
     {
         // Arrange
-        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+        _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Rejected(RejectionReason.Shutdown));
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var eventReceived = false;
@@ -584,12 +584,13 @@ public class EventStreamOrchestratorTests
         var subscriberCts = new CancellationTokenSource();
         var eventsReceived = 0;
 
-        // Start subscriber
+        // Register synchronously before publishing; scheduling is not a registration barrier.
+        var firstStream = decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: subscriberCts.Token);
         var subscriberTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: subscriberCts.Token).ConfigureAwait(false))
+                await foreach (var evt in firstStream.ConfigureAwait(false))
                 {
                     eventsReceived++;
                 }
@@ -622,9 +623,10 @@ public class EventStreamOrchestratorTests
         // Enqueue more events to verify no stale subscriber warnings
         var newCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var newEventReceived = new TaskCompletionSource<IOrchestratorEvent>();
+        var secondStream = decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: newCts.Token);
         var newTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: newCts.Token).ConfigureAwait(false))
+            await foreach (var evt in secondStream.ConfigureAwait(false))
             {
                 newEventReceived.TrySetResult(evt);
                 break;

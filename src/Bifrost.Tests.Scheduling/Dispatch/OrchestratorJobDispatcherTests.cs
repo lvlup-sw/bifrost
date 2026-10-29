@@ -39,7 +39,7 @@ public sealed class OrchestratorJobDispatcherTests
     {
         var orchestrator = Substitute.For<IWorkOrchestrator<Payload>>();
         orchestrator
-            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Accepted);
 
         var fireCalls = 0;
@@ -58,7 +58,7 @@ public sealed class OrchestratorJobDispatcherTests
         await Assert.That(fireCalls).IsEqualTo(1);
         _ = orchestrator.Received(1).EnqueueAsync(
             Arg.Is<Payload>(p => p.Value == "built"),
-            Arg.Any<WorkClass>(),
+            Arg.Any<WorkEnqueueOptions>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -72,7 +72,7 @@ public sealed class OrchestratorJobDispatcherTests
     {
         var orchestrator = Substitute.For<IWorkOrchestrator<Payload>>();
         orchestrator
-            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Accepted);
 
         var dispatcher = new OrchestratorJobDispatcher<Payload>(
@@ -99,7 +99,7 @@ public sealed class OrchestratorJobDispatcherTests
     {
         var orchestrator = Substitute.For<IWorkOrchestrator<Payload>>();
         orchestrator
-            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Accepted);
 
         var dispatcher = new OrchestratorJobDispatcher<Payload>(
@@ -129,7 +129,7 @@ public sealed class OrchestratorJobDispatcherTests
     {
         var orchestrator = Substitute.For<IWorkOrchestrator<Payload>>();
         orchestrator
-            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Rejected(RejectionReason.WatermarkExceeded));
 
         var sink = new RecordingSchedulerEventSink();
@@ -174,12 +174,12 @@ public sealed class OrchestratorJobDispatcherTests
 
         // The fire never reached admission.
         _ = orchestrator.DidNotReceive().EnqueueAsync(
-            Arg.Any<Payload>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>());
+            Arg.Any<Payload>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
     /// Verifies caller-token cancellation propagates: when
-    /// <see cref="IWorkOrchestrator{TWork}.EnqueueAsync"/> throws an
+    /// <see cref="IWorkWriter{TWork}.EnqueueAsync"/> throws an
     /// <see cref="OperationCanceledException"/>, it is not swallowed — unlike an
     /// admission rejection, which does not throw.
     /// </summary>
@@ -189,7 +189,7 @@ public sealed class OrchestratorJobDispatcherTests
     {
         var orchestrator = Substitute.For<IWorkOrchestrator<Payload>>();
         orchestrator
-            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns<ValueTask<EnqueueResult>>(_ => throw new OperationCanceledException());
 
         var sink = new RecordingSchedulerEventSink();
@@ -216,7 +216,7 @@ public sealed class OrchestratorJobDispatcherTests
     {
         var orchestrator = Substitute.For<IWorkOrchestrator<Payload>>();
         orchestrator
-            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Accepted);
 
         JobFireContext? seen = null;
@@ -274,7 +274,7 @@ public sealed class OrchestratorJobDispatcherTests
     {
         var orchestrator = Substitute.For<IWorkOrchestrator<Payload>>();
         orchestrator
-            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+            .EnqueueAsync(Arg.Any<Payload>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Rejected(RejectionReason.CapacityExceeded));
 
         var sink = new RecordingSchedulerEventSink();

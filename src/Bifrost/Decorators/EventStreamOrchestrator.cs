@@ -69,85 +69,6 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     public int Capacity => _inner.Capacity;
 
     /// <inheritdoc/>
-    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
-    {
-        var result = await _inner.EnqueueAsync(work, workClass, ct).ConfigureAwait(false);
-
-        if (result.IsAccepted)
-        {
-            var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
-            PublishToSubscribers(evt);
-        }
-
-        return result;
-    }
-
-    /// <inheritdoc/>
-    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, string? correlationId, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
-    {
-        var result = await _inner.EnqueueAsync(work, workClass, ct).ConfigureAwait(false);
-
-        if (result.IsAccepted)
-        {
-            var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount, correlationId);
-            PublishToSubscribers(evt);
-        }
-
-        return result;
-    }
-
-    /// <inheritdoc/>
-    public bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default)
-    {
-        var result = _inner.TryEnqueue(work, workClass);
-
-        if (result)
-        {
-            var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
-            PublishToSubscribers(evt);
-        }
-
-        return result;
-    }
-
-    /// <inheritdoc/>
-    public bool TryEnqueue(TWork work, string? correlationId, WorkClass workClass = WorkClass.Default)
-    {
-        var result = _inner.TryEnqueue(work, workClass);
-
-        if (result)
-        {
-            var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount, correlationId);
-            PublishToSubscribers(evt);
-        }
-
-        return result;
-    }
-
-    /// <inheritdoc/>
-    public void Run(TWork work, WorkClass workClass = WorkClass.Default)
-    {
-        _inner.Run(work, workClass);
-
-        var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
-        PublishToSubscribers(evt);
-    }
-
-    /// <inheritdoc/>
-    public bool TryRun(TWork work, WorkClass workClass = WorkClass.Default)
-    {
-        var result = _inner.TryRun(work, workClass);
-
-        if (result)
-        {
-            var evt = new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount);
-            PublishToSubscribers(evt);
-        }
-
-        return result;
-    }
-
-    /// <inheritdoc/>
     public Func<string, CancellationToken, Task> CreateWorkerFunction()
         => _inner.CreateWorkerFunction();
 
@@ -182,9 +103,9 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     }
 
     /// <inheritdoc/>
-    public Task StopAsync(CancellationToken ct = default)
+    public Task AbortAsync(CancellationToken ct = default)
     {
-        return _inner.StopAsync(ct);
+        return _inner.AbortAsync(ct);
     }
 
     /// <inheritdoc/>
@@ -385,5 +306,32 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
                 throw;
             }
         }
+    }
+
+    /// <inheritdoc/>
+    public void Complete() => _inner.Complete();
+
+    /// <inheritdoc/>
+    public Task Completion => _inner.Completion;
+
+    /// <inheritdoc/>
+    public EnqueueResult Enqueue(TWork work, WorkEnqueueOptions options = default)
+    {
+        var result = _inner.Enqueue(work, options);
+        if (result.IsAccepted)
+            PublishToSubscribers(new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount, options.CorrelationId));
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public bool TryEnqueue(TWork work, WorkEnqueueOptions options = default) => Enqueue(work, options).IsAccepted;
+
+    /// <inheritdoc/>
+    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkEnqueueOptions options = default, CancellationToken ct = default)
+    {
+        var result = await _inner.EnqueueAsync(work, options, ct).ConfigureAwait(false);
+        if (result.IsAccepted)
+            PublishToSubscribers(new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount, options.CorrelationId));
+        return result;
     }
 }

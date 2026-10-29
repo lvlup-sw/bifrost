@@ -76,38 +76,10 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public int PendingCount => _inner.PendingCount;
 
     /// <inheritdoc/>
-    public int ActiveWorkers => _options.Enabled
-        ? _inner.ActiveWorkers + _registry.ActiveWorkerCount
-        : _inner.ActiveWorkers;
+    public int ActiveWorkers => _inner.ActiveWorkers;
 
     /// <inheritdoc/>
     public int Capacity => _inner.Capacity;
-
-    /// <inheritdoc/>
-    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
-    {
-        var result = await _inner.EnqueueAsync(work, workClass, ct).ConfigureAwait(false);
-
-        if (result.IsAccepted && _options.Enabled)
-        {
-            _metrics.RecordEnqueue();
-        }
-
-        return result;
-    }
-
-    /// <inheritdoc/>
-    public bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default)
-    {
-        var result = _inner.TryEnqueue(work, workClass);
-
-        if (result && _options.Enabled)
-        {
-            _metrics.RecordEnqueue();
-        }
-
-        return result;
-    }
 
     /// <summary>
     /// Requests the autoscaler to add workers.
@@ -161,7 +133,8 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
             // Get a worker function from the inner orchestrator, which captures the real channel reader
             var workerFunc = _inner.CreateWorkerFunction(StateCallback);
 
-            await _registry.CreateWorkerAsync(workerId, workerFunc, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await _registry.CreateWorkerAsync(workerId, workerFunc, _inner.GetShutdownToken()).ConfigureAwait(false);
         }
     }
 
@@ -192,30 +165,6 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     }
 
     /// <inheritdoc/>
-    public void Run(TWork work, WorkClass workClass = WorkClass.Default)
-    {
-        _inner.Run(work, workClass);
-
-        if (_options.Enabled)
-        {
-            _metrics.RecordEnqueue();
-        }
-    }
-
-    /// <inheritdoc/>
-    public bool TryRun(TWork work, WorkClass workClass = WorkClass.Default)
-    {
-        var result = _inner.TryRun(work, workClass);
-
-        if (result && _options.Enabled)
-        {
-            _metrics.RecordEnqueue();
-        }
-
-        return result;
-    }
-
-    /// <inheritdoc/>
     public Func<string, CancellationToken, Task> CreateWorkerFunction()
         => _inner.CreateWorkerFunction();
 
@@ -232,14 +181,39 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
         => _inner.DrainAsync(ct);
 
     /// <inheritdoc/>
-    public Task StopAsync(CancellationToken ct = default)
+    public Task AbortAsync(CancellationToken ct = default)
     {
-        return _inner.StopAsync(ct);
+        return _inner.AbortAsync(ct);
     }
 
     /// <inheritdoc/>
     public ValueTask DisposeAsync()
     {
         return _inner.DisposeAsync();
+    }
+
+    /// <inheritdoc/>
+    public void Complete() => _inner.Complete();
+
+    /// <inheritdoc/>
+    public Task Completion => _inner.Completion;
+
+    /// <inheritdoc/>
+    public EnqueueResult Enqueue(TWork work, WorkEnqueueOptions options = default)
+    {
+        var result = _inner.Enqueue(work, options);
+        if (result.IsAccepted && _options.Enabled) _metrics.RecordEnqueue();
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public bool TryEnqueue(TWork work, WorkEnqueueOptions options = default) => Enqueue(work, options).IsAccepted;
+
+    /// <inheritdoc/>
+    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkEnqueueOptions options = default, CancellationToken ct = default)
+    {
+        var result = await _inner.EnqueueAsync(work, options, ct).ConfigureAwait(false);
+        if (result.IsAccepted && _options.Enabled) _metrics.RecordEnqueue();
+        return result;
     }
 }

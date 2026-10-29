@@ -55,6 +55,7 @@ var host = Host.CreateDefaultBuilder(args)
         // without any runtime type lookup or Activator.CreateInstance.
         services.AddWorkOrchestrator<SmokeWork>()
                 .WithHandler<SmokeWork, SmokeWorkHandler>()
+                .UsePriorityDispatch(DispatchStrategy.PriorityExact)
                 .Build();
 
         // Register a custom dispatcher for mode 4 (resolved by generic DI, not

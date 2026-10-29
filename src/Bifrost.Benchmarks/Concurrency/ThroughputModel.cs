@@ -56,7 +56,7 @@ public enum ThroughputTarget
     MultiQueueRelaxed,
 
     /// <summary>
-    /// The MultiQueue <c>ConcurrentPriorityQueue</c> using the strict <c>TryDequeueMin</c>: the exact
+    /// The MultiQueue <c>ConcurrentPriorityQueue</c> using the strict <c>TryDequeueBestObserved</c>: the exact
     /// global-minimum path, an O(n) scan that carries no scalability claim — included so the sweep
     /// shows the cost of strictness against the relaxed path.
     /// </summary>

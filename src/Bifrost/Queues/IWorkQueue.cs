@@ -47,6 +47,11 @@ namespace Bifrost.Queues;
 /// </remarks>
 public interface IWorkQueue<T>
 {
+    /// <summary>Attempts immediate admission and reports its outcome.</summary>
+    /// <param name="item">The item to admit.</param>
+    /// <returns>The admission outcome.</returns>
+    Bifrost.Core.EnqueueResult Enqueue(in T item);
+
     /// <summary>
     /// Gets the number of items currently in the queue.
     /// </summary>

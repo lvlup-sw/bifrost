@@ -419,7 +419,8 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     /// <param name="element">The element to store.</param>
     /// <param name="priority">The priority that orders the entry.</param>
-    internal void HeapPush(TElement element, TPriority priority)
+    /// <returns>Whether this entry became the root (strictly smaller than the old root, or first entry).</returns>
+    internal bool HeapPush(TElement element, TPriority priority)
     {
         if (_size == _nodes.Length)
         {
@@ -427,16 +428,22 @@ internal sealed class SubQueue<TElement, TPriority>
         }
 
         int index = _size;
-        _size = index + 1;
-
-        if (typeof(TPriority).IsValueType && _comparer is null)
+        bool becameRoot;
+        if (HasNonThrowingComparer)
         {
-            MoveUpDefaultComparer(index, element, priority);
+            becameRoot = FastMoveUpDefaultComparer(index, element, priority);
+        }
+        else if (typeof(TPriority).IsValueType && _comparer is null)
+        {
+            becameRoot = MoveUpDefaultComparer(index, element, priority);
         }
         else
         {
-            MoveUpCustomComparer(index, element, priority);
+            becameRoot = MoveUpCustomComparer(index, element, priority);
         }
+
+        _size = index + 1;
+        return becameRoot;
     }
 
     /// <summary>
@@ -446,7 +453,8 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <param name="element">The popped element, when the heap was non-empty.</param>
     /// <param name="priority">The popped (minimum) priority, when the heap was non-empty.</param>
     /// <returns><see langword="true"/> if an entry was popped; <see langword="false"/> if empty.</returns>
-    internal bool TryHeapPop(out TElement element, out TPriority priority)
+    /// <param name="trackRoot">Whether to precompute publication changes.</param>
+    internal bool TryHeapPop(out TElement element, out TPriority priority, bool trackRoot = false)
     {
         if (_size == 0)
         {
@@ -458,29 +466,35 @@ internal sealed class SubQueue<TElement, TPriority>
         (TElement Element, TPriority Priority)[] nodes = _nodes;
         (element, priority) = nodes[0];
 
-        int last = --_size;
+        int last = _size - 1;
 
         if (last > 0)
         {
             // Move the last entry into the root hole, then sift it down to its place.
             (TElement Element, TPriority Priority) moving = nodes[last];
 
-            if (typeof(TPriority).IsValueType && _comparer is null)
+            if (HasNonThrowingComparer)
             {
-                MoveDownDefaultComparer(0, moving.Element, moving.Priority);
+                FastMoveDownDefaultComparer(0, moving.Element, moving.Priority, last);
+                if (trackRoot) _rootChanged = CompareEffective(nodes[0].Priority, priority) != 0;
+            }
+            else if (typeof(TPriority).IsValueType && _comparer is null)
+            {
+                MoveDownDefaultComparer(0, moving.Element, moving.Priority, last, trackRoot);
             }
             else
             {
-                MoveDownCustomComparer(0, moving.Element, moving.Priority);
+                MoveDownCustomComparer(0, moving.Element, moving.Priority, last, trackRoot);
             }
         }
 
         // Gated slot clear: only release references; value-type-only entries skip the write.
         if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
         {
-            nodes[last] = default;
+            WriteNode(last, default);
         }
 
+        _size = last;
         return true;
     }
 
@@ -504,13 +518,13 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <summary>
     /// Peeks this sub-queue's LIVE minimum entry without removing it: <c>D.front()</c> (the buffered
     /// resident minimum, which is also the published top) when buffering is enabled, otherwise the
-    /// arity-4 heap root. Used by the strict-min revalidation path
-    /// (<see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryPeek"/> and
-    /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryDequeueMin"/>), which re-reads the
+    /// arity-4 heap root. Used by the best-observed revalidation path
+    /// (<see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryPeekBestObserved"/> and
+    /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryDequeueBestObserved"/>), which re-reads the
     /// winning sub-queue's live minimum under the held lock before accepting or popping it.
     /// </summary>
     /// <remarks>
-    /// Called only under <see cref="SyncLock"/> by the strict-min path, but like
+    /// Called only under <see cref="SyncLock"/> by the best-observed path, but like
     /// <see cref="TryHeapPeekRoot"/> it does not itself assert the lock. The
     /// <c>_bufferCapacity == 0</c> branch delegates verbatim to <see cref="TryHeapPeekRoot"/>, keeping
     /// the unbuffered (default) path bit-exact with the pre-feature behavior; the buffered branch reads
@@ -628,145 +642,177 @@ internal sealed class SubQueue<TElement, TPriority>
     /// the root, shifting larger ancestors down into the hole, and places it once at the end.
     /// Mirrors <c>PriorityQueue.MoveUpDefaultComparer</c>.
     /// </summary>
-    private void MoveUpDefaultComparer(int index, TElement element, TPriority priority)
+    private bool MoveUpDefaultComparer(int index, TElement element, TPriority priority)
     {
-        (TElement Element, TPriority Priority)[] nodes = _nodes;
-
-        while (index > 0)
+        var nodes = _nodes;
+        int target = index;
+        while (target > 0)
         {
-            int parent = (index - 1) >> 2;
-
-            if (Comparer<TPriority>.Default.Compare(priority, nodes[parent].Priority) >= 0)
-            {
-                break;
-            }
-
-            nodes[index] = nodes[parent];
-            index = parent;
+            int parent = (target - 1) >> 2;
+            if (Comparer<TPriority>.Default.Compare(priority, nodes[parent].Priority) >= 0) break;
+            target = parent;
         }
 
-        nodes[index] = (element, priority);
+        CommitAscent(index, target, element, priority);
+        return target == 0;
     }
 
-    /// <summary>
-    /// Hole-based sift-up on the cached-comparer path (custom comparer, or any reference-type
-    /// priority): identical structure to <see cref="MoveUpDefaultComparer"/> but ordered through the
-    /// stored comparer field. Mirrors <c>PriorityQueue.MoveUpCustomComparer</c>.
-    /// </summary>
-    private void MoveUpCustomComparer(int index, TElement element, TPriority priority)
+    /// <summary>Compares the sift path before committing any heap writes.</summary>
+    private bool MoveUpCustomComparer(int index, TElement element, TPriority priority)
     {
-        IComparer<TPriority> cmp = _comparer!;
-        (TElement Element, TPriority Priority)[] nodes = _nodes;
-
-        while (index > 0)
+        var nodes = _nodes;
+        var comparer = _comparer!;
+        int target = index;
+        while (target > 0)
         {
-            int parent = (index - 1) >> 2;
-
-            if (cmp.Compare(priority, nodes[parent].Priority) >= 0)
-            {
-                break;
-            }
-
-            nodes[index] = nodes[parent];
-            index = parent;
+            int parent = (target - 1) >> 2;
+            if (comparer.Compare(priority, nodes[parent].Priority) >= 0) break;
+            target = parent;
         }
 
-        nodes[index] = (element, priority);
+        CommitAscent(index, target, element, priority);
+        return target == 0;
     }
 
-    /// <summary>
-    /// Hole-based sift-down on the devirtualized default-comparer path: repeatedly finds the
-    /// smallest of the (up to four) children, and if it is smaller than the moving entry, shifts it
-    /// into the hole; otherwise the moving entry is placed and the walk stops.
-    /// Mirrors <c>PriorityQueue.MoveDownDefaultComparer</c>.
-    /// </summary>
-    private void MoveDownDefaultComparer(int index, TElement element, TPriority priority)
+    /// <summary>Records the chosen children before committing the sift.</summary>
+    private void MoveDownDefaultComparer(int index, TElement element, TPriority priority, int count, bool trackRoot)
     {
-        (TElement Element, TPriority Priority)[] nodes = _nodes;
-        int count = _size;
-
-        while (true)
+        var nodes = _nodes;
+        Span<int> path = stackalloc int[16]; // An Int32-indexed quaternary heap has at most 16 levels.
+        int length = 0;
+        int start = index;
+        int lastParent = (count - 2) >> 2;
+        while (index <= lastParent)
         {
             int firstChild = (index << 2) + 1;
-            if (firstChild >= count)
-            {
-                break;
-            }
-
-            // Find the minimum child among the up-to-four children [firstChild, lastChild].
             int minChild = firstChild;
             TPriority minPriority = nodes[firstChild].Priority;
             int lastChild = Math.Min(firstChild + 3, count - 1);
-
             for (int child = firstChild + 1; child <= lastChild; child++)
             {
                 TPriority candidate = nodes[child].Priority;
-                if (Comparer<TPriority>.Default.Compare(candidate, minPriority) >= 0)
-                {
-                    continue;
-                }
-
+                if (Comparer<TPriority>.Default.Compare(candidate, minPriority) >= 0) continue;
                 minChild = child;
                 minPriority = candidate;
             }
 
-            if (Comparer<TPriority>.Default.Compare(minPriority, priority) >= 0)
-            {
-                break;
-            }
-
-            nodes[index] = nodes[minChild];
+            if (Comparer<TPriority>.Default.Compare(minPriority, priority) >= 0) break;
+            path[length++] = minChild;
             index = minChild;
         }
 
-        nodes[index] = (element, priority);
-    }
-
-    /// <summary>
-    /// Hole-based sift-down on the cached-comparer path: identical structure to
-    /// <see cref="MoveDownDefaultComparer"/> but ordered through the stored comparer field.
-    /// Mirrors <c>PriorityQueue.MoveDownCustomComparer</c>.
-    /// </summary>
-    private void MoveDownCustomComparer(int index, TElement element, TPriority priority)
-    {
-        IComparer<TPriority> cmp = _comparer!;
-        (TElement Element, TPriority Priority)[] nodes = _nodes;
-        int count = _size;
-
-        while (true)
+        if (trackRoot)
         {
-            int firstChild = (index << 2) + 1;
-            if (firstChild >= count)
+            TPriority nextRoot = length == 0 ? priority : nodes[path[0]].Priority;
+            _rootChanged = Comparer<TPriority>.Default.Compare(nextRoot, nodes[start].Priority) != 0;
+        }
+
+        index = start;
+        if (_journalActive)
+        {
+            for (int i = 0; i < length; i++)
             {
-                break;
+                WriteNode(index, nodes[path[i]]);
+                index = path[i];
             }
 
+            WriteNode(index, (element, priority));
+        }
+        else
+        {
+            for (int i = 0; i < length; i++)
+            {
+                nodes[index] = nodes[path[i]];
+                index = path[i];
+            }
+
+            nodes[index] = (element, priority);
+        }
+    }
+
+    /// <summary>Records the chosen children before committing the sift.</summary>
+    private void MoveDownCustomComparer(int index, TElement element, TPriority priority, int count, bool trackRoot)
+    {
+        var nodes = _nodes;
+        Span<int> path = stackalloc int[16]; // An Int32-indexed quaternary heap has at most 16 levels.
+        int length = 0;
+        int start = index;
+        int lastParent = (count - 2) >> 2;
+        while (index <= lastParent)
+        {
+            int firstChild = (index << 2) + 1;
             int minChild = firstChild;
             TPriority minPriority = nodes[firstChild].Priority;
             int lastChild = Math.Min(firstChild + 3, count - 1);
-
             for (int child = firstChild + 1; child <= lastChild; child++)
             {
                 TPriority candidate = nodes[child].Priority;
-                if (cmp.Compare(candidate, minPriority) >= 0)
-                {
-                    continue;
-                }
-
+                if (_comparer!.Compare(candidate, minPriority) >= 0) continue;
                 minChild = child;
                 minPriority = candidate;
             }
 
-            if (cmp.Compare(minPriority, priority) >= 0)
-            {
-                break;
-            }
-
-            nodes[index] = nodes[minChild];
+            if (_comparer!.Compare(minPriority, priority) >= 0) break;
+            path[length++] = minChild;
             index = minChild;
         }
 
-        nodes[index] = (element, priority);
+        if (trackRoot)
+        {
+            TPriority nextRoot = length == 0 ? priority : nodes[path[0]].Priority;
+            _rootChanged = _comparer!.Compare(nextRoot, nodes[start].Priority) != 0;
+        }
+
+        index = start;
+        if (_journalActive)
+        {
+            for (int i = 0; i < length; i++)
+            {
+                WriteNode(index, nodes[path[i]]);
+                index = path[i];
+            }
+
+            WriteNode(index, (element, priority));
+        }
+        else
+        {
+            for (int i = 0; i < length; i++)
+            {
+                nodes[index] = nodes[path[i]];
+                index = path[i];
+            }
+
+            nodes[index] = (element, priority);
+        }
+    }
+
+    /// <summary>Commits a compared ascent, testing transaction state once outside the copy loop.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CommitAscent(int index, int target, TElement element, TPriority priority)
+    {
+        var nodes = _nodes;
+        if (_journalActive)
+        {
+            while (index > target)
+            {
+                int parent = (index - 1) >> 2;
+                WriteNode(index, nodes[parent]);
+                index = parent;
+            }
+
+            WriteNode(index, (element, priority));
+        }
+        else
+        {
+            while (index > target)
+            {
+                int parent = (index - 1) >> 2;
+                nodes[index] = nodes[parent];
+                index = parent;
+            }
+
+            nodes[index] = (element, priority);
+        }
     }
 
     /// <summary>
@@ -789,12 +835,19 @@ internal sealed class SubQueue<TElement, TPriority>
 
         try
         {
-            // The single predictable branch: buffering on or off. The off-path (the overwhelmingly
-            // common default until #30) is the pre-feature heap push verbatim; the on-path routes
-            // through the insertion/deletion buffers.
+            // Buffering is opt-in. Unknown comparers need rollback when a full I buffer
+            // causes multiple heap mutations; built-in numeric comparisons cannot throw.
+            // Classify first so those comparers skip the transaction-trigger field reads.
             if (_bufferCapacity > 0)
             {
-                BufferedPush(element, priority);
+                if (!HasNonThrowingComparer && _insertionCount == _bufferCapacity)
+                {
+                    BufferedTransaction(element, priority, pop: false, out _, out _);
+                }
+                else
+                {
+                    BufferedPush(element, priority);
+                }
             }
             else
             {
@@ -810,7 +863,7 @@ internal sealed class SubQueue<TElement, TPriority>
     }
 
     /// <summary>
-    /// The unbuffered (<c>bufferCapacity == 0</c>) push: the pre-feature behavior verbatim — heap-push,
+    /// The unbuffered (<c>bufferCapacity == 0</c>) push: heap-push with comparer exception safety,
     /// republish only on a root change, set occupancy on the empty→non-empty crossing, write the count.
     /// Assumes <see cref="SyncLock"/> is held.
     /// </summary>
@@ -819,17 +872,14 @@ internal sealed class SubQueue<TElement, TPriority>
     private void UnbufferedPush(TElement element, TPriority priority)
     {
         bool wasEmpty = _size == 0;
-        TPriority previousRoot = wasEmpty ? default! : _nodes[0].Priority;
-
-        HeapPush(element, priority);
+        // Reaching index zero during the sift already proves a strict root change.
+        // Reuse that decision instead of calling the comparer again for publication.
+        bool publish = HeapPush(element, priority);
 
         // Republish only when the minimum changed: first entry, or strictly smaller than
         // the previous root. An equal-priority push leaves the published value correct.
-        if (wasEmpty || CompareEffective(priority, previousRoot) < 0)
+        if (publish)
         {
-            Debug.Assert(
-                CompareEffective(_nodes[0].Priority, priority) == 0,
-                "Publishing a pushed priority that did not become the heap root.");
             PublishTop(priority, empty: false);
         }
 
@@ -856,7 +906,7 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <see cref="SubQueuePopStatus.Empty"/> when the lock was acquired but the heap is empty
     /// (counts toward a caller's empty-verification pass); or
     /// <see cref="SubQueuePopStatus.Contended"/> when the lock was held elsewhere and nothing
-    /// was observed (the caller resamples; a contended queue means progress is being made).
+    /// was observed (the caller resamples; progress may depend on the lock holder resuming).
     /// </returns>
     internal SubQueuePopStatus TryLockedPop(out TElement element, out TPriority priority)
     {
@@ -881,8 +931,8 @@ internal sealed class SubQueue<TElement, TPriority>
     /// Pops the minimum entry assuming <see cref="SyncLock"/> is <i>already held by the caller</i>,
     /// maintaining the published top and the striped count. The caller owns acquiring and releasing
     /// the lock; this lets a caller that revalidated the live root under the lock pop that exact root
-    /// without an intervening unlock window in which another thread could swap it (the strict-min
-    /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryDequeueMin"/> path relies on this).
+    /// without an intervening unlock window in which another thread could swap it (the best-observed
+    /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryDequeueBestObserved"/> path relies on this).
     /// </summary>
     /// <param name="element">The removed element, on <see cref="SubQueuePopStatus.Success"/>.</param>
     /// <param name="priority">The removed priority, on <see cref="SubQueuePopStatus.Success"/>.</param>
@@ -891,19 +941,26 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <see cref="SubQueuePopStatus.Empty"/> when the heap is empty. Never returns
     /// <see cref="SubQueuePopStatus.Contended"/>: the caller already holds the lock.
     /// </returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal SubQueuePopStatus PopHeldRoot(out TElement element, out TPriority priority)
     {
         Debug.Assert(SyncLock.IsHeldByCurrentThread, "PopHeldRoot requires the sub-queue lock held by the caller.");
 
-        // The single predictable branch: buffering on or off. The off-path is the pre-feature heap pop
-        // verbatim; the on-path serves D.front() and refills D from the heap when it empties.
-        return _bufferCapacity > 0
-            ? BufferedPopHeldRoot(out element, out priority)
-            : UnbufferedPopHeldRoot(out element, out priority);
+        // Buffered removal serves D.front() and refills from the heap when it empties.
+        // Unknown comparers require rollback across that compound refill.
+        if (_bufferCapacity == 0) return UnbufferedPopHeldRoot(out element, out priority);
+        // With at most one remaining entry, flushing/refilling cannot compare: pushing into
+        // an empty heap and popping its sole entry invoke no user code. Keep the identical
+        // refill path, but avoid copying both buffers and opening a journal in that case.
+        // Count is exact under this lock. With D holding one item, Count > 2 means
+        // the refill has at least two remaining entries and may invoke the comparer.
+        if (!HasNonThrowingComparer && _header.Count > 2 && _deletionCount == 1)
+            return BufferedTransaction(default!, default!, pop: true, out element, out priority);
+        return BufferedPopHeldRoot(out element, out priority);
     }
 
     /// <summary>
-    /// The unbuffered (<c>bufferCapacity == 0</c>) pop: the pre-feature behavior verbatim — heap-pop,
+    /// The unbuffered (<c>bufferCapacity == 0</c>) pop: heap-pop with comparer exception safety,
     /// publish empty + clear occupancy on a drain, else republish the new root only on a change, write
     /// the count. Assumes <see cref="SyncLock"/> is held.
     /// </summary>
@@ -912,7 +969,7 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <returns><see cref="SubQueuePopStatus.Success"/> with the former root, or <see cref="SubQueuePopStatus.Empty"/>.</returns>
     private SubQueuePopStatus UnbufferedPopHeldRoot(out TElement element, out TPriority priority)
     {
-        if (!TryHeapPop(out element, out priority))
+        if (!TryHeapPop(out element, out priority, trackRoot: !HasNonThrowingComparer))
         {
             return SubQueuePopStatus.Empty;
         }
@@ -932,7 +989,7 @@ internal sealed class SubQueue<TElement, TPriority>
             // Republish only when the exposed root's priority differs from the popped one;
             // a duplicate minimum leaves the published priority value already correct.
             TPriority newRoot = _nodes[0].Priority;
-            if (CompareEffective(newRoot, priority) != 0)
+            if (HasNonThrowingComparer ? CompareEffective(newRoot, priority) != 0 : _rootChanged)
             {
                 PublishTop(newRoot, empty: false);
             }
@@ -1026,7 +1083,15 @@ internal sealed class SubQueue<TElement, TPriority>
         CountBufferedPopHit();
 
         int remaining = _deletionCount - 1;
-        if (remaining > 0)
+        // Tiny, reference-free entries avoid the native overlapping-copy transition.
+        // Larger entries and GC references retain the runtime's bulk-copy implementation.
+        // This forward copy preserves overlap; it neither compares nor changes the refill path.
+        if (!RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>() &&
+            Unsafe.SizeOf<(TElement, TPriority)>() <= sizeof(ulong))
+        {
+            for (int i = 0; i < remaining; i++) d[i] = d[i + 1];
+        }
+        else if (remaining > 0)
         {
             d.Slice(1, remaining).CopyTo(d.Slice(0, remaining));
         }
@@ -1056,6 +1121,139 @@ internal sealed class SubQueue<TElement, TPriority>
 
         WriteBufferedCount();
         return SubQueuePopStatus.Success;
+    }
+
+    // Built-in numeric default comparers cannot invoke user code. Preserve their original
+    // single-pass sift hot path; arbitrary IComparable implementations use preflight/rollback.
+    private bool HasNonThrowingComparer
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _comparer is null &&
+            (typeof(TPriority) == typeof(int) || typeof(TPriority) == typeof(long) ||
+             typeof(TPriority) == typeof(uint) || typeof(TPriority) == typeof(ulong) ||
+             typeof(TPriority) == typeof(short) || typeof(TPriority) == typeof(ushort) ||
+             typeof(TPriority) == typeof(byte) || typeof(TPriority) == typeof(sbyte) ||
+             typeof(TPriority) == typeof(float) || typeof(TPriority) == typeof(double) ||
+             typeof(TPriority) == typeof(decimal) || typeof(TPriority) == typeof(char));
+    }
+
+    private bool FastMoveUpDefaultComparer(int index, TElement element, TPriority priority)
+    {
+        (TElement Element, TPriority Priority)[] nodes = _nodes;
+
+        while (index > 0)
+        {
+            int parent = (index - 1) >> 2;
+
+            if (Comparer<TPriority>.Default.Compare(priority, nodes[parent].Priority) >= 0)
+            {
+                break;
+            }
+
+            nodes[index] = nodes[parent];
+            index = parent;
+        }
+
+        nodes[index] = (element, priority);
+        return index == 0;
+    }
+
+    private void FastMoveDownDefaultComparer(int index, TElement element, TPriority priority, int count)
+    {
+        (TElement Element, TPriority Priority)[] nodes = _nodes;
+
+        while (true)
+        {
+            int firstChild = (index << 2) + 1;
+            if (firstChild >= count)
+            {
+                break;
+            }
+
+            // Find the minimum child among the up-to-four children [firstChild, lastChild].
+            int minChild = firstChild;
+            TPriority minPriority = nodes[firstChild].Priority;
+            int lastChild = Math.Min(firstChild + 3, count - 1);
+
+            for (int child = firstChild + 1; child <= lastChild; child++)
+            {
+                TPriority candidate = nodes[child].Priority;
+                if (Comparer<TPriority>.Default.Compare(candidate, minPriority) >= 0)
+                {
+                    continue;
+                }
+
+                minChild = child;
+                minPriority = candidate;
+            }
+
+            if (Comparer<TPriority>.Default.Compare(minPriority, priority) >= 0)
+            {
+                break;
+            }
+
+            nodes[index] = nodes[minChild];
+            index = minChild;
+        }
+
+        nodes[index] = (element, priority);
+    }
+
+    private bool _rootChanged;
+    private bool _journalActive;
+    private int _journalCount;
+    private (int Index, (TElement Element, TPriority Priority) Entry)[] _journal = [];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void WriteNode(int index, (TElement Element, TPriority Priority) entry)
+    {
+        if (_journalActive) RecordOverwrite(index);
+        _nodes[index] = entry;
+    }
+
+    // Keep allocation and journal bookkeeping out of every inlined heap write.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void RecordOverwrite(int index)
+    {
+        if (_journalCount == _journal.Length)
+            Array.Resize(ref _journal, Math.Max(32, _journalCount * 2));
+        _journal[_journalCount++] = (index, _nodes[index]);
+    }
+
+    /// <summary>Rolls back a compound buffer operation without invoking user code.</summary>
+    private SubQueuePopStatus BufferedTransaction(TElement value, TPriority key, bool pop,
+        out TElement element, out TPriority priority)
+    {
+        var insertion = _insertion;
+        var deletion = _deletion;
+        int insertionCount = _insertionCount, deletionCount = _deletionCount, size = _size;
+        _journalActive = true;
+        try
+        {
+            if (pop) return BufferedPopHeldRoot(out element, out priority);
+            BufferedPush(value, key);
+            element = default!;
+            priority = default!;
+            return SubQueuePopStatus.Success;
+        }
+        catch
+        {
+            for (int i = _journalCount - 1; i >= 0; i--)
+                _nodes[_journal[i].Index] = _journal[i].Entry;
+            _insertion = insertion;
+            _deletion = deletion;
+            _insertionCount = insertionCount;
+            _deletionCount = deletionCount;
+            _size = size;
+            throw;
+        }
+        finally
+        {
+            _journalActive = false;
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
+                Array.Clear(_journal, 0, _journalCount);
+            _journalCount = 0;
+        }
     }
 
     /// <summary>
@@ -1100,6 +1298,19 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <param name="priority">The priority that orders the entry.</param>
     private void SortedInsertIntoDeletion(TElement element, TPriority priority)
     {
+        int hole = _deletionCount;
+        if (hole == _bufferCapacity) hole--;
+        var original = DeletionSpan(_deletionCount);
+        if (typeof(TPriority).IsValueType && _comparer is null)
+        {
+            while (hole > 0 && Comparer<TPriority>.Default.Compare(priority, original[hole - 1].Priority) < 0) hole--;
+        }
+        else
+        {
+            var comparer = _comparer!;
+            while (hole > 0 && comparer.Compare(priority, original[hole - 1].Priority) < 0) hole--;
+        }
+
         if (_deletionCount == _bufferCapacity)
         {
             // D is full: evict its max to make room. The evicted max is the largest resident minimum,
@@ -1114,12 +1325,6 @@ internal sealed class SubQueue<TElement, TPriority>
         // Hole-shift: walk from the (now-vacant) tail toward the front, shifting larger entries up one,
         // then drop the new entry into the hole. CopyTo of the moving block is barrier-correct.
         Span<(TElement Element, TPriority Priority)> d = DeletionSpan(_deletionCount + 1);
-        int hole = _deletionCount;
-        while (hole > 0 && CompareEffective(priority, d[hole - 1].Priority) < 0)
-        {
-            hole--;
-        }
-
         int shift = _deletionCount - hole;
         if (shift > 0)
         {

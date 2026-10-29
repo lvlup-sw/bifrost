@@ -24,9 +24,9 @@ namespace Bifrost.Tests.DependencyInjection;
 public class PriorityDispatchExtensionsBindingTests
 {
     /// <summary>
-    /// Verifies that <c>UsePriorityDispatch()</c> with the default binding sets
-    /// <see cref="DispatchStrategy.Priority"/> on the options and
-    /// <see cref="PriorityBinding.Auto"/> on <c>Priority.Binding</c>.
+    /// Verifies that <c>UsePriorityDispatch(DispatchStrategy.PriorityRelaxed)</c> with the default binding sets
+    /// <see cref="DispatchStrategy.PriorityRelaxed"/> on the options and
+    /// <see cref="DispatchStrategy.PriorityRelaxed"/> on <c>Priority.Binding</c>.
     /// </summary>
     [Test]
     public async Task UsePriorityDispatch_DefaultBinding_SetsPrioritySentinelAndAutoIntent()
@@ -40,21 +40,20 @@ public class PriorityDispatchExtensionsBindingTests
             opts.Capacity = 16;
             opts.WorkerCount = 1;
         })
-        .UsePriorityDispatch()
+        .UsePriorityDispatch(DispatchStrategy.PriorityRelaxed)
         .Build();
 
         await using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IOptions<WorkOrchestratorOptions>>().Value;
+        var options = provider.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<string>());
 
         // Assert — DispatchStrategy must be the Priority sentinel (not a concrete one).
-        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.Priority);
         // And the Binding intent must be Auto (the default).
-        await Assert.That(options.Priority.Binding).IsEqualTo(PriorityBinding.Auto);
+        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.PriorityRelaxed);
     }
 
     /// <summary>
-    /// Verifies that <c>UsePriorityDispatch(binding: PriorityBinding.Locking)</c>
-    /// sets <see cref="PriorityBinding.Locking"/> on <c>Priority.Binding</c>.
+    /// Verifies that <c>UsePriorityDispatch(ordering: DispatchStrategy.PriorityExact)</c>
+    /// sets <see cref="DispatchStrategy.PriorityExact"/> on <c>Priority.Binding</c>.
     /// </summary>
     [Test]
     public async Task UsePriorityDispatch_ExplicitLocking_SetsBindingLocking()
@@ -68,13 +67,12 @@ public class PriorityDispatchExtensionsBindingTests
             opts.Capacity = 16;
             opts.WorkerCount = 1;
         })
-        .UsePriorityDispatch(binding: PriorityBinding.Locking)
+        .UsePriorityDispatch(ordering: DispatchStrategy.PriorityExact)
         .Build();
 
         await using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IOptions<WorkOrchestratorOptions>>().Value;
+        var options = provider.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<string>());
 
-        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.Priority);
-        await Assert.That(options.Priority.Binding).IsEqualTo(PriorityBinding.Locking);
+        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.PriorityExact);
     }
 }

@@ -7,10 +7,12 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
+using Bifrost.Core;
+
 namespace Bifrost.Queues;
 
 /// <summary>
-/// The default <see cref="IWorkQueue{T}"/> binding: a strict-FIFO queue backed by a
+/// The default <see cref="IWorkQueue{T}"/> ordering: a strict-FIFO queue backed by a
 /// bounded <see cref="Channel{T}"/>.
 /// </summary>
 /// <typeparam name="T">The type of item held by the queue.</typeparam>
@@ -44,6 +46,7 @@ namespace Bifrost.Queues;
 internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
 {
     private readonly Channel<T> _channel;
+    private volatile bool _completed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FifoChannelWorkQueue{T}"/> class.
@@ -71,7 +74,12 @@ internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
     public int Count => _channel.Reader.Count;
 
     /// <inheritdoc/>
-    public bool TryEnqueue(in T item) => _channel.Writer.TryWrite(item);
+    public bool TryEnqueue(in T item) => Enqueue(item).IsAccepted;
+
+    /// <inheritdoc/>
+    public EnqueueResult Enqueue(in T item)
+        => _channel.Writer.TryWrite(item) ? EnqueueResult.Accepted
+            : EnqueueResult.Rejected(_completed ? RejectionReason.Shutdown : RejectionReason.CapacityExceeded);
 
     /// <inheritdoc/>
     /// <remarks>
@@ -95,7 +103,7 @@ internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
     /// cancellation faults the task with <see cref="OperationCanceledException"/> and
     /// a post-<see cref="Complete"/> write faults with
     /// <see cref="ChannelClosedException"/>. The orchestrator's single producer-wait
-    /// async layer owns the mapping of both to its rejected-shutdown outcome.
+    /// async layer maps closure to Shutdown and propagates cancellation.
     /// </summary>
     /// <param name="item">The item to enqueue.</param>
     /// <param name="cancellationToken">Token whose cancellation abandons the wait.</param>
@@ -108,5 +116,9 @@ internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
     /// remain dequeueable via <see cref="TryDequeue(out T)"/>; once drained,
     /// <see cref="WaitToDequeueAsync(CancellationToken)"/> completes <c>false</c>.
     /// </summary>
-    public void Complete() => _ = _channel.Writer.TryComplete();
+    public void Complete()
+    {
+        _completed = true;
+        _channel.Writer.TryComplete();
+    }
 }

@@ -362,19 +362,21 @@ public sealed class FluentBuilderTests
 
         public ValueTask<EnqueueResult> EnqueueAsync(
             TestWork work,
-            WorkClass workClass = WorkClass.Default,
+            WorkEnqueueOptions options = default,
             CancellationToken ct = default)
             => ValueTask.FromResult(EnqueueResult.Accepted);
 
-        public bool TryEnqueue(TestWork work, WorkClass workClass = WorkClass.Default) => true;
+        public bool TryEnqueue(TestWork work, WorkEnqueueOptions options = default) => true;
 
-        public Task StopAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task AbortAsync(CancellationToken ct = default) => Task.CompletedTask;
 
-        public void Run(TestWork work, WorkClass workClass = WorkClass.Default)
-        {
-        }
+        public EnqueueResult Enqueue(TestWork work, WorkEnqueueOptions options = default) => EnqueueResult.Accepted;
 
-        public bool TryRun(TestWork work, WorkClass workClass = WorkClass.Default) => true;
+        public void Complete() { }
+
+        public Task Completion => Task.CompletedTask;
+
+        public bool TryRun(TestWork work, WorkEnqueueOptions options = default) => true;
 
         public Func<string, CancellationToken, Task> CreateWorkerFunction()
             => static (_, _) => Task.CompletedTask;

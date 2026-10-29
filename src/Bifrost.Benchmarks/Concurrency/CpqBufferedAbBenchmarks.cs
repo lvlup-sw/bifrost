@@ -86,8 +86,8 @@ public class CpqBufferedAbBenchmarks
         // Unbounded, default stickiness, dialed buffer capacity. The public four-argument ctor
         // (boundedCapacity, stickiness, bufferCapacity, comparer) is a distinct arity, so -1 sentinels
         // resolve to the unbounded / default-stickiness defaults without re-binding another overload.
-        _multiQueueInt = new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: -1, bufferCapacity: BufferCapacity);
-        _multiQueueRef = new ConcurrentPriorityQueue<string, long>(boundedCapacity: -1, stickiness: -1, bufferCapacity: BufferCapacity);
+        _multiQueueInt = ConcurrentPriorityQueue<int, int>.Create(new() { BufferCapacity = BufferCapacity });
+        _multiQueueRef = ConcurrentPriorityQueue<string, long>.Create(new() { BufferCapacity = BufferCapacity });
 
         // Precompute the reference elements so the measured pair never allocates a string itself —
         // any non-zero Allocated then comes from the queue, which is exactly what the gate watches.

@@ -119,7 +119,17 @@ internal sealed class ThreadHandle
     /// Callers must re-fetch per operation and must not cache the result across an
     /// <c>await</c>. See the type-level remarks for the thread-affinity contract.
     /// </remarks>
-    internal static ThreadHandle Current => t_current ??= new ThreadHandle();
+    internal static ThreadHandle Current
+    {
+        // Keep the per-operation thread-local read small; initialization still runs only
+        // on this thread's first access. Never cache the result across operations/awaits.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => t_current ?? CreateCurrent();
+    }
+
+    // Allocation and RNG seeding belong to the first-use path, not each inlined read.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static ThreadHandle CreateCurrent() => t_current = new ThreadHandle();
 
     /// <summary>
     /// Creates a handle with explicit xoshiro256** state for deterministic testing.

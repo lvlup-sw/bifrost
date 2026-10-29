@@ -7,6 +7,7 @@
 using Bifrost.Autoscaling;
 
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 
 using NSubstitute;
 
@@ -15,7 +16,7 @@ using TUnit.Core;
 namespace Bifrost.Tests.Autoscaling;
 
 /// <summary>
-/// Tests for <see cref="AutoscalingEngineHostedService"/> implementation.
+/// Tests for <see cref="AutoscalingEngineHostedService{TWork}"/> implementation.
 /// </summary>
 [Property("Category", "Unit")]
 public class AutoscalingEngineHostedServiceTests
@@ -27,7 +28,7 @@ public class AutoscalingEngineHostedServiceTests
     public async Task AutoscalingEngineHostedService_ImplementsIHostedService()
     {
         // Arrange
-        var type = typeof(AutoscalingEngineHostedService);
+        var type = typeof(AutoscalingEngineHostedService<string>);
 
         // Assert
         await Assert.That(typeof(IHostedService).IsAssignableFrom(type)).IsTrue();
@@ -41,7 +42,7 @@ public class AutoscalingEngineHostedServiceTests
     {
         // Arrange
         var engine = Substitute.For<IAutoscalingEngine>();
-        var hostedService = new AutoscalingEngineHostedService(engine);
+        var hostedService = new AutoscalingEngineHostedService<string>(new ServiceCollection().AddKeyedSingleton<IAutoscalingEngine>(typeof(string), engine).BuildServiceProvider());
 
         // Act
         await hostedService.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -58,7 +59,7 @@ public class AutoscalingEngineHostedServiceTests
     {
         // Arrange
         var engine = Substitute.For<IAutoscalingEngine>();
-        var hostedService = new AutoscalingEngineHostedService(engine);
+        var hostedService = new AutoscalingEngineHostedService<string>(new ServiceCollection().AddKeyedSingleton<IAutoscalingEngine>(typeof(string), engine).BuildServiceProvider());
 
         // Act
         await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -75,7 +76,7 @@ public class AutoscalingEngineHostedServiceTests
     {
         // Arrange
         var engine = Substitute.For<IAutoscalingEngine>();
-        var hostedService = new AutoscalingEngineHostedService(engine);
+        var hostedService = new AutoscalingEngineHostedService<string>(new ServiceCollection().AddKeyedSingleton<IAutoscalingEngine>(typeof(string), engine).BuildServiceProvider());
         using var cts = new CancellationTokenSource();
 
         // Act
@@ -92,7 +93,7 @@ public class AutoscalingEngineHostedServiceTests
     public async Task AutoscalingEngineHostedService_IsSealed()
     {
         // Arrange
-        var type = typeof(AutoscalingEngineHostedService);
+        var type = typeof(AutoscalingEngineHostedService<string>);
 
         // Assert
         await Assert.That(type.IsSealed).IsTrue();
@@ -105,7 +106,7 @@ public class AutoscalingEngineHostedServiceTests
     public async Task Constructor_NullEngine_ThrowsArgumentNullException()
     {
         // Act & Assert
-        await Assert.That(() => new AutoscalingEngineHostedService(null!))
+        await Assert.That(() => new AutoscalingEngineHostedService<string>(null!))
             .Throws<ArgumentNullException>();
     }
 }

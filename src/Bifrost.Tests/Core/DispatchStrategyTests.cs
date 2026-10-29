@@ -35,12 +35,12 @@ public class DispatchStrategyTests
     /// sentinel member, distinct from all other members.
     /// </summary>
     [Test]
-    public async Task DispatchStrategy_DeclaresPrioritySentinel()
+    public async Task DispatchStrategy_DeclaresOnlyExplicitOrderings()
     {
         // Priority must exist and be distinct from all concrete strategies.
-        var priority = DispatchStrategy.Priority;
+        var priority = DispatchStrategy.PriorityRelaxed;
         await Assert.That(priority).IsNotEqualTo(DispatchStrategy.Fifo);
-        await Assert.That(priority).IsNotEqualTo(DispatchStrategy.PriorityLocking);
-        await Assert.That(priority).IsNotEqualTo(DispatchStrategy.PriorityMultiQueue);
+        await Assert.That(priority).IsNotEqualTo(DispatchStrategy.PriorityExact);
+        await Assert.That(Enum.GetValues<DispatchStrategy>()).HasCount(3);
     }
 }

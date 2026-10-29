@@ -80,7 +80,7 @@ public sealed class DispatchStrategyTests
     }
 
     /// <summary>
-    /// Verifies that <see cref="DispatchStrategy.PriorityMultiQueue"/> constructs a
+    /// Verifies that <see cref="DispatchStrategy.PriorityRelaxed"/> constructs a
     /// <see cref="ConcurrentPriorityWorkQueue{TWork}"/> internally.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
@@ -91,7 +91,8 @@ public sealed class DispatchStrategyTests
         await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
-            DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+            DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+            FullMode = QueueFullMode.Reject,
         });
 
         // Assert
@@ -100,7 +101,7 @@ public sealed class DispatchStrategyTests
     }
 
     /// <summary>
-    /// Verifies that <see cref="DispatchStrategy.PriorityLocking"/> constructs a
+    /// Verifies that <see cref="DispatchStrategy.PriorityExact"/> constructs a
     /// <see cref="LockingPriorityWorkQueue{TWork}"/> internally.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
@@ -111,7 +112,8 @@ public sealed class DispatchStrategyTests
         await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
-            DispatchStrategy = DispatchStrategy.PriorityLocking,
+            DispatchStrategy = DispatchStrategy.PriorityExact,
+            FullMode = QueueFullMode.Reject,
         });
 
         // Assert
@@ -137,7 +139,8 @@ public sealed class DispatchStrategyTests
         {
             Capacity = 4,
             WorkerCount = 0,
-            DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+            DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+            FullMode = QueueFullMode.Reject,
         });
 
         for (var i = 0; i < 4; i++)
@@ -183,7 +186,8 @@ public sealed class DispatchStrategyTests
         {
             Capacity = 100,
             WorkerCount = 0,
-            DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+            DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+            FullMode = QueueFullMode.Reject,
         });
 
         for (var i = 0; i < 90; i++)
@@ -198,15 +202,15 @@ public sealed class DispatchStrategyTests
 
         // Assert — the lowest class sheds first; Interactive still admits.
         await Assert.That(batch.IsAccepted).IsFalse();
-        await Assert.That(batch.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
+        await Assert.That(batch.Reason).IsEqualTo(RejectionReason.WatermarkExceeded);
         await Assert.That(interactive).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(orchestrator.PendingCount).IsEqualTo(91);
     }
 
     /// <summary>
     /// Verifies that <c>UsePriorityDispatch</c> on the builder sets the
-    /// <see cref="DispatchStrategy.Priority"/> sentinel and
-    /// <see cref="PriorityBinding.Auto"/> intent, and that the configure delegate
+    /// <see cref="DispatchStrategy.PriorityRelaxed"/> sentinel and
+    /// <see cref="DispatchStrategy.PriorityRelaxed"/> intent, and that the configure delegate
     /// reaches the options.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
@@ -224,21 +228,20 @@ public sealed class DispatchStrategyTests
             opts.Capacity = 16;
             opts.WorkerCount = 1;
         })
-        .UsePriorityDispatch(priority => priority.InteractiveBoostWindow = TimeSpan.FromSeconds(5))
+        .UsePriorityDispatch(DispatchStrategy.PriorityRelaxed, priority => priority.InteractiveBoostWindow = TimeSpan.FromSeconds(5))
         .Build();
 
         await using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IOptions<WorkOrchestratorOptions>>().Value;
+        var options = provider.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<string>());
 
         // Assert — DispatchStrategy is the Priority sentinel, binding intent is Auto,
         // and the configure delegate reached the options.
-        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.Priority);
-        await Assert.That(options.Priority.Binding).IsEqualTo(PriorityBinding.Auto);
+        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.PriorityRelaxed);
         await Assert.That(options.Priority.InteractiveBoostWindow).IsEqualTo(TimeSpan.FromSeconds(5));
     }
 
     /// <summary>
-    /// Verifies that <c>UsePriorityDispatch(binding: PriorityBinding.Locking)</c> sets
+    /// Verifies that <c>UsePriorityDispatch(ordering: DispatchStrategy.PriorityExact)</c> sets
     /// the coarse-locking binding intent and the orchestrator resolves it to the
     /// locking queue.
     /// </summary>
@@ -257,14 +260,13 @@ public sealed class DispatchStrategyTests
             opts.Capacity = 16;
             opts.WorkerCount = 1;
         })
-        .UsePriorityDispatch(binding: PriorityBinding.Locking)
+        .UsePriorityDispatch(ordering: DispatchStrategy.PriorityExact)
         .Build();
 
         await using var provider = services.BuildServiceProvider();
 
-        var options = provider.GetRequiredService<IOptions<WorkOrchestratorOptions>>().Value;
-        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.Priority);
-        await Assert.That(options.Priority.Binding).IsEqualTo(PriorityBinding.Locking);
+        var options = provider.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<string>());
+        await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.PriorityExact);
     }
 
     /// <summary>

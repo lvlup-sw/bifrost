@@ -31,7 +31,7 @@ namespace Bifrost.Scheduling.Dispatch;
 /// <para>
 /// Only two things throw out of <see cref="DispatchAsync"/>: the fire function
 /// throwing while building the work item, and caller-token cancellation — when
-/// <see cref="IWorkOrchestrator{TWork}.EnqueueAsync"/> surfaces an
+/// <see cref="IWorkWriter{TWork}.EnqueueAsync"/> surfaces an
 /// <see cref="OperationCanceledException"/>, it propagates rather than being
 /// folded into a failed fire, matching the orchestrator's
 /// admission-vs-cancellation distinction.

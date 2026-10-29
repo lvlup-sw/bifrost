@@ -14,9 +14,8 @@ namespace Bifrost.Concurrency;
 /// <content>
 /// The relaxed dequeue surface: the two-choice rule. A dequeue samples two random sub-queues,
 /// reads their cached tops <i>without locking</i>, and pops the one whose published minimum is
-/// smaller. This trades a bounded rank error (the popped element is one of the smallest priorities,
-/// not necessarily the global minimum) for near-linear read scaling; strict-minimum semantics are
-/// available separately through <c>TryDequeueMin</c>.
+/// smaller. This trades exact minimum selection for concurrency. Best-observed inspection scans
+/// more stripes but also does not promise a global minimum under concurrent mutation.
 /// </content>
 /// <remarks>
 /// <para>
@@ -55,6 +54,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     // these two counters are read by their ...ForTest getters but never assigned, since the only writers
     // are the BIFROST_TEST_HOOKS-gated increments below. That is the intended stripped-build state.
 #pragma warning disable CS0649
+
     /// <summary>
     /// TEST-ONLY instrumentation: the number of times the sparse-fallback routing step popped an
     /// element, i.e. read the occupancy bitmask, routed to a populated sub-queue via
@@ -116,39 +116,10 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// complete after that observation window may be present by the time the caller reacts).
     /// </returns>
     /// <remarks>
-    /// <para>
-    /// Relaxed contract: this removes an element with <i>one of</i> the smallest
-    /// priorities, not necessarily the global minimum. The two-choice rule samples two sub-queues
-    /// and pops the better-looking one. The expected rank of the removed element (0 = the true
-    /// minimum) is approximately <c>(5/6)·n</c>, where <c>n</c> is the sub-queue count
-    /// (≈ 4 × processor count by default). Strict-minimum semantics are available through
-    /// <c>TryDequeueMin</c>, or by wrapping <see cref="PriorityQueue{TElement, TPriority}"/> in a
-    /// lock. When the queue collapses to a single sub-queue the relaxation is invisible and this
-    /// returns the exact minimum.
-    /// </para>
-    /// <para>
-    /// Relaxation scales with the core count and with the stickiness factor <c>s</c>; read this
-    /// before deploying across hardware tiers. Because the sub-queue count is
-    /// <c>n ≈ 4 × ProcessorCount</c> and the expected rank error is <c>(5/6)·n</c>, the looseness
-    /// of this dequeue depends on the <i>host's</i> processor count, not a fixed constant. The same
-    /// binary that pops a top-≈27 element on an 8-core box (<c>n = 32</c>) pops a top-≈213 element
-    /// on a 64-core server (<c>n = 256</c>). That is by design: more sub-queues are what buy the
-    /// reduced contention and throughput scaling, so the relaxation a caller tolerates and the
-    /// parallelism they gain rise together. A stickiness factor <c>s &gt; 1</c> (the optional
-    /// throughput dial; see the stickiness constructor) scales the expected rank error again, roughly
-    /// linearly, to <c>(5/6)·n·s</c>, compounding across both the core count and <c>s</c>; the default
-    /// <c>s = 1</c> leaves the bound at <c>(5/6)·n</c>. Two consequences follow: correctness must
-    /// never depend on how close to the true minimum a pop lands (any such dependency surfaces only
-    /// on larger machines or under a larger <c>s</c>); and for a fixed relaxation bound regardless of
-    /// hardware, pin the sub-queue count through the internal constructor, keep <c>s = 1</c>, use
-    /// <c>TryDequeueMin</c>, or wrap <see cref="PriorityQueue{TElement, TPriority}"/> in a lock.
-    /// </para>
-    /// <para>
-    /// <b>Thread Safety:</b> This method is thread-safe and may be called concurrently from multiple
-    /// threads. The sampling phase reads cached tops lock-free and pops under a try-lock that never
-    /// blocks on a contended sub-queue; contention resamples rather than waits (the same wait-free
-    /// locking the enqueue path uses).
-    /// </para>
+    /// Two distinct sampled stripes compete by cached priority; contention resamples. Occupancy
+    /// fallback and verification scans retain the existing relaxed algorithm. Removal is not globally
+    /// minimum and no fixed rank bound is promised. Verification can retry indefinitely while a
+    /// populated stripe remains locked. Use a synchronized BCL PriorityQueue for exact ordering.
     /// </remarks>
     public bool TryDequeue([MaybeNullWhen(false)] out TElement element, [MaybeNullWhen(false)] out TPriority priority)
     {
@@ -200,7 +171,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
             // Empty or Contended: end the sticky period so the next round re-rolls a FRESH pair
             // instead of re-sampling the same drained/contended selection (and so a contended pair
-            // never blocks; stickiness stays wait-free). Neither outcome concludes the queue is
+            // never blocks; stickiness stays retry-based). Neither outcome concludes the queue is
             // globally empty; only the authoritative scan does that.
             handle.ResetStickyDequeue();
         }
@@ -316,7 +287,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <para>
     /// There is no fixed pass cap, by design: every restart requires an observed contention,
     /// i.e. another thread making progress on the same structure, which is the same system-wide
-    /// progress argument the design's "wait-free locking" rests on. A false result without a clean
+    /// progress argument the design's "retry-based locking" rests on. A false result without a clean
     /// all-empty pass would violate the observed-empty contract, so no bound may convert
     /// "contended" into "empty".
     /// </para>

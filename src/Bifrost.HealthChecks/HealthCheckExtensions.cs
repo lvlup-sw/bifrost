@@ -100,6 +100,7 @@ public static class HealthCheckExtensions
     /// <summary>
     /// Adds health checks for autoscaling components.
     /// </summary>
+    /// <typeparam name="TWork">The work item type whose keyed autoscaling services are monitored.</typeparam>
     /// <param name="builder">The health checks builder.</param>
     /// <returns>The builder for chaining.</returns>
     /// <remarks>
@@ -112,30 +113,38 @@ public static class HealthCheckExtensions
     /// </para>
     /// <para>
     /// Both health checks are tagged with "autoscaling" for filtering.
+    /// Their names are <c>autoscaling-engine-{TWork.FullName}</c> and
+    /// <c>worker-registry-{TWork.FullName}</c>.
+    /// </para>
+    /// <para>
+    /// The checks resolve <see cref="IWorkerRegistry"/> and
+    /// <see cref="IOptions{TOptions}"/> of <see cref="AutoscalingOptions"/>
+    /// as keyed services using <c>typeof(TWork)</c>. Register autoscaling with
+    /// <c>WithAutoscaling&lt;TWork&gt;()</c> for the same work type before resolving these checks.
     /// </para>
     /// </remarks>
     /// <example>
     /// <code>
     /// services.AddHealthChecks()
-    ///     .AddAutoscalingHealthChecks();
+    ///     .AddAutoscalingHealthChecks&lt;MyWork&gt;();
     /// </code>
     /// </example>
-    public static IHealthChecksBuilder AddAutoscalingHealthChecks(this IHealthChecksBuilder builder)
+    public static IHealthChecksBuilder AddAutoscalingHealthChecks<TWork>(this IHealthChecksBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         builder
             .Add(new HealthCheckRegistration(
-                "autoscaling-engine",
+                $"autoscaling-engine-{typeof(TWork).FullName}",
                 sp => new AutoscalingHealthCheck(
-                    sp.GetRequiredService<IWorkerRegistry>(),
-                    sp.GetRequiredService<IOptions<AutoscalingOptions>>()),
+                    sp.GetRequiredKeyedService<IWorkerRegistry>(typeof(TWork)),
+                    sp.GetRequiredKeyedService<IOptions<AutoscalingOptions>>(typeof(TWork))),
                 failureStatus: HealthStatus.Unhealthy,
                 tags: ["autoscaling"]))
             .Add(new HealthCheckRegistration(
-                "worker-registry",
+                $"worker-registry-{typeof(TWork).FullName}",
                 sp => new WorkerRegistryHealthCheck(
-                    sp.GetRequiredService<IWorkerRegistry>()),
+                    sp.GetRequiredKeyedService<IWorkerRegistry>(typeof(TWork))),
                 failureStatus: HealthStatus.Unhealthy,
                 tags: ["autoscaling"]));
 

@@ -64,7 +64,7 @@ public static class DeadLetterQueueExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         // Register options with DataAnnotations validation
-        builder.Services.AddOptions<DeadLetterQueueOptions>()
+        builder.Services.AddOptions<DeadLetterQueueOptions>(Bifrost.Core.WorkOptions.Name<TWork>())
             .Configure(configure ?? (_ => { }))
             .ValidateDataAnnotations()
             .ValidateOnStart();
@@ -72,7 +72,7 @@ public static class DeadLetterQueueExtensions
         // Register DLQ services (TryAdd to avoid duplicates)
         builder.Services.TryAddSingleton<IDeadLetterQueue<TWork>>(sp =>
             new DeadLetterQueue<TWork>(
-                sp.GetRequiredService<IOptions<DeadLetterQueueOptions>>(),
+                Options.Create(sp.GetRequiredService<IOptionsMonitor<DeadLetterQueueOptions>>().Get(Bifrost.Core.WorkOptions.Name<TWork>())),
                 sp.GetRequiredService<ILogger<DeadLetterQueue<TWork>>>()));
 
         builder.Services.TryAddSingleton<DeadLetterNotifier<TWork>>();
@@ -88,7 +88,7 @@ public static class DeadLetterQueueExtensions
                     handler,
                     sp.GetRequiredService<IDeadLetterQueue<TWork>>(),
                     sp.GetRequiredService<DeadLetterNotifier<TWork>>(),
-                    sp.GetRequiredService<IOptions<DeadLetterQueueOptions>>(),
+                    Options.Create(sp.GetRequiredService<IOptionsMonitor<DeadLetterQueueOptions>>().Get(Bifrost.Core.WorkOptions.Name<TWork>())),
                     sp.GetRequiredService<ILogger<DeadLetterHandler<TWork>>>(),
                     builder.EventPublishCallback)));
 

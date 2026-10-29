@@ -66,7 +66,7 @@ public class AutoscalingOrchestratorTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
+        _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
         // Act
         var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
@@ -74,7 +74,7 @@ public class AutoscalingOrchestratorTests
         // Assert
         await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         _metrics.Received(1).RecordEnqueue();
-        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ public class AutoscalingOrchestratorTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>())
+        _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Rejected(RejectionReason.Shutdown));
 
         // Act
@@ -104,7 +104,7 @@ public class AutoscalingOrchestratorTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        _inner.TryEnqueue("work").Returns(true);
+        _inner.Enqueue("work").Returns(EnqueueResult.Accepted);
 
         // Act
         var result = orchestrator.TryEnqueue("work");
@@ -122,7 +122,7 @@ public class AutoscalingOrchestratorTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        _inner.TryEnqueue("work").Returns(false);
+        _inner.Enqueue("work").Returns(EnqueueResult.Rejected(RejectionReason.CapacityExceeded));
 
         // Act
         var result = orchestrator.TryEnqueue("work");
@@ -191,7 +191,7 @@ public class AutoscalingOrchestratorTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
+        _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
         // Act
         await orchestrator.EnqueueAsync("work", WorkClass.Interactive).ConfigureAwait(false);
@@ -208,13 +208,13 @@ public class AutoscalingOrchestratorTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        _inner.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        _inner.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
         // Act
-        await orchestrator.StopAsync().ConfigureAwait(false);
+        await orchestrator.AbortAsync().ConfigureAwait(false);
 
         // Assert
-        await _inner.Received(1).StopAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     /// <summary>

@@ -33,10 +33,11 @@ public class IWorkOrchestratorTests
         await Assert.That(interfaceType.IsGenericTypeDefinition).IsTrue();
 
         // Check for required methods
-        var methods = interfaceType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+        var methods = interfaceType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Concat(typeof(IWorkWriter<>).GetMethods()).ToArray();
         await Assert.That(methods.Any(m => m.Name == "EnqueueAsync")).IsTrue();
         await Assert.That(methods.Any(m => m.Name == "TryEnqueue")).IsTrue();
-        await Assert.That(methods.Any(m => m.Name == "StopAsync")).IsTrue();
+        await Assert.That(methods.Any(m => m.Name == "AbortAsync")).IsTrue();
 
         // Check for required properties
         var properties = interfaceType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
@@ -55,7 +56,7 @@ public class IWorkOrchestratorTests
     public async Task EnqueueAsync_HasCorrectSignature()
     {
         // Arrange
-        var interfaceType = typeof(IWorkOrchestrator<>);
+        var interfaceType = typeof(IWorkWriter<>);
         var method = interfaceType.GetMethod("EnqueueAsync");
 
         // Assert
@@ -65,8 +66,8 @@ public class IWorkOrchestratorTests
         var parameters = method.GetParameters();
         await Assert.That(parameters).HasCount(3);
         await Assert.That(parameters[0].Name).IsEqualTo("work");
-        await Assert.That(parameters[1].Name).IsEqualTo("workClass");
-        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(WorkClass));
+        await Assert.That(parameters[1].Name).IsEqualTo("options");
+        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(WorkEnqueueOptions));
         await Assert.That(parameters[1].HasDefaultValue).IsTrue();
         await Assert.That(parameters[2].Name).IsEqualTo("ct");
         await Assert.That(parameters[2].ParameterType).IsEqualTo(typeof(CancellationToken));
@@ -80,7 +81,7 @@ public class IWorkOrchestratorTests
     public async Task TryEnqueue_HasCorrectSignature()
     {
         // Arrange
-        var interfaceType = typeof(IWorkOrchestrator<>);
+        var interfaceType = typeof(IWorkWriter<>);
         var method = interfaceType.GetMethod("TryEnqueue");
 
         // Assert
@@ -90,8 +91,8 @@ public class IWorkOrchestratorTests
         var parameters = method.GetParameters();
         await Assert.That(parameters).HasCount(2);
         await Assert.That(parameters[0].Name).IsEqualTo("work");
-        await Assert.That(parameters[1].Name).IsEqualTo("workClass");
-        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(WorkClass));
+        await Assert.That(parameters[1].Name).IsEqualTo("options");
+        await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(WorkEnqueueOptions));
         await Assert.That(parameters[1].HasDefaultValue).IsTrue();
     }
 
@@ -103,7 +104,7 @@ public class IWorkOrchestratorTests
     {
         // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
-        var method = interfaceType.GetMethod("StopAsync");
+        var method = interfaceType.GetMethod("AbortAsync");
 
         // Assert
         await Assert.That(method).IsNotNull();
@@ -188,17 +189,17 @@ public class IWorkOrchestratorTests
     public async Task Run_HasCorrectSignature()
     {
         // Arrange
-        var interfaceType = typeof(IWorkOrchestrator<>);
-        var method = interfaceType.GetMethod("Run");
+        var interfaceType = typeof(IWorkWriter<>);
+        var method = interfaceType.GetMethod("Enqueue");
 
         // Assert
         await Assert.That(method).IsNotNull();
-        await Assert.That(method!.ReturnType).IsEqualTo(typeof(void));
+        await Assert.That(method!.ReturnType).IsEqualTo(typeof(EnqueueResult));
 
         var parameters = method.GetParameters();
         await Assert.That(parameters).HasCount(2);
         await Assert.That(parameters[0].Name).IsEqualTo("work");
-        await Assert.That(parameters[1].Name).IsEqualTo("workClass");
+        await Assert.That(parameters[1].Name).IsEqualTo("options");
         await Assert.That(parameters[1].HasDefaultValue).IsTrue();
     }
 
@@ -209,8 +210,8 @@ public class IWorkOrchestratorTests
     public async Task TryRun_HasCorrectSignature()
     {
         // Arrange
-        var interfaceType = typeof(IWorkOrchestrator<>);
-        var method = interfaceType.GetMethod("TryRun");
+        var interfaceType = typeof(IWorkWriter<>);
+        var method = interfaceType.GetMethod("TryEnqueue");
 
         // Assert
         await Assert.That(method).IsNotNull();
@@ -219,7 +220,7 @@ public class IWorkOrchestratorTests
         var parameters = method.GetParameters();
         await Assert.That(parameters).HasCount(2);
         await Assert.That(parameters[0].Name).IsEqualTo("work");
-        await Assert.That(parameters[1].Name).IsEqualTo("workClass");
+        await Assert.That(parameters[1].Name).IsEqualTo("options");
         await Assert.That(parameters[1].HasDefaultValue).IsTrue();
     }
 

@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bifrost.Autoscaling;
 
@@ -24,19 +25,19 @@ namespace Bifrost.Autoscaling;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class AutoscalingEngineHostedService : IHostedService
+public sealed class AutoscalingEngineHostedService<TWork> : IHostedService
 {
     private readonly IAutoscalingEngine _engine;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="AutoscalingEngineHostedService"/> class.
+    /// Initializes a new instance of the <see cref="AutoscalingEngineHostedService{TWork}"/> class.
     /// </summary>
-    /// <param name="engine">The autoscaling engine to manage.</param>
+    /// <param name="services">The autoscaling engine to manage.</param>
     /// <exception cref="ArgumentNullException">Thrown when engine is null.</exception>
-    public AutoscalingEngineHostedService(IAutoscalingEngine engine)
+    public AutoscalingEngineHostedService(IServiceProvider services)
     {
-        ArgumentNullException.ThrowIfNull(engine);
-        _engine = engine;
+        ArgumentNullException.ThrowIfNull(services);
+        _engine = services.GetRequiredKeyedService<IAutoscalingEngine>(typeof(TWork));
     }
 
     /// <summary>

@@ -459,7 +459,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
 
     /// <summary>
     /// Test-only adapter that lets the int-typed contract suite drive the envelope-typed
-    /// binding: each int is wrapped into a <see cref="WorkEnvelope{TWork}"/> with
+    /// ordering: each int is wrapped into a <see cref="WorkEnvelope{TWork}"/> with
     /// <see cref="WorkClass.Interactive"/> — admitted to full hard capacity under the
     /// T21 watermark admission policy, matching the suite's fill-to-capacity
     /// expectations; its constant boost shifts every key by the same amount — and a
@@ -482,6 +482,13 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
 
         /// <inheritdoc/>
         public int Count => _inner.Count;
+
+        /// <inheritdoc/>
+        public EnqueueResult Enqueue(in int item) =>
+            _inner.Enqueue(new WorkEnvelope<int>(
+                item,
+                WorkClass.Interactive,
+                Interlocked.Increment(ref _stamp)));
 
         /// <inheritdoc/>
         public bool TryEnqueue(in int item) =>

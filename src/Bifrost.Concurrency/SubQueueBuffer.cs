@@ -50,9 +50,9 @@ internal struct SubQueueBuffer<TElement, TPriority>
 
     /// <summary>
     /// Creates a <see cref="Span{T}"/> view over the first <paramref name="length"/> inline slots of
-    /// <paramref name="buffer"/>. All buffer moves operate through this span so they lower to the
-    /// runtime's barrier-correct <see cref="Span{T}.CopyTo(Span{T})"/> / <see cref="Span{T}.Clear"/>
-    /// (a barrier-free <c>memmove</c> for value-type-only tuples).
+    /// <paramref name="buffer"/>. Reference-containing entries use the runtime's barrier-correct
+    /// <see cref="Span{T}.CopyTo(Span{T})"/> / <see cref="Span{T}.Clear"/> operations. Compact,
+    /// reference-free entries may instead shift through scalar span assignments.
     /// </summary>
     /// <param name="buffer">The inline buffer to view; passed by reference so the span aliases its storage.</param>
     /// <param name="length">
