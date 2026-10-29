@@ -1,7 +1,5 @@
 # Design: Bifrost Scheduling API
 
-> Historical design proposal: requirements, examples, and future plans below are not a guarantee of the current implementation. See the [README](../../README.md#scheduling) and [sample](../../samples/Bifrost.Scheduling.AotSmoke/Program.cs) for the current overview.
-
 **Feature ID:** `durable-scheduling-api` (historical slug — see naming note)
 **Related:** [issue #16](https://github.com/lvlup-sw/bifrost/issues/16), `lvlup-sw/basileus#145`, `lvlup-sw/basileus#143`
 **Revised:** 2026-06-12, applying R1–R10 from `docs/research/2026-06-12-durable-scheduling-precedents.md`

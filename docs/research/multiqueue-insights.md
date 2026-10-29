@@ -1,7 +1,5 @@
 # Architecture & Engineering Insights: Concurrent MultiQueue
 
-> Superseded API/contract notes: the [2026-10 migration](../migrations/2026-10-priority-api.md) removes public LockingPriorityQueue and Auto selection, corrects progress and rank-error claims, and removes the claimed wall-clock starvation bound. Historical measurements below remain workload-specific evidence.
-
 **Overview**
 
 The MultiQueue is a highly scalable, relaxed concurrent priority queue. It intentionally sacrifices strict global ordering (a mathematically bounded degree of precision) to achieve effectively infinite physical hardware scalability. It is designed specifically for shared-workload architectures running massive concurrency, where traditional single-lock or lock-free skip lists collapse under contention.

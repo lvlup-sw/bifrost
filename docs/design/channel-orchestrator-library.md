@@ -1,7 +1,5 @@
 # Design: Channel Orchestrator Library
 
-> Historical design proposal: the examples and API sketches below describe the original plan and do not necessarily match the current implementation. See the [README](../../README.md) for the library overview and the source for current APIs.
-
 ## Problem Statement
 
 The agentic-engine codebase contains a robust, production-tested Channel-based background task orchestration infrastructure (`TaskOrchestrator`, `AutoscalingEngine`, `AutoscalingTaskOrchestrator`). This infrastructure solves common problems: bounded work queues, worker pool management, autoscaling, resilience, and observability.

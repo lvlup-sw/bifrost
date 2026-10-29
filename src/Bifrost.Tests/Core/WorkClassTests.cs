@@ -77,4 +77,17 @@ public class WorkClassTests
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(result.Reason).IsEqualTo(reason);
     }
+
+    /// <summary>
+    /// Verifies undefined rejection reasons cannot produce an admission outcome.
+    /// </summary>
+    /// <param name="reason">An undefined rejection reason.</param>
+    [Test]
+    [Arguments((RejectionReason)(-1))]
+    [Arguments((RejectionReason)int.MaxValue)]
+    public async Task EnqueueResult_Rejected_UndefinedReasonThrows(RejectionReason reason)
+    {
+        await Assert.That(() => EnqueueResult.Rejected(reason))
+            .Throws<ArgumentOutOfRangeException>();
+    }
 }
