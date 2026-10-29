@@ -20,6 +20,7 @@ namespace Bifrost.Tests.Decorators;
 /// <summary>
 /// Tests for event broadcast pattern in <see cref="EventStreamOrchestrator{TWork}"/>.
 /// </summary>
+[ParallelLimiter<EventStreamParallelLimit>]
 public class EventStreamBroadcastTests
 {
     private IWorkOrchestrator<string> _inner = null!;
