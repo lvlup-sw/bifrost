@@ -1,0 +1,13 @@
+# PROPOSAL ONLY: extends scripts/templates/BannedSymbols.sample.txt and existing scheduling policy.
+P:System.DateTime.Now;Banned: use TimeProvider.GetLocalNow() instead (DR-7).
+P:System.DateTime.UtcNow;Banned: use TimeProvider.GetUtcNow() instead (DR-7).
+P:System.DateTimeOffset.Now;Banned: use TimeProvider.GetLocalNow() instead (DR-7).
+P:System.DateTimeOffset.UtcNow;Banned: use TimeProvider.GetUtcNow() instead (DR-7).
+M:System.Threading.Tasks.Task.Delay(System.TimeSpan);Banned: use Task.Delay(TimeSpan, TimeProvider, CancellationToken) instead (DR-7). The bare overload uses the system clock and defeats fake-time testing.
+M:System.Threading.Tasks.Task.Delay(System.Int32);Banned: use Task.Delay(TimeSpan, TimeProvider, CancellationToken) instead (DR-7).
+M:System.Threading.Tasks.Task.Delay(System.TimeSpan,System.Threading.CancellationToken);Banned: use Task.Delay(TimeSpan, TimeProvider, CancellationToken) instead (DR-7). The 2-arg overload uses the system clock and defeats fake-time testing.
+M:System.Threading.Tasks.Task.Delay(System.Int32,System.Threading.CancellationToken);Banned: use Task.Delay(TimeSpan, TimeProvider, CancellationToken) instead (DR-7).
+P:System.DateTime.Today;Use the injected TimeProvider for dates.
+T:System.Threading.Timer;Use TimeProvider.CreateTimer and ITimer for controlled time; all Timer constructors are forbidden.
+M:System.Threading.PeriodicTimer.#ctor(System.TimeSpan);Use the TimeProvider constructor.
+M:System.Threading.CancellationTokenSource.#ctor(System.TimeSpan);Use the TimeProvider constructor.
