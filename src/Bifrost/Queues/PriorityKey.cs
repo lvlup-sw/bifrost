@@ -31,12 +31,6 @@ namespace Bifrost.Queues;
 /// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
 /// </para>
 /// <para>
-/// The virtual-time key expresses an ordering preference, not a service-time guarantee.
-/// An older Batch key outranks a fresh Interactive key only after the boost plus batch penalty.
-/// Exact dispatch selects the minimum admitted key; MultiQueue may select a different key.
-/// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
-/// </para>
-/// <para>
 /// <b>Units.</b> <see cref="WorkEnvelope{TWork}.EnqueuedAtTicks"/> is in
 /// <see cref="TimeProvider.TimestampFrequency"/> units — not necessarily
 /// <see cref="TimeSpan"/> ticks — so boost windows must be converted at that same
