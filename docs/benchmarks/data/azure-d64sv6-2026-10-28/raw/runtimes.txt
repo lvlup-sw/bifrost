@@ -1,0 +1,2 @@
+Microsoft.AspNetCore.App 10.0.9 [/opt/dotnet/shared/Microsoft.AspNetCore.App]
+Microsoft.NETCore.App 10.0.9 [/opt/dotnet/shared/Microsoft.NETCore.App]
