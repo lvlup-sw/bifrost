@@ -22,7 +22,7 @@ For these reasons, PQs are very typically implemented as binary heaps. In this d
 
 The promise of a concurrent data structure is straightforward: independent operations can run in parallel, ideally without ever blocking each other. A well-designed one therefore optimizes for *parallelizable* work, keeping operations off the same memory wherever it can. When they do have to touch shared state, that work has to happen in a *linearizable* fashion, and that coordination is almost always a tax on throughput. So the whole craft of designing concurrent data structures comes down to driving the frequency of that coordination toward zero.
 
-Okay, so how is a conventional PQ different from a thread-safe one? Let's try making our original binary heap concurrent: let a couple dozen threads call `insert` and `delete-min` on one shared heap, with no coordination at all. 
+Okay, so how is a conventional PQ different from a thread-safe one? Let's try making our original binary heap concurrent: let a couple dozen threads call `insert` and `delete-min` on one shared heap, with no coordination at all.
 
 <p align="center"><img src="assets/naive-heap-races.svg" width="660" alt="A three-frame storyboard. Frame one: two threads T1 and T2 both read the root value 3. Frame two: both grab that same 3. Frame three: the value 3 leaves the heap twice and the root is left corrupted."></p>
 
