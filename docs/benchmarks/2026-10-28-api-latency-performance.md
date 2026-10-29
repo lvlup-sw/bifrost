@@ -134,3 +134,5 @@ All sixteen whole-queue batch medians improve. Not every internal stripe metric 
 - The existing public API decisions and internal exact dispatch remain untouched. There is no new shared/per-thread state, profiler or test hook in production.
 
 [Raw controls, native profiles, JIT output, source hashes, rejected experiments, stripe-only diagnostic and verification logs](data/api-latency-performance-2026-10-28/README.md) include reproduction instructions and the small retained patch. The [prior report](2026-10-28-api-profile-performance.md) records the preserved copy/guard optimization.
+
+The [unbuffered-stripe follow-up](2026-10-28-api-unbuffered-performance.md) investigates the remaining 3.82% proxy regression with repeated full matrices and an independent dense stripe diagnostic. It retains this queue implementation after rejecting fourteen further candidates, documents the context-dependent result, and removes the SourceLink audit workaround through a patched build dependency.
