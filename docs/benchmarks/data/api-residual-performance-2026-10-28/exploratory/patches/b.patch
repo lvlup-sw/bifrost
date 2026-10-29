@@ -1,0 +1,18 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -868,6 +868,7 @@
+     /// </summary>
+     /// <param name="element">The element to store.</param>
+     /// <param name="priority">The priority that orders the entry.</param>
++    [MethodImpl(MethodImplOptions.NoInlining)]
+     private void UnbufferedPush(TElement element, TPriority priority)
+     {
+         bool wasEmpty = _size == 0;
+@@ -940,6 +941,7 @@
+     /// <see cref="SubQueuePopStatus.Empty"/> when the heap is empty. Never returns
+     /// <see cref="SubQueuePopStatus.Contended"/>: the caller already holds the lock.
+     /// </returns>
++    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+     internal SubQueuePopStatus PopHeldRoot(out TElement element, out TPriority priority)
+     {
+         Debug.Assert(SyncLock.IsHeldByCurrentThread, "PopHeldRoot requires the sub-queue lock held by the caller.");

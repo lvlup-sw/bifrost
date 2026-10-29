@@ -1,0 +1,16 @@
+batch payload=value custom=False population=16 c=0 pairMedianNs=60.93 pairP90Ns=62.60 stripeMedianNs=29.39 allocated=0
+batch payload=value custom=False population=16 c=16 pairMedianNs=62.42 pairP90Ns=63.26 stripeMedianNs=48.65 allocated=0
+batch payload=value custom=False population=4096 c=0 pairMedianNs=71.45 pairP90Ns=72.74 stripeMedianNs=36.10 allocated=0
+batch payload=value custom=False population=4096 c=16 pairMedianNs=74.73 pairP90Ns=75.81 stripeMedianNs=44.42 allocated=0
+batch payload=value custom=True population=16 c=0 pairMedianNs=63.74 pairP90Ns=64.57 stripeMedianNs=41.81 allocated=0
+batch payload=value custom=True population=16 c=16 pairMedianNs=63.61 pairP90Ns=64.73 stripeMedianNs=72.14 allocated=0
+batch payload=value custom=True population=4096 c=0 pairMedianNs=107.17 pairP90Ns=108.11 stripeMedianNs=62.35 allocated=0
+batch payload=value custom=True population=4096 c=16 pairMedianNs=87.58 pairP90Ns=88.74 stripeMedianNs=57.87 allocated=0
+batch payload=reference custom=False population=16 c=0 pairMedianNs=64.02 pairP90Ns=65.18 stripeMedianNs=34.69 allocated=0
+batch payload=reference custom=False population=16 c=16 pairMedianNs=67.31 pairP90Ns=69.47 stripeMedianNs=53.34 allocated=0
+batch payload=reference custom=False population=4096 c=0 pairMedianNs=78.84 pairP90Ns=80.12 stripeMedianNs=44.45 allocated=0
+batch payload=reference custom=False population=4096 c=16 pairMedianNs=76.56 pairP90Ns=78.38 stripeMedianNs=46.51 allocated=0
+batch payload=reference custom=True population=16 c=0 pairMedianNs=65.98 pairP90Ns=66.91 stripeMedianNs=49.46 allocated=0
+batch payload=reference custom=True population=16 c=16 pairMedianNs=68.83 pairP90Ns=69.84 stripeMedianNs=87.34 allocated=0
+batch payload=reference custom=True population=4096 c=0 pairMedianNs=120.58 pairP90Ns=122.76 stripeMedianNs=78.65 allocated=0
+batch payload=reference custom=True population=4096 c=16 pairMedianNs=95.09 pairP90Ns=96.17 stripeMedianNs=64.23 allocated=0

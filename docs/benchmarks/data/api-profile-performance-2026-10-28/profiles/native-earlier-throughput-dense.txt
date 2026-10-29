@@ -1,0 +1,887 @@
+Analysis of sampling dotnet (pid 63674) every 1 millisecond
+Process:         dotnet [63674]
+Path:            /Users/USER/*/dotnet
+Load Address:    0x100f40000
+Identifier:      dotnet
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  Python [63614]
+
+Date/Time:       2026-10-28 17:00:52.080 -0700
+Launch Time:     2026-10-28 17:00:26.039 -0700
+OS Version:      macOS 14.4.1 (23E224)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         27.3M
+Physical footprint (peak):  28.0M
+Idle exit:                  untracked
+----
+
+Call graph:
+    6270 Thread_12948712   DispatchQueue_1: com.apple.main-thread  (serial)
+    + 6270 start  (in dyld) + 2360  [0x18177e0e0]
+    +   6270 main  (in dotnet) + 184  [0x100f41c78]
+    +     6270 exe_start(int, char const**)  (in dotnet) + 1068  [0x100f41a10]
+    +       6270 hostfxr_main_startupinfo  (in libhostfxr.dylib) + 128  [0x100fd2dfc]
+    +         6270 fx_muxer_t::execute(std::basic_string<char>, int, char const**, host_startup_info_t const&, char*, int, int*)  (in libhostfxr.dylib) + 968  [0x100fd73d0]
+    +           6270 fx_muxer_t::handle_exec_host_command(std::basic_string<char> const&, host_startup_info_t const&, std::basic_string<char> const&, std::unordered_map<known_options, std::vector<std::basic_string<char>>, known_options_hash> const&, int, char const**, int, host_mode_t, bool, char*, int, int*)  (in libhostfxr.dylib) + 1268  [0x100fd85d0]
+    +             6270 corehost_main  (in libhostpolicy.dylib) + 348  [0x10104cd88]
+    +               6270 run_app_for_context(hostpolicy_context_t const&, int, char const**)  (in libhostpolicy.dylib) + 1068  [0x10104bf58]
+    +                 6270 coreclr_execute_assembly  (in libcoreclr.dylib) + 232  [0x1019e353c]
+    +                   6270 CorHost2::ExecuteAssembly(unsigned int, char16_t const*, int, char16_t const**, unsigned int*)  (in libcoreclr.dylib) + 648  [0x101b26a70]
+    +                     6270 Assembly::ExecuteMainMethod(PtrArray**, int)  (in libcoreclr.dylib) + 268  [0x101b033d8]
+    +                       6270 RunMain(MethodDesc*, short, int*, PtrArray**)  (in libcoreclr.dylib) + 620  [0x101b03094]
+    +                         6270 MethodDescCallSite::CallTargetWorker(unsigned long long const*, unsigned long long*, int)  (in libcoreclr.dylib) + 792  [0x101bfb514]
+    +                           6270 CallDescrWorkerInternal  (in libcoreclr.dylib) + 132  [0x101d63020]
+    +                             6270 ???  (in <unknown binary>)  [0x103cd0be0]
+    +                               6270 ThreadNative_Join  (in libcoreclr.dylib) + 384  [0x101c0d988]
+    +                                 6270 Thread::JoinEx(unsigned int, WaitMode)  (in libcoreclr.dylib) + 88  [0x101bc50cc]
+    +                                   6270 Thread::DoAppropriateWait(int, void**, int, unsigned int, WaitMode, PendingSync*)  (in libcoreclr.dylib) + 136  [0x101bc5188]
+    +                                     6270 Thread::DoAppropriateWaitWorker(int, void**, int, unsigned int, WaitMode, void*)  (in libcoreclr.dylib) + 1692  [0x101bc9b90]
+    +                                       6270 CorUnix::InternalWaitForMultipleObjectsEx(CorUnix::CPalThread*, unsigned int, void* const*, int, unsigned int, int, int)  (in libcoreclr.dylib) + 1292  [0x101d9b414]
+    +                                         6270 CorUnix::CPalSynchronizationManager::BlockThread(CorUnix::CPalThread*, unsigned int, bool, bool, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 300  [0x101d97ff0]
+    +                                           6270 CorUnix::CPalSynchronizationManager::ThreadNativeWait(CorUnix::_ThreadNativeWaitData*, unsigned int, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 116  [0x101d98244]
+    +                                             6270 _pthread_cond_wait  (in libsystem_pthread.dylib) + 1272  [0x181b07588]
+    +                                               6270 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x181ac99ec]
+    6270 Thread_12948714
+    + 6270 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6270 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6270 SEHExceptionThread(void*)  (in libcoreclr.dylib) + 156  [0x101da4a98]
+    +       6270 MachMessage::Receive(unsigned int)  (in libcoreclr.dylib) + 80  [0x101da56f8]
+    +         6270 mach_msg  (in libsystem_kernel.dylib) + 24  [0x181ac6578]
+    +           6270 mach_msg_overwrite  (in libsystem_kernel.dylib) + 476  [0x181acee34]
+    +             6270 mach_msg2_internal  (in libsystem_kernel.dylib) + 80  [0x181ad8b24]
+    +               6270 mach_msg2_trap  (in libsystem_kernel.dylib) + 8  [0x181ac61f4]
+    6270 Thread_12948715: .NET SynchManager
+    + 6270 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6270 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6270 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x101da2624]
+    +       6270 CorUnix::CPalSynchronizationManager::WorkerThread(void*)  (in libcoreclr.dylib) + 112  [0x101d99944]
+    +         6270 CorUnix::CPalSynchronizationManager::ReadBytesFromProcessPipe(int, unsigned char*, int)  (in libcoreclr.dylib) + 472  [0x101d99eec]
+    +           6270 kevent  (in libsystem_kernel.dylib) + 8  [0x181acc340]
+    6270 Thread_12948716: .NET EventPipe
+    + 6270 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6270 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6270 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x101da2624]
+    +       6270 server_thread(void*)  (in libcoreclr.dylib) + 364  [0x101a0f734]
+    +         6270 ds_ipc_stream_factory_get_next_available_stream(void (*)(char const*, unsigned int))  (in libcoreclr.dylib) + 796  [0x101a0b180]
+    +           6270 ds_ipc_poll(_DiagnosticsIpcPollHandle*, unsigned long, unsigned int, void (*)(char const*, unsigned int))  (in libcoreclr.dylib) + 180  [0x101a8838c]
+    +             6270 __poll_nocancel  (in libsystem_kernel.dylib) + 8  [0x181ad3b54]
+    6270 Thread_12948717: .NET DebugPipe
+    + 6270 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6270 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6270 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x101da2624]
+    +       6270 DbgTransportSession::TransportWorkerStatic(void*)  (in libcoreclr.dylib) + 40  [0x101a820e0]
+    +         6270 DbgTransportSession::TransportWorker()  (in libcoreclr.dylib) + 200  [0x101a8315c]
+    +           6270 TwoWayPipe::WaitForConnection()  (in libcoreclr.dylib) + 40  [0x101a87d5c]
+    +             6270 open$NOCANCEL  (in libsystem_kernel.dylib) + 64  [0x181ada914]
+    +               6270 __open_nocancel  (in libsystem_kernel.dylib) + 8  [0x181ac6de0]
+    6270 Thread_12948718: .NET Debugger
+    + 6270 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6270 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6270 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x101da2624]
+    +       6270 DebuggerRCThread::ThreadProcStatic(void*)  (in libcoreclr.dylib) + 56  [0x101a80588]
+    +         6270 DebuggerRCThread::ThreadProc()  (in libcoreclr.dylib) + 260  [0x101a807d8]
+    +           6270 DebuggerRCThread::MainLoop()  (in libcoreclr.dylib) + 220  [0x101a8091c]
+    +             6270 CorUnix::InternalWaitForMultipleObjectsEx(CorUnix::CPalThread*, unsigned int, void* const*, int, unsigned int, int, int)  (in libcoreclr.dylib) + 1292  [0x101d9b414]
+    +               6270 CorUnix::CPalSynchronizationManager::BlockThread(CorUnix::CPalThread*, unsigned int, bool, bool, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 300  [0x101d97ff0]
+    +                 6270 CorUnix::CPalSynchronizationManager::ThreadNativeWait(CorUnix::_ThreadNativeWaitData*, unsigned int, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 116  [0x101d98244]
+    +                   6270 _pthread_cond_wait  (in libsystem_pthread.dylib) + 1272  [0x181b07588]
+    +                     6270 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x181ac99ec]
+    6270 Thread_12948719
+    + 6270 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6270 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6270 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x101da2624]
+    +       6270 FinalizerThread::FinalizerThreadStart(void*)  (in libcoreclr.dylib) + 92  [0x101c2e93c]
+    +         6270 ManagedThreadBase::KickOff(void (*)(void*), void*)  (in libcoreclr.dylib) + 236  [0x101bcc8e0]
+    +           6270 FinalizerThread::FinalizerThreadWorker(void*)  (in libcoreclr.dylib) + 144  [0x101c2e4f4]
+    +             4669 FinalizerThread::WaitForFinalizerEvent(CLREvent*)  (in libcoreclr.dylib) + 272  [0x101c2e444]
+    +             ! 4669 CorUnix::InternalWaitForMultipleObjectsEx(CorUnix::CPalThread*, unsigned int, void* const*, int, unsigned int, int, int)  (in libcoreclr.dylib) + 1292  [0x101d9b414]
+    +             !   4669 CorUnix::CPalSynchronizationManager::BlockThread(CorUnix::CPalThread*, unsigned int, bool, bool, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 300  [0x101d97ff0]
+    +             !     4669 CorUnix::CPalSynchronizationManager::ThreadNativeWait(CorUnix::_ThreadNativeWaitData*, unsigned int, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 116  [0x101d98244]
+    +             !       4669 _pthread_cond_wait  (in libsystem_pthread.dylib) + 1272  [0x181b07588]
+    +             !         4669 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x181ac99ec]
+    +             1600 FinalizerThread::WaitForFinalizerEvent(CLREvent*)  (in libcoreclr.dylib) + 48  [0x101c2e364]
+    +             ! 1600 CLREventBase::WaitEx(unsigned int, WaitMode, PendingSync*)  (in libcoreclr.dylib) + 188  [0x101ca0a54]
+    +             !   1600 WaitForSingleObjectEx  (in libcoreclr.dylib) + 80  [0x101d9b704]
+    +             !     1600 CorUnix::InternalWaitForMultipleObjectsEx(CorUnix::CPalThread*, unsigned int, void* const*, int, unsigned int, int, int)  (in libcoreclr.dylib) + 1292  [0x101d9b414]
+    +             !       1600 CorUnix::CPalSynchronizationManager::BlockThread(CorUnix::CPalThread*, unsigned int, bool, bool, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 300  [0x101d97ff0]
+    +             !         1600 CorUnix::CPalSynchronizationManager::ThreadNativeWait(CorUnix::_ThreadNativeWaitData*, unsigned int, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 340  [0x101d98324]
+    +             !           1600 _pthread_cond_wait  (in libsystem_pthread.dylib) + 1272  [0x181b07588]
+    +             !             1600 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x181ac99ec]
+    +             1 FinalizerThread::WaitForFinalizerEvent(CLREvent*)  (in libcoreclr.dylib) + 48  [0x101c2e364]
+    6270 Thread_12948722
+    + 6270 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x181b01d28]
+    +   6270 _pthread_wqthread  (in libsystem_pthread.dylib) + 364  [0x181b03058]
+    +     6270 __workq_kernreturn  (in libsystem_kernel.dylib) + 8  [0x181ac7ea4]
+    3175 Thread_12948994
+    + 3175 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   3175 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     3175 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x101da2624]
+    +       3175 KickOffThread(void*)  (in libcoreclr.dylib) + 212  [0x101c0ccac]
+    +         3175 ManagedThreadBase::KickOff(void (*)(void*), void*)  (in libcoreclr.dylib) + 236  [0x101bcc8e0]
+    +           3175 KickOffThread_Worker(void*)  (in libcoreclr.dylib) + 144  [0x101c0e870]
+    +             3175 DispatchCallSimple(unsigned long*, unsigned int, unsigned long, unsigned int)  (in libcoreclr.dylib) + 276  [0x101bfb190]
+    +               3175 CallDescrWorkerInternal  (in libcoreclr.dylib) + 132  [0x101d63020]
+    +                 3175 ???  (in <unknown binary>)  [0x103ccbcf4]
+    +                   3175 ???  (in <unknown binary>)  [0x103ccdc28]
+    +                     3175 ???  (in <unknown binary>)  [0x103cd4464]
+    +                       1688 ???  (in <unknown binary>)  [0x103ccf2cc]
+    +                       ! 1297 ???  (in <unknown binary>)  [0x103cbc5ac]
+    +                       ! : 1171 ???  (in <unknown binary>)  [0x103cc71d8]
+    +                       ! : | 544 ???  (in <unknown binary>)  [0x103cc7df8]
+    +                       ! : | 331 ???  (in <unknown binary>)  [0x103cc7e68]
+    +                       ! : | + 163 ???  (in <unknown binary>)  [0x103cc8038]
+    +                       ! : | + ! 152 _platform_memmove  (in libsystem_platform.dylib) + 676,708,...  [0x181b37444,0x181b37464,...]
+    +                       ! : | + ! 11 DYLD-STUB$$memmove  (in libcoreclr.dylib) + 4  [0x101dac70c]
+    +                       ! : | + 50 ???  (in <unknown binary>)  [0x103cc7fe0]
+    +                       ! : | + ! 19 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 44  [0x101c498d4]
+    +                       ! : | + ! : 19 InlinedCallFrame::Init()  (in libcoreclr.dylib) + 12  [0x101b4c978]
+    +                       ! : | + ! 17 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 24,28  [0x101c498c0,0x101c498c4]
+    +                       ! : | + ! 14 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 32  [0x101c498c8]
+    +                       ! : | + !   14 tlv_get_addr  (in libdyld.dylib) + 12  [0x181b0f0bc]
+    +                       ! : | + 29 ???  (in <unknown binary>)  [0x103cc8024]
+    +                       ! : | + 22 ???  (in <unknown binary>)  [0x103cc807c]
+    +                       ! : | + 22 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 60  [0x101c498e4]
+    +                       ! : | + 17 ???  (in <unknown binary>)  [0x103cc2008]
+    +                       ! : | + 11 ???  (in <unknown binary>)  [0x103cc804c]
+    +                       ! : | + 6 ???  (in <unknown binary>)  [0x103cc1ef8]
+    +                       ! : | + 6 ???  (in <unknown binary>)  [0x103cc8038]
+    +                       ! : | + 2 ???  (in <unknown binary>)  [0x103cc8070]
+    +                       ! : | + 1 ???  (in <unknown binary>)  [0x103cc1efc]
+    +                       ! : | + 1 ???  (in <unknown binary>)  [0x103cc1f1c]
+    +                       ! : | + 1 ???  (in <unknown binary>)  [0x103cc2030]
+    +                       ! : | 55 ???  (in <unknown binary>)  [0x103cc7de0]
+    +                       ! : | 43 ???  (in <unknown binary>)  [0x103cc7dcc]
+    +                       ! : | 38 ???  (in <unknown binary>)  [0x103cc7dec]
+    +                       ! : | 28 ???  (in <unknown binary>)  [0x103cc7dfc]
+    +                       ! : | 24 ???  (in <unknown binary>)  [0x103cc7e60]
+    +                       ! : | 15 ???  (in <unknown binary>)  [0x103cc7e08]
+    +                       ! : | 14 ???  (in <unknown binary>)  [0x103cc7e68]
+    +                       ! : | 14 ???  (in <unknown binary>)  [0x103cc7e98]
+    +                       ! : | 13 ???  (in <unknown binary>)  [0x103cc7fb0]
+    +                       ! : | 12 ???  (in <unknown binary>)  [0x103cc7e30]
+    +                       ! : | 10 ???  (in <unknown binary>)  [0x103cc7dbc]
+    +                       ! : | 7 ???  (in <unknown binary>)  [0x103cc7ea0]
+    +                       ! : | 6 ???  (in <unknown binary>)  [0x103cc7df0]
+    +                       ! : | 5 ???  (in <unknown binary>)  [0x103cc7f6c]
+    +                       ! : | + 3 ???  (in <unknown binary>)  [0x103cc76f4]
+    +                       ! : | + 1 ???  (in <unknown binary>)  [0x103cc7700]
+    +                       ! : | + 1 ???  (in <unknown binary>)  [0x103cc7734]
+    +                       ! : | 5 ???  (in <unknown binary>)  [0x103cc7dac]
+    +                       ! : | 3 ???  (in <unknown binary>)  [0x103cc7da4]
+    +                       ! : | 3 ???  (in <unknown binary>)  [0x103cc7e94]
+    +                       ! : | 1 ???  (in <unknown binary>)  [0x103cc7db8]
+    +                       ! : 20 ???  (in <unknown binary>)  [0x103cc716c]
+    +                       ! : 16 ???  (in <unknown binary>)  [0x103cc70a4]
+    +                       ! : 15 ???  (in <unknown binary>)  [0x103cc719c]
+    +                       ! : 13 ???  (in <unknown binary>)  [0x103cc7194]
+    +                       ! : 10 ???  (in <unknown binary>)  [0x103cc70a8]
+    +                       ! : 9 ???  (in <unknown binary>)  [0x103cc70f8]
+    +                       ! : 9 ???  (in <unknown binary>)  [0x103cc7114]
+    +                       ! : 9 ???  (in <unknown binary>)  [0x103cc7174]
+    +                       ! : 9 ???  (in <unknown binary>)  [0x103cc71d4]
+    +                       ! : 6 ???  (in <unknown binary>)  [0x103cc71d0]
+    +                       ! : 3 ???  (in <unknown binary>)  [0x103cc70b8]
+    +                       ! : 3 ???  (in <unknown binary>)  [0x103cc70f4]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc70cc]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc70fc]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc71dc]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc7e9c]
+    +                       ! 74 ???  (in <unknown binary>)  [0x103cbc620]
+    +                       ! : 36 ???  (in <unknown binary>)  [0x103cbba34]
+    +                       ! : 16 ???  (in <unknown binary>)  [0x103cbb9f8]
+    +                       ! : | 16 tlv_get_addr  (in libdyld.dylib) + 12  [0x181b0f0bc]
+    +                       ! : 9 ???  (in <unknown binary>)  [0x103cbb9f0]
+    +                       ! : 9 ???  (in <unknown binary>)  [0x103cbb9fc]
+    +                       ! : 2 ???  (in <unknown binary>)  [0x103cbba04]
+    +                       ! : 2 ???  (in <unknown binary>)  [0x103cbba08]
+    +                       ! 69 ???  (in <unknown binary>)  [0x103cbc2d8]
+    +                       ! : 22 ???  (in <unknown binary>)  [0x103cbc7a4]
+    +                       ! : 14 ???  (in <unknown binary>)  [0x103cbc7ac]
+    +                       ! : 14 ???  (in <unknown binary>)  [0x103cbc7d0]
+    +                       ! : 13 ???  (in <unknown binary>)  [0x103cbc7ac]
+    +                       ! : | 13 tlv_get_addr  (in libdyld.dylib) + 12,20  [0x181b0f0bc,0x181b0f0c4]
+    +                       ! : 6 ???  (in <unknown binary>)  [0x103cbc7b0]
+    +                       ! 63 ???  (in <unknown binary>)  [0x103cbc3a8]
+    +                       ! : 18 ???  (in <unknown binary>)  [0x103cbbac0]
+    +                       ! : | 18 tlv_get_addr  (in libdyld.dylib) + 12  [0x181b0f0bc]
+    +                       ! : 14 ???  (in <unknown binary>)  [0x103cbbb00]
+    +                       ! : 12 ???  (in <unknown binary>)  [0x103cbbac4]
+    +                       ! : 9 ???  (in <unknown binary>)  [0x103cbbab8]
+    +                       ! : 5 ???  (in <unknown binary>)  [0x103cbbae8]
+    +                       ! : 3 ???  (in <unknown binary>)  [0x103cbbad0]
+    +                       ! : 2 ???  (in <unknown binary>)  [0x103cbbacc]
+    +                       ! 36 ???  (in <unknown binary>)  [0x103cbc3a0]
+    +                       ! 33 ???  (in <unknown binary>)  [0x103cbc2d0]
+    +                       ! 29 ???  (in <unknown binary>)  [0x103cbc664]
+    +                       ! 24 ???  (in <unknown binary>)  [0x103cbc368]
+    +                       ! 14 ???  (in <unknown binary>)  [0x103cbc2e8]
+    +                       ! 12 ???  (in <unknown binary>)  [0x103cbc618]
+    +                       ! 10 ???  (in <unknown binary>)  [0x103cbc53c]
+    +                       ! 7 ???  (in <unknown binary>)  [0x103cbc344]
+    +                       ! 6 ???  (in <unknown binary>)  [0x103cbc338]
+    +                       ! 4 ???  (in <unknown binary>)  [0x103cbc61c]
+    +                       ! 4 ???  (in <unknown binary>)  [0x103cc7170]
+    +                       ! 2 ???  (in <unknown binary>)  [0x103cbc2f0]
+    +                       ! 2 ???  (in <unknown binary>)  [0x103cbc3b0]
+    +                       ! 2 ???  (in <unknown binary>)  [0x103cbc5a4]
+    +                       702 ???  (in <unknown binary>)  [0x103ccf260]
+    +                       ! 548 ???  (in <unknown binary>)  [0x103cc73ec]
+    +                       ! : 353 ???  (in <unknown binary>)  [0x103cc8038]
+    +                       ! : | 341 _platform_memmove  (in libsystem_platform.dylib) + 428,436,...  [0x181b3734c,0x181b37354,...]
+    +                       ! : | 12 DYLD-STUB$$memmove  (in libcoreclr.dylib) + 4  [0x101dac70c]
+    +                       ! : 51 ???  (in <unknown binary>)  [0x103cc7fe0]
+    +                       ! : | 26 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 24  [0x101c498c0]
+    +                       ! : | 16 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 32  [0x101c498c8]
+    +                       ! : | + 16 tlv_get_addr  (in libdyld.dylib) + 12  [0x181b0f0bc]
+    +                       ! : | 9 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 44  [0x101c498d4]
+    +                       ! : |   9 InlinedCallFrame::Init()  (in libcoreclr.dylib) + 12  [0x101b4c978]
+    +                       ! : 33 ???  (in <unknown binary>)  [0x103cc8024]
+    +                       ! : 29 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 60,64  [0x101c498e4,0x101c498e8]
+    +                       ! : 27 ???  (in <unknown binary>)  [0x103cc807c]
+    +                       ! : 16 ???  (in <unknown binary>)  [0x103cc2030]
+    +                       ! : 13 ???  (in <unknown binary>)  [0x103cc1ef8]
+    +                       ! : 12 ???  (in <unknown binary>)  [0x103cc804c]
+    +                       ! : 7 ???  (in <unknown binary>)  [0x103cc8038]
+    +                       ! : 6 ???  (in <unknown binary>)  [0x103cc1efc]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc8070]
+    +                       ! 30 ???  (in <unknown binary>)  [0x103cc73ac]
+    +                       ! 22 ???  (in <unknown binary>)  [0x103cc7408]
+    +                       ! : 5 ???  (in <unknown binary>)  [0x103cc79f4]
+    +                       ! : 4 ???  (in <unknown binary>)  [0x103cc79fc]
+    +                       ! : 3 ???  (in <unknown binary>)  [0x103cc7990]
+    +                       ! : 2 ???  (in <unknown binary>)  [0x103cc7970]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc77e4]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc77fc]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc7830]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc7858]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc7870]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc7884]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc7998]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc79e8]
+    +                       ! 17 ???  (in <unknown binary>)  [0x103cc740c]
+    +                       ! 16 ???  (in <unknown binary>)  [0x103cc72d4]
+    +                       ! 14 ???  (in <unknown binary>)  [0x103cc743c]
+    +                       ! 13 ???  (in <unknown binary>)  [0x103cc7304]
+    +                       ! 13 ???  (in <unknown binary>)  [0x103cc73c4]
+    +                       ! 9 ???  (in <unknown binary>)  [0x103cc2034]
+    +                       ! 6 ???  (in <unknown binary>)  [0x103cc7324]
+    +                       ! 5 ???  (in <unknown binary>)  [0x103cc73a8]
+    +                       ! 4 ???  (in <unknown binary>)  [0x103cc72f0]
+    +                       ! 3 ???  (in <unknown binary>)  [0x103cc72f4]
+    +                       ! 1 ???  (in <unknown binary>)  [0x103cc73e4]
+    +                       ! 1 ???  (in <unknown binary>)  [0x103cc7434]
+    +                       138 ???  (in <unknown binary>)  [0x103ccedd4]
+    +                       134 ???  (in <unknown binary>)  [0x103ccedbc]
+    +                       84 ???  (in <unknown binary>)  [0x103ccf284]
+    +                       ! 21 ???  (in <unknown binary>)  [0x103cbb9f8]
+    +                       ! : 21 tlv_get_addr  (in libdyld.dylib) + 12  [0x181b0f0bc]
+    +                       ! 21 ???  (in <unknown binary>)  [0x103cbba34]
+    +                       ! 15 ???  (in <unknown binary>)  [0x103cbb9d0]
+    +                       ! 12 ???  (in <unknown binary>)  [0x103cbb9f0]
+    +                       ! 11 ???  (in <unknown binary>)  [0x103cbb9fc]
+    +                       ! 4 ???  (in <unknown binary>)  [0x103cbba08]
+    +                       76 ???  (in <unknown binary>)  [0x103ccf514]
+    +                       ! 21 ???  (in <unknown binary>)  [0x103cbbae8]
+    +                       ! 19 ???  (in <unknown binary>)  [0x103cbbab8]
+    +                       ! 19 ???  (in <unknown binary>)  [0x103cbbb00]
+    +                       ! 13 ???  (in <unknown binary>)  [0x103cbbac0]
+    +                       ! : 13 tlv_get_addr  (in libdyld.dylib) + 20,28  [0x181b0f0c4,0x181b0f0cc]
+    +                       ! 2 ???  (in <unknown binary>)  [0x103cbbacc]
+    +                       ! 1 ???  (in <unknown binary>)  [0x103cbbac8]
+    +                       ! 1 ???  (in <unknown binary>)  [0x103cbbad8]
+    +                       23 ???  (in <unknown binary>)  [0x103ccf3c0]
+    +                       22 ???  (in <unknown binary>)  [0x103ccf454]
+    +                       19 ???  (in <unknown binary>)  [0x103ccf410]
+    +                       17 ???  (in <unknown binary>)  [0x103ccf2f0]
+    +                       ! 17 tlv_get_addr  (in libdyld.dylib) + 12,20,...  [0x181b0f0bc,0x181b0f0c4,...]
+    +                       16 ???  (in <unknown binary>)  [0x103ccf284]
+    +                       15 ???  (in <unknown binary>)  [0x103ccf258]
+    +                       15 ???  (in <unknown binary>)  [0x103ccf2e8]
+    +                       15 ???  (in <unknown binary>)  [0x103ccf488]
+    +                       14 ???  (in <unknown binary>)  [0x103ccedf8]
+    +                       14 ???  (in <unknown binary>)  [0x103ccf4c4]
+    +                       13 ???  (in <unknown binary>)  [0x103ccf27c]
+    +                       13 ???  (in <unknown binary>)  [0x103ccf398]
+    +                       13 ???  (in <unknown binary>)  [0x103ccf490]
+    +                       13 ???  (in <unknown binary>)  [0x103ccf4b4]
+    +                       13 ???  (in <unknown binary>)  [0x103ccf50c]
+    +                       12 ???  (in <unknown binary>)  [0x103cced24]
+    +                       12 ???  (in <unknown binary>)  [0x103ccf3e4]
+    +                       11 ???  (in <unknown binary>)  [0x103ccf434]
+    +                       10 ???  (in <unknown binary>)  [0x103ccedc0]
+    +                       9 ???  (in <unknown binary>)  [0x103ccf2c4]
+    +                       9 ???  (in <unknown binary>)  [0x103ccf4dc]
+    +                       8 ???  (in <unknown binary>)  [0x103ccf35c]
+    +                       8 ???  (in <unknown binary>)  [0x103ccf3bc]
+    +                       6 ???  (in <unknown binary>)  [0x103ccf308]
+    +                       4 ???  (in <unknown binary>)  [0x103ccedb4]
+    +                       4 ???  (in <unknown binary>)  [0x103cceddc]
+    +                       4 ???  (in <unknown binary>)  [0x103ccf364]
+    +                       4 ???  (in <unknown binary>)  [0x103ccf3b4]
+    +                       3 ???  (in <unknown binary>)  [0x103cced14]
+    +                       ! 3 clock_gettime_nsec_np  (in libsystem_c.dylib) + 404  [0x18199e630]
+    +                       !   3 mach_absolute_time  (in libsystem_kernel.dylib) + 80,84  [0x181ac66a4,0x181ac66a8]
+    +                       2 ???  (in <unknown binary>)  [0x103ccf30c]
+    +                       2 ???  (in <unknown binary>)  [0x103ccf4ac]
+    +                       2 ???  (in <unknown binary>)  [0x103ccf4d8]
+    +                       1 ???  (in <unknown binary>)  [0x103cbba94]
+    +                       1 ???  (in <unknown binary>)  [0x103cced7c]
+    +                       1 ???  (in <unknown binary>)  [0x103ccedec]
+    +                       1 ???  (in <unknown binary>)  [0x103ccf2f0]
+    +                       1 ???  (in <unknown binary>)  [0x103ccf354]
+    +                       1 ???  (in <unknown binary>)  [0x103ccf36c]
+    +                       1 ???  (in <unknown binary>)  [0x103ccf400]
+    +                       1 ???  (in <unknown binary>)  [0x103ccf430]
+    3095 Thread_12949034
+    + 3095 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   3095 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     3095 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x101da2624]
+    +       3095 KickOffThread(void*)  (in libcoreclr.dylib) + 212  [0x101c0ccac]
+    +         3095 ManagedThreadBase::KickOff(void (*)(void*), void*)  (in libcoreclr.dylib) + 236  [0x101bcc8e0]
+    +           3095 KickOffThread_Worker(void*)  (in libcoreclr.dylib) + 144  [0x101c0e870]
+    +             3095 DispatchCallSimple(unsigned long*, unsigned int, unsigned long, unsigned int)  (in libcoreclr.dylib) + 276  [0x101bfb190]
+    +               3095 CallDescrWorkerInternal  (in libcoreclr.dylib) + 132  [0x101d63020]
+    +                 3095 ???  (in <unknown binary>)  [0x103cd460c]
+    +                   3095 ???  (in <unknown binary>)  [0x103cd6664]
+    +                     3095 ???  (in <unknown binary>)  [0x103cd4464]
+    +                       1634 ???  (in <unknown binary>)  [0x103cd7120]
+    +                       ! 1273 ???  (in <unknown binary>)  [0x103cbc5ac]
+    +                       ! : 1139 ???  (in <unknown binary>)  [0x103cc71d8]
+    +                       ! : | 507 ???  (in <unknown binary>)  [0x103cc7df8]
+    +                       ! : | 318 ???  (in <unknown binary>)  [0x103cc7e68]
+    +                       ! : | + 172 ???  (in <unknown binary>)  [0x103cc8038]
+    +                       ! : | + ! 158 _platform_memmove  (in libsystem_platform.dylib) + 676,648,...  [0x181b37444,0x181b37428,...]
+    +                       ! : | + ! 14 DYLD-STUB$$memmove  (in libcoreclr.dylib) + 4  [0x101dac70c]
+    +                       ! : | + 43 ???  (in <unknown binary>)  [0x103cc7fe0]
+    +                       ! : | + ! 18 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 44  [0x101c498d4]
+    +                       ! : | + ! : 18 InlinedCallFrame::Init()  (in libcoreclr.dylib) + 12  [0x101b4c978]
+    +                       ! : | + ! 18 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 24  [0x101c498c0]
+    +                       ! : | + ! 7 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 32  [0x101c498c8]
+    +                       ! : | + !   7 tlv_get_addr  (in libdyld.dylib) + 12  [0x181b0f0bc]
+    +                       ! : | + 30 ???  (in <unknown binary>)  [0x103cc8024]
+    +                       ! : | + 22 ???  (in <unknown binary>)  [0x103cc807c]
+    +                       ! : | + 14 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 60  [0x101c498e4]
+    +                       ! : | + 13 ???  (in <unknown binary>)  [0x103cc8038]
+    +                       ! : | + 11 ???  (in <unknown binary>)  [0x103cc2008]
+    +                       ! : | + 11 ???  (in <unknown binary>)  [0x103cc804c]
+    +                       ! : | + 1 ???  (in <unknown binary>)  [0x103cc1ef8]
+    +                       ! : | + 1 ???  (in <unknown binary>)  [0x103cc2030]
+    +                       ! : | 58 ???  (in <unknown binary>)  [0x103cc7de0]
+    +                       ! : | 41 ???  (in <unknown binary>)  [0x103cc7dec]
+    +                       ! : | 31 ???  (in <unknown binary>)  [0x103cc7dcc]
+    +                       ! : | 28 ???  (in <unknown binary>)  [0x103cc7dfc]
+    +                       ! : | 26 ???  (in <unknown binary>)  [0x103cc7e98]
+    +                       ! : | 24 ???  (in <unknown binary>)  [0x103cc7e60]
+    +                       ! : | 18 ???  (in <unknown binary>)  [0x103cc7e30]
+    +                       ! : | 16 ???  (in <unknown binary>)  [0x103cc7fb0]
+    +                       ! : | 15 ???  (in <unknown binary>)  [0x103cc7e08]
+    +                       ! : | 13 ???  (in <unknown binary>)  [0x103cc7dbc]
+    +                       ! : | 10 ???  (in <unknown binary>)  [0x103cc7e68]
+    +                       ! : | 8 ???  (in <unknown binary>)  [0x103cc7df0]
+    +                       ! : | 8 ???  (in <unknown binary>)  [0x103cc7ea0]
+    +                       ! : | 7 ???  (in <unknown binary>)  [0x103cc7da4]
+    +                       ! : | 5 ???  (in <unknown binary>)  [0x103cc7dac]
+    +                       ! : | 2 ???  (in <unknown binary>)  [0x103cc7e94]
+    +                       ! : | 1 ???  (in <unknown binary>)  [0x103cc7f40]
+    +                       ! : | + 1 ???  (in <unknown binary>)  [0x103cc7568]
+    +                       ! : | 1 ???  (in <unknown binary>)  [0x103cc7f6c]
+    +                       ! : | + 1 ???  (in <unknown binary>)  [0x103cc7754]
+    +                       ! : | +   1 ???  (in <unknown binary>)  [0x103cc7b70]
+    +                       ! : | 1 ???  (in <unknown binary>)  [0x103cc7db8]
+    +                       ! : | 1 ???  (in <unknown binary>)  [0x103cc8080]
+    +                       ! : 24 ???  (in <unknown binary>)  [0x103cc70a4]
+    +                       ! : 24 ???  (in <unknown binary>)  [0x103cc716c]
+    +                       ! : 18 ???  (in <unknown binary>)  [0x103cc70f8]
+    +                       ! : 11 ???  (in <unknown binary>)  [0x103cc7174]
+    +                       ! : 9 ???  (in <unknown binary>)  [0x103cc70a8]
+    +                       ! : 9 ???  (in <unknown binary>)  [0x103cc719c]
+    +                       ! : 8 ???  (in <unknown binary>)  [0x103cc7194]
+    +                       ! : 6 ???  (in <unknown binary>)  [0x103cc7114]
+    +                       ! : 6 ???  (in <unknown binary>)  [0x103cc71d0]
+    +                       ! : 5 ???  (in <unknown binary>)  [0x103cc70fc]
+    +                       ! : 5 ???  (in <unknown binary>)  [0x103cc71d4]
+    +                       ! : 3 ???  (in <unknown binary>)  [0x103cc70cc]
+    +                       ! : 2 ???  (in <unknown binary>)  [0x103cc7254]
+    +                       ! : | 1 ???  (in <unknown binary>)  [0x103cc7bbc]
+    +                       ! : | 1 ???  (in <unknown binary>)  [0x103cc7bc0]
+    +                       ! : 2 ???  (in <unknown binary>)  [0x103cc7e9c]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc70b8]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc70f4]
+    +                       ! 70 ???  (in <unknown binary>)  [0x103cbc2d8]
+    +                       ! : 19 ???  (in <unknown binary>)  [0x103cbc7ac]
+    +                       ! : | 19 tlv_get_addr  (in libdyld.dylib) + 12,20  [0x181b0f0bc,0x181b0f0c4]
+    +                       ! : 18 ???  (in <unknown binary>)  [0x103cbc7a4]
+    +                       ! : 14 ???  (in <unknown binary>)  [0x103cbc7d0]
+    +                       ! : 12 ???  (in <unknown binary>)  [0x103cbc7ac]
+    +                       ! : 7 ???  (in <unknown binary>)  [0x103cbc7b0]
+    +                       ! 67 ???  (in <unknown binary>)  [0x103cbc620]
+    +                       ! : 23 ???  (in <unknown binary>)  [0x103cbba34]
+    +                       ! : 18 ???  (in <unknown binary>)  [0x103cbb9f0]
+    +                       ! : 14 ???  (in <unknown binary>)  [0x103cbb9f8]
+    +                       ! : | 14 tlv_get_addr  (in libdyld.dylib) + 12  [0x181b0f0bc]
+    +                       ! : 7 ???  (in <unknown binary>)  [0x103cbb9fc]
+    +                       ! : 2 ???  (in <unknown binary>)  [0x103cbb9d0]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cbba00]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cbba04]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cbba08]
+    +                       ! 61 ???  (in <unknown binary>)  [0x103cbc3a8]
+    +                       ! : 17 ???  (in <unknown binary>)  [0x103cbbac0]
+    +                       ! : | 17 tlv_get_addr  (in libdyld.dylib) + 12,20  [0x181b0f0bc,0x181b0f0c4]
+    +                       ! : 13 ???  (in <unknown binary>)  [0x103cbbab8]
+    +                       ! : 13 ???  (in <unknown binary>)  [0x103cbbae8]
+    +                       ! : 13 ???  (in <unknown binary>)  [0x103cbbb00]
+    +                       ! : 5 ???  (in <unknown binary>)  [0x103cbbac4]
+    +                       ! 37 ???  (in <unknown binary>)  [0x103cbc2d0]
+    +                       ! 31 ???  (in <unknown binary>)  [0x103cbc368]
+    +                       ! 31 ???  (in <unknown binary>)  [0x103cbc664]
+    +                       ! 13 ???  (in <unknown binary>)  [0x103cbc3a0]
+    +                       ! 13 ???  (in <unknown binary>)  [0x103cbc53c]
+    +                       ! 11 ???  (in <unknown binary>)  [0x103cbc618]
+    +                       ! 10 ???  (in <unknown binary>)  [0x103cbc2e8]
+    +                       ! 7 ???  (in <unknown binary>)  [0x103cbc344]
+    +                       ! 4 ???  (in <unknown binary>)  [0x103cbc338]
+    +                       ! 2 ???  (in <unknown binary>)  [0x103cbc3b0]
+    +                       ! 2 ???  (in <unknown binary>)  [0x103cc7170]
+    +                       ! 1 ???  (in <unknown binary>)  [0x103cbc2f0]
+    +                       ! 1 ???  (in <unknown binary>)  [0x103cbc5a4]
+    +                       707 ???  (in <unknown binary>)  [0x103cd70b4]
+    +                       ! 543 ???  (in <unknown binary>)  [0x103cc73ec]
+    +                       ! : 340 ???  (in <unknown binary>)  [0x103cc8038]
+    +                       ! : | 326 _platform_memmove  (in libsystem_platform.dylib) + 428,372,...  [0x181b3734c,0x181b37314,...]
+    +                       ! : | 14 DYLD-STUB$$memmove  (in libcoreclr.dylib) + 4  [0x101dac70c]
+    +                       ! : 62 ???  (in <unknown binary>)  [0x103cc7fe0]
+    +                       ! : | 30 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 24  [0x101c498c0]
+    +                       ! : | 16 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 32  [0x101c498c8]
+    +                       ! : | + 16 tlv_get_addr  (in libdyld.dylib) + 12  [0x181b0f0bc]
+    +                       ! : | 16 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 44  [0x101c498d4]
+    +                       ! : |   16 InlinedCallFrame::Init()  (in libcoreclr.dylib) + 12  [0x101b4c978]
+    +                       ! : 34 JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 60  [0x101c498e4]
+    +                       ! : 31 ???  (in <unknown binary>)  [0x103cc8024]
+    +                       ! : 28 ???  (in <unknown binary>)  [0x103cc807c]
+    +                       ! : 12 ???  (in <unknown binary>)  [0x103cc1ef8]
+    +                       ! : 11 ???  (in <unknown binary>)  [0x103cc2030]
+    +                       ! : 10 ???  (in <unknown binary>)  [0x103cc804c]
+    +                       ! : 9 ???  (in <unknown binary>)  [0x103cc8038]
+    +                       ! : 4 ???  (in <unknown binary>)  [0x103cc1efc]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc1f1c]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc8070]
+    +                       ! 33 ???  (in <unknown binary>)  [0x103cc73ac]
+    +                       ! 17 ???  (in <unknown binary>)  [0x103cc7408]
+    +                       ! : 5 ???  (in <unknown binary>)  [0x103cc79f4]
+    +                       ! : 4 ???  (in <unknown binary>)  [0x103cc79fc]
+    +                       ! : 2 ???  (in <unknown binary>)  [0x103cc79e8]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc77d4]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc7854]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc78ec]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc7900]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc7970]
+    +                       ! : 1 ???  (in <unknown binary>)  [0x103cc7990]
+    +                       ! 14 ???  (in <unknown binary>)  [0x103cc2034]
+    +                       ! 14 ???  (in <unknown binary>)  [0x103cc72d4]
+    +                       ! 14 ???  (in <unknown binary>)  [0x103cc7304]
+    +                       ! 14 ???  (in <unknown binary>)  [0x103cc73c4]
+    +                       ! 13 ???  (in <unknown binary>)  [0x103cc743c]
+    +                       ! 12 ???  (in <unknown binary>)  [0x103cc740c]
+    +                       ! 11 ???  (in <unknown binary>)  [0x103cc72f0]
+    +                       ! 9 ???  (in <unknown binary>)  [0x103cc72f4]
+    +                       ! 6 ???  (in <unknown binary>)  [0x103cc7324]
+    +                       ! 2 ???  (in <unknown binary>)  [0x103cc7308]
+    +                       ! 2 ???  (in <unknown binary>)  [0x103cc73a8]
+    +                       ! 1 ???  (in <unknown binary>)  [0x103cc73a4]
+    +                       ! 1 ???  (in <unknown binary>)  [0x103cc7434]
+    +                       ! 1 ???  (in <unknown binary>)  [0x103cc7438]
+    +                       129 ???  (in <unknown binary>)  [0x103cd7434]
+    +                       111 ???  (in <unknown binary>)  [0x103cd6c28]
+    +                       68 ???  (in <unknown binary>)  [0x103cd7368]
+    +                       ! 25 ???  (in <unknown binary>)  [0x103cbbae8]
+    +                       ! 24 ???  (in <unknown binary>)  [0x103cbbab8]
+    +                       ! 11 ???  (in <unknown binary>)  [0x103cbbac0]
+    +                       ! : 11 tlv_get_addr  (in libdyld.dylib) + 20  [0x181b0f0c4]
+    +                       ! 8 ???  (in <unknown binary>)  [0x103cbbb00]
+    +                       67 ???  (in <unknown binary>)  [0x103cd70d8]
+    +                       ! 17 ???  (in <unknown binary>)  [0x103cbba34]
+    +                       ! 14 ???  (in <unknown binary>)  [0x103cbb9d0]
+    +                       ! 13 ???  (in <unknown binary>)  [0x103cbb9f0]
+    +                       ! 11 ???  (in <unknown binary>)  [0x103cbb9fc]
+    +                       ! 10 ???  (in <unknown binary>)  [0x103cbb9f8]
+    +                       ! : 10 tlv_get_addr  (in libdyld.dylib) + 12,20  [0x181b0f0bc,0x181b0f0c4]
+    +                       ! 2 ???  (in <unknown binary>)  [0x103cbba08]
+    +                       29 ???  (in <unknown binary>)  [0x103cd7214]
+    +                       21 ???  (in <unknown binary>)  [0x103cd7264]
+    +                       21 ???  (in <unknown binary>)  [0x103cd7330]
+    +                       19 ???  (in <unknown binary>)  [0x103cd7318]
+    +                       18 ???  (in <unknown binary>)  [0x103cd73a4]
+    +                       17 ???  (in <unknown binary>)  [0x103cd70d0]
+    +                       17 ???  (in <unknown binary>)  [0x103cd7174]
+    +                       16 ???  (in <unknown binary>)  [0x103cd7288]
+    +                       16 ???  (in <unknown binary>)  [0x103cd72e4]
+    +                       15 ???  (in <unknown binary>)  [0x103cd7118]
+    +                       14 ???  (in <unknown binary>)  [0x103cd7144]
+    +                       ! 14 tlv_get_addr  (in libdyld.dylib) + 24,12,...  [0x181b0f0c8,0x181b0f0bc,...]
+    +                       14 ???  (in <unknown binary>)  [0x103cd70ac]
+    +                       14 ???  (in <unknown binary>)  [0x103cd72a8]
+    +                       14 ???  (in <unknown binary>)  [0x103cd72dc]
+    +                       12 ???  (in <unknown binary>)  [0x103cd715c]
+    +                       12 ???  (in <unknown binary>)  [0x103cd7210]
+    +                       12 ???  (in <unknown binary>)  [0x103cd7238]
+    +                       10 ???  (in <unknown binary>)  [0x103cd6c4c]
+    +                       10 ???  (in <unknown binary>)  [0x103cd713c]
+    +                       9 ???  (in <unknown binary>)  [0x103cd70d8]
+    +                       9 ???  (in <unknown binary>)  [0x103cd7308]
+    +                       9 ???  (in <unknown binary>)  [0x103cd7438]
+    +                       8 ???  (in <unknown binary>)  [0x103cd71c8]
+    +                       8 ???  (in <unknown binary>)  [0x103cd7360]
+    +                       5 ???  (in <unknown binary>)  [0x103cd7208]
+    +                       4 ???  (in <unknown binary>)  [0x103cd7394]
+    +                       ! 4 clock_gettime_nsec_np  (in libsystem_c.dylib) + 404  [0x18199e630]
+    +                       !   3 mach_absolute_time  (in libsystem_kernel.dylib) + 80  [0x181ac66a4]
+    +                       !   1 DYLD-STUB$$mach_absolute_time  (in libsystem_c.dylib) + 8  [0x181a14b78]
+    +                       4 ???  (in <unknown binary>)  [0x103cd742c]
+    +                       3 ???  (in <unknown binary>)  [0x103cd7254]
+    +                       2 ???  (in <unknown binary>)  [0x103cbba94]
+    +                       2 ???  (in <unknown binary>)  [0x103cd6c30]
+    +                       2 ???  (in <unknown binary>)  [0x103cd71c0]
+    +                       2 ???  (in <unknown binary>)  [0x103cd71d0]
+    +                       1 ???  (in <unknown binary>)  [0x103cd70f8]
+    +                       1 ???  (in <unknown binary>)  [0x103cd7160]
+    +                       1 ???  (in <unknown binary>)  [0x103cd71cc]
+    +                       1 ???  (in <unknown binary>)  [0x103cd71ec]
+    +                       1 ???  (in <unknown binary>)  [0x103cd726c]
+    +                       1 ???  (in <unknown binary>)  [0x103cd7300]
+    +                       1 ???  (in <unknown binary>)  [0x103cd732c]
+    +                       1 ???  (in <unknown binary>)  [0x103cd734c]
+    +                       1 ???  (in <unknown binary>)  [0x103cd735c]
+    +                       1 ???  (in <unknown binary>)  [0x103cd7424]
+    +                       1 ???  (in <unknown binary>)  [0x103cd7430]
+    2489 Thread_12948993
+      2489 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+        2489 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+          2489 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x101da2624]
+            2489 TieredCompilationManager::BackgroundWorkerBootstrapper0(void*)  (in libcoreclr.dylib) + 40  [0x101bcfd0c]
+              2489 ManagedThreadBase::KickOff(void (*)(void*), void*)  (in libcoreclr.dylib) + 236  [0x101bcc8e0]
+                2489 TieredCompilationManager::BackgroundWorkerBootstrapper1(void*)  (in libcoreclr.dylib) + 96  [0x101bcfde4]
+                  2489 TieredCompilationManager::BackgroundWorkerStart()  (in libcoreclr.dylib) + 316  [0x101bcff98]
+                    2489 CLREventBase::WaitEx(unsigned int, WaitMode, PendingSync*)  (in libcoreclr.dylib) + 188  [0x101ca0a54]
+                      2489 WaitForSingleObjectEx  (in libcoreclr.dylib) + 80  [0x101d9b704]
+                        2489 CorUnix::InternalWaitForMultipleObjectsEx(CorUnix::CPalThread*, unsigned int, void* const*, int, unsigned int, int, int)  (in libcoreclr.dylib) + 1292  [0x101d9b414]
+                          2489 CorUnix::CPalSynchronizationManager::BlockThread(CorUnix::CPalThread*, unsigned int, bool, bool, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 300  [0x101d97ff0]
+                            2489 CorUnix::CPalSynchronizationManager::ThreadNativeWait(CorUnix::_ThreadNativeWaitData*, unsigned int, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 340  [0x101d98324]
+                              2489 _pthread_cond_wait  (in libsystem_pthread.dylib) + 1272  [0x181b07588]
+                                2489 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x181ac99ec]
+
+Total number in stack (recursive counted multiple, when >=5):
+        16       tlv_get_addr  (in libdyld.dylib) + 0  [0x181b0f0b0]
+        9       _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+        9       thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+        8       ???  (in <unknown binary>)  [0x103cc8038]
+        8       CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x101da2624]
+        8       JIT_InitPInvokeFrame  (in libcoreclr.dylib) + 0  [0x101c498a8]
+        5       CorUnix::CPalSynchronizationManager::BlockThread(CorUnix::CPalThread*, unsigned int, bool, bool, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 300  [0x101d97ff0]
+        5       CorUnix::InternalWaitForMultipleObjectsEx(CorUnix::CPalThread*, unsigned int, void* const*, int, unsigned int, int, int)  (in libcoreclr.dylib) + 1292  [0x101d9b414]
+        5       __psynch_cvwait  (in libsystem_kernel.dylib) + 0  [0x181ac99e4]
+        5       _pthread_cond_wait  (in libsystem_pthread.dylib) + 1272  [0x181b07588]
+
+Sort by top of stack, same collapsed (when >= 5):
+        __psynch_cvwait  (in libsystem_kernel.dylib)        21298
+        __open_nocancel  (in libsystem_kernel.dylib)        6270
+        __poll_nocancel  (in libsystem_kernel.dylib)        6270
+        __workq_kernreturn  (in libsystem_kernel.dylib)        6270
+        kevent  (in libsystem_kernel.dylib)        6270
+        mach_msg2_trap  (in libsystem_kernel.dylib)        6270
+        ???  (in <unknown binary>)  [0x103cc7df8]        1051
+        _platform_memmove  (in libsystem_platform.dylib)        977
+        tlv_get_addr  (in libdyld.dylib)        236
+        JIT_InitPInvokeFrame  (in libcoreclr.dylib)        190
+        ???  (in <unknown binary>)  [0x103ccedd4]        138
+        ???  (in <unknown binary>)  [0x103ccedbc]        134
+        ???  (in <unknown binary>)  [0x103cd7434]        129
+        ???  (in <unknown binary>)  [0x103cc8024]        123
+        ???  (in <unknown binary>)  [0x103cc7de0]        113
+        ???  (in <unknown binary>)  [0x103cd6c28]        111
+        ???  (in <unknown binary>)  [0x103cc807c]        99
+        ???  (in <unknown binary>)  [0x103cbba34]        97
+        ???  (in <unknown binary>)  [0x103cc7dec]        79
+        ???  (in <unknown binary>)  [0x103cc7dcc]        74
+        ???  (in <unknown binary>)  [0x103cbc2d0]        70
+        ???  (in <unknown binary>)  [0x103cbbab8]        65
+        ???  (in <unknown binary>)  [0x103cbbae8]        64
+        ???  (in <unknown binary>)  [0x103cc73ac]        63
+        InlinedCallFrame::Init()  (in libcoreclr.dylib)        62
+        ???  (in <unknown binary>)  [0x103cbc664]        60
+        ???  (in <unknown binary>)  [0x103cc7dfc]        56
+        ???  (in <unknown binary>)  [0x103cbc368]        55
+        ???  (in <unknown binary>)  [0x103cbbb00]        54
+        ???  (in <unknown binary>)  [0x103cbb9f0]        52
+        DYLD-STUB$$memmove  (in libcoreclr.dylib)        51
+        ???  (in <unknown binary>)  [0x103cbc3a0]        49
+        ???  (in <unknown binary>)  [0x103cc7e60]        48
+        ???  (in <unknown binary>)  [0x103cc716c]        44
+        ???  (in <unknown binary>)  [0x103cc804c]        44
+        ???  (in <unknown binary>)  [0x103cbc7a4]        40
+        ???  (in <unknown binary>)  [0x103cc70a4]        40
+        ???  (in <unknown binary>)  [0x103cc7e98]        40
+        ???  (in <unknown binary>)  [0x103cbb9fc]        38
+        ???  (in <unknown binary>)  [0x103cc8038]        35
+        ???  (in <unknown binary>)  [0x103cc1ef8]        32
+        ???  (in <unknown binary>)  [0x103cbb9d0]        31
+        ???  (in <unknown binary>)  [0x103cc72d4]        30
+        ???  (in <unknown binary>)  [0x103cc7e08]        30
+        ???  (in <unknown binary>)  [0x103cc7e30]        30
+        ???  (in <unknown binary>)  [0x103cc2030]        29
+        ???  (in <unknown binary>)  [0x103cc740c]        29
+        ???  (in <unknown binary>)  [0x103cc7fb0]        29
+        ???  (in <unknown binary>)  [0x103cd7214]        29
+        ???  (in <unknown binary>)  [0x103cbc7d0]        28
+        ???  (in <unknown binary>)  [0x103cc2008]        28
+        ???  (in <unknown binary>)  [0x103cc70f8]        27
+        ???  (in <unknown binary>)  [0x103cc7304]        27
+        ???  (in <unknown binary>)  [0x103cc73c4]        27
+        ???  (in <unknown binary>)  [0x103cc743c]        27
+        ???  (in <unknown binary>)  [0x103cbc7ac]        26
+        ???  (in <unknown binary>)  [0x103cbc2e8]        24
+        ???  (in <unknown binary>)  [0x103cc719c]        24
+        ???  (in <unknown binary>)  [0x103cc7e68]        24
+        ???  (in <unknown binary>)  [0x103cbc53c]        23
+        ???  (in <unknown binary>)  [0x103cbc618]        23
+        ???  (in <unknown binary>)  [0x103cc2034]        23
+        ???  (in <unknown binary>)  [0x103cc7dbc]        23
+        ???  (in <unknown binary>)  [0x103ccf3c0]        23
+        ???  (in <unknown binary>)  [0x103ccf454]        22
+        ???  (in <unknown binary>)  [0x103cc7194]        21
+        ???  (in <unknown binary>)  [0x103cd7264]        21
+        ???  (in <unknown binary>)  [0x103cd7330]        21
+        ???  (in <unknown binary>)  [0x103cc7174]        20
+        ???  (in <unknown binary>)  [0x103cc70a8]        19
+        ???  (in <unknown binary>)  [0x103ccf410]        19
+        ???  (in <unknown binary>)  [0x103cd7318]        19
+        ???  (in <unknown binary>)  [0x103cd73a4]        18
+        ???  (in <unknown binary>)  [0x103cbbac4]        17
+        ???  (in <unknown binary>)  [0x103cd70d0]        17
+        ???  (in <unknown binary>)  [0x103cd7174]        17
+        ???  (in <unknown binary>)  [0x103ccf284]        16
+        ???  (in <unknown binary>)  [0x103cd7288]        16
+        ???  (in <unknown binary>)  [0x103cd72e4]        16
+        ???  (in <unknown binary>)  [0x103cc7114]        15
+        ???  (in <unknown binary>)  [0x103cc72f0]        15
+        ???  (in <unknown binary>)  [0x103cc7ea0]        15
+        ???  (in <unknown binary>)  [0x103ccf258]        15
+        ???  (in <unknown binary>)  [0x103ccf2e8]        15
+        ???  (in <unknown binary>)  [0x103ccf488]        15
+        ???  (in <unknown binary>)  [0x103cd7118]        15
+        ???  (in <unknown binary>)  [0x103cbc344]        14
+        ???  (in <unknown binary>)  [0x103cc71d4]        14
+        ???  (in <unknown binary>)  [0x103cc7df0]        14
+        ???  (in <unknown binary>)  [0x103ccedf8]        14
+        ???  (in <unknown binary>)  [0x103ccf4c4]        14
+        ???  (in <unknown binary>)  [0x103cd70ac]        14
+        ???  (in <unknown binary>)  [0x103cd72a8]        14
+        ???  (in <unknown binary>)  [0x103cd72dc]        14
+        ???  (in <unknown binary>)  [0x103cbc7b0]        13
+        ???  (in <unknown binary>)  [0x103ccf27c]        13
+        ???  (in <unknown binary>)  [0x103ccf398]        13
+        ???  (in <unknown binary>)  [0x103ccf490]        13
+        ???  (in <unknown binary>)  [0x103ccf4b4]        13
+        ???  (in <unknown binary>)  [0x103ccf50c]        13
+        ???  (in <unknown binary>)  [0x103cc71d0]        12
+        ???  (in <unknown binary>)  [0x103cc72f4]        12
+        ???  (in <unknown binary>)  [0x103cc7324]        12
+        ???  (in <unknown binary>)  [0x103cced24]        12
+        ???  (in <unknown binary>)  [0x103ccf3e4]        12
+        ???  (in <unknown binary>)  [0x103cd715c]        12
+        ???  (in <unknown binary>)  [0x103cd7210]        12
+        ???  (in <unknown binary>)  [0x103cd7238]        12
+        ???  (in <unknown binary>)  [0x103cc1efc]        11
+        ???  (in <unknown binary>)  [0x103ccf434]        11
+        ???  (in <unknown binary>)  [0x103cbc338]        10
+        ???  (in <unknown binary>)  [0x103cc79f4]        10
+        ???  (in <unknown binary>)  [0x103cc7da4]        10
+        ???  (in <unknown binary>)  [0x103cc7dac]        10
+        ???  (in <unknown binary>)  [0x103ccedc0]        10
+        ???  (in <unknown binary>)  [0x103cd6c4c]        10
+        ???  (in <unknown binary>)  [0x103cd713c]        10
+        ???  (in <unknown binary>)  [0x103cbba08]        9
+        ???  (in <unknown binary>)  [0x103ccf2c4]        9
+        ???  (in <unknown binary>)  [0x103ccf4dc]        9
+        ???  (in <unknown binary>)  [0x103cd70d8]        9
+        ???  (in <unknown binary>)  [0x103cd7308]        9
+        ???  (in <unknown binary>)  [0x103cd7438]        9
+        ???  (in <unknown binary>)  [0x103cc79fc]        8
+        ???  (in <unknown binary>)  [0x103ccf35c]        8
+        ???  (in <unknown binary>)  [0x103ccf3bc]        8
+        ???  (in <unknown binary>)  [0x103cd71c8]        8
+        ???  (in <unknown binary>)  [0x103cd7360]        8
+        ???  (in <unknown binary>)  [0x103cc73a8]        7
+        ???  (in <unknown binary>)  [0x103cc70fc]        6
+        ???  (in <unknown binary>)  [0x103cc7170]        6
+        ???  (in <unknown binary>)  [0x103ccf308]        6
+        mach_absolute_time  (in libsystem_kernel.dylib)        6
+        ???  (in <unknown binary>)  [0x103cc7e94]        5
+        ???  (in <unknown binary>)  [0x103cd7208]        5
+
+Binary Images:
+       0x100f40000 -        0x100f4b593 +dotnet (0) <D02CE65E-C15E-3116-BDDE-81EE55CB0242> /Users/*/dotnet
+       0x100fcc000 -        0x10100a58f +libhostfxr.dylib (0) <E7871808-49FB-3F9F-9922-E0548BCD31A3> /Users/*/libhostfxr.dylib
+       0x101034000 -        0x10106c05f +libhostpolicy.dylib (0) <FE6B8A42-FB22-3C56-8DB4-17E396EE6386> /Users/*/libhostpolicy.dylib
+       0x10109c000 -        0x1010aab73 +libSystem.Native.dylib (0) <FEF6B6C6-4F56-3D2E-BF6A-E80D626BC3F7> /Users/*/libSystem.Native.dylib
+       0x1019e0000 -        0x101e2b1ff +libcoreclr.dylib (0) <F17F4EC9-B2E5-39D9-BD70-FDAA8CF2DFF1> /Users/*/libcoreclr.dylib
+       0x142a28000 -        0x142c7790f +libclrjit.dylib (0) <5181947F-E0A5-37EF-AB0C-83E9657579C7> /Users/*/libclrjit.dylib
+       0x181728000 -        0x181777d83  libobjc.A.dylib (912.3) <76C8305C-4066-390C-8F3E-F0858D756AD8> /usr/lib/libobjc.A.dylib
+       0x181778000 -        0x1818009db  dyld (1.0.0 - 1160.6) <F6DD3EC2-85A4-3AB1-8486-B189CD980EBE> /usr/lib/dyld
+       0x181801000 -        0x181805ff8  libsystem_blocks.dylib (90) <E9F1A3B9-AE38-3F4C-BF14-8A6E012AD36C> /usr/lib/system/libsystem_blocks.dylib
+       0x181806000 -        0x181850fff  libxpc.dylib (2748.101.4) <C43D5322-9B69-37EE-B51E-45FDE5D81B5B> /usr/lib/system/libxpc.dylib
+       0x181851000 -        0x18186bfff  libsystem_trace.dylib (1510.100.36) <681EBF40-B321-364A-88EA-04AB45E3DA66> /usr/lib/system/libsystem_trace.dylib
+       0x18186c000 -        0x181914fd7  libcorecrypto.dylib (1638.100.62) <95C1D199-1B36-32B2-9BE7-5723A58D0D96> /usr/lib/system/libcorecrypto.dylib
+       0x181915000 -        0x181951ff7  libsystem_malloc.dylib (521.100.59) <B36EAAD5-558D-39E8-AB0D-FD87F2EF154B> /usr/lib/system/libsystem_malloc.dylib
+       0x181952000 -        0x181999fff  libdispatch.dylib (1477.100.9) <7F973554-8168-35BF-AE86-2E9123E81BF7> /usr/lib/system/libdispatch.dylib
+       0x18199a000 -        0x18199cfff  libsystem_featureflags.dylib (86) <D8AF5585-B9E4-38C0-B48B-CFD5C13DEB82> /usr/lib/system/libsystem_featureflags.dylib
+       0x18199d000 -        0x181a1bff3  libsystem_c.dylib (1592.100.35) <49477E07-E77B-332F-B98D-79CA210A866D> /usr/lib/system/libsystem_c.dylib
+       0x181a1c000 -        0x181aa8ff7  libc++.1.dylib (1700.255) <08C4329E-407F-310B-B037-75A8020B2963> /usr/lib/libc++.1.dylib
+       0x181aa9000 -        0x181ac4ffb  libc++abi.dylib (1700.255) <4FED965B-18AD-3A4F-8928-1F0A3C35345F> /usr/lib/libc++abi.dylib
+       0x181ac5000 -        0x181affffb  libsystem_kernel.dylib (10063.101.17) <2A91FD2C-4CEF-3211-A025-7A1C0A8C2DB5> /usr/lib/system/libsystem_kernel.dylib
+       0x181b00000 -        0x181b0cfff  libsystem_pthread.dylib (519.101.1) <45239F06-CC53-36D0-9933-7776AC7EA2FA> /usr/lib/system/libsystem_pthread.dylib
+       0x181b0d000 -        0x181b32ff7  libdyld.dylib (1160.6) <72199A80-9C55-376D-8ECF-EE68AFA57B7A> /usr/lib/system/libdyld.dylib
+       0x181b33000 -        0x181b3afe7  libsystem_platform.dylib (316.100.10) <031F3E8C-5227-3138-A444-68174C1C28CF> /usr/lib/system/libsystem_platform.dylib
+       0x181b3b000 -        0x181b67ffb  libsystem_info.dylib (583.0.1) <615EAFA2-4446-3994-89E9-858A0552F1B8> /usr/lib/system/libsystem_info.dylib
+       0x181b68000 -        0x182040fff  com.apple.CoreFoundation (6.9 - 2420) <33908A83-098F-3437-973E-FB848C4F39DF> /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation
+       0x182041000 -        0x1822fafff  com.apple.LaunchServices (1141.1 - 1141.1) <1323AB9B-A0CD-38EB-87EC-91E87903E147> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/LaunchServices
+       0x182447000 -        0x1827e2fef  libBLAS.dylib (1447.100.11) <4D6ED213-D805-3C75-A3EF-B0F659CF8132> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib
+       0x1827e3000 -        0x1828d4ff7  com.apple.Lexicon-framework (1.0 - 134.9) <8DD8828B-6E72-32BE-A064-67FE2E312A39> /System/Library/PrivateFrameworks/Lexicon.framework/Versions/A/Lexicon
+       0x1828d5000 -        0x18293bfff  libSparse.dylib (125) <3B1EB1F6-1BE1-3F02-97F8-D6E6BB45D4DF> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libSparse.dylib
+       0x18293c000 -        0x1829cffff  com.apple.SystemConfiguration (1.21 - 1.21) <7E12A3B1-3C5B-3E1E-A2C7-D0436242A012> /System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration
+       0x1829d0000 -        0x182a04ff3  libCRFSuite.dylib (52) <2B56C52C-832D-3E69-B3B8-A9606DF0F0B5> /usr/lib/libCRFSuite.dylib
+       0x182cbc000 -        0x183919fff  com.apple.Foundation (6.9 - 2420) <1B93A4D2-DB73-3F3B-A726-C8EACC5128E0> /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation
+       0x18391a000 -        0x183afffff  com.apple.LanguageModeling (1.0 - 366.9) <B6856E4D-DFB5-30CF-B9BF-779C4D0FED6E> /System/Library/PrivateFrameworks/LanguageModeling.framework/Versions/A/LanguageModeling
+       0x184889000 -        0x184c5bfff  com.apple.security (7.0 - 61123.100.169) <E3032FF9-E461-36A1-90F1-C7EE260C0118> /System/Library/Frameworks/Security.framework/Versions/A/Security
+       0x184c5c000 -        0x184f22fff  libicucore.A.dylib (74000.303) <50DE7E22-A040-3E0F-836E-BEF36B36EC01> /usr/lib/libicucore.A.dylib
+       0x184f23000 -        0x184f2dff3  libsystem_darwin.dylib (1592.100.35) <8DB1E11F-85AB-3699-AD96-228BE7D8C715> /usr/lib/system/libsystem_darwin.dylib
+       0x184f2e000 -        0x185233fff  com.apple.CoreServices.CarbonCore (1333 - 1333) <A8E6D1C2-3232-3EE7-AC52-C70C8D24CFE8> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/CarbonCore.framework/Versions/A/CarbonCore
+       0x185234000 -        0x185274ff7  com.apple.CoreServicesInternal (505 - 505) <F81CEFD5-5C8F-30DA-AF7B-3D3C219ABA9E> /System/Library/PrivateFrameworks/CoreServicesInternal.framework/Versions/A/CoreServicesInternal
+       0x185275000 -        0x1852b5fff  com.apple.CSStore (1141.1 - 1141.1) <EF032633-55D2-370B-8738-2ABF5FD79875> /System/Library/PrivateFrameworks/CoreServicesStore.framework/Versions/A/CoreServicesStore
+       0x1852b6000 -        0x185398fff  com.apple.framework.IOKit (2.0.2 - 100076.101.1) <1832B4AB-F904-37C3-8809-4E251EB3E184> /System/Library/Frameworks/IOKit.framework/Versions/A/IOKit
+       0x185399000 -        0x1853a9fff  libsystem_notify.dylib (317.100.2) <EDCEB984-2FC8-3EB5-9016-3453A3DDEE8F> /usr/lib/system/libsystem_notify.dylib
+       0x186e1c000 -        0x186e1cfff  libnetwork.dylib (3762.101.1) <361592F9-71A5-337E-AF0E-296924118C9B> /usr/lib/libnetwork.dylib
+       0x186e1d000 -        0x1871f1fff  com.apple.CFNetwork (1.0 - 1494.0.7) <60C90B3D-7A28-31A4-ACCF-705E5269FE77> /System/Library/Frameworks/CFNetwork.framework/Versions/A/CFNetwork
+       0x1871f2000 -        0x18720bffb  libsystem_networkextension.dylib (1838.101.1) <EBACF63D-8B18-37FF-8952-85FD99605BD7> /usr/lib/system/libsystem_networkextension.dylib
+       0x18720c000 -        0x18720dfff  libenergytrace.dylib (23) <5FDB6DBB-B0DF-3D80-89CB-0F00B03C5DCE> /usr/lib/libenergytrace.dylib
+       0x18720e000 -        0x187283fdf  libMobileGestalt.dylib (1332.100.10) <64498125-B4F9-3115-B1B2-926E1C740647> /usr/lib/libMobileGestalt.dylib
+       0x187284000 -        0x18729bfff  libsystem_asl.dylib (398) <B8B21C7C-4530-3EA2-AB35-BA98B82F33D0> /usr/lib/system/libsystem_asl.dylib
+       0x18729c000 -        0x1872bcff0  com.apple.TCC (1.0 - 1) <F40DBA8E-C2BB-39BC-B732-0D5AA729999E> /System/Library/PrivateFrameworks/TCC.framework/Versions/A/TCC
+       0x18884d000 -        0x188866fff  com.apple.ProtocolBuffer (1 - 300.24.10.5.2) <1145F0EE-B89D-3AA1-892D-F7135CDE5137> /System/Library/PrivateFrameworks/ProtocolBuffer.framework/Versions/A/ProtocolBuffer
+       0x188867000 -        0x188a19fff  libsqlite3.dylib (351) <877868A7-B883-3A57-8F35-4DBEF7386DC1> /usr/lib/libsqlite3.dylib
+       0x188bf3000 -        0x188c66ff7  com.apple.AE (944 - 944) <1885B57C-7EF6-3921-BA18-0DE48C174133> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/AE.framework/Versions/A/AE
+       0x188c67000 -        0x188c71fff  libdns_services.dylib (2200.100.94.0.2) <6326929E-6A18-358A-801A-E2A8BD6D20A6> /usr/lib/libdns_services.dylib
+       0x188c72000 -        0x188c7aff3  libsystem_symptoms.dylib (1871.100.22) <372ACDF1-29E7-34DA-B035-BD7671EB5A8B> /usr/lib/system/libsystem_symptoms.dylib
+       0x188c7b000 -        0x1898c9fff  com.apple.Network (1.0 - 1) <D7D230C1-AD42-3A19-9090-0953FE6B787C> /System/Library/Frameworks/Network.framework/Versions/A/Network
+       0x1898ca000 -        0x1898f8fff  com.apple.analyticsd (1.0 - 1) <F045814E-1A3D-344A-8C78-B3A510FE2BB2> /System/Library/PrivateFrameworks/CoreAnalytics.framework/Versions/A/CoreAnalytics
+       0x1898f9000 -        0x1898fafff  libDiagnosticMessagesClient.dylib (113) <3FD99EC3-B540-369A-A989-A44B40770968> /usr/lib/libDiagnosticMessagesClient.dylib
+       0x1898fb000 -        0x189941fff  com.apple.spotlight.metadata.utilities (1.0 - 2274.23) <05E9916C-60D2-35AB-BB45-51C9EA9AFB18> /System/Library/PrivateFrameworks/MetadataUtilities.framework/Versions/A/MetadataUtilities
+       0x189942000 -        0x1899dcfff  com.apple.Metadata (14.4 - 2274.23) <A109A8B3-FE9F-3147-8FAE-B3F236FB0162> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Metadata
+       0x1899dd000 -        0x1899e5ffb  com.apple.DiskArbitration (2.7 - 2.7) <FB7E6533-8177-3C9D-841C-6E784899ABE3> /System/Library/Frameworks/DiskArbitration.framework/Versions/A/DiskArbitration
+       0x1899e6000 -        0x189dcffdf  com.apple.vImage (8.1 - 587.100.1) <5905E516-D7AC-358C-AF65-AF145940909A> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vImage.framework/Versions/A/vImage
+       0x18a43a000 -        0x18a449fff  com.apple.OpenDirectory (14.4 - 642) <4F0DD0B8-40A9-390F-824D-32284D211063> /System/Library/Frameworks/OpenDirectory.framework/Versions/A/OpenDirectory
+       0x18a44a000 -        0x18a469ffb  com.apple.CFOpenDirectory (14.4 - 642) <05E096FC-C25F-3024-89DD-D8AFEBA60EE6> /System/Library/Frameworks/OpenDirectory.framework/Versions/A/Frameworks/CFOpenDirectory.framework/Versions/A/CFOpenDirectory
+       0x18a46a000 -        0x18a476ff7  com.apple.CoreServices.FSEvents (1376.100.3 - 1376.100.3) <9854F074-AA6A-3384-AC3D-7CBFA4A3B6E6> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/FSEvents.framework/Versions/A/FSEvents
+       0x18a477000 -        0x18a4a1fff  com.apple.coreservices.SharedFileList (225 - 225) <DE02FEC9-622D-36FC-9496-6E28466F8BFF> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/SharedFileList.framework/Versions/A/SharedFileList
+       0x18a4a2000 -        0x18a4a8fff  libapp_launch_measurement.dylib (17) <E9794766-3765-3112-B9F6-AE7E3E4FC37E> /usr/lib/libapp_launch_measurement.dylib
+       0x18a4a9000 -        0x18a4f2fff  com.apple.CoreAutoLayout (1.0 - 32) <AE7454CD-FDF4-3151-A0F8-67A64A331064> /System/Library/PrivateFrameworks/CoreAutoLayout.framework/Versions/A/CoreAutoLayout
+       0x18a4f3000 -        0x18a5dcff3  libxml2.2.dylib (37.15) <6D8E1641-C5BF-31E1-8D8A-443AAEB7C01F> /usr/lib/libxml2.2.dylib
+       0x18bdfc000 -        0x18be26ff3  libsystem_containermanager.dylib (582.100.15) <C9DB5B40-6F90-348A-A518-3ACFB49B39FE> /usr/lib/system/libsystem_containermanager.dylib
+       0x18be27000 -        0x18be3efff  com.apple.IOSurface (352.41.7 - 352.41.7) <7EE8E9F4-ECEF-3633-A084-9C2D8E2AEC34> /System/Library/Frameworks/IOSurface.framework/Versions/A/IOSurface
+       0x18cdbe000 -        0x18cdc2fff  libsystem_configuration.dylib (1300.100.9) <D57D8736-2800-3066-82D4-C433A2DC10C4> /usr/lib/system/libsystem_configuration.dylib
+       0x18cdc3000 -        0x18cdc8ff3  libsystem_sandbox.dylib (2190.101.1) <2F95044C-6CEF-3731-B1B9-F7D6A51B3A3F> /usr/lib/system/libsystem_sandbox.dylib
+       0x18cdcb000 -        0x18cdceffb  com.apple.AppleSystemInfo (3.1.5 - 3.1.5) <90AFB068-BC56-3ABB-93D1-C9D2AE2D5C56> /System/Library/PrivateFrameworks/AppleSystemInfo.framework/Versions/A/AppleSystemInfo
+       0x18cdcf000 -        0x18cdd0fff  liblangid.dylib (138) <01F8F980-177E-3142-9A7E-F40272283389> /usr/lib/liblangid.dylib
+       0x18cdd1000 -        0x18cef3fff  com.apple.CoreNLP (1.0 - 313) <89E09C0E-0349-3495-8646-A3F84B1304F3> /System/Library/PrivateFrameworks/CoreNLP.framework/Versions/A/CoreNLP
+       0x18cef4000 -        0x18cef9fff  com.apple.LinguisticData (1.0 - 483.10) <E54F8409-DB75-3540-9884-AA72814A4F63> /System/Library/PrivateFrameworks/LinguisticData.framework/Versions/A/LinguisticData
+       0x18cefa000 -        0x18d7cdfe7  libBNNS.dylib (830.101.1) <34827228-2E67-3A03-816D-BA464EC38C43> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBNNS.dylib
+       0x18d7ce000 -        0x18d8bef87  libvDSP.dylib (1043.100.6) <6C6D994F-02CC-322D-AB27-D140292BAB6E> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libvDSP.dylib
+       0x18d8bf000 -        0x18d8f2fff  com.apple.CoreEmoji (1.0 - 200.311) <937A5C1C-C6B3-3A11-B340-97BF725FD2CF> /System/Library/PrivateFrameworks/CoreEmoji.framework/Versions/A/CoreEmoji
+       0x18d8f3000 -        0x18d902ffb  com.apple.IOMobileFramebuffer (343.0.0 - 343.0.0) <BCBC0330-AE6C-3888-972F-BF9FA9508E34> /System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/Versions/A/IOMobileFramebuffer
+       0x18db24000 -        0x18dbb1fff  com.apple.securityfoundation (6.0 - 55283) <C26C56E1-3806-30EF-A0C9-3C144C1B0490> /System/Library/Frameworks/SecurityFoundation.framework/Versions/A/SecurityFoundation
+       0x18dbb2000 -        0x18dbd8fff  com.apple.coreservices.BackgroundTaskManagement (1.0 - 104) <D8198EBD-3472-3656-BF3D-D4DED8F5449E> /System/Library/PrivateFrameworks/BackgroundTaskManagement.framework/Versions/A/BackgroundTaskManagement
+       0x18dbe4000 -        0x18dbe6fff  libquarantine.dylib (172.100.3) <158A39C2-F9C6-32CA-845B-F1DFB711718A> /usr/lib/system/libquarantine.dylib
+       0x18dbe7000 -        0x18dbf2fff  libCheckFix.dylib (32) <A7DAEDE9-A4AC-330D-8790-23C64CB24D3E> /usr/lib/libCheckFix.dylib
+       0x18dbf3000 -        0x18dc0afff  libcoretls.dylib (186) <E8F5AFCB-3397-3F90-B7EF-6E654C653F4D> /usr/lib/libcoretls.dylib
+       0x18dc0b000 -        0x18dc1cffb  libbsm.0.dylib (89) <C20BA6D7-6BD8-3F50-93DF-22AB57DC1168> /usr/lib/libbsm.0.dylib
+       0x18dc1d000 -        0x18dc78fff  libmecab.dylib (1062.307) <5349B279-7E48-3AD6-B924-0CA008BB5F84> /usr/lib/libmecab.dylib
+       0x18dc79000 -        0x18dc7bffb  libgermantok.dylib (29) <658F83D0-8935-35E4-931A-2714E7DC3955> /usr/lib/libgermantok.dylib
+       0x18dc7c000 -        0x18dc90fff  libLinearAlgebra.dylib (1447.100.11) <B328B92C-1E68-3AD3-BA9A-347FA62FC29D> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libLinearAlgebra.dylib
+       0x18e2c9000 -        0x18e38cfc7  com.apple.AppleFSCompression (163 - 1.0) <D9D85513-5CFF-39A4-9517-12582A8AD422> /System/Library/PrivateFrameworks/AppleFSCompression.framework/Versions/A/AppleFSCompression
+       0x18e38d000 -        0x18e399ffb  libbz2.1.0.dylib (45) <92297FDA-90D5-3274-8425-D00F9A0CD2D0> /usr/lib/libbz2.1.0.dylib
+       0x18e39a000 -        0x18e39ffff  libsystem_coreservices.dylib (152.5.1) <324A6A0A-BBDE-3257-9A75-6A74C85E3430> /usr/lib/system/libsystem_coreservices.dylib
+       0x18e3a0000 -        0x18e3d1fff  com.apple.CoreServices.OSServices (1141.1 - 1141.1) <2BFE09A3-3B7A-3DD8-B1A9-19054A14C7BE> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/OSServices.framework/Versions/A/OSServices
+       0x18e6b9000 -        0x18e6c7fff  libz.1.dylib (91.40.4) <6C4F90C2-6EFC-3551-8150-285D3D954E15> /usr/lib/libz.1.dylib
+       0x18e6c8000 -        0x18e6feff3  libsystem_m.dylib (3252.100.9) <9735ABAE-2939-30EB-90D4-C6F23F795B2F> /usr/lib/system/libsystem_m.dylib
+       0x18e6ff000 -        0x18e702fff  libcharset.1.dylib (99) <9187B6AE-DEA8-3FC2-B810-C2E49C8048D1> /usr/lib/libcharset.1.dylib
+       0x18e703000 -        0x18e70affb  libmacho.dylib (1010.6) <DD2A9F47-7F80-344C-B6FE-82682F8AAB4A> /usr/lib/system/libmacho.dylib
+       0x18e70b000 -        0x18e72afff  libkxld.dylib (10063.101.17) <EF748736-1572-3A9C-B876-BBA32D6956BF> /usr/lib/system/libkxld.dylib
+       0x18e72b000 -        0x18e738ff7  libcommonCrypto.dylib (600028.100.1) <0BA453ED-E5A2-3C2F-86F4-CFCFFA6C1879> /usr/lib/system/libcommonCrypto.dylib
+       0x18e739000 -        0x18e744fff  libunwind.dylib (1700.242) <31BBAE83-7FFD-30A6-8BFC-6D5D17A6CC82> /usr/lib/system/libunwind.dylib
+       0x18e745000 -        0x18e74cfff  liboah.dylib (318.5) <3FE71C4F-17CC-3B93-AE29-05CE7D116F1B> /usr/lib/liboah.dylib
+       0x18e74d000 -        0x18e756fff  libcopyfile.dylib (196.100.4) <3DF60503-459B-3DA5-BD91-E72518FA9370> /usr/lib/system/libcopyfile.dylib
+       0x18e757000 -        0x18e75afff  libcompiler_rt.dylib (103.2) <DE476BC5-36E2-3F7A-87C8-1EF2BE6ADFDA> /usr/lib/system/libcompiler_rt.dylib
+       0x18e75b000 -        0x18e75fffb  libsystem_collections.dylib (1592.100.35) <2EA02C23-E13C-39AE-B850-82CEABACE7A6> /usr/lib/system/libsystem_collections.dylib
+       0x18e760000 -        0x18e762ffb  libsystem_secinit.dylib (147.100.1) <11D0DCC2-FC9F-3E2C-B2CF-0662E64DC96D> /usr/lib/system/libsystem_secinit.dylib
+       0x18e763000 -        0x18e765ffb  libremovefile.dylib (70.100.4) <92A7E10F-1F6C-30D5-9C44-D42352D3A674> /usr/lib/system/libremovefile.dylib
+       0x18e766000 -        0x18e766ffb  libkeymgr.dylib (31) <291CFCDE-CF87-3F39-A3E3-36C4303BEC16> /usr/lib/system/libkeymgr.dylib
+       0x18e767000 -        0x18e76fff7  libsystem_dnssd.dylib (2200.100.94.0.2) <4D030E4B-27FC-3C22-8467-A8CAFECA7761> /usr/lib/system/libsystem_dnssd.dylib
+       0x18e770000 -        0x18e775fff  libcache.dylib (93) <C0BCBAE5-4913-3D80-8E3A-9D4DEC1EA827> /usr/lib/system/libcache.dylib
+       0x18e776000 -        0x18e777fff  libSystem.B.dylib (1345.100.2) <BE250157-7A2B-39DA-B404-983D7989DFC6> /usr/lib/libSystem.B.dylib
+       0x18e778000 -        0x18e77bfff  libfakelink.dylib (5) <8D9D7804-A8F3-3CF3-9F99-67463051A4D1> /usr/lib/libfakelink.dylib
+       0x18e77c000 -        0x18e77cffb  com.apple.SoftLinking (1.0 - 47) <A25FC67A-C812-328E-8545-1BF6BEEF65C0> /System/Library/PrivateFrameworks/SoftLinking.framework/Versions/A/SoftLinking
+       0x18e77d000 -        0x18e7b2ff3  libpcap.A.dylib (131) <DD40870A-D755-3E6F-81FB-1949CAB321FD> /usr/lib/libpcap.A.dylib
+       0x18e7b3000 -        0x18e7b9ff7  libiconv.2.dylib (99) <EBF0B2BA-6A01-3BE8-874E-772A01059C9C> /usr/lib/libiconv.2.dylib
+       0x18e7ba000 -        0x18e7cbfff  libcmph.dylib (8) <8E49A694-0D21-34F2-919E-C73818A176A7> /usr/lib/libcmph.dylib
+       0x18e7cc000 -        0x18e854fff  libarchive.2.dylib (131) <D2C4E20C-0B7E-3A93-A849-384EBB909B89> /usr/lib/libarchive.2.dylib
+       0x18e855000 -        0x18e8cbff3  com.apple.SearchKit (1.4.1 - 1.4.1) <D89B72E5-2620-32EC-A029-A2ED399447F2> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/SearchKit.framework/Versions/A/SearchKit
+       0x18e8cc000 -        0x18e8cdff7  libThaiTokenizer.dylib (15) <05F7FC32-BAA9-34C5-A783-24289456A459> /usr/lib/libThaiTokenizer.dylib
+       0x18e8ce000 -        0x18e8f4ff7  com.apple.applesauce (1.0 - 16.60.1) <91969C80-75D6-360C-AEA4-E3015BBAAE30> /System/Library/PrivateFrameworks/AppleSauce.framework/Versions/A/AppleSauce
+       0x18e8f5000 -        0x18e90fffb  libapple_nghttp2.dylib (20) <211C76CA-1DA2-334A-9430-31814E3D4440> /usr/lib/libapple_nghttp2.dylib
+       0x18e910000 -        0x18e922ff3  libSparseBLAS.dylib (1447.100.11) <94B2ABC5-6A47-379B-BC97-0ED54AC65E1A> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libSparseBLAS.dylib
+       0x18e925000 -        0x18e92afff  libpam.2.dylib (33) <8ED1307E-63AF-3C1F-B1B6-C155515F92B3> /usr/lib/libpam.2.dylib
+       0x18e92b000 -        0x18e9faff7  libcompression.dylib (169.100.2) <20933059-9E27-3834-B420-6A9C4FACB565> /usr/lib/libcompression.dylib
+       0x18e9fb000 -        0x18e9ffffb  libQuadrature.dylib (7) <6269A517-248D-312D-AD14-C8628A297786> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libQuadrature.dylib
+       0x18ea00000 -        0x18fb7afcf  libLAPACK.dylib (1447.100.11) <1AE3697E-810A-3259-8B55-894B8777CF5C> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libLAPACK.dylib
+       0x18fb7b000 -        0x18fbd1fff  com.apple.DictionaryServices (1.2 - 355) <92CC115F-D8B9-3D20-B6E4-CEEFCBABBB7D> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/DictionaryServices.framework/Versions/A/DictionaryServices
+       0x18fbd2000 -        0x18fbf0ff7  liblzma.5.dylib (20) <2AF65A72-B0C5-369C-84E3-27AD61D5AD5D> /usr/lib/liblzma.5.dylib
+       0x18fbf1000 -        0x18fbf2ffb  libcoretls_cfhelpers.dylib (186) <CF31DA72-FD76-30CD-AFF8-CEDA8AC3C526> /usr/lib/libcoretls_cfhelpers.dylib
+       0x18fbf3000 -        0x18fc62ff7  com.apple.APFS (2236.101.1 - 2236.101.1) <2B21E745-F8AB-3ABE-87C6-A0715494C289> /System/Library/PrivateFrameworks/APFS.framework/Versions/A/APFS
+       0x18fc63000 -        0x18fc71ffb  libxar.1.dylib (498) <63123423-7E28-38F2-A10F-F449F31CA8FD> /usr/lib/libxar.1.dylib
+       0x18fc72000 -        0x18fc75ff7  libutil.dylib (72) <78B61AF1-44AA-3363-B30A-E51CBD4479C0> /usr/lib/libutil.dylib
+       0x18fc76000 -        0x18fca1ff3  libxslt.1.dylib (20.3) <3812D0DF-CD14-392B-AA83-515492972C27> /usr/lib/libxslt.1.dylib
+       0x18fcaa000 -        0x18fd25fff  libvMisc.dylib (1043.100.6) <D1B359CA-6BD5-3F1B-988E-2157F767F7A3> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libvMisc.dylib
+       0x190051000 -        0x19005bfff  libheimdal-asn1.dylib (689) <F0E176F3-C662-3325-A4A4-9E55468F1B4A> /usr/lib/libheimdal-asn1.dylib
+       0x1917bf000 -        0x191d1cfff  libswiftCore.dylib (5.10 - 5.10.0.12.5) <05650D36-BBC5-3760-AEC7-4D2751B5D729> /usr/lib/swift/libswiftCore.dylib
+       0x193cee000 -        0x193e2bfff  com.apple.combine (1.0 - 311) <471FD19F-E3B4-3FCE-8CDE-6329067DD0CC> /System/Library/Frameworks/Combine.framework/Versions/A/Combine
+       0x195dc3000 -        0x195dc3fff  com.apple.Accelerate.vecLib (3.11 - vecLib 3.11) <87C48560-FD22-310A-9A39-972083577952> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/vecLib
+       0x195dec000 -        0x195decfff  com.apple.CoreServices (1226 - 1226) <12D0527E-1521-3A45-B16C-CB1B3AF39604> /System/Library/Frameworks/CoreServices.framework/Versions/A/CoreServices
+       0x1960ab000 -        0x1960abfff  com.apple.Accelerate (1.11 - Accelerate 1.11) <894C0646-5CF2-3103-B4D0-CD8F1D19CC3E> /System/Library/Frameworks/Accelerate.framework/Versions/A/Accelerate
+       0x197451000 -        0x197468ff7  libswiftDispatch.dylib (41) <DAE7C867-9EF9-3D00-8CE0-44B15D6ABE76> /usr/lib/swift/libswiftDispatch.dylib
+       0x199cc0000 -        0x199cc3ff5  libswiftObjectiveC.dylib (8) <5090AB15-A2C1-3DAB-8C95-0B5EFAC3F99F> /usr/lib/swift/libswiftObjectiveC.dylib
+       0x199cc4000 -        0x199cdefff  libswiftos.dylib (1049.100.4) <BC6FAA6B-C783-349E-9439-3A3E54F2C623> /usr/lib/swift/libswiftos.dylib
+       0x1a4f51000 -        0x1a4f5aff3  libswiftDarwin.dylib (5.10 - 5.10.0.12.5) <BF10D745-A09D-30F6-B1FD-61E32108E378> /usr/lib/swift/libswiftDarwin.dylib
+       0x1a7411000 -        0x1a7435fff  libmis.dylib (386.100.27) <7BAA4FC0-C4DD-39DE-A26D-34AF23C960D0> /usr/lib/libmis.dylib
+       0x1a7443000 -        0x1a7449fff  libswiftCoreFoundation.dylib (2401) <86C3F3D1-8C85-315F-8C1C-8D12DA54E0EF> /usr/lib/swift/libswiftCoreFoundation.dylib
+       0x1a7455000 -        0x1a748cff2  libswiftXPC.dylib (36.100.7.0.1) <BFEE4FBF-0ECF-37C0-BD7F-502FE5F358D1> /usr/lib/swift/libswiftXPC.dylib
+       0x1a748e000 -        0x1a748efff  libswiftIOKit.dylib (1) <EAF2C3B2-10AD-36CD-A920-A45DFE81E6FF> /usr/lib/swift/libswiftIOKit.dylib
+       0x1b7a9a000 -        0x1b7aa1fff  com.apple.MobileSystemServices (1.0 - 1) <AC486041-576F-3A3E-86CD-CFD4E42D7F0E> /System/Library/PrivateFrameworks/MobileSystemServices.framework/Versions/A/MobileSystemServices
+       0x1d5513000 -        0x1d5516fff  com.apple.ConfigProfileHelper (16.4 - 1652) <621FBF28-1E2B-3659-9D84-A9D3B4DA88E3> /System/Library/PrivateFrameworks/ConfigProfileHelper.framework/Versions/A/ConfigProfileHelper
+       0x219b77000 -        0x219b8afff  com.apple.private.AppleMobileFileIntegrity-fmk (1.0 - 1) <5B6928E2-3EE3-321C-8CE7-F3C5C1679893> /System/Library/PrivateFrameworks/AppleMobileFileIntegrity.framework/Versions/A/AppleMobileFileIntegrity
+       0x21c3b2000 -        0x21c511fff  com.apple.CollectionsInternal (1.1.0 - 22) <7DC7FE56-7C52-373F-BF56-5AC17E19F784> /System/Library/PrivateFrameworks/CollectionsInternal.framework/Versions/A/CollectionsInternal
+       0x229c49000 -        0x229d28fff  com.apple.InstalledContentLibrary (1.0 - 1.0) <26922896-2AFC-384E-8D22-C95E6334DA62> /System/Library/PrivateFrameworks/InstalledContentLibrary.framework/Versions/A/InstalledContentLibrary
+       0x22bac4000 -        0x22c05cfff  com.apple.MIL (3304.6 - 3304.6.1) <1776A9FD-0D44-34A1-B53D-55518418469F> /System/Library/PrivateFrameworks/MIL.framework/Versions/A/MIL
+       0x22d375000 -        0x22d3c0fff  com.apple.MessageSecurity (1.0 - 101.100.4) <A64CA60D-6DC2-3CC1-82DC-98C86D3779BF> /System/Library/PrivateFrameworks/MessageSecurity.framework/Versions/A/MessageSecurity
+       0x232443000 -        0x23244bff7  com.apple.ReflectionInternal (1.0.0 - 22) <EABFD56A-54C6-3455-A976-D053BEB1C1F3> /System/Library/PrivateFrameworks/ReflectionInternal.framework/Versions/A/ReflectionInternal
+       0x2329c9000 -        0x2329e0fff  com.apple.RuntimeInternal (1.0.0 - 22) <050F1161-476D-3D52-8B97-65FA89346889> /System/Library/PrivateFrameworks/RuntimeInternal.framework/Versions/A/RuntimeInternal
+       0x246bb2000 -        0x246bbdfff  libCoreEntitlements.dylib (53.100.3.0.1) <976BAB8A-2F18-3CFD-973F-645335DD6C56> /usr/lib/libCoreEntitlements.dylib
+       0x246da0000 -        0x246dabfff  libTLE.dylib (53.100.3.0.1) <05A71C26-388C-329A-9D8A-D601BBB1C37B> /usr/lib/libTLE.dylib
+       0x2481a5000 -        0x248210ff7  libswift_Concurrency.dylib (5.10 - 5.10.0.12.5) <D6C9A750-A3E9-3AA3-9D68-E0D6B1469648> /usr/lib/swift/libswift_Concurrency.dylib
+       0x248250000 -        0x2482f8ff7  libswift_RegexParser.dylib (5.10 - 5.10.0.12.5) <F9659498-9A32-3EAE-A550-C85533C08F05> /usr/lib/swift/libswift_RegexParser.dylib
+       0x2482f9000 -        0x24839bff7  libswift_StringProcessing.dylib (5.10 - 5.10.0.12.5) <5329D85F-7446-3295-8064-C8288457FB38> /usr/lib/swift/libswift_StringProcessing.dylib
+       0x2484f2000 -        0x2484f5fff  libsystem_darwindirectory.dylib (86.0.2) <0395D567-DBD9-3F03-A9E0-A0969963A834> /usr/lib/system/libsystem_darwindirectory.dylib
+       0x2484f6000 -        0x2484f9fff  libsystem_eligibility.dylib (47.101.3) <6C663441-D4D5-361C-ABE7-B68D7B6E5B9B> /usr/lib/system/libsystem_eligibility.dylib
+       0x2484fa000 -        0x2484fdffb  libsystem_sanitizers.dylib (8) <EEA82D78-5036-3A22-8DC6-4E131A57941B> /usr/lib/system/libsystem_sanitizers.dylib

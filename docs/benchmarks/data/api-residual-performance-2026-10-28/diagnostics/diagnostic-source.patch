@@ -1,0 +1,18 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -1189,6 +1189,7 @@
+         nodes[index] = (element, priority);
+     }
+ 
++    internal long TxPopCount, TxPushCount;
+     private bool _rootChanged;
+     private bool _journalActive;
+     private int _journalCount;
+@@ -1214,6 +1215,7 @@
+     private SubQueuePopStatus BufferedTransaction(TElement value, TPriority key, bool pop,
+         out TElement element, out TPriority priority)
+     {
++        if (pop) TxPopCount++; else TxPushCount++;
+         var insertion = _insertion;
+         var deletion = _deletion;
+         int insertionCount = _insertionCount, deletionCount = _deletionCount, size = _size;

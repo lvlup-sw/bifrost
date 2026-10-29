@@ -1,0 +1,46 @@
+batch,value,False,16,0,,pairMedianNs current=62.065 [61.740,62.390] n=2 final=59.815 [59.640,59.990] n=2
+batch,value,False,16,0,,stripeMedianNs current=29.175 [28.880,29.470] n=2 final=29.285 [29.200,29.370] n=2
+batch,value,False,16,16,,pairMedianNs current=63.015 [62.760,63.270] n=2 final=60.700 [60.230,61.170] n=2
+batch,value,False,16,16,,stripeMedianNs current=42.825 [42.760,42.890] n=2 final=42.820 [42.510,43.130] n=2
+batch,value,False,4096,0,,pairMedianNs current=72.885 [72.830,72.940] n=2 final=70.725 [70.550,70.900] n=2
+batch,value,False,4096,0,,stripeMedianNs current=36.920 [36.830,37.010] n=2 final=37.220 [36.670,37.770] n=2
+batch,value,False,4096,16,,pairMedianNs current=70.610 [70.520,70.700] n=2 final=68.520 [67.790,69.250] n=2
+batch,value,False,4096,16,,stripeMedianNs current=39.785 [39.700,39.870] n=2 final=39.240 [39.180,39.300] n=2
+batch,value,True,16,0,,pairMedianNs current=64.090 [63.970,64.210] n=2 final=62.370 [62.270,62.470] n=2
+batch,value,True,16,0,,stripeMedianNs current=42.385 [41.900,42.870] n=2 final=42.315 [42.230,42.400] n=2
+batch,value,True,16,16,,pairMedianNs current=63.845 [63.800,63.890] n=2 final=62.265 [62.100,62.430] n=2
+batch,value,True,16,16,,stripeMedianNs current=70.510 [70.480,70.540] n=2 final=69.550 [69.540,69.560] n=2
+batch,value,True,4096,0,,pairMedianNs current=109.890 [109.690,110.090] n=2 final=107.815 [107.670,107.960] n=2
+batch,value,True,4096,0,,stripeMedianNs current=67.055 [66.860,67.250] n=2 final=65.600 [64.520,66.680] n=2
+batch,value,True,4096,16,,pairMedianNs current=81.140 [80.780,81.500] n=2 final=80.195 [79.690,80.700] n=2
+batch,value,True,4096,16,,stripeMedianNs current=53.085 [53.050,53.120] n=2 final=53.180 [52.980,53.380] n=2
+batch,reference,False,16,0,,pairMedianNs current=64.410 [64.230,64.590] n=2 final=61.840 [61.750,61.930] n=2
+batch,reference,False,16,0,,stripeMedianNs current=34.610 [34.540,34.680] n=2 final=34.300 [34.150,34.450] n=2
+batch,reference,False,16,16,,pairMedianNs current=68.995 [68.700,69.290] n=2 final=67.165 [67.030,67.300] n=2
+batch,reference,False,16,16,,stripeMedianNs current=52.475 [52.220,52.730] n=2 final=52.590 [52.260,52.920] n=2
+batch,reference,False,4096,0,,pairMedianNs current=80.560 [80.470,80.650] n=2 final=78.050 [77.690,78.410] n=2
+batch,reference,False,4096,0,,stripeMedianNs current=45.420 [45.240,45.600] n=2 final=44.725 [44.420,45.030] n=2
+batch,reference,False,4096,16,,pairMedianNs current=75.590 [75.200,75.980] n=2 final=73.805 [73.530,74.080] n=2
+batch,reference,False,4096,16,,stripeMedianNs current=45.785 [45.770,45.800] n=2 final=45.725 [45.600,45.850] n=2
+batch,reference,True,16,0,,pairMedianNs current=67.050 [66.920,67.180] n=2 final=64.320 [64.190,64.450] n=2
+batch,reference,True,16,0,,stripeMedianNs current=51.175 [51.060,51.290] n=2 final=51.770 [51.710,51.830] n=2
+batch,reference,True,16,16,,pairMedianNs current=71.200 [71.130,71.270] n=2 final=69.180 [69.000,69.360] n=2
+batch,reference,True,16,16,,stripeMedianNs current=81.520 [81.430,81.610] n=2 final=80.970 [80.500,81.440] n=2
+batch,reference,True,4096,0,,pairMedianNs current=126.885 [126.600,127.170] n=2 final=124.345 [124.270,124.420] n=2
+batch,reference,True,4096,0,,stripeMedianNs current=82.365 [81.860,82.870] n=2 final=85.515 [85.410,85.620] n=2
+batch,reference,True,4096,16,,pairMedianNs current=94.430 [93.950,94.910] n=2 final=92.910 [92.390,93.430] n=2
+batch,reference,True,4096,16,,stripeMedianNs current=63.875 [63.510,64.240] n=2 final=64.145 [63.810,64.480] n=2
+batch-sparse,value,True,16,16,,pairMedianNs original=62.835 [62.610,64.470] n=6 preprofile=65.565 [64.620,65.900] n=6 current=64.825 [63.920,67.720] n=6 final=62.365 [61.960,63.320] n=6
+batch-sparse,value,True,16,16,,stripeMedianNs original=72.050 [71.560,72.540] n=6 preprofile=72.535 [72.190,73.090] n=6 current=71.570 [71.180,73.360] n=6 final=69.760 [69.420,70.570] n=6
+batch-sparse,reference,True,16,16,,pairMedianNs original=70.005 [69.680,71.630] n=6 preprofile=71.760 [70.570,73.700] n=6 current=71.760 [70.920,72.650] n=6 final=70.430 [69.350,76.120] n=6
+batch-sparse,reference,True,16,16,,stripeMedianNs original=88.670 [87.550,90.840] n=6 preprofile=81.135 [79.430,84.440] n=6 current=84.130 [82.920,85.850] n=6 final=80.730 [80.130,81.750] n=6
+buffered-single,,,16,16,1,Mops preprofile=41.798 [41.604,42.060] n=4 current=42.422 [42.155,42.550] n=4 final=42.587 [41.622,42.843] n=4
+buffered-single,,,4096,16,1,Mops preprofile=32.401 [31.654,32.519] n=4 current=33.508 [33.060,34.132] n=4 final=33.912 [33.576,34.300] n=4
+perf,,,16,0,1,Mops preprofile=44.265 [44.014,44.714] n=4 current=43.921 [41.898,44.765] n=4 final=45.082 [44.748,45.577] n=4
+perf,,,16,0,4,Mops preprofile=24.456 [23.177,24.712] n=4 current=24.027 [20.752,24.727] n=4 final=24.691 [24.485,24.730] n=4
+perf,,,16,16,1,Mops preprofile=42.932 [42.810,43.617] n=4 current=44.096 [39.982,44.872] n=4 final=44.511 [44.216,44.799] n=4
+perf,,,16,16,4,Mops preprofile=22.917 [18.074,23.064] n=4 current=23.077 [18.752,23.137] n=4 final=23.072 [23.028,23.132] n=4
+perf,,,4096,0,1,Mops preprofile=31.263 [31.172,31.298] n=4 current=31.141 [29.313,31.448] n=4 final=31.701 [31.537,31.738] n=4
+perf,,,4096,0,4,Mops preprofile=36.973 [36.497,37.212] n=4 current=36.918 [34.956,37.186] n=4 final=37.260 [37.230,37.420] n=4
+perf,,,4096,16,1,Mops preprofile=32.365 [30.639,32.486] n=4 current=34.075 [33.509,34.730] n=4 final=34.731 [34.373,34.937] n=4
+perf,,,4096,16,4,Mops preprofile=30.878 [29.267,31.450] n=4 current=31.229 [29.947,31.733] n=4 final=31.480 [30.980,32.261] n=4

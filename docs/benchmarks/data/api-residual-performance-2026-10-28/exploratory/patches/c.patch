@@ -1,0 +1,39 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -841,7 +841,7 @@
+             {
+                 if (_insertionCount == _bufferCapacity && !HasNonThrowingComparer)
+                 {
+-                    BufferedTransaction(element, priority, pop: false, out _, out _);
++                    BufferedPushWithRollback(element, priority);
+                 }
+                 else
+                 {
+@@ -868,6 +868,7 @@
+     /// </summary>
+     /// <param name="element">The element to store.</param>
+     /// <param name="priority">The priority that orders the entry.</param>
++    [MethodImpl(MethodImplOptions.NoInlining)]
+     private void UnbufferedPush(TElement element, TPriority priority)
+     {
+         bool wasEmpty = _size == 0;
+@@ -940,6 +941,7 @@
+     /// <see cref="SubQueuePopStatus.Empty"/> when the heap is empty. Never returns
+     /// <see cref="SubQueuePopStatus.Contended"/>: the caller already holds the lock.
+     /// </returns>
++    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+     internal SubQueuePopStatus PopHeldRoot(out TElement element, out TPriority priority)
+     {
+         Debug.Assert(SyncLock.IsHeldByCurrentThread, "PopHeldRoot requires the sub-queue lock held by the caller.");
+@@ -1210,6 +1212,11 @@
+         _journal[_journalCount++] = (index, _nodes[index]);
+     }
+ 
++    // Keep discarded out parameters and transaction setup out of the lock-taking hot path.
++    [MethodImpl(MethodImplOptions.NoInlining)]
++    private void BufferedPushWithRollback(TElement element, TPriority priority)
++        => BufferedTransaction(element, priority, pop: false, out _, out _);
++
+     /// <summary>Rolls back a compound buffer operation without invoking user code.</summary>
+     private SubQueuePopStatus BufferedTransaction(TElement value, TPriority key, bool pop,
+         out TElement element, out TPriority priority)

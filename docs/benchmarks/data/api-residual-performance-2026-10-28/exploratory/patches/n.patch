@@ -1,0 +1,97 @@
+--- a/ConcurrentPriorityQueue.Enqueue.cs
++++ b/ConcurrentPriorityQueue.Enqueue.cs
+@@ -3,6 +3,8 @@
+ // Copyright (c) Levelup Software. All rights reserved.
+ // </copyright>
+ // =============================================================================
++
++using System.Runtime.CompilerServices;
+ 
+ namespace Bifrost.Concurrency;
+ 
+@@ -108,56 +110,48 @@
+     /// is unchanged from the unbounded design.
+     /// </para>
+     /// </remarks>
++    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+     private bool EnqueueCore(TElement element, TPriority priority)
+     {
+-        // Resolve thread-local state before reserving capacity: initialization failure cannot
+-        // leak a reservation, and the retry loop does not need initialization inside its try.
++        // Thread initialization precedes any reservation, including on the bounded path.
+         ThreadHandle handle = ThreadHandle.Current;
+-        SubQueue<TElement, TPriority>[] queues = _queues;
+-        bool reserved = false;
++        return _boundedCapacity > 0
++            ? EnqueueBounded(element, priority, handle)
++            : EnqueueIntoStripe(element, priority, handle);
++    }
+ 
+-        // Bounded-capacity reservation, taken atomically ahead of the resample loop. Guarded
+-        // by `_boundedCapacity > 0` so the unbounded path executes no Interlocked instruction at all.
+-        if (_boundedCapacity > 0)
++    /// <summary>Reserves bounded capacity and releases it if the stripe rejects by throwing.</summary>
++    private bool EnqueueBounded(TElement element, TPriority priority, ThreadHandle handle)
++    {
++        int count;
++        do
+         {
+-            int count;
+-            do
+-            {
+-                count = Volatile.Read(ref _boundedCount);
+-                if (count >= _boundedCapacity) return false;
+-            }
+-
+-            while (Interlocked.CompareExchange(ref _boundedCount, count + 1, count) != count);
+-
+-            reserved = true;
++            count = Volatile.Read(ref _boundedCount);
++            if (count >= _boundedCapacity) return false;
+         }
++        while (Interlocked.CompareExchange(ref _boundedCount, count + 1, count) != count);
+ 
+         try
+         {
+-            while (true)
+-            {
+-                int index = handle.NextStickyIndex(_subQueueMask, _stickiness);
+-                if (queues[index].TryLockedPush(element, priority))
+-                {
+-                    return true;
+-                }
+-
+-                // Contention ends the sticky period and draws a fresh random index.
+-                // This retry loop has no per-operation progress bound.
+-                handle.ResetStickyEnqueue();
+-            }
++            return EnqueueIntoStripe(element, priority, handle);
+         }
+         catch
+         {
+-            // A reservation was taken but the element never landed in a sub-queue (e.g. a comparer or
+-            // heap-path throw inside TryLockedPush). Release it so a transient failure can't permanently
+-            // shrink a bounded queue's usable capacity by leaking `_boundedCount`.
+-            if (reserved)
+-            {
+-                Interlocked.Decrement(ref _boundedCount);
+-            }
+-
++            Interlocked.Decrement(ref _boundedCount);
+             throw;
+         }
+     }
++
++    /// <summary>Runs the same sticky random insertion and contention-resampling loop for both capacity modes.</summary>
++    [MethodImpl(MethodImplOptions.AggressiveInlining)]
++    private bool EnqueueIntoStripe(TElement element, TPriority priority, ThreadHandle handle)
++    {
++        SubQueue<TElement, TPriority>[] queues = _queues;
++        while (true)
++        {
++            int index = handle.NextStickyIndex(_subQueueMask, _stickiness);
++            if (queues[index].TryLockedPush(element, priority)) return true;
++            handle.ResetStickyEnqueue();
++        }
++    }
+ }
