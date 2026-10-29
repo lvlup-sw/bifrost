@@ -1,0 +1,26 @@
+name: PR Body Check
+
+# Checks the pull-request body with the shared lvlup-sw/.github pr-body action.
+# The policy is the org template. GitHub also offers it as the default body,
+# because this repository has no template of its own. The action reads the body
+# from the event and the template from the action, so the job needs no checkout.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pr-body:
+    name: PR Body
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Move this pin to the org release tag that ships actions/pr-body.
+      - uses: lvlup-sw/.github/actions/pr-body@eff7fa80b8595be0bf5f6a74aab7f750bab99819 # lvlup-sw/.github#48
