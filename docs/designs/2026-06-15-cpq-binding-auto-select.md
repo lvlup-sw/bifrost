@@ -1,5 +1,7 @@
 # Hardware×Capacity-Aware Priority-Binding Selection
 
+> Superseded API/contract notes: the [2026-10 migration](../migrations/2026-10-priority-api.md) removes public LockingPriorityQueue and Auto selection, corrects progress and rank-error claims, and removes the claimed wall-clock starvation bound. Historical measurements below remain workload-specific evidence.
+
 **Date:** 2026-06-15
 **Feature:** `cpq-binding-auto-select`
 **Status:** Design

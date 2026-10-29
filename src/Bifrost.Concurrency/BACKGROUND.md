@@ -1,6 +1,6 @@
 # Background: the MultiQueue inside Bifrost.Concurrency
 
-The [README's priority-dispatch guide](../../README.md#priority-dispatch) covers the *how*: instrument on FIFO first, enable priority dispatch when the numbers say so. This file covers the *why*. What the data structure actually is, what it trades away, the bounds that govern the trade, and how the orchestrator builds class-aware scheduling on top of it. The figures are animated SVGs and play inline on GitHub; each loops every 10–14 seconds.
+The [README's priority-dispatch overview](../../README.md#priority-dispatch) describes the available bindings. This file explains the design behind them. What the data structure actually is, what it trades away, the bounds that govern the trade, and how the orchestrator builds class-aware scheduling on top of it. The figures are animated SVGs and play inline on GitHub; each loops every 10–14 seconds.
 
 Everything here is distilled from the research corpus this port descends from (the DataFerry repo, frozen at `2bf0456`: `docs/research/2026-06-09-cpq-v2-theoretical-basis.md`, the v2 and stickiness design docs, and the BCL API proposal) plus the papers in [References](#references).
 
@@ -23,7 +23,7 @@ Both operations follow the same discipline:
 - enqueue picks one sub-queue uniformly at random, try-locks it, inserts, unlocks. If the try-lock fails it does not wait; it picks a different sub-queue and tries again.
 - deleteMin reads the published tops of *two* random sub-queues, taking no locks at all, then try-locks whichever showed the smaller key, re-checks under the lock, and pops. Failed try-lock, same rule: resample.
 
-That no-waiting rule is where the progress guarantee comes from. At most *p* threads can hold locks at any instant and there are *4p* sub-queues, so an unlocked one always exists, and the expected number of lock acquisitions per operation is barely above one. The source docs call this "wait-free locking". It is a probabilistic expected bound rather than classical wait-freedom, but the practical content is real: nothing ever convoys on a contended lock, which is exactly the disease that kills strict designs.
+Try-lock resampling reduces contention when enough stripes are available. The research progress argument assumes a bound on participating threads; ProcessorCount does not enforce that bound in this library. Enqueue retries and dequeue verification can continue indefinitely under contention, especially when the sole populated stripe is locked. This implementation is neither lock-free nor wait-free.
 
 ## Rank error: the price, with a number on it
 
@@ -31,11 +31,9 @@ The contract is strange the first time you meet it. `TryDequeue` returns an elem
 
 <p align="center"><img src="diagrams/anim-rank-error.svg" width="880" alt="Animated illustration: three pops leave 0, 2, and 1 smaller keys behind; the expected stationary rank error is (5/6)·n − 1 + 1/(6n)."/></p>
 
-The number attached to the contract is exact, not asymptotic: the expected stationary rank error is **(5/6)·n − 1 + 1/(6n)** for n sub-queues, from a Markov-chain analysis by Walzer and Williams (ESA 2025). With the c = 4 multiplier that works out to roughly 3.3 × ProcessorCount. DataFerry validated it empirically and landed within about 2.5% of theory (predicted ≈105.7, measured 103.1, at p = 64 with c = 2).
+The ESA 2025 stationary rank formula **(5/6)·n − 1 + 1/(6n)** concerns an idealized deletion-only model with independent sampling with replacement. The implementation samples two distinct stripes and adds stickiness, buffers, occupancy fallback and verification. The formula and illustration above are research context, not an exact contract for these operations. The paper analyzes a limiting rank distribution; the suite's mean and P99 thresholds are empirical engineering gates, not deterministic limits.
 
-Two more things the theory says, both load-bearing. First, the two-choice sample is not an optimization target: with single-choice deletion the rank error grows *without bound* (Alistarh et al., PODC 2017), so sampling two tops is the whole ballgame, the same power-of-choice effect that fixes randomized load balancing. Second, the system self-stabilizes. A skipped minimum is not lost; it sits at its sub-queue's top looking more and more attractive every round, so errors do not compound.
-
-Two honesty notes carried straight from the source research. The repo's test-suite tail bounds (mean ≤ 2·(5/6)·n·s, P99 ≤ 10·n·s) are deliberately generous engineering gates, not theorems; nobody has published an exact tail distribution. And the relaxation scales with the *machine*, not the workload. The same binary pops from roughly the top 27 on an 8-core box and from the top 213 on a 64-core server. Correctness must never depend on how close a pop lands to the true minimum. That single sentence is why the #16 scheduler (which needs exact sleep-until-top semantics) does not use this structure, and why the exact-ordering `LockingPriorityQueue` ships beside it as a fully supported peer rather than a test fixture.
+Correctness must not depend on distance from the global minimum. More stripes and greater stickiness can change quality as well as throughput. Measure the intended workload. The public `LockingPriorityQueue` has been removed; exact orchestrator dispatch remains an internal synchronized BCL heap. Standalone exact ordering requires caller-owned synchronization around a BCL priority queue. See the [API migration](../../docs/migrations/2026-10-priority-api.md).
 
 ## What the .NET implementation does differently
 
@@ -45,7 +43,7 @@ The port is the DataFerry v2 design, about 3.1K lines under `MultiQueue/`. Where
 - Heaps are arity-4 with hole-based sift, one final write instead of swap pairs, rather than the paper's arity-8. On .NET every reference move pays a GC write barrier, so fewer levels times fewer writes wins.
 - Every sub-queue's hot header (lock word, published top, stripe count) is padded to 128-byte boundaries with explicit-layout structs, the only reliable false-sharing tool when a compacting GC can relocate objects. 128 covers both Apple/ARM line sizes and Intel's adjacent-line prefetch.
 - Per-thread state is a `[ThreadStatic]` handle carrying an inline xoshiro256\*\* generator, modeled on the thread pool's own internals. Thread identity is only ever a striping hint. Stale state is harmless, so the structure survives thread-pool churn and work migrating across `await`.
-- Stickiness (the MQ(c, s) knob that reuses sampled sub-queues for s consecutive operations, trading rank error of s·(5/6)·n for cache locality) ships defaulted to s = 1, which keeps the published contract bit-identical.
+- Stickiness (the MQ(c, s) knob that reuses sampled sub-queues for s consecutive operations, trading ordering quality for cache locality) ships defaulted to s = 1, which preserves the default sampling behavior.
 - Emptiness is reported honestly. A failed sampled pop only proves two sub-queues were empty, so `TryDequeue` returns false only after a full verification scan over all n sub-queues, the same "observed empty at some point during the call" wording `ConcurrentQueue` uses. `Count` sums striped counters with snapshot semantics.
 
 ## How Bifrost turns the queue into a scheduler
@@ -58,7 +56,7 @@ The CPQ orders whatever keys it is given. The orchestrator's contribution is pol
 
 <p align="center"><img src="diagrams/anim-virtual-time-boost.svg" width="880" alt="Animated illustration: an Interactive arrival at t=42 takes key 12 and passes a fresh Batch item, but cannot pass one that has already waited longer than the 30-second window."/></p>
 
-I find this construction genuinely satisfying: the boost window *is* the starvation bound. An item that has waited longer than the window carries a smaller key than any fresh arrival of any class, so the worst-case overtake equals the window, full stop. No aging scans, no escalation timers, no bookkeeping that can fall behind. Under the MultiQueue binding the ordering holds in the relaxed, rank-error sense above; under the locking binding it is exact.
+With the default class offsets, an item that has waited longer than the boost window has a smaller key than a fresh arrival. The window bounds the advantage in the key, not the time an item can wait: worker availability and the number of older items also matter. The locking binding selects the minimum key; MultiQueue can select a different key because its ordering is relaxed.
 
 ### Watermark admission
 
@@ -66,7 +64,7 @@ Ordering decides who goes first. Watermarks decide who gets in when the bounded 
 
 <p align="center"><img src="diagrams/anim-watermark-admission.svg" width="880" alt="Animated illustration: Batch is rejected above 0.90 of capacity, Default above 0.95, Interactive admits to the brim, and every rejection returns immediately as an EnqueueResult."/></p>
 
-Admission is fail-fast on purpose. Waiting for space at capacity would hand the priority inversion right back, because a queued Batch backlog would then block an Interactive *producer* at the door. That reasoning is the root of the v0.5.0 breaking change: `EnqueueAsync` returns `ValueTask<EnqueueResult>`, a rejection is a value rather than an exception, and it dead-letters with `AttemptCount = 0` so the shed is visible in telemetry.
+Admission is fail-fast on purpose. Waiting for space at capacity would hand the priority inversion right back, because a queued Batch backlog would then block an Interactive *producer* at the door. That reasoning is the root of the v0.5.0 breaking change: `EnqueueAsync` returns `ValueTask<EnqueueResult>`, a rejection is a value rather than an exception, and eligible admission rejections are dead-lettered with `AttemptCount = 0` when a dead-letter queue is configured.
 
 ## What the benchmarks say
 
@@ -94,7 +92,7 @@ Finally the [DR-7 FIFO gate](../../docs/benchmarks/2026-06-cpq-orchestrator-base
 | 1–2 threads | the exact lock | Fixed per-op cost: ~46 ns of RNG + two seqlock peeks + try-lock, versus ~32 ns for heap-under-lock |
 | Few workers, seconds-long items (Bifrost's default regime) | `LockingPriorityWorkQueue` | The lock is touched once per multi-second item and cannot convoy; exact ordering gives truthful class separation |
 | Narrow key ranges at low thread counts | the exact lock | Equal-key sifts terminate early; the baseline's critical section drops to ~26 ns |
-| Exact-min semantics required (the #16 scheduler) | `LockingPriorityQueue` or plain `PriorityQueue` | A relaxed pop is contractually allowed to miss the minimum |
+| Exact-min semantics required (the #16 scheduler) | BCL `PriorityQueue` with caller-owned synchronization | A relaxed pop is contractually allowed to miss the minimum |
 
 ## References
 
