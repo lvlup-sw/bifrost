@@ -1,0 +1,3 @@
+trace: 36 records byte-identical to original baseline
+quality: 160 records byte-identical to original baseline
+Final benchmark processes: 48; all exited successfully.

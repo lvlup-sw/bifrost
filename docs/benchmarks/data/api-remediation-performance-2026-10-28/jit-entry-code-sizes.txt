@@ -1,0 +1,26 @@
+jit-entry.txt
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[int,int]:TryLockedPush(int,int):bool:this (FullOpts)
+; Total bytes of code 520
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[int,int]:PopHeldRoot(byref,byref):int:this (FullOpts)
+; Total bytes of code 244
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[int,int]:UnbufferedPopHeldRoot(byref,byref):int:this (FullOpts)
+; Total bytes of code 436
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[int,int]:BufferedPopHeldRoot(byref,byref):int:this (FullOpts)
+; Total bytes of code 440
+jit-inline.txt
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[int,int]:TryLockedPush(int,int):bool:this (FullOpts)
+; Total bytes of code 492
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[int,int]:PopHeldRoot(byref,byref):int:this (FullOpts)
+; Total bytes of code 152
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[int,int]:UnbufferedPopHeldRoot(byref,byref):int:this (FullOpts)
+; Total bytes of code 344
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[int,int]:BufferedPopHeldRoot(byref,byref):int:this (FullOpts)
+; Total bytes of code 440
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[System.__Canon,int]:TryLockedPush(System.__Canon,int):bool:this (FullOpts)
+; Total bytes of code 492
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[System.__Canon,int]:PopHeldRoot(byref,byref):int:this (FullOpts)
+; Total bytes of code 152
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[System.__Canon,int]:UnbufferedPopHeldRoot(byref,byref):int:this (FullOpts)
+; Total bytes of code 344
+; Assembly listing for method Bifrost.Concurrency.SubQueue`2[System.__Canon,int]:BufferedPopHeldRoot(byref,byref):int:this (FullOpts)
+; Total bytes of code 496

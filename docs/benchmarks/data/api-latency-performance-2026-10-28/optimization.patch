@@ -1,0 +1,31 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -941,6 +941,7 @@
+     /// <see cref="SubQueuePopStatus.Empty"/> when the heap is empty. Never returns
+     /// <see cref="SubQueuePopStatus.Contended"/>: the caller already holds the lock.
+     /// </returns>
++    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+     internal SubQueuePopStatus PopHeldRoot(out TElement element, out TPriority priority)
+     {
+         Debug.Assert(SyncLock.IsHeldByCurrentThread, "PopHeldRoot requires the sub-queue lock held by the caller.");
+--- a/ThreadHandle.cs
++++ b/ThreadHandle.cs
+@@ -119,7 +119,17 @@
+     /// Callers must re-fetch per operation and must not cache the result across an
+     /// <c>await</c>. See the type-level remarks for the thread-affinity contract.
+     /// </remarks>
+-    internal static ThreadHandle Current => t_current ??= new ThreadHandle();
++    internal static ThreadHandle Current
++    {
++        // Keep the per-operation thread-local read small; initialization still runs only
++        // on this thread's first access. Never cache the result across operations/awaits.
++        [MethodImpl(MethodImplOptions.AggressiveInlining)]
++        get => t_current ?? CreateCurrent();
++    }
++
++    // Allocation and RNG seeding belong to the first-use path, not each inlined read.
++    [MethodImpl(MethodImplOptions.NoInlining)]
++    private static ThreadHandle CreateCurrent() => t_current = new ThreadHandle();
+ 
+     /// <summary>
+     /// Creates a handle with explicit xoshiro256** state for deterministic testing.

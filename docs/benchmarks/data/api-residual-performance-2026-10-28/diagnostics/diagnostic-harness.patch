@@ -1,0 +1,36 @@
+--- a/Program.cs
++++ b/Program.cs
+@@ -60,7 +60,7 @@
+     return;
+ }
+ 
+-if (args.Contains("trace") || args.Contains("trace-ties"))
++if (args.Contains("trace"))
+ {
+     foreach (bool custom in new[] { false, true })
+     foreach (int n in new[] { 1, 4, 16 })
+@@ -73,7 +73,7 @@
+         var random = new Random(29);
+         for (int i = 0; i < 12000; i++)
+         {
+-            if (i < 2000 || random.Next(2) == 0) q.Enqueue(i, args.Contains("trace-ties") ? random.Next(8) : random.Next(100000) * 20000 + i);
++            if (i < 2000 || random.Next(2) == 0) q.Enqueue(i, random.Next(100000) * 20000 + i);
+             else if (q.TryDequeue(out int e, out int p)) output.Append(e).Append(':').Append(p).Append(';');
+             foreach (var stripe in q.SubQueuesForTest)
+             {
+@@ -232,6 +232,7 @@
+         for (int i = 0; i < 8; i++) { QueueBatch(); StripeBatch(); }
+         var queueTimes = new double[samples];
+         var stripeTimes = new double[samples];
++        long txPopBefore = queue.SubQueuesForTest.Sum(q => q.TxPopCount), txPushBefore = queue.SubQueuesForTest.Sum(q => q.TxPushCount);
+         long before = GC.GetAllocatedBytesForCurrentThread();
+         for (int i = 0; i < samples; i++)
+         {
+@@ -241,6 +242,7 @@
+             stripeTimes[i] = (Stopwatch.GetTimestamp() - start) * 1e9 / Stopwatch.Frequency / batchSize;
+         }
+         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
++        Console.WriteLine($"transactions payload={payload} custom={custom} population={population} c={buffer} pushes={queue.SubQueuesForTest.Sum(q => q.TxPushCount)-txPushBefore} pops={queue.SubQueuesForTest.Sum(q => q.TxPopCount)-txPopBefore} pairs={batchSize*samples}");
+         Array.Sort(queueTimes); Array.Sort(stripeTimes);
+         Console.WriteLine($"batch payload={payload} custom={custom} population={population} c={buffer} pairMedianNs={queueTimes[samples / 2]:F2} pairP90Ns={queueTimes[(int)(samples * .9)]:F2} stripeMedianNs={stripeTimes[samples / 2]:F2} allocated={bytes}");
+     }

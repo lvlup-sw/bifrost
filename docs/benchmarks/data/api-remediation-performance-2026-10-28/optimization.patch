@@ -1,0 +1,334 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -419,7 +419,8 @@
+     /// </summary>
+     /// <param name="element">The element to store.</param>
+     /// <param name="priority">The priority that orders the entry.</param>
+-    internal void HeapPush(TElement element, TPriority priority)
++    /// <returns>Whether this entry became the root (strictly smaller than the old root, or first entry).</returns>
++    internal bool HeapPush(TElement element, TPriority priority)
+     {
+         if (_size == _nodes.Length)
+         {
+@@ -427,23 +428,22 @@
+         }
+ 
+         int index = _size;
++        bool becameRoot;
+         if (HasNonThrowingComparer)
+         {
+-            FastMoveUpDefaultComparer(index, element, priority);
+-            _size = index + 1;
+-            return;
+-        }
+-
+-        if (typeof(TPriority).IsValueType && _comparer is null)
+-        {
+-            MoveUpDefaultComparer(index, element, priority);
++            becameRoot = FastMoveUpDefaultComparer(index, element, priority);
++        }
++        else if (typeof(TPriority).IsValueType && _comparer is null)
++        {
++            becameRoot = MoveUpDefaultComparer(index, element, priority);
+         }
+         else
+         {
+-            MoveUpCustomComparer(index, element, priority);
++            becameRoot = MoveUpCustomComparer(index, element, priority);
+         }
+ 
+         _size = index + 1;
++        return becameRoot;
+     }
+ 
+     /// <summary>
+@@ -643,7 +643,7 @@
+     /// the root, shifting larger ancestors down into the hole, and places it once at the end.
+     /// Mirrors <c>PriorityQueue.MoveUpDefaultComparer</c>.
+     /// </summary>
+-    private void MoveUpDefaultComparer(int index, TElement element, TPriority priority)
++    private bool MoveUpDefaultComparer(int index, TElement element, TPriority priority)
+     {
+         var nodes = _nodes;
+         int target = index;
+@@ -654,36 +654,25 @@
+             target = parent;
+         }
+ 
+-        while (index > target)
+-        {
+-            int parent = (index - 1) >> 2;
+-            WriteNode(index, nodes[parent]);
+-            index = parent;
+-        }
+-
+-        WriteNode(index, (element, priority));
++        CommitAscent(index, target, element, priority);
++        return target == 0;
+     }
+ 
+     /// <summary>Compares the sift path before committing any heap writes.</summary>
+-    private void MoveUpCustomComparer(int index, TElement element, TPriority priority)
++    private bool MoveUpCustomComparer(int index, TElement element, TPriority priority)
+     {
+         var nodes = _nodes;
++        var comparer = _comparer!;
+         int target = index;
+         while (target > 0)
+         {
+             int parent = (target - 1) >> 2;
+-            if (_comparer!.Compare(priority, nodes[parent].Priority) >= 0) break;
++            if (comparer.Compare(priority, nodes[parent].Priority) >= 0) break;
+             target = parent;
+         }
+ 
+-        while (index > target)
+-        {
+-            int parent = (index - 1) >> 2;
+-            WriteNode(index, nodes[parent]);
+-            index = parent;
+-        }
+-
+-        WriteNode(index, (element, priority));
++        CommitAscent(index, target, element, priority);
++        return target == 0;
+     }
+ 
+     /// <summary>Records the chosen children before committing the sift.</summary>
+@@ -693,7 +682,8 @@
+         Span<int> path = stackalloc int[16]; // An Int32-indexed quaternary heap has at most 16 levels.
+         int length = 0;
+         int start = index;
+-        while (index <= (count - 2) / 4 && count > 1)
++        int lastParent = (count - 2) >> 2;
++        while (index <= lastParent)
+         {
+             int firstChild = (index << 2) + 1;
+             int minChild = firstChild;
+@@ -719,13 +709,26 @@
+         }
+ 
+         index = start;
+-        for (int i = 0; i < length; i++)
+-        {
+-            WriteNode(index, nodes[path[i]]);
+-            index = path[i];
+-        }
+-
+-        WriteNode(index, (element, priority));
++        if (_journalActive)
++        {
++            for (int i = 0; i < length; i++)
++            {
++                WriteNode(index, nodes[path[i]]);
++                index = path[i];
++            }
++
++            WriteNode(index, (element, priority));
++        }
++        else
++        {
++            for (int i = 0; i < length; i++)
++            {
++                nodes[index] = nodes[path[i]];
++                index = path[i];
++            }
++
++            nodes[index] = (element, priority);
++        }
+     }
+ 
+     /// <summary>Records the chosen children before committing the sift.</summary>
+@@ -735,7 +738,8 @@
+         Span<int> path = stackalloc int[16]; // An Int32-indexed quaternary heap has at most 16 levels.
+         int length = 0;
+         int start = index;
+-        while (index <= (count - 2) / 4 && count > 1)
++        int lastParent = (count - 2) >> 2;
++        while (index <= lastParent)
+         {
+             int firstChild = (index << 2) + 1;
+             int minChild = firstChild;
+@@ -761,13 +765,55 @@
+         }
+ 
+         index = start;
+-        for (int i = 0; i < length; i++)
+-        {
+-            WriteNode(index, nodes[path[i]]);
+-            index = path[i];
+-        }
+-
+-        WriteNode(index, (element, priority));
++        if (_journalActive)
++        {
++            for (int i = 0; i < length; i++)
++            {
++                WriteNode(index, nodes[path[i]]);
++                index = path[i];
++            }
++
++            WriteNode(index, (element, priority));
++        }
++        else
++        {
++            for (int i = 0; i < length; i++)
++            {
++                nodes[index] = nodes[path[i]];
++                index = path[i];
++            }
++
++            nodes[index] = (element, priority);
++        }
++    }
++
++    /// <summary>Commits a compared ascent, testing transaction state once outside the copy loop.</summary>
++    [MethodImpl(MethodImplOptions.AggressiveInlining)]
++    private void CommitAscent(int index, int target, TElement element, TPriority priority)
++    {
++        var nodes = _nodes;
++        if (_journalActive)
++        {
++            while (index > target)
++            {
++                int parent = (index - 1) >> 2;
++                WriteNode(index, nodes[parent]);
++                index = parent;
++            }
++
++            WriteNode(index, (element, priority));
++        }
++        else
++        {
++            while (index > target)
++            {
++                int parent = (index - 1) >> 2;
++                nodes[index] = nodes[parent];
++                index = parent;
++            }
++
++            nodes[index] = (element, priority);
++        }
+     }
+ 
+     /// <summary>
+@@ -826,10 +872,9 @@
+     private void UnbufferedPush(TElement element, TPriority priority)
+     {
+         bool wasEmpty = _size == 0;
+-        TPriority previousRoot = wasEmpty ? default! : _nodes[0].Priority;
+-
+-        bool publish = wasEmpty || CompareEffective(priority, previousRoot) < 0;
+-        HeapPush(element, priority);
++        // Reaching index zero during the sift already proves a strict root change.
++        // Reuse that decision instead of calling the comparer again for publication.
++        bool publish = HeapPush(element, priority);
+ 
+         // Republish only when the minimum changed: first entry, or strictly smaller than
+         // the previous root. An equal-priority push leaves the published value correct.
+@@ -1066,15 +1111,19 @@
+ 
+     // Built-in numeric default comparers cannot invoke user code. Preserve their original
+     // single-pass sift hot path; arbitrary IComparable implementations use preflight/rollback.
+-    private bool HasNonThrowingComparer => _comparer is null &&
+-        (typeof(TPriority) == typeof(int) || typeof(TPriority) == typeof(long) ||
+-         typeof(TPriority) == typeof(uint) || typeof(TPriority) == typeof(ulong) ||
+-         typeof(TPriority) == typeof(short) || typeof(TPriority) == typeof(ushort) ||
+-         typeof(TPriority) == typeof(byte) || typeof(TPriority) == typeof(sbyte) ||
+-         typeof(TPriority) == typeof(float) || typeof(TPriority) == typeof(double) ||
+-         typeof(TPriority) == typeof(decimal) || typeof(TPriority) == typeof(char));
+-
+-    private void FastMoveUpDefaultComparer(int index, TElement element, TPriority priority)
++    private bool HasNonThrowingComparer
++    {
++        [MethodImpl(MethodImplOptions.AggressiveInlining)]
++        get => _comparer is null &&
++            (typeof(TPriority) == typeof(int) || typeof(TPriority) == typeof(long) ||
++             typeof(TPriority) == typeof(uint) || typeof(TPriority) == typeof(ulong) ||
++             typeof(TPriority) == typeof(short) || typeof(TPriority) == typeof(ushort) ||
++             typeof(TPriority) == typeof(byte) || typeof(TPriority) == typeof(sbyte) ||
++             typeof(TPriority) == typeof(float) || typeof(TPriority) == typeof(double) ||
++             typeof(TPriority) == typeof(decimal) || typeof(TPriority) == typeof(char));
++    }
++
++    private bool FastMoveUpDefaultComparer(int index, TElement element, TPriority priority)
+     {
+         (TElement Element, TPriority Priority)[] nodes = _nodes;
+ 
+@@ -1092,6 +1141,7 @@
+         }
+ 
+         nodes[index] = (element, priority);
++        return index == 0;
+     }
+ 
+     private void FastMoveDownDefaultComparer(int index, TElement element, TPriority priority)
+@@ -1144,14 +1194,17 @@
+     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+     private void WriteNode(int index, (TElement Element, TPriority Priority) entry)
+     {
+-        if (_journalActive)
+-        {
+-            if (_journalCount == _journal.Length)
+-                Array.Resize(ref _journal, Math.Max(32, _journalCount * 2));
+-            _journal[_journalCount++] = (index, _nodes[index]);
+-        }
+-
++        if (_journalActive) RecordOverwrite(index);
+         _nodes[index] = entry;
++    }
++
++    // Keep allocation and journal bookkeeping out of every inlined heap write.
++    [MethodImpl(MethodImplOptions.NoInlining)]
++    private void RecordOverwrite(int index)
++    {
++        if (_journalCount == _journal.Length)
++            Array.Resize(ref _journal, Math.Max(32, _journalCount * 2));
++        _journal[_journalCount++] = (index, _nodes[index]);
+     }
+ 
+     /// <summary>Rolls back a compound buffer operation without invoking user code.</summary>
+@@ -1232,10 +1285,18 @@
+     /// <param name="priority">The priority that orders the entry.</param>
+     private void SortedInsertIntoDeletion(TElement element, TPriority priority)
+     {
+-        int insertionCount = Math.Min(_deletionCount, _bufferCapacity - 1);
+-        int hole = insertionCount;
++        int hole = _deletionCount;
++        if (hole == _bufferCapacity) hole--;
+         var original = DeletionSpan(_deletionCount);
+-        while (hole > 0 && CompareEffective(priority, original[hole - 1].Priority) < 0) hole--;
++        if (typeof(TPriority).IsValueType && _comparer is null)
++        {
++            while (hole > 0 && Comparer<TPriority>.Default.Compare(priority, original[hole - 1].Priority) < 0) hole--;
++        }
++        else
++        {
++            var comparer = _comparer!;
++            while (hole > 0 && comparer.Compare(priority, original[hole - 1].Priority) < 0) hole--;
++        }
+ 
+         if (_deletionCount == _bufferCapacity)
+         {
+--- a/ConcurrentPriorityQueue.Enqueue.cs
++++ b/ConcurrentPriorityQueue.Enqueue.cs
+@@ -110,6 +110,10 @@
+     /// </remarks>
+     private bool EnqueueCore(TElement element, TPriority priority)
+     {
++        // Resolve thread-local state before reserving capacity: initialization failure cannot
++        // leak a reservation, and the retry loop does not need initialization inside its try.
++        ThreadHandle handle = ThreadHandle.Current;
++        SubQueue<TElement, TPriority>[] queues = _queues;
+         bool reserved = false;
+ 
+         // Bounded-capacity reservation, taken atomically ahead of the resample loop. Guarded
+@@ -130,8 +134,6 @@
+ 
+         try
+         {
+-            ThreadHandle handle = ThreadHandle.Current;
+-            SubQueue<TElement, TPriority>[] queues = _queues;
+             while (true)
+             {
+                 int index = handle.NextStickyIndex(_subQueueMask, _stickiness);

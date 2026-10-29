@@ -1,0 +1,53 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -1019,11 +1019,12 @@
+     {
+         bool wasEmpty = _deletionCount == 0;
+ 
+-        if (_deletionCount > 0 && CompareEffective(priority, DeletionMax) <= 0)
++        int comparisonToMax = wasEmpty ? 1 : CompareEffective(priority, DeletionMax);
++        if (comparisonToMax <= 0)
+         {
+             // Small key: it belongs among the resident minima. Sorted-insert into D; if D was full,
+             // its displaced max cascades out to I (and on to the heap if I is also full).
+-            SortedInsertIntoDeletion(element, priority);
++            SortedInsertIntoDeletion(element, priority, comparisonToMax);
+         }
+         else if (wasEmpty)
+         {
+@@ -1286,19 +1287,24 @@
+     /// </summary>
+     /// <param name="element">The element to store.</param>
+     /// <param name="priority">The priority that orders the entry.</param>
+-    private void SortedInsertIntoDeletion(TElement element, TPriority priority)
++    private void SortedInsertIntoDeletion(TElement element, TPriority priority, int comparisonToMax)
+     {
+         int hole = _deletionCount;
+-        if (hole == _bufferCapacity) hole--;
+-        var original = DeletionSpan(_deletionCount);
+-        if (typeof(TPriority).IsValueType && _comparer is null)
+-        {
+-            while (hole > 0 && Comparer<TPriority>.Default.Compare(priority, original[hole - 1].Priority) < 0) hole--;
+-        }
+-        else
+-        {
+-            var comparer = _comparer!;
+-            while (hole > 0 && comparer.Compare(priority, original[hole - 1].Priority) < 0) hole--;
++        // Routing already compared the incoming key with D.max. If D has room, reuse
++        // that first search decision; a full D searches below the max it will evict.
++        if (hole == _bufferCapacity || comparisonToMax < 0)
++        {
++            hole--;
++            var original = DeletionSpan(_deletionCount);
++            if (typeof(TPriority).IsValueType && _comparer is null)
++            {
++                while (hole > 0 && Comparer<TPriority>.Default.Compare(priority, original[hole - 1].Priority) < 0) hole--;
++            }
++            else
++            {
++                var comparer = _comparer!;
++                while (hole > 0 && comparer.Compare(priority, original[hole - 1].Priority) < 0) hole--;
++            }
+         }
+ 
+         if (_deletionCount == _bufferCapacity)

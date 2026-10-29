@@ -1,0 +1,53 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -953,7 +953,7 @@
+         // Count is exact under this lock. With D holding one item, Count > 2 means
+         // the refill has at least two remaining entries and may invoke the comparer.
+         if (_header.Count > 2 && _deletionCount == 1 && !HasNonThrowingComparer)
+-            return BufferedTransaction(default!, default!, pop: true, out element, out priority);
++            return BufferedPopWithRollback(out element, out priority);
+         return BufferedPopHeldRoot(out element, out priority);
+     }
+ 
+@@ -1210,6 +1210,41 @@
+         _journal[_journalCount++] = (index, _nodes[index]);
+     }
+ 
++    // A transactional pop always starts with exactly one resident deletion entry.
++    // Preserve that entry instead of copying all sixteen deletion slots.
++    private SubQueuePopStatus BufferedPopWithRollback(out TElement element, out TPriority priority)
++    {
++        Debug.Assert(_deletionCount == 1);
++        var insertion = _insertion;
++        var root = DeletionSpan(1)[0];
++        int insertionCount = _insertionCount, size = _size;
++        _journalActive = true;
++        try
++        {
++            return BufferedPopHeldRoot(out element, out priority);
++        }
++        catch
++        {
++            for (int i = _journalCount - 1; i >= 0; i--)
++                _nodes[_journal[i].Index] = _journal[i].Entry;
++            _insertion = insertion;
++            if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
++                DeletionSpan(_bufferCapacity).Clear();
++            DeletionSpan(1)[0] = root;
++            _insertionCount = insertionCount;
++            _deletionCount = 1;
++            _size = size;
++            throw;
++        }
++        finally
++        {
++            _journalActive = false;
++            if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
++                Array.Clear(_journal, 0, _journalCount);
++            _journalCount = 0;
++        }
++    }
++
+     /// <summary>Rolls back a compound buffer operation without invoking user code.</summary>
+     private SubQueuePopStatus BufferedTransaction(TElement value, TPriority key, bool pop,
+         out TElement element, out TPriority priority)

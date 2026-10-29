@@ -1,0 +1,1202 @@
+{
+  "batch,value,False,16,0,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 61.68,
+      "min": 61.64,
+      "max": 61.72,
+      "values": [
+        61.72,
+        61.64
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 62.46,
+      "min": 62.28,
+      "max": 62.64,
+      "values": [
+        62.28,
+        62.64
+      ]
+    }
+  },
+  "batch,value,False,16,0,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 29.455,
+      "min": 29.44,
+      "max": 29.47,
+      "values": [
+        29.44,
+        29.47
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 29.29,
+      "min": 29.11,
+      "max": 29.47,
+      "values": [
+        29.47,
+        29.11
+      ]
+    }
+  },
+  "batch,value,False,16,16,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 62.945,
+      "min": 62.33,
+      "max": 63.56,
+      "values": [
+        62.33,
+        63.56
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 63.015,
+      "min": 63.01,
+      "max": 63.02,
+      "values": [
+        63.02,
+        63.01
+      ]
+    }
+  },
+  "batch,value,False,16,16,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 44.31,
+      "min": 43.64,
+      "max": 44.98,
+      "values": [
+        44.98,
+        43.64
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 43.065,
+      "min": 42.79,
+      "max": 43.34,
+      "values": [
+        42.79,
+        43.34
+      ]
+    }
+  },
+  "batch,value,False,4096,0,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 72.53,
+      "min": 72.32,
+      "max": 72.74,
+      "values": [
+        72.32,
+        72.74
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 72.82,
+      "min": 72.76,
+      "max": 72.88,
+      "values": [
+        72.88,
+        72.76
+      ]
+    }
+  },
+  "batch,value,False,4096,0,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 36.845,
+      "min": 36.51,
+      "max": 37.18,
+      "values": [
+        37.18,
+        36.51
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 36.635,
+      "min": 36.4,
+      "max": 36.87,
+      "values": [
+        36.87,
+        36.4
+      ]
+    }
+  },
+  "batch,value,False,4096,16,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 75.755,
+      "min": 75.31,
+      "max": 76.2,
+      "values": [
+        75.31,
+        76.2
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 71.555,
+      "min": 71.5,
+      "max": 71.61,
+      "values": [
+        71.61,
+        71.5
+      ]
+    }
+  },
+  "batch,value,False,4096,16,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 42.510000000000005,
+      "min": 42.38,
+      "max": 42.64,
+      "values": [
+        42.64,
+        42.38
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 39.55,
+      "min": 39.51,
+      "max": 39.59,
+      "values": [
+        39.59,
+        39.51
+      ]
+    }
+  },
+  "batch,value,True,16,0,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 63.785,
+      "min": 63.48,
+      "max": 64.09,
+      "values": [
+        63.48,
+        64.09
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 64.19,
+      "min": 63.99,
+      "max": 64.39,
+      "values": [
+        64.39,
+        63.99
+      ]
+    }
+  },
+  "batch,value,True,16,0,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 42.879999999999995,
+      "min": 42.6,
+      "max": 43.16,
+      "values": [
+        42.6,
+        43.16
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 42.315,
+      "min": 42.01,
+      "max": 42.62,
+      "values": [
+        42.01,
+        42.62
+      ]
+    }
+  },
+  "batch,value,True,16,16,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 64.44,
+      "min": 63.98,
+      "max": 64.9,
+      "values": [
+        63.98,
+        64.9
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 63.92,
+      "min": 63.81,
+      "max": 64.03,
+      "values": [
+        64.03,
+        63.81
+      ]
+    }
+  },
+  "batch,value,True,16,16,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 71.92,
+      "min": 71.51,
+      "max": 72.33,
+      "values": [
+        72.33,
+        71.51
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 70.2,
+      "min": 70.12,
+      "max": 70.28,
+      "values": [
+        70.12,
+        70.28
+      ]
+    }
+  },
+  "batch,value,True,4096,0,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 110.295,
+      "min": 109.54,
+      "max": 111.05,
+      "values": [
+        109.54,
+        111.05
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 109.41999999999999,
+      "min": 109.02,
+      "max": 109.82,
+      "values": [
+        109.02,
+        109.82
+      ]
+    }
+  },
+  "batch,value,True,4096,0,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 66.505,
+      "min": 65.77,
+      "max": 67.24,
+      "values": [
+        67.24,
+        65.77
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 66.00999999999999,
+      "min": 65.45,
+      "max": 66.57,
+      "values": [
+        66.57,
+        65.45
+      ]
+    }
+  },
+  "batch,value,True,4096,16,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 86.73,
+      "min": 86.17,
+      "max": 87.29,
+      "values": [
+        86.17,
+        87.29
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 81.35499999999999,
+      "min": 81.33,
+      "max": 81.38,
+      "values": [
+        81.33,
+        81.38
+      ]
+    }
+  },
+  "batch,value,True,4096,16,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 56.75,
+      "min": 56.66,
+      "max": 56.84,
+      "values": [
+        56.84,
+        56.66
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 52.965,
+      "min": 52.8,
+      "max": 53.13,
+      "values": [
+        53.13,
+        52.8
+      ]
+    }
+  },
+  "batch,reference,False,16,0,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 64.1,
+      "min": 63.75,
+      "max": 64.45,
+      "values": [
+        63.75,
+        64.45
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 64.86,
+      "min": 64.8,
+      "max": 64.92,
+      "values": [
+        64.92,
+        64.8
+      ]
+    }
+  },
+  "batch,reference,False,16,0,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 34.88,
+      "min": 34.67,
+      "max": 35.09,
+      "values": [
+        35.09,
+        34.67
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 35.055,
+      "min": 34.83,
+      "max": 35.28,
+      "values": [
+        34.83,
+        35.28
+      ]
+    }
+  },
+  "batch,reference,False,16,16,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 69.145,
+      "min": 68.6,
+      "max": 69.69,
+      "values": [
+        68.6,
+        69.69
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 69.545,
+      "min": 69.48,
+      "max": 69.61,
+      "values": [
+        69.48,
+        69.61
+      ]
+    }
+  },
+  "batch,reference,False,16,16,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 54.760000000000005,
+      "min": 54.68,
+      "max": 54.84,
+      "values": [
+        54.84,
+        54.68
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 52.42,
+      "min": 52.25,
+      "max": 52.59,
+      "values": [
+        52.25,
+        52.59
+      ]
+    }
+  },
+  "batch,reference,False,4096,0,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 80.095,
+      "min": 79.99,
+      "max": 80.2,
+      "values": [
+        79.99,
+        80.2
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 80.97,
+      "min": 80.93,
+      "max": 81.01,
+      "values": [
+        80.93,
+        81.01
+      ]
+    }
+  },
+  "batch,reference,False,4096,0,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 45.730000000000004,
+      "min": 44.9,
+      "max": 46.56,
+      "values": [
+        46.56,
+        44.9
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 45.185,
+      "min": 44.98,
+      "max": 45.39,
+      "values": [
+        45.39,
+        44.98
+      ]
+    }
+  },
+  "batch,reference,False,4096,16,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 77.24000000000001,
+      "min": 77.12,
+      "max": 77.36,
+      "values": [
+        77.36,
+        77.12
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 75.82499999999999,
+      "min": 75.32,
+      "max": 76.33,
+      "values": [
+        75.32,
+        76.33
+      ]
+    }
+  },
+  "batch,reference,False,4096,16,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 47.175,
+      "min": 47.01,
+      "max": 47.34,
+      "values": [
+        47.34,
+        47.01
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 45.7,
+      "min": 45.65,
+      "max": 45.75,
+      "values": [
+        45.65,
+        45.75
+      ]
+    }
+  },
+  "batch,reference,True,16,0,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 66.77,
+      "min": 66.47,
+      "max": 67.07,
+      "values": [
+        66.47,
+        67.07
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 67.08500000000001,
+      "min": 66.92,
+      "max": 67.25,
+      "values": [
+        67.25,
+        66.92
+      ]
+    }
+  },
+  "batch,reference,True,16,0,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 51.155,
+      "min": 50.97,
+      "max": 51.34,
+      "values": [
+        51.34,
+        50.97
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 51.260000000000005,
+      "min": 51.14,
+      "max": 51.38,
+      "values": [
+        51.38,
+        51.14
+      ]
+    }
+  },
+  "batch,reference,True,16,16,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 71.515,
+      "min": 71.17,
+      "max": 71.86,
+      "values": [
+        71.17,
+        71.86
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 71.32,
+      "min": 71.23,
+      "max": 71.41,
+      "values": [
+        71.41,
+        71.23
+      ]
+    }
+  },
+  "batch,reference,True,16,16,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 83.43,
+      "min": 82.59,
+      "max": 84.27,
+      "values": [
+        82.59,
+        84.27
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 80.435,
+      "min": 79.91,
+      "max": 80.96,
+      "values": [
+        79.91,
+        80.96
+      ]
+    }
+  },
+  "batch,reference,True,4096,0,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 125.735,
+      "min": 125.2,
+      "max": 126.27,
+      "values": [
+        125.2,
+        126.27
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 126.62,
+      "min": 125.72,
+      "max": 127.52,
+      "values": [
+        125.72,
+        127.52
+      ]
+    }
+  },
+  "batch,reference,True,4096,0,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 84.55,
+      "min": 83.44,
+      "max": 85.66,
+      "values": [
+        85.66,
+        83.44
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 82.59,
+      "min": 82.06,
+      "max": 83.12,
+      "values": [
+        82.06,
+        83.12
+      ]
+    }
+  },
+  "batch,reference,True,4096,16,,pairMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 95.07,
+      "min": 94.9,
+      "max": 95.24,
+      "values": [
+        95.24,
+        94.9
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 93.94999999999999,
+      "min": 93.69,
+      "max": 94.21,
+      "values": [
+        93.69,
+        94.21
+      ]
+    }
+  },
+  "batch,reference,True,4096,16,,stripeMedianNs": {
+    "current": {
+      "n": 2,
+      "median": 65.655,
+      "min": 65.43,
+      "max": 65.88,
+      "values": [
+        65.88,
+        65.43
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 63.575,
+      "min": 63.47,
+      "max": 63.68,
+      "values": [
+        63.68,
+        63.47
+      ]
+    }
+  },
+  "batch-sparse,value,True,16,16,,pairMedianNs": {
+    "original": {
+      "n": 6,
+      "median": 62.415000000000006,
+      "min": 61.86,
+      "max": 62.87,
+      "values": [
+        62.27,
+        61.86,
+        62.45,
+        62.65,
+        62.38,
+        62.87
+      ]
+    },
+    "current": {
+      "n": 6,
+      "median": 65.18,
+      "min": 64.41,
+      "max": 65.83,
+      "values": [
+        65.15,
+        64.43,
+        65.83,
+        64.41,
+        65.58,
+        65.21
+      ]
+    },
+    "final": {
+      "n": 6,
+      "median": 64.985,
+      "min": 63.57,
+      "max": 65.93,
+      "values": [
+        63.57,
+        64.99,
+        65.93,
+        64.98,
+        65.38,
+        64.54
+      ]
+    }
+  },
+  "batch-sparse,value,True,16,16,,stripeMedianNs": {
+    "original": {
+      "n": 6,
+      "median": 73.05000000000001,
+      "min": 71.01,
+      "max": 73.6,
+      "values": [
+        73.01,
+        71.95,
+        71.01,
+        73.24,
+        73.09,
+        73.6
+      ]
+    },
+    "current": {
+      "n": 6,
+      "median": 72.35,
+      "min": 71.79,
+      "max": 72.64,
+      "values": [
+        72.36,
+        72.34,
+        71.79,
+        72.39,
+        72.27,
+        72.64
+      ]
+    },
+    "final": {
+      "n": 6,
+      "median": 70.65,
+      "min": 70.43,
+      "max": 71.05,
+      "values": [
+        71.05,
+        70.66,
+        70.43,
+        70.49,
+        70.71,
+        70.64
+      ]
+    }
+  },
+  "batch-sparse,reference,True,16,16,,pairMedianNs": {
+    "original": {
+      "n": 6,
+      "median": 69.89500000000001,
+      "min": 69.38,
+      "max": 70.55,
+      "values": [
+        69.59,
+        69.38,
+        69.78,
+        70.12,
+        70.01,
+        70.55
+      ]
+    },
+    "current": {
+      "n": 6,
+      "median": 71.56,
+      "min": 70.33,
+      "max": 72.29,
+      "values": [
+        71.66,
+        70.33,
+        72.29,
+        70.64,
+        71.76,
+        71.46
+      ]
+    },
+    "final": {
+      "n": 6,
+      "median": 71.41499999999999,
+      "min": 71.03,
+      "max": 72.05,
+      "values": [
+        71.03,
+        71.42,
+        71.85,
+        71.3,
+        72.05,
+        71.41
+      ]
+    }
+  },
+  "batch-sparse,reference,True,16,16,,stripeMedianNs": {
+    "original": {
+      "n": 6,
+      "median": 89.005,
+      "min": 87.76,
+      "max": 90.31,
+      "values": [
+        88.07,
+        88.91,
+        89.1,
+        87.76,
+        89.51,
+        90.31
+      ]
+    },
+    "current": {
+      "n": 6,
+      "median": 81.24000000000001,
+      "min": 80.43,
+      "max": 81.66,
+      "values": [
+        80.43,
+        81.66,
+        81.22,
+        81.26,
+        81.49,
+        80.92
+      ]
+    },
+    "final": {
+      "n": 6,
+      "median": 84.405,
+      "min": 82.03,
+      "max": 86.62,
+      "values": [
+        84.53,
+        82.03,
+        85.17,
+        84.13,
+        84.28,
+        86.62
+      ]
+    }
+  },
+  "buffered-single,,,16,16,1,Mops": {
+    "earlier": {
+      "n": 2,
+      "median": 41.5265,
+      "min": 41.093,
+      "max": 41.96,
+      "values": [
+        41.093,
+        41.96
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 41.6995,
+      "min": 41.407,
+      "max": 41.992,
+      "values": [
+        41.992,
+        41.407
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 42.2285,
+      "min": 41.869,
+      "max": 42.588,
+      "values": [
+        41.869,
+        42.588
+      ]
+    }
+  },
+  "buffered-single,,,4096,16,1,Mops": {
+    "earlier": {
+      "n": 2,
+      "median": 32.2115,
+      "min": 31.759,
+      "max": 32.664,
+      "values": [
+        31.759,
+        32.664
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 32.6395,
+      "min": 32.507,
+      "max": 32.772,
+      "values": [
+        32.772,
+        32.507
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 33.3715,
+      "min": 32.796,
+      "max": 33.947,
+      "values": [
+        32.796,
+        33.947
+      ]
+    }
+  },
+  "perf,,,16,0,1,Mops": {
+    "earlier": {
+      "n": 2,
+      "median": 44.6635,
+      "min": 44.583,
+      "max": 44.744,
+      "values": [
+        44.583,
+        44.744
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 44.735,
+      "min": 44.724,
+      "max": 44.746,
+      "values": [
+        44.746,
+        44.724
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 44.703,
+      "min": 44.589,
+      "max": 44.817,
+      "values": [
+        44.589,
+        44.817
+      ]
+    }
+  },
+  "perf,,,16,0,4,Mops": {
+    "earlier": {
+      "n": 2,
+      "median": 24.356,
+      "min": 24.153,
+      "max": 24.559,
+      "values": [
+        24.559,
+        24.153
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 24.522,
+      "min": 24.484,
+      "max": 24.56,
+      "values": [
+        24.484,
+        24.56
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 24.454,
+      "min": 24.36,
+      "max": 24.548,
+      "values": [
+        24.548,
+        24.36
+      ]
+    }
+  },
+  "perf,,,16,16,1,Mops": {
+    "earlier": {
+      "n": 2,
+      "median": 43.953,
+      "min": 43.879,
+      "max": 44.027,
+      "values": [
+        44.027,
+        43.879
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 43.429,
+      "min": 43.429,
+      "max": 43.429,
+      "values": [
+        43.429,
+        43.429
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 44.5695,
+      "min": 44.425,
+      "max": 44.714,
+      "values": [
+        44.714,
+        44.425
+      ]
+    }
+  },
+  "perf,,,16,16,4,Mops": {
+    "earlier": {
+      "n": 2,
+      "median": 23.000500000000002,
+      "min": 22.922,
+      "max": 23.079,
+      "values": [
+        23.079,
+        22.922
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 22.938000000000002,
+      "min": 22.893,
+      "max": 22.983,
+      "values": [
+        22.893,
+        22.983
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 23.0345,
+      "min": 22.989,
+      "max": 23.08,
+      "values": [
+        23.08,
+        22.989
+      ]
+    }
+  },
+  "perf,,,4096,0,1,Mops": {
+    "earlier": {
+      "n": 2,
+      "median": 31.2245,
+      "min": 31.196,
+      "max": 31.253,
+      "values": [
+        31.196,
+        31.253
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 31.3425,
+      "min": 31.307,
+      "max": 31.378,
+      "values": [
+        31.307,
+        31.378
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 31.3155,
+      "min": 31.24,
+      "max": 31.391,
+      "values": [
+        31.24,
+        31.391
+      ]
+    }
+  },
+  "perf,,,4096,0,4,Mops": {
+    "earlier": {
+      "n": 2,
+      "median": 37.079499999999996,
+      "min": 36.818,
+      "max": 37.341,
+      "values": [
+        37.341,
+        36.818
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 36.872,
+      "min": 36.833,
+      "max": 36.911,
+      "values": [
+        36.833,
+        36.911
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 36.897,
+      "min": 36.732,
+      "max": 37.062,
+      "values": [
+        37.062,
+        36.732
+      ]
+    }
+  },
+  "perf,,,4096,16,1,Mops": {
+    "earlier": {
+      "n": 2,
+      "median": 32.659,
+      "min": 32.629,
+      "max": 32.689,
+      "values": [
+        32.689,
+        32.629
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 32.465500000000006,
+      "min": 32.465,
+      "max": 32.466,
+      "values": [
+        32.465,
+        32.466
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 34.0065,
+      "min": 33.933,
+      "max": 34.08,
+      "values": [
+        33.933,
+        34.08
+      ]
+    }
+  },
+  "perf,,,4096,16,4,Mops": {
+    "earlier": {
+      "n": 2,
+      "median": 31.310000000000002,
+      "min": 31.296,
+      "max": 31.324,
+      "values": [
+        31.296,
+        31.324
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 31.233,
+      "min": 31.071,
+      "max": 31.395,
+      "values": [
+        31.395,
+        31.071
+      ]
+    },
+    "final": {
+      "n": 2,
+      "median": 31.0615,
+      "min": 30.9,
+      "max": 31.223,
+      "values": [
+        31.223,
+        30.9
+      ]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+Bifrost.Scheduling AOT smoke — starting.
+Registered runtime job 'smoke-runtime'.
+Registry contains 4 job(s):
+  smoke-custom: state=Running, nextFire=2026-10-29 18:03:43Z
+  smoke-inline: state=Running, nextFire=2026-10-28 18:03:44Z
+  smoke-orchestrator: state=Running, nextFire=2026-10-28 18:03:44Z
+  smoke-runtime: state=Running, nextFire=2026-10-29 18:03:43Z
+All four dispatch modes registered and resolved cleanly.
+[orchestrator] smoke-orchestrator handled
+Verified fire: 'smoke-orchestrator (mode 1 — orchestrator dispatch)' executed.
+[inline] smoke-inline fired at 2026-10-28 18:03:44Z
+Verified fire: 'smoke-inline (mode 2 — inline dispatch)' executed.
+Orchestrator and inline dispatch paths both executed under NativeAOT.
+Bifrost.Scheduling AOT smoke — PASS.

@@ -1,0 +1,13 @@
+using Microsoft.Diagnostics.Tracing;
+using Microsoft.Diagnostics.Tracing.Parsers;
+using Microsoft.Diagnostics.Tracing.Parsers.Clr;
+using System.Text.Json;
+using var source = new EventPipeEventSource(args[0]);
+var methods = new List<object>();
+var counts = new Dictionary<string, int>();
+var rundown = new ClrRundownTraceEventParser(source);
+rundown.MethodDCStopVerbose += data => methods.Add(new { start = data.MethodStartAddress, size = data.MethodSize, name = data.MethodNamespace + "." + data.MethodName + data.MethodSignature });
+source.Clr.MethodLoadVerbose += data => methods.Add(new { start = data.MethodStartAddress, size = data.MethodSize, name = data.MethodNamespace + "." + data.MethodName + data.MethodSignature });
+source.Dynamic.All += data => { string name = data.ProviderName+"/"+data.EventName; counts[name]=counts.GetValueOrDefault(name)+1; };
+source.Process();
+Console.WriteLine(JsonSerializer.Serialize(new { methods, counts },new JsonSerializerOptions { WriteIndented=true }));

@@ -1,0 +1,10 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -941,6 +941,7 @@
+     /// <see cref="SubQueuePopStatus.Empty"/> when the heap is empty. Never returns
+     /// <see cref="SubQueuePopStatus.Contended"/>: the caller already holds the lock.
+     /// </returns>
++    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+     internal SubQueuePopStatus PopHeldRoot(out TElement element, out TPriority priority)
+     {
+         Debug.Assert(SyncLock.IsHeldByCurrentThread, "PopHeldRoot requires the sub-queue lock held by the caller.");

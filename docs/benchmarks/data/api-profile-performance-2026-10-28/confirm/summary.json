@@ -1,0 +1,1998 @@
+{
+  "batch,value,False,16,0,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 62.63,
+      "min": 61.08,
+      "max": 64.18,
+      "values": [
+        64.18,
+        61.08
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 61.379999999999995,
+      "min": 61.23,
+      "max": 61.53,
+      "values": [
+        61.53,
+        61.23
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 61.7,
+      "min": 61.65,
+      "max": 61.75,
+      "values": [
+        61.65,
+        61.75
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 61.685,
+      "min": 61.5,
+      "max": 61.87,
+      "values": [
+        61.87,
+        61.5
+      ]
+    }
+  },
+  "batch,value,False,16,0,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 30.255,
+      "min": 29.65,
+      "max": 30.86,
+      "values": [
+        30.86,
+        29.65
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 29.64,
+      "min": 29.63,
+      "max": 29.65,
+      "values": [
+        29.63,
+        29.65
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 29.115000000000002,
+      "min": 28.79,
+      "max": 29.44,
+      "values": [
+        29.44,
+        28.79
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 29.15,
+      "min": 28.91,
+      "max": 29.39,
+      "values": [
+        29.39,
+        28.91
+      ]
+    }
+  },
+  "batch,value,False,16,16,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 61.535,
+      "min": 61.48,
+      "max": 61.59,
+      "values": [
+        61.48,
+        61.59
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 62.31999999999999,
+      "min": 62.16,
+      "max": 62.48,
+      "values": [
+        62.48,
+        62.16
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 63.155,
+      "min": 62.62,
+      "max": 63.69,
+      "values": [
+        62.62,
+        63.69
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 63.120000000000005,
+      "min": 62.43,
+      "max": 63.81,
+      "values": [
+        63.81,
+        62.43
+      ]
+    }
+  },
+  "batch,value,False,16,16,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 47.71,
+      "min": 47.59,
+      "max": 47.83,
+      "values": [
+        47.83,
+        47.59
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 44.56,
+      "min": 44.53,
+      "max": 44.59,
+      "values": [
+        44.59,
+        44.53
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 44.36,
+      "min": 43.82,
+      "max": 44.9,
+      "values": [
+        44.9,
+        43.82
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 43.95,
+      "min": 43.41,
+      "max": 44.49,
+      "values": [
+        43.41,
+        44.49
+      ]
+    }
+  },
+  "batch,value,False,4096,0,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 71.295,
+      "min": 71.06,
+      "max": 71.53,
+      "values": [
+        71.53,
+        71.06
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 72.66499999999999,
+      "min": 72.5,
+      "max": 72.83,
+      "values": [
+        72.83,
+        72.5
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 72.67,
+      "min": 72.64,
+      "max": 72.7,
+      "values": [
+        72.7,
+        72.64
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 73.22,
+      "min": 72.84,
+      "max": 73.6,
+      "values": [
+        73.6,
+        72.84
+      ]
+    }
+  },
+  "batch,value,False,4096,0,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 37.325,
+      "min": 37.28,
+      "max": 37.37,
+      "values": [
+        37.37,
+        37.28
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 37.995000000000005,
+      "min": 37.88,
+      "max": 38.11,
+      "values": [
+        38.11,
+        37.88
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 37.129999999999995,
+      "min": 37.08,
+      "max": 37.18,
+      "values": [
+        37.08,
+        37.18
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 37.07,
+      "min": 37.07,
+      "max": 37.07,
+      "values": [
+        37.07,
+        37.07
+      ]
+    }
+  },
+  "batch,value,False,4096,16,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 74.6,
+      "min": 74.56,
+      "max": 74.64,
+      "values": [
+        74.56,
+        74.64
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 75.175,
+      "min": 75.02,
+      "max": 75.33,
+      "values": [
+        75.33,
+        75.02
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 75.935,
+      "min": 75.83,
+      "max": 76.04,
+      "values": [
+        75.83,
+        76.04
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 70.825,
+      "min": 70.78,
+      "max": 70.87,
+      "values": [
+        70.78,
+        70.87
+      ]
+    }
+  },
+  "batch,value,False,4096,16,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 43.584999999999994,
+      "min": 43.3,
+      "max": 43.87,
+      "values": [
+        43.3,
+        43.87
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 42.755,
+      "min": 42.67,
+      "max": 42.84,
+      "values": [
+        42.84,
+        42.67
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 42.58,
+      "min": 42.44,
+      "max": 42.72,
+      "values": [
+        42.44,
+        42.72
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 39.385000000000005,
+      "min": 39.38,
+      "max": 39.39,
+      "values": [
+        39.39,
+        39.38
+      ]
+    }
+  },
+  "batch,value,True,16,0,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 63.075,
+      "min": 62.97,
+      "max": 63.18,
+      "values": [
+        62.97,
+        63.18
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 63.28,
+      "min": 63.2,
+      "max": 63.36,
+      "values": [
+        63.2,
+        63.36
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 63.709999999999994,
+      "min": 63.29,
+      "max": 64.13,
+      "values": [
+        63.29,
+        64.13
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 64.11,
+      "min": 63.85,
+      "max": 64.37,
+      "values": [
+        64.37,
+        63.85
+      ]
+    }
+  },
+  "batch,value,True,16,0,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 41.36,
+      "min": 41.18,
+      "max": 41.54,
+      "values": [
+        41.54,
+        41.18
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 42.515,
+      "min": 42.27,
+      "max": 42.76,
+      "values": [
+        42.27,
+        42.76
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 42.519999999999996,
+      "min": 41.82,
+      "max": 43.22,
+      "values": [
+        41.82,
+        43.22
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 42.31,
+      "min": 41.93,
+      "max": 42.69,
+      "values": [
+        41.93,
+        42.69
+      ]
+    }
+  },
+  "batch,value,True,16,16,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 63.13,
+      "min": 63.13,
+      "max": 63.13,
+      "values": [
+        63.13,
+        63.13
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 67.53999999999999,
+      "min": 67.25,
+      "max": 67.83,
+      "values": [
+        67.83,
+        67.25
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 64.16499999999999,
+      "min": 63.81,
+      "max": 64.52,
+      "values": [
+        63.81,
+        64.52
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 63.78,
+      "min": 63.64,
+      "max": 63.92,
+      "values": [
+        63.92,
+        63.64
+      ]
+    }
+  },
+  "batch,value,True,16,16,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 72.66,
+      "min": 72.35,
+      "max": 72.97,
+      "values": [
+        72.35,
+        72.97
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 72.095,
+      "min": 71.97,
+      "max": 72.22,
+      "values": [
+        71.97,
+        72.22
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 72.0,
+      "min": 71.88,
+      "max": 72.12,
+      "values": [
+        71.88,
+        72.12
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 70.575,
+      "min": 70.36,
+      "max": 70.79,
+      "values": [
+        70.79,
+        70.36
+      ]
+    }
+  },
+  "batch,value,True,4096,0,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 105.145,
+      "min": 104.99,
+      "max": 105.3,
+      "values": [
+        104.99,
+        105.3
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 109.57,
+      "min": 109.29,
+      "max": 109.85,
+      "values": [
+        109.85,
+        109.29
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 110.48,
+      "min": 110.12,
+      "max": 110.84,
+      "values": [
+        110.12,
+        110.84
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 109.725,
+      "min": 109.62,
+      "max": 109.83,
+      "values": [
+        109.83,
+        109.62
+      ]
+    }
+  },
+  "batch,value,True,4096,0,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 61.34,
+      "min": 61.25,
+      "max": 61.43,
+      "values": [
+        61.25,
+        61.43
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 65.91499999999999,
+      "min": 65.22,
+      "max": 66.61,
+      "values": [
+        66.61,
+        65.22
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 66.57,
+      "min": 66.11,
+      "max": 67.03,
+      "values": [
+        66.11,
+        67.03
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 65.815,
+      "min": 64.74,
+      "max": 66.89,
+      "values": [
+        66.89,
+        64.74
+      ]
+    }
+  },
+  "batch,value,True,4096,16,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 87.08000000000001,
+      "min": 86.93,
+      "max": 87.23,
+      "values": [
+        86.93,
+        87.23
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 86.87,
+      "min": 86.53,
+      "max": 87.21,
+      "values": [
+        87.21,
+        86.53
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 86.995,
+      "min": 86.9,
+      "max": 87.09,
+      "values": [
+        86.9,
+        87.09
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 81.33,
+      "min": 81.27,
+      "max": 81.39,
+      "values": [
+        81.39,
+        81.27
+      ]
+    }
+  },
+  "batch,value,True,4096,16,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 57.11,
+      "min": 57.1,
+      "max": 57.12,
+      "values": [
+        57.1,
+        57.12
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 56.97,
+      "min": 56.82,
+      "max": 57.12,
+      "values": [
+        57.12,
+        56.82
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 56.629999999999995,
+      "min": 56.5,
+      "max": 56.76,
+      "values": [
+        56.5,
+        56.76
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 53.115,
+      "min": 52.85,
+      "max": 53.38,
+      "values": [
+        52.85,
+        53.38
+      ]
+    }
+  },
+  "batch,reference,False,16,0,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 63.365,
+      "min": 63.13,
+      "max": 63.6,
+      "values": [
+        63.6,
+        63.13
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 63.605000000000004,
+      "min": 63.57,
+      "max": 63.64,
+      "values": [
+        63.57,
+        63.64
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 63.57,
+      "min": 63.44,
+      "max": 63.7,
+      "values": [
+        63.44,
+        63.7
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 64.59,
+      "min": 64.31,
+      "max": 64.87,
+      "values": [
+        64.87,
+        64.31
+      ]
+    }
+  },
+  "batch,reference,False,16,0,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 34.33,
+      "min": 33.35,
+      "max": 35.31,
+      "values": [
+        33.35,
+        35.31
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 34.745000000000005,
+      "min": 34.53,
+      "max": 34.96,
+      "values": [
+        34.96,
+        34.53
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 34.53,
+      "min": 34.5,
+      "max": 34.56,
+      "values": [
+        34.5,
+        34.56
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 34.655,
+      "min": 34.58,
+      "max": 34.73,
+      "values": [
+        34.73,
+        34.58
+      ]
+    }
+  },
+  "batch,reference,False,16,16,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 67.45,
+      "min": 67.43,
+      "max": 67.47,
+      "values": [
+        67.47,
+        67.43
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 68.395,
+      "min": 68.38,
+      "max": 68.41,
+      "values": [
+        68.38,
+        68.41
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 68.755,
+      "min": 68.59,
+      "max": 68.92,
+      "values": [
+        68.59,
+        68.92
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 69.15,
+      "min": 68.8,
+      "max": 69.5,
+      "values": [
+        69.5,
+        68.8
+      ]
+    }
+  },
+  "batch,reference,False,16,16,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 52.8,
+      "min": 52.65,
+      "max": 52.95,
+      "values": [
+        52.65,
+        52.95
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 52.865,
+      "min": 52.78,
+      "max": 52.95,
+      "values": [
+        52.78,
+        52.95
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 54.33,
+      "min": 53.97,
+      "max": 54.69,
+      "values": [
+        53.97,
+        54.69
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 52.92,
+      "min": 52.66,
+      "max": 53.18,
+      "values": [
+        52.66,
+        53.18
+      ]
+    }
+  },
+  "batch,reference,False,4096,0,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 78.16,
+      "min": 78.13,
+      "max": 78.19,
+      "values": [
+        78.19,
+        78.13
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 79.745,
+      "min": 79.32,
+      "max": 80.17,
+      "values": [
+        80.17,
+        79.32
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 80.13,
+      "min": 79.99,
+      "max": 80.27,
+      "values": [
+        80.27,
+        79.99
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 80.545,
+      "min": 80.26,
+      "max": 80.83,
+      "values": [
+        80.83,
+        80.26
+      ]
+    }
+  },
+  "batch,reference,False,4096,0,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 44.515,
+      "min": 44.15,
+      "max": 44.88,
+      "values": [
+        44.15,
+        44.88
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 45.114999999999995,
+      "min": 44.55,
+      "max": 45.68,
+      "values": [
+        45.68,
+        44.55
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 44.849999999999994,
+      "min": 44.47,
+      "max": 45.23,
+      "values": [
+        45.23,
+        44.47
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 45.265,
+      "min": 45.18,
+      "max": 45.35,
+      "values": [
+        45.18,
+        45.35
+      ]
+    }
+  },
+  "batch,reference,False,4096,16,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 75.76,
+      "min": 75.48,
+      "max": 76.04,
+      "values": [
+        75.48,
+        76.04
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 75.495,
+      "min": 75.31,
+      "max": 75.68,
+      "values": [
+        75.31,
+        75.68
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 77.025,
+      "min": 77.0,
+      "max": 77.05,
+      "values": [
+        77.0,
+        77.05
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 76.215,
+      "min": 76.15,
+      "max": 76.28,
+      "values": [
+        76.15,
+        76.28
+      ]
+    }
+  },
+  "batch,reference,False,4096,16,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 46.71,
+      "min": 46.58,
+      "max": 46.84,
+      "values": [
+        46.58,
+        46.84
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 45.75,
+      "min": 45.53,
+      "max": 45.97,
+      "values": [
+        45.53,
+        45.97
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 47.455,
+      "min": 47.41,
+      "max": 47.5,
+      "values": [
+        47.41,
+        47.5
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 45.825,
+      "min": 45.52,
+      "max": 46.13,
+      "values": [
+        45.52,
+        46.13
+      ]
+    }
+  },
+  "batch,reference,True,16,0,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 65.695,
+      "min": 65.2,
+      "max": 66.19,
+      "values": [
+        65.2,
+        66.19
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 66.495,
+      "min": 66.43,
+      "max": 66.56,
+      "values": [
+        66.43,
+        66.56
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 66.275,
+      "min": 65.96,
+      "max": 66.59,
+      "values": [
+        65.96,
+        66.59
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 67.10499999999999,
+      "min": 66.69,
+      "max": 67.52,
+      "values": [
+        67.52,
+        66.69
+      ]
+    }
+  },
+  "batch,reference,True,16,0,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 49.475,
+      "min": 49.21,
+      "max": 49.74,
+      "values": [
+        49.21,
+        49.74
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 52.245000000000005,
+      "min": 51.75,
+      "max": 52.74,
+      "values": [
+        51.75,
+        52.74
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 51.265,
+      "min": 51.26,
+      "max": 51.27,
+      "values": [
+        51.27,
+        51.26
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 51.345,
+      "min": 51.34,
+      "max": 51.35,
+      "values": [
+        51.34,
+        51.35
+      ]
+    }
+  },
+  "batch,reference,True,16,16,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 68.58500000000001,
+      "min": 68.42,
+      "max": 68.75,
+      "values": [
+        68.75,
+        68.42
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 73.07,
+      "min": 73.05,
+      "max": 73.09,
+      "values": [
+        73.09,
+        73.05
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 70.94,
+      "min": 70.8,
+      "max": 71.08,
+      "values": [
+        71.08,
+        70.8
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 71.54499999999999,
+      "min": 71.38,
+      "max": 71.71,
+      "values": [
+        71.71,
+        71.38
+      ]
+    }
+  },
+  "batch,reference,True,16,16,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 87.58500000000001,
+      "min": 87.34,
+      "max": 87.83,
+      "values": [
+        87.83,
+        87.34
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 80.08500000000001,
+      "min": 79.38,
+      "max": 80.79,
+      "values": [
+        79.38,
+        80.79
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 82.515,
+      "min": 81.73,
+      "max": 83.3,
+      "values": [
+        81.73,
+        83.3
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 80.34,
+      "min": 80.29,
+      "max": 80.39,
+      "values": [
+        80.29,
+        80.39
+      ]
+    }
+  },
+  "batch,reference,True,4096,0,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 119.255,
+      "min": 119.11,
+      "max": 119.4,
+      "values": [
+        119.4,
+        119.11
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 125.06,
+      "min": 125.04,
+      "max": 125.08,
+      "values": [
+        125.08,
+        125.04
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 126.17500000000001,
+      "min": 125.92,
+      "max": 126.43,
+      "values": [
+        125.92,
+        126.43
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 126.64,
+      "min": 126.5,
+      "max": 126.78,
+      "values": [
+        126.78,
+        126.5
+      ]
+    }
+  },
+  "batch,reference,True,4096,0,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 78.125,
+      "min": 77.83,
+      "max": 78.42,
+      "values": [
+        78.42,
+        77.83
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 84.045,
+      "min": 83.08,
+      "max": 85.01,
+      "values": [
+        83.08,
+        85.01
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 84.61,
+      "min": 83.78,
+      "max": 85.44,
+      "values": [
+        85.44,
+        83.78
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 83.765,
+      "min": 83.08,
+      "max": 84.45,
+      "values": [
+        83.08,
+        84.45
+      ]
+    }
+  },
+  "batch,reference,True,4096,16,,pairMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 92.695,
+      "min": 92.69,
+      "max": 92.7,
+      "values": [
+        92.69,
+        92.7
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 93.715,
+      "min": 93.39,
+      "max": 94.04,
+      "values": [
+        93.39,
+        94.04
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 95.69999999999999,
+      "min": 95.21,
+      "max": 96.19,
+      "values": [
+        96.19,
+        95.21
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 93.87,
+      "min": 93.53,
+      "max": 94.21,
+      "values": [
+        93.53,
+        94.21
+      ]
+    }
+  },
+  "batch,reference,True,4096,16,,stripeMedianNs": {
+    "original": {
+      "n": 2,
+      "median": 64.16499999999999,
+      "min": 64.11,
+      "max": 64.22,
+      "values": [
+        64.22,
+        64.11
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 63.615,
+      "min": 63.59,
+      "max": 63.64,
+      "values": [
+        63.59,
+        63.64
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 65.81,
+      "min": 65.46,
+      "max": 66.16,
+      "values": [
+        66.16,
+        65.46
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 63.815,
+      "min": 63.74,
+      "max": 63.89,
+      "values": [
+        63.74,
+        63.89
+      ]
+    }
+  },
+  "batch-sparse,value,True,16,16,,pairMedianNs": {
+    "original": {
+      "n": 6,
+      "median": 62.565,
+      "min": 62.35,
+      "max": 63.18,
+      "values": [
+        62.47,
+        62.52,
+        62.35,
+        62.61,
+        63.18,
+        62.69
+      ]
+    },
+    "earlier": {
+      "n": 6,
+      "median": 69.995,
+      "min": 68.63,
+      "max": 70.25,
+      "values": [
+        69.66,
+        70.25,
+        70.07,
+        70.18,
+        69.92,
+        68.63
+      ]
+    },
+    "current": {
+      "n": 6,
+      "median": 65.955,
+      "min": 64.41,
+      "max": 66.47,
+      "values": [
+        66.47,
+        64.41,
+        64.89,
+        66.32,
+        65.71,
+        66.2
+      ]
+    },
+    "poploop-guard": {
+      "n": 6,
+      "median": 64.855,
+      "min": 64.01,
+      "max": 65.31,
+      "values": [
+        64.01,
+        64.78,
+        65.31,
+        64.32,
+        64.93,
+        65.23
+      ]
+    }
+  },
+  "batch-sparse,value,True,16,16,,stripeMedianNs": {
+    "original": {
+      "n": 6,
+      "median": 71.975,
+      "min": 70.69,
+      "max": 72.52,
+      "values": [
+        70.69,
+        72.16,
+        71.97,
+        71.98,
+        72.52,
+        71.34
+      ]
+    },
+    "earlier": {
+      "n": 6,
+      "median": 72.385,
+      "min": 72.06,
+      "max": 72.84,
+      "values": [
+        72.72,
+        72.34,
+        72.31,
+        72.43,
+        72.06,
+        72.84
+      ]
+    },
+    "current": {
+      "n": 6,
+      "median": 72.625,
+      "min": 72.36,
+      "max": 72.8,
+      "values": [
+        72.36,
+        72.8,
+        72.5,
+        72.72,
+        72.53,
+        72.77
+      ]
+    },
+    "poploop-guard": {
+      "n": 6,
+      "median": 72.39,
+      "min": 71.94,
+      "max": 73.5,
+      "values": [
+        72.02,
+        72.59,
+        72.19,
+        72.59,
+        71.94,
+        73.5
+      ]
+    }
+  },
+  "batch-sparse,reference,True,16,16,,pairMedianNs": {
+    "original": {
+      "n": 6,
+      "median": 69.68,
+      "min": 69.13,
+      "max": 70.08,
+      "values": [
+        69.59,
+        69.77,
+        69.13,
+        70.02,
+        70.08,
+        69.56
+      ]
+    },
+    "earlier": {
+      "n": 6,
+      "median": 74.045,
+      "min": 72.74,
+      "max": 74.15,
+      "values": [
+        73.23,
+        74.15,
+        74.14,
+        74.14,
+        73.95,
+        72.74
+      ]
+    },
+    "current": {
+      "n": 6,
+      "median": 71.50999999999999,
+      "min": 69.95,
+      "max": 72.2,
+      "values": [
+        72.2,
+        69.95,
+        71.19,
+        71.45,
+        71.91,
+        71.57
+      ]
+    },
+    "poploop-guard": {
+      "n": 6,
+      "median": 71.76,
+      "min": 71.19,
+      "max": 71.85,
+      "values": [
+        71.19,
+        71.76,
+        71.79,
+        71.33,
+        71.76,
+        71.85
+      ]
+    }
+  },
+  "batch-sparse,reference,True,16,16,,stripeMedianNs": {
+    "original": {
+      "n": 6,
+      "median": 87.56,
+      "min": 87.31,
+      "max": 89.94,
+      "values": [
+        87.31,
+        87.64,
+        89.94,
+        87.47,
+        88.2,
+        87.48
+      ]
+    },
+    "earlier": {
+      "n": 6,
+      "median": 84.465,
+      "min": 83.69,
+      "max": 85.81,
+      "values": [
+        83.69,
+        83.8,
+        85.07,
+        84.24,
+        85.81,
+        84.69
+      ]
+    },
+    "current": {
+      "n": 6,
+      "median": 80.86500000000001,
+      "min": 79.98,
+      "max": 82.82,
+      "values": [
+        82.08,
+        80.83,
+        79.98,
+        80.9,
+        80.43,
+        82.82
+      ]
+    },
+    "poploop-guard": {
+      "n": 6,
+      "median": 84.125,
+      "min": 83.66,
+      "max": 84.34,
+      "values": [
+        83.76,
+        84.04,
+        84.34,
+        84.29,
+        84.21,
+        83.66
+      ]
+    }
+  },
+  "buffered-single,,,16,16,1,Mops": {
+    "original": {
+      "n": 2,
+      "median": 41.698499999999996,
+      "min": 41.609,
+      "max": 41.788,
+      "values": [
+        41.609,
+        41.788
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 42.4725,
+      "min": 42.433,
+      "max": 42.512,
+      "values": [
+        42.512,
+        42.433
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 41.834,
+      "min": 41.788,
+      "max": 41.88,
+      "values": [
+        41.788,
+        41.88
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 42.488,
+      "min": 42.479,
+      "max": 42.497,
+      "values": [
+        42.479,
+        42.497
+      ]
+    }
+  },
+  "buffered-single,,,4096,16,1,Mops": {
+    "original": {
+      "n": 2,
+      "median": 32.3905,
+      "min": 32.359,
+      "max": 32.422,
+      "values": [
+        32.359,
+        32.422
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 32.733000000000004,
+      "min": 32.725,
+      "max": 32.741,
+      "values": [
+        32.725,
+        32.741
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 32.715,
+      "min": 32.689,
+      "max": 32.741,
+      "values": [
+        32.689,
+        32.741
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 33.741,
+      "min": 33.284,
+      "max": 34.198,
+      "values": [
+        34.198,
+        33.284
+      ]
+    }
+  },
+  "perf,,,16,0,1,Mops": {
+    "original": {
+      "n": 2,
+      "median": 42.204,
+      "min": 41.779,
+      "max": 42.629,
+      "values": [
+        41.779,
+        42.629
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 44.903000000000006,
+      "min": 44.901,
+      "max": 44.905,
+      "values": [
+        44.901,
+        44.905
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 44.61,
+      "min": 44.561,
+      "max": 44.659,
+      "values": [
+        44.659,
+        44.561
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 44.6285,
+      "min": 44.332,
+      "max": 44.925,
+      "values": [
+        44.332,
+        44.925
+      ]
+    }
+  },
+  "perf,,,16,0,4,Mops": {
+    "original": {
+      "n": 2,
+      "median": 24.289,
+      "min": 24.226,
+      "max": 24.352,
+      "values": [
+        24.352,
+        24.226
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 24.46,
+      "min": 24.308,
+      "max": 24.612,
+      "values": [
+        24.612,
+        24.308
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 24.436999999999998,
+      "min": 24.391,
+      "max": 24.483,
+      "values": [
+        24.391,
+        24.483
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 24.332,
+      "min": 24.205,
+      "max": 24.459,
+      "values": [
+        24.205,
+        24.459
+      ]
+    }
+  },
+  "perf,,,16,16,1,Mops": {
+    "original": {
+      "n": 2,
+      "median": 43.322500000000005,
+      "min": 43.218,
+      "max": 43.427,
+      "values": [
+        43.218,
+        43.427
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 43.849000000000004,
+      "min": 43.84,
+      "max": 43.858,
+      "values": [
+        43.84,
+        43.858
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 43.173,
+      "min": 43.1,
+      "max": 43.246,
+      "values": [
+        43.246,
+        43.1
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 44.0245,
+      "min": 43.868,
+      "max": 44.181,
+      "values": [
+        43.868,
+        44.181
+      ]
+    }
+  },
+  "perf,,,16,16,4,Mops": {
+    "original": {
+      "n": 2,
+      "median": 23.0815,
+      "min": 23.075,
+      "max": 23.088,
+      "values": [
+        23.075,
+        23.088
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 22.811500000000002,
+      "min": 22.637,
+      "max": 22.986,
+      "values": [
+        22.986,
+        22.637
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 22.896,
+      "min": 22.808,
+      "max": 22.984,
+      "values": [
+        22.984,
+        22.808
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 23.0285,
+      "min": 23.014,
+      "max": 23.043,
+      "values": [
+        23.043,
+        23.014
+      ]
+    }
+  },
+  "perf,,,4096,0,1,Mops": {
+    "original": {
+      "n": 2,
+      "median": 31.0925,
+      "min": 31.047,
+      "max": 31.138,
+      "values": [
+        31.138,
+        31.047
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 31.349,
+      "min": 31.342,
+      "max": 31.356,
+      "values": [
+        31.356,
+        31.342
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 31.247999999999998,
+      "min": 31.238,
+      "max": 31.258,
+      "values": [
+        31.238,
+        31.258
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 31.195999999999998,
+      "min": 31.163,
+      "max": 31.229,
+      "values": [
+        31.229,
+        31.163
+      ]
+    }
+  },
+  "perf,,,4096,0,4,Mops": {
+    "original": {
+      "n": 2,
+      "median": 37.212,
+      "min": 36.87,
+      "max": 37.554,
+      "values": [
+        36.87,
+        37.554
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 37.1365,
+      "min": 37.085,
+      "max": 37.188,
+      "values": [
+        37.188,
+        37.085
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 37.137,
+      "min": 36.947,
+      "max": 37.327,
+      "values": [
+        36.947,
+        37.327
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 37.257999999999996,
+      "min": 36.96,
+      "max": 37.556,
+      "values": [
+        36.96,
+        37.556
+      ]
+    }
+  },
+  "perf,,,4096,16,1,Mops": {
+    "original": {
+      "n": 2,
+      "median": 33.019999999999996,
+      "min": 32.9,
+      "max": 33.14,
+      "values": [
+        32.9,
+        33.14
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 32.734,
+      "min": 32.591,
+      "max": 32.877,
+      "values": [
+        32.591,
+        32.877
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 32.373000000000005,
+      "min": 32.304,
+      "max": 32.442,
+      "values": [
+        32.442,
+        32.304
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 33.6405,
+      "min": 33.174,
+      "max": 34.107,
+      "values": [
+        33.174,
+        34.107
+      ]
+    }
+  },
+  "perf,,,4096,16,4,Mops": {
+    "original": {
+      "n": 2,
+      "median": 31.4595,
+      "min": 31.378,
+      "max": 31.541,
+      "values": [
+        31.378,
+        31.541
+      ]
+    },
+    "earlier": {
+      "n": 2,
+      "median": 31.629,
+      "min": 31.324,
+      "max": 31.934,
+      "values": [
+        31.934,
+        31.324
+      ]
+    },
+    "current": {
+      "n": 2,
+      "median": 30.994500000000002,
+      "min": 30.857,
+      "max": 31.132,
+      "values": [
+        30.857,
+        31.132
+      ]
+    },
+    "poploop-guard": {
+      "n": 2,
+      "median": 31.573,
+      "min": 31.524,
+      "max": 31.622,
+      "values": [
+        31.524,
+        31.622
+      ]
+    }
+  }
+}

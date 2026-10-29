@@ -1,0 +1,51 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -154,6 +154,7 @@
+ 
+     /// <summary>The number of live entries in <see cref="_insertion"/> (occupies <c>[0, _insertionCount)</c>).</summary>
+     private int _insertionCount;
++    private bool _bufferedPushNeedsTransaction;
+ 
+     /// <summary>
+     /// The sorted deletion buffer <c>D</c>: holds the smallest resident entries in
+@@ -840,7 +841,7 @@
+             // Classify first so those comparers skip the transaction-trigger field reads.
+             if (_bufferCapacity > 0)
+             {
+-                if (!HasNonThrowingComparer && _insertionCount == _bufferCapacity)
++                if (_bufferedPushNeedsTransaction)
+                 {
+                     BufferedTransaction(element, priority, pop: false, out _, out _);
+                 }
+@@ -1242,6 +1243,7 @@
+             _insertion = insertion;
+             _deletion = deletion;
+             _insertionCount = insertionCount;
++            _bufferedPushNeedsTransaction = insertionCount == _bufferCapacity && !HasNonThrowingComparer;
+             _deletionCount = deletionCount;
+             _size = size;
+             throw;
+@@ -1350,6 +1352,7 @@
+ 
+         InsertionSpan(_insertionCount + 1)[_insertionCount] = (element, priority);
+         _insertionCount++;
++        _bufferedPushNeedsTransaction = _insertionCount == _bufferCapacity && !HasNonThrowingComparer;
+     }
+ 
+     /// <summary>
+@@ -1376,6 +1379,7 @@
+ 
+         ClearInsertion(_insertionCount);
+         _insertionCount = 0;
++        _bufferedPushNeedsTransaction = false;
+         CountFlush();
+     }
+ 
+@@ -1509,6 +1513,7 @@
+ 
+             _size = 0;
+             _insertionCount = 0;
++        _bufferedPushNeedsTransaction = false;
+             _deletionCount = 0;
+             PublishTop(default!, empty: true);
+ 

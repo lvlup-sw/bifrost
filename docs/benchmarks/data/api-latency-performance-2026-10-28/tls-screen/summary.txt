@@ -1,0 +1,6 @@
+batch-sparse,value,True,16,16,,pairMedianNs current=64.750 [64.170,65.290] n=6 tls-inline=62.725 [61.930,63.510] n=6 tls-split=62.490 [61.870,63.930] n=6 tls-pop=62.105 [61.800,63.240] n=6
+batch-sparse,value,True,16,16,,stripeMedianNs current=71.230 [71.040,71.510] n=6 tls-inline=70.960 [70.820,71.150] n=6 tls-split=70.390 [69.930,71.190] n=6 tls-pop=69.665 [69.490,70.090] n=6
+batch-sparse,reference,True,16,16,,pairMedianNs current=71.790 [71.560,72.340] n=6 tls-inline=70.275 [69.720,71.710] n=6 tls-split=70.270 [69.380,70.730] n=6 tls-pop=70.000 [69.730,70.370] n=6
+batch-sparse,reference,True,16,16,,stripeMedianNs current=84.395 [82.360,85.750] n=6 tls-inline=80.415 [79.640,81.710] n=6 tls-split=81.750 [79.910,83.620] n=6 tls-pop=80.855 [79.430,82.660] n=6
+buffered-single,,,16,16,1,Mops current=42.595 [42.578,42.612] n=2 tls-inline=42.814 [42.733,42.895] n=2 tls-split=43.073 [43.061,43.086] n=2 tls-pop=42.764 [42.623,42.906] n=2
+buffered-single,,,4096,16,1,Mops current=33.745 [33.484,34.005] n=2 tls-inline=33.954 [33.697,34.210] n=2 tls-split=33.860 [33.756,33.964] n=2 tls-pop=34.169 [34.016,34.323] n=2

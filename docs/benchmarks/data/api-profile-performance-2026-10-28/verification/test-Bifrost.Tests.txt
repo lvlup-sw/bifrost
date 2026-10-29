@@ -1,0 +1,47 @@
+Running tests from /Users/rsalus/Dev/aima/bifrost/src/Bifrost.Tests/bin/Release/net10.0/Bifrost.Tests.dll (net10.0|arm64)
+[+769/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(2s)
+
+[+775/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(5s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(8s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(11s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(14s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(17s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(20s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(23s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(26s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(29s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(32s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(35s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(38s)
+
+[+780/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(41s)
+
+[+781/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(44s)
+
+[+782/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(47s)
+
+[+784/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(50s)
+
+[+784/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(53s)
+
+[+793/x0/?0] Bifrost.Tests.dll (net10.0|arm64)(56s)
+
+/Users/rsalus/Dev/aima/bifrost/src/Bifrost.Tests/bin/Release/net10.0/Bifrost.Tests.dll (net10.0|arm64) passed (57s 234ms)
+
+Test run summary: Passed!
+  total: 795
+  failed: 0
+  succeeded: 795
+  skipped: 0
+  duration: 57s 411ms

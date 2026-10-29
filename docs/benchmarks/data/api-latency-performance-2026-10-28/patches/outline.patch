@@ -1,0 +1,22 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -954,7 +954,7 @@
+         // Count is exact under this lock. With D holding one item, Count > 2 means
+         // the refill has at least two remaining entries and may invoke the comparer.
+         if (!HasNonThrowingComparer && _header.Count > 2 && _deletionCount == 1)
+-            return BufferedTransaction(default!, default!, pop: true, out element, out priority);
++            return BufferedPopTransaction(out element, out priority);
+         return BufferedPopHeldRoot(out element, out priority);
+     }
+ 
+@@ -1219,6 +1219,10 @@
+         _journal[_journalCount++] = (index, _nodes[index]);
+     }
+ 
++    [MethodImpl(MethodImplOptions.NoInlining)]
++    private SubQueuePopStatus BufferedPopTransaction(out TElement element, out TPriority priority)
++        => BufferedTransaction(default!, default!, pop: true, out element, out priority);
++
+     /// <summary>Rolls back a compound buffer operation without invoking user code.</summary>
+     private SubQueuePopStatus BufferedTransaction(TElement value, TPriority key, bool pop,
+         out TElement element, out TPriority priority)

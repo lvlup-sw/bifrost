@@ -1,0 +1,1 @@
+perf population=4096 c=0 threads=4 Mops=36.268 allocated=24720

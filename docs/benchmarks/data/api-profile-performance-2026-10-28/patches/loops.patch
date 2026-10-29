@@ -1,0 +1,27 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -1081,10 +1081,7 @@
+         CountBufferedPopHit();
+ 
+         int remaining = _deletionCount - 1;
+-        if (remaining > 0)
+-        {
+-            d.Slice(1, remaining).CopyTo(d.Slice(0, remaining));
+-        }
++        for (int i = 0; i < remaining; i++) d[i] = d[i + 1];
+ 
+         ClearDeletionSlot(remaining);
+         _deletionCount = remaining;
+@@ -1315,11 +1312,7 @@
+         // Hole-shift: walk from the (now-vacant) tail toward the front, shifting larger entries up one,
+         // then drop the new entry into the hole. CopyTo of the moving block is barrier-correct.
+         Span<(TElement Element, TPriority Priority)> d = DeletionSpan(_deletionCount + 1);
+-        int shift = _deletionCount - hole;
+-        if (shift > 0)
+-        {
+-            d.Slice(hole, shift).CopyTo(d.Slice(hole + 1, shift));
+-        }
++        for (int i = _deletionCount; i > hole; i--) d[i] = d[i - 1];
+ 
+         d[hole] = (element, priority);
+         _deletionCount++;
