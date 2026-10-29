@@ -1,0 +1,104 @@
+current-batch-value 3243
+  792  24.42% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.Int32,System.Int32].TryDequeue
+  298   9.19% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].BufferedPopHeldRoot
+  258   7.96% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].BufferedPush
+  234   7.22% ???
+  188   5.80% System.Runtime.CompilerServices.StaticsHelpers.GetNonGCThreadStaticBaseunsigned int8&  
+  186   5.74% System.Threading.Lock.TryEnter
+  174   5.37% System.Threading.Thread.GetThreadStaticsBasevalue class ThreadLocalData*  
+  163   5.03% System.Threading.Lock.Exit
+  156   4.81% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.Int32,System.Int32].EnqueueCore
+  116   3.58% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].TryLockedPop
+  113   3.48% tlv_get_addr
+   86   2.65% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].PopHeldRoot
+   81   2.50% Bifrost.Concurrency.ThreadHandle.get_Currentclass Bifrost.Concurrency.ThreadHandle  
+   63   1.94% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].TryLockedPush
+   58   1.79% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].RepublishBufferedTop
+   51   1.57% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].SortedInsertIntoDeletion
+   32   0.99% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.Int32,System.Int32].Enqueue
+   28   0.86% System.Collections.Generic.ComparisonComparer`1[System.Int32].Compare
+   21   0.65% Program.<<Main>$>g__QueueBatch|0_7
+   19   0.59% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].MoveUpCustomComparer
+   18   0.56% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].DirectInsertIntoDeletion
+   15   0.46% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].AppendToInsertion
+   14   0.43% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].TryHeapPop
+   13   0.40% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].ClearDeletionSlot
+   12   0.37% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].RefillDeletion
+final-batch-value 3238
+  817  25.23% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.Int32,System.Int32].TryDequeue
+  297   9.17% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].BufferedPopHeldRoot
+  251   7.75% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].BufferedPush
+  235   7.26% ???
+  234   7.23% System.Runtime.CompilerServices.StaticsHelpers.GetNonGCThreadStaticBaseunsigned int8&  
+  217   6.70% System.Threading.Lock.TryEnter
+  184   5.68% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.Int32,System.Int32].EnqueueCore
+  181   5.59% System.Threading.Lock.Exit
+  151   4.66% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].TryLockedPop
+  142   4.39% System.Threading.Thread.GetThreadStaticsBasevalue class ThreadLocalData*  
+  109   3.37% tlv_get_addr
+   79   2.44% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].TryLockedPush
+   58   1.79% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].SortedInsertIntoDeletion
+   56   1.73% Program.<<Main>$>g__QueueBatch|0_7
+   48   1.48% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].RepublishBufferedTop
+   29   0.90% System.Collections.Generic.ComparisonComparer`1[System.Int32].Compare
+   21   0.65% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.Int32,System.Int32].Enqueue
+   16   0.49% Program+<>c.<<Main>$>b__0_12
+   15   0.46% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].MoveUpCustomComparer
+   11   0.34% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].ClearDeletionSlot
+   11   0.34% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].AppendToInsertion
+   10   0.31% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].FlushInsertion
+    9   0.28% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].RefillDeletion
+    9   0.28% Bifrost.Concurrency.SubQueue`2[System.Int32,System.Int32].MoveDownCustomComparer
+    8   0.25% System.SpanHelpers.Memmovevoid  
+current-batch-reference 3200
+  706  22.06% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.__Canon,System.Int32].TryDequeue
+  307   9.59% ???
+  256   8.00% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].BufferedPopHeldRoot
+  239   7.47% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].BufferedPush
+  197   6.16% System.Runtime.CompilerServices.StaticsHelpers.GetNonGCThreadStaticBaseunsigned int8&  
+  161   5.03% System.Threading.Lock.TryEnter
+  143   4.47% System.Threading.Lock.Exit
+  139   4.34% System.Threading.Thread.GetThreadStaticsBasevalue class ThreadLocalData*  
+  139   4.34% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.__Canon,System.Int32].EnqueueCore
+   89   2.78% InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)
+   88   2.75% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].TryLockedPop
+   79   2.47% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].RepublishBufferedTop
+   75   2.34% Bifrost.Concurrency.ThreadHandle.get_Currentclass Bifrost.Concurrency.ThreadHandle  
+   75   2.34% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].AppendToInsertion
+   73   2.28% tlv_get_addr
+   68   2.12% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].PopHeldRoot
+   55   1.72% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].TryLockedPush
+   54   1.69% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].SortedInsertIntoDeletion
+   41   1.28% System.SpanHelpers.ClearWithReferencesvoid  
+   36   1.12% Program.<<Main>$>g__QueueBatch|0_7
+   29   0.91% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].ClearDeletionSlot
+   28   0.88% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.__Canon,System.Int32].Enqueue
+   17   0.53% Program+<>c.<<Main>$>b__0_12
+   16   0.50% System.Collections.Generic.ComparisonComparer`1[System.Int32].Compare
+   13   0.41% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].FlushInsertion
+final-batch-reference 3231
+  714  22.10% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.__Canon,System.Int32].TryDequeue
+  481  14.89% ???
+  293   9.07% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].BufferedPopHeldRoot
+  228   7.06% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].BufferedPush
+  224   6.93% System.Threading.Lock.TryEnter
+  178   5.51% System.Runtime.CompilerServices.StaticsHelpers.GetNonGCThreadStaticBaseunsigned int8&  
+  170   5.26% System.Threading.Lock.Exit
+  156   4.83% System.Threading.Thread.GetThreadStaticsBasevalue class ThreadLocalData*  
+  142   4.39% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].TryLockedPop
+  134   4.15% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.__Canon,System.Int32].EnqueueCore
+   73   2.26% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].AppendToInsertion
+   62   1.92% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].RepublishBufferedTop
+   60   1.86% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].TryLockedPush
+   56   1.73% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].SortedInsertIntoDeletion
+   46   1.42% Program.<<Main>$>g__QueueBatch|0_7
+   37   1.15% System.SpanHelpers.ClearWithReferencesvoid  
+   29   0.90% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].ClearDeletionSlot
+   24   0.74% Bifrost.Concurrency.ConcurrentPriorityQueue`2[System.__Canon,System.Int32].Enqueue
+   22   0.68% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].MoveUpCustomComparer
+   20   0.62% System.Collections.Generic.ComparisonComparer`1[System.Int32].Compare
+   15   0.46% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].RecordOverwrite
+   12   0.37% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].TryHeapPop
+   12   0.37% Program+<>c.<<Main>$>b__0_12
+   11   0.34% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].RefillDeletion
+    7   0.22% Bifrost.Concurrency.SubQueue`2[System.__Canon,System.Int32].FlushInsertion

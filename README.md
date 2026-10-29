@@ -10,7 +10,7 @@ Bifrost is a library for running background work through a bounded queue and a p
 
 An orchestrator accepts work items into a bounded queue and dispatches them to a pool of workers. Each worker invokes the handler registered for that work type. Admission confirms that an item entered the queue; it does not mean the handler has completed successfully. The default work queue is in memory and does not survive a process restart.
 
-The default FIFO queue applies asynchronous backpressure when full. Producers can also attempt nonblocking admission. Optional priority dispatch instead rejects work immediately when its class reaches an admission watermark. An orchestrator can be drained to finish queued work or stopped by canceling its workers.
+The default FIFO queue applies asynchronous backpressure when full. Producers can also attempt nonblocking admission. Optional priority dispatch instead rejects work immediately when its class reaches an admission watermark. An orchestrator can be drained to finish queued work or aborted by canceling its workers.
 
 Capabilities are composed through the orchestrator's dependency-injection builder. The packages are designed for trimming and Native AOT.
 
@@ -31,10 +31,12 @@ Priority dispatch uses a virtual-time key. By default, interactive work receives
 
 | Binding | Ordering | Selection |
 |---|---|---|
-| `MultiQueue` | Relaxed two-choice priority ordering | Default for `PriorityBinding.Auto`; designed for concurrency |
-| `Locking` | Exact minimum key under a global lock | Explicit opt-in when exact priority ordering matters |
+| `DispatchStrategy.PriorityRelaxed` | Relaxed two-choice priority ordering | Explicit selection; designed for concurrency |
+| `DispatchStrategy.PriorityExact` | Exact minimum key under one lock | Explicit selection when exact priority ordering matters |
 
 MultiQueue trades ordering accuracy for concurrency; it does not guarantee that the minimum key is selected on every dequeue. See the [priority queue background](src/Bifrost.Concurrency/BACKGROUND.md) and [benchmarks](docs/benchmarks/) for the tradeoffs. Keep FIFO if you need FIFO ordering or producer-wait backpressure.
+
+See the [breaking API migration](docs/migrations/2026-10-priority-api.md) for construction, admission, configuration, and shutdown changes.
 
 ## Scheduling
 
@@ -46,7 +48,7 @@ MultiQueue trades ordering accuracy for concurrency; it does not guarantee that 
 |---|---|
 | `LevelUp.Bifrost.Core` | Orchestrator abstractions and options |
 | `LevelUp.Bifrost` | Orchestrator, handlers, and built-in decorators |
-| `LevelUp.Bifrost.Concurrency` | Concurrent priority queues, usable independently |
+| `LevelUp.Bifrost.Concurrency` | Relaxed MultiQueue priority queue, usable independently |
 | `LevelUp.Bifrost.HealthChecks` | Health check integration |
 | `LevelUp.Bifrost.OpenTelemetry` | Metrics integration |
 | `LevelUp.Bifrost.Resilience` | Polly resilience integration |

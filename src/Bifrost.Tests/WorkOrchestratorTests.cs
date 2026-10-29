@@ -453,7 +453,7 @@ public class WorkOrchestratorTests
         await processed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
         // Act
-        var stopTask = orchestrator.StopAsync();
+        var stopTask = orchestrator.AbortAsync();
         var completed = await Task.WhenAny(stopTask, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
 
         // Assert - StopAsync should complete before the delay
@@ -534,32 +534,29 @@ public class WorkOrchestratorTests
     /// Asserts DisposeAsync completes within 10 seconds (the internal timeout is 5 seconds).
     /// </remarks>
     [Test]
-    public async Task DisposeAsync_WithSlowWorker_CompletesWithinTimeout()
+    public async Task DisposeAsync_WithSlowWorker_WaitsForTermination()
     {
-        // Arrange - handler that blocks forever, ignoring cancellation
-        var workerStarted = new TaskCompletionSource();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var handler = Substitute.For<IWorkHandler<string>>();
-        handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                workerStarted.TrySetResult();
-                // Block indefinitely - do NOT honor cancellation token
-                // This simulates a misbehaving handler that ignores cancellation
-                return new ValueTask(Task.Delay(TimeSpan.FromMinutes(10)));
-            });
-
+        handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            started.TrySetResult();
+            return new ValueTask(release.Task);
+        });
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
-
-        // Enqueue work so the worker picks it up and blocks
-        await orchestrator.EnqueueAsync("blocking-work").ConfigureAwait(false);
-        await workerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-
-        // Act - DisposeAsync should complete within a bounded time due to internal timeout
-        var disposeTask = orchestrator.DisposeAsync().AsTask();
-        var completed = await Task.WhenAny(disposeTask, Task.Delay(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
-
-        // Assert - DisposeAsync should have completed (not the 10s delay)
-        await Assert.That(ReferenceEquals(completed, disposeTask)).IsTrue();
+        orchestrator.Enqueue("blocking-work");
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        var disposal = orchestrator.DisposeAsync().AsTask();
+        try
+        {
+            await Assert.That(disposal.IsCompleted).IsFalse();
+        }
+        finally
+        {
+            release.TrySetResult();
+            await disposal.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        }
     }
 }

@@ -18,7 +18,7 @@ namespace Bifrost.Tests.Queues;
 /// <para>
 /// Deriving from <see cref="WorkQueueContractTests"/> activates the full inherited
 /// contract suite against this binding. The tests declared here cover behavior specific
-/// to the FIFO channel binding: strict FIFO ordering (a property the priority bindings
+/// to the FIFO channel ordering: strict FIFO ordering (a property the priority bindings
 /// deliberately do not have) and the concrete-only producer-wait members
 /// <see cref="FifoChannelWorkQueue{T}.WriteAsync(T, CancellationToken)"/> and
 /// <see cref="FifoChannelWorkQueue{T}.Complete"/>. Per DR-7 the asynchronous members

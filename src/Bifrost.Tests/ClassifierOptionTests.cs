@@ -129,12 +129,12 @@ public sealed class ClassifierOptionTests
         await Assert.That(tryEnvelope.Class).IsEqualTo(WorkClass.Batch);
 
         // Act / Assert — Run with per-call Default defers to the classifier.
-        orchestrator.Run("run");
+        orchestrator.Enqueue("run");
         await Assert.That(orchestrator.TryReadEnvelope(out var runEnvelope)).IsTrue();
         await Assert.That(runEnvelope.Class).IsEqualTo(WorkClass.Batch);
 
         // Act / Assert — TryRun with per-call Default defers to the classifier.
-        await Assert.That(orchestrator.TryRun("try-run")).IsTrue();
+        await Assert.That(orchestrator.TryEnqueue("try-run")).IsTrue();
         await Assert.That(orchestrator.TryReadEnvelope(out var tryRunEnvelope)).IsTrue();
         await Assert.That(tryRunEnvelope.Class).IsEqualTo(WorkClass.Batch);
 

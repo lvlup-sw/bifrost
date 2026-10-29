@@ -1,0 +1,10 @@
+buffered-single,,,16,16,1,Mops current=42.758 [42.525,42.990] n=2 outline=42.486 [42.446,42.525] n=2 outline-partial=42.097 [42.059,42.136] n=2 inline=42.402 [42.338,42.466] n=2
+buffered-single,,,4096,16,1,Mops current=34.353 [34.189,34.518] n=2 outline=34.197 [34.151,34.242] n=2 outline-partial=33.674 [33.445,33.902] n=2 inline=34.139 [34.031,34.246] n=2
+perf,,,16,0,1,Mops current=44.670 [44.586,44.754] n=2 outline=44.468 [44.268,44.668] n=2 outline-partial=44.338 [44.287,44.390] n=2 inline=44.367 [44.239,44.495] n=2
+perf,,,16,0,4,Mops current=23.534 [22.838,24.229] n=2 outline=24.541 [24.505,24.577] n=2 outline-partial=24.581 [24.552,24.611] n=2 inline=24.311 [24.157,24.465] n=2
+perf,,,16,16,1,Mops current=43.765 [43.553,43.977] n=2 outline=44.164 [43.916,44.412] n=2 outline-partial=43.639 [43.637,43.640] n=2 inline=43.877 [43.778,43.976] n=2
+perf,,,16,16,4,Mops current=22.917 [22.906,22.928] n=2 outline=22.995 [22.967,23.023] n=2 outline-partial=22.972 [22.970,22.974] n=2 inline=22.936 [22.899,22.973] n=2
+perf,,,4096,0,1,Mops current=31.291 [31.172,31.409] n=2 outline=31.219 [31.156,31.282] n=2 outline-partial=31.299 [31.149,31.449] n=2 inline=31.145 [31.138,31.153] n=2
+perf,,,4096,0,4,Mops current=37.215 [37.155,37.275] n=2 outline=36.892 [36.597,37.188] n=2 outline-partial=37.252 [37.156,37.349] n=2 inline=37.262 [36.920,37.604] n=2
+perf,,,4096,16,1,Mops current=34.260 [34.153,34.366] n=2 outline=34.231 [34.161,34.302] n=2 outline-partial=34.072 [34.022,34.122] n=2 inline=34.270 [34.244,34.296] n=2
+perf,,,4096,16,4,Mops current=31.518 [31.437,31.599] n=2 outline=31.871 [31.651,32.092] n=2 outline-partial=31.736 [31.678,31.793] n=2 inline=31.347 [31.160,31.534] n=2

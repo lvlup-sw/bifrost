@@ -52,7 +52,8 @@ public sealed class WorkOrchestratorDisposalTests
         var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
-            DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+            DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+            FullMode = QueueFullMode.Reject,
         });
 
         var binding = (ConcurrentPriorityWorkQueue<string>)orchestrator.WorkQueue;
@@ -78,7 +79,8 @@ public sealed class WorkOrchestratorDisposalTests
         var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
-            DispatchStrategy = DispatchStrategy.PriorityLocking,
+            DispatchStrategy = DispatchStrategy.PriorityExact,
+            FullMode = QueueFullMode.Reject,
         });
 
         var binding = (LockingPriorityWorkQueue<string>)orchestrator.WorkQueue;
@@ -125,7 +127,8 @@ public sealed class WorkOrchestratorDisposalTests
         var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
-            DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+            DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+            FullMode = QueueFullMode.Reject,
         });
 
         // Act + Assert — both disposals complete without throwing.

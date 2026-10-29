@@ -24,10 +24,8 @@ namespace Bifrost.Concurrency;
 /// sub-queues <i>one at a time</i>, taking each sub-queue's lock only long enough to copy that
 /// sub-queue's heap segment and releasing it before moving to the next, with no global freeze
 /// and no claim of a single moment-in-time consistent view across sub-queues. A sub-queue copied
-/// early and one copied late may reflect different instants of concurrent mutation, the weakly
-/// consistent enumeration guarantee of
-/// <see cref="System.Collections.Concurrent.ConcurrentQueue{T}"/> and
-/// <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey, TValue}"/>. The result is
+/// early and one copied late may reflect different instants of concurrent mutation, so the result need not describe any single instant.
+/// This differs from ConcurrentQueue's moment-in-time snapshot enumeration. The result is
 /// unordered: like <see cref="PriorityQueue{TElement, TPriority}.UnorderedItems"/>, it makes
 /// no priority-ordering guarantee; heap segments are concatenated in sub-queue order and each
 /// segment is in arbitrary heap-array order.
@@ -42,7 +40,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </summary>
     /// <returns>
     /// A new array containing one <c>(element, priority)</c> entry per element in the queue at the
-    /// time of the call. The array is unordered; no priority ordering is implied.
+    /// time its stripe was copied. The array is unordered and weakly consistent.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -50,8 +48,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// under its own lock held only for the duration of that sub-queue's copy and released before
     /// the next. There is no global freeze and no cross-sub-queue consistency claim: the array is a
     /// momentary, weakly consistent view of a queue that other threads may be mutating concurrently
-    /// (the <see cref="System.Collections.Concurrent.ConcurrentQueue{T}.ToArray"/> and
-    /// <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey, TValue}"/> precedent).
+    /// and differs from ConcurrentQueue.ToArray's moment-in-time snapshot.
     /// An element enqueued or dequeued during the walk may or may not appear, depending on which
     /// sub-queue it lands in and when that sub-queue is copied.
     /// </para>
@@ -150,6 +147,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// a private copy, so iterating it never interacts with concurrent mutation.
     /// </para>
     /// </remarks>
+    /// <remarks>Creates an O(item-count) array copy. The struct enumerator only avoids boxing on direct enumeration.</remarks>
     public Enumerator GetEnumerator() => new(ToArray());
 
     /// <inheritdoc/>

@@ -1,0 +1,11 @@
+--- a/SubQueue.cs
++++ b/SubQueue.cs
+@@ -953,7 +953,7 @@
+         // refill path, but avoid copying both buffers and opening a journal in that case.
+         // Count is exact under this lock. With D holding one item, Count > 2 means
+         // the refill has at least two remaining entries and may invoke the comparer.
+-        if (!HasNonThrowingComparer && _header.Count > 2 && _deletionCount == 1)
++        if (!HasNonThrowingComparer & (_header.Count > 2) & (_deletionCount == 1))
+             return BufferedTransaction(default!, default!, pop: true, out element, out priority);
+         return BufferedPopHeldRoot(out element, out priority);
+     }

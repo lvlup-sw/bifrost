@@ -64,8 +64,8 @@ public sealed class DecoratorStackCompatibilityTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
-    [Arguments(DispatchStrategy.PriorityMultiQueue)]
-    [Arguments(DispatchStrategy.PriorityLocking)]
+    [Arguments(DispatchStrategy.PriorityRelaxed)]
+    [Arguments(DispatchStrategy.PriorityExact)]
     public async Task FullStack_RoundTrip_WorkProcessed(DispatchStrategy strategy)
     {
         // Arrange — full stack via the builder; capacity far above the backlog so
@@ -79,6 +79,7 @@ public sealed class DecoratorStackCompatibilityTests
             opts.Capacity = 64;
             opts.WorkerCount = 2;
             opts.DispatchStrategy = strategy;
+            opts.FullMode = QueueFullMode.Reject;
         })
         .WithDeadLetterQueue()
         .WithOpenTelemetry()
@@ -128,8 +129,8 @@ public sealed class DecoratorStackCompatibilityTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
-    [Arguments(DispatchStrategy.PriorityMultiQueue)]
-    [Arguments(DispatchStrategy.PriorityLocking)]
+    [Arguments(DispatchStrategy.PriorityRelaxed)]
+    [Arguments(DispatchStrategy.PriorityExact)]
     public async Task PendingCount_ApproximateTolerant_AllStrategies(DispatchStrategy strategy)
     {
         // Arrange — full stack, single worker so one gate item parks ALL consumers.
@@ -142,6 +143,7 @@ public sealed class DecoratorStackCompatibilityTests
             opts.Capacity = 64;
             opts.WorkerCount = 1;
             opts.DispatchStrategy = strategy;
+            opts.FullMode = QueueFullMode.Reject;
         })
         .WithDeadLetterQueue()
         .WithOpenTelemetry()
@@ -190,8 +192,8 @@ public sealed class DecoratorStackCompatibilityTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
-    [Arguments(DispatchStrategy.PriorityMultiQueue)]
-    [Arguments(DispatchStrategy.PriorityLocking)]
+    [Arguments(DispatchStrategy.PriorityRelaxed)]
+    [Arguments(DispatchStrategy.PriorityExact)]
     public async Task DlqHandlerFailure_RoutesPerStrategy(DispatchStrategy strategy)
     {
         // Arrange — DLQ with one retry: the poison item fails twice, then
@@ -205,6 +207,7 @@ public sealed class DecoratorStackCompatibilityTests
             opts.Capacity = 16;
             opts.WorkerCount = 1;
             opts.DispatchStrategy = strategy;
+            opts.FullMode = QueueFullMode.Reject;
         })
         .WithDeadLetterQueue(dlqOpts => dlqOpts.MaxRetries = 1)
         .Build();
@@ -253,8 +256,8 @@ public sealed class DecoratorStackCompatibilityTests
     /// <param name="strategy">The priority binding under test.</param>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
-    [Arguments(DispatchStrategy.PriorityMultiQueue)]
-    [Arguments(DispatchStrategy.PriorityLocking)]
+    [Arguments(DispatchStrategy.PriorityRelaxed)]
+    [Arguments(DispatchStrategy.PriorityExact)]
     public async Task DlqAdmissionRejection_RoutesOnPriorityStrategies(DispatchStrategy strategy)
     {
         // Arrange — capacity 2, single worker parked: the queue state is
@@ -268,6 +271,7 @@ public sealed class DecoratorStackCompatibilityTests
             opts.Capacity = 2;
             opts.WorkerCount = 1;
             opts.DispatchStrategy = strategy;
+            opts.FullMode = QueueFullMode.Reject;
         })
         .WithDeadLetterQueue()
         .Build();
@@ -380,8 +384,8 @@ public sealed class DecoratorStackCompatibilityTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
-    [Arguments(DispatchStrategy.PriorityMultiQueue)]
-    [Arguments(DispatchStrategy.PriorityLocking)]
+    [Arguments(DispatchStrategy.PriorityRelaxed)]
+    [Arguments(DispatchStrategy.PriorityExact)]
     public async Task EventStream_PublishesPerStrategy(DispatchStrategy strategy)
     {
         // Arrange — event stream only (outermost decorator), capacity 4 so the
@@ -395,6 +399,7 @@ public sealed class DecoratorStackCompatibilityTests
             opts.Capacity = 4;
             opts.WorkerCount = 1;
             opts.DispatchStrategy = strategy;
+            opts.FullMode = QueueFullMode.Reject;
         })
         .WithEventStream()
         .Build();
@@ -480,8 +485,8 @@ public sealed class DecoratorStackCompatibilityTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
-    [Arguments(DispatchStrategy.PriorityMultiQueue)]
-    [Arguments(DispatchStrategy.PriorityLocking)]
+    [Arguments(DispatchStrategy.PriorityRelaxed)]
+    [Arguments(DispatchStrategy.PriorityExact)]
     public async Task HealthCheck_RegistersAndReportsPerStrategy(DispatchStrategy strategy)
     {
         // Arrange — full stack plus health checks.
@@ -494,6 +499,7 @@ public sealed class DecoratorStackCompatibilityTests
             opts.Capacity = 16;
             opts.WorkerCount = 1;
             opts.DispatchStrategy = strategy;
+            opts.FullMode = QueueFullMode.Reject;
         })
         .WithDeadLetterQueue()
         .WithOpenTelemetry()
@@ -531,8 +537,8 @@ public sealed class DecoratorStackCompatibilityTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
-    [Arguments(DispatchStrategy.PriorityMultiQueue)]
-    [Arguments(DispatchStrategy.PriorityLocking)]
+    [Arguments(DispatchStrategy.PriorityRelaxed)]
+    [Arguments(DispatchStrategy.PriorityExact)]
     public async Task Autoscaling_DynamicWorkers_ConsumePerStrategy(DispatchStrategy strategy)
     {
         // Arrange — full stack with autoscaling; a single built-in worker that the
@@ -546,6 +552,7 @@ public sealed class DecoratorStackCompatibilityTests
             opts.Capacity = 64;
             opts.WorkerCount = 1;
             opts.DispatchStrategy = strategy;
+            opts.FullMode = QueueFullMode.Reject;
         })
         .WithDeadLetterQueue()
         .WithOpenTelemetry()

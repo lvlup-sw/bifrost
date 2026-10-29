@@ -1,0 +1,1 @@
+stripe payload=reference medianNs=80.76 p90Ns=82.38 allocated=0

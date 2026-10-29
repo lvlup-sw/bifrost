@@ -63,7 +63,7 @@ public class AutoscalingExtensionsTests
         builder.Build();
 
         var provider = services.BuildServiceProvider();
-        var metrics = provider.GetService<IWorkerMetrics>();
+        var metrics = provider.GetKeyedService<IWorkerMetrics>(typeof(string));
 
         // Assert
         await Assert.That(metrics).IsNotNull();
@@ -87,7 +87,7 @@ public class AutoscalingExtensionsTests
         builder.Build();
 
         var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AutoscalingOptions>>();
+        var options = provider.GetRequiredKeyedService<Microsoft.Extensions.Options.IOptions<AutoscalingOptions>>(typeof(string));
 
         // Assert
         await Assert.That(options.Value.MinWorkers).IsEqualTo(3);
@@ -130,7 +130,7 @@ public class AutoscalingExtensionsTests
         builder.Build();
 
         var provider = services.BuildServiceProvider();
-        var engine = provider.GetService<AutoscalingEngine>();
+        var engine = provider.GetKeyedService<AutoscalingEngine>(typeof(string));
 
         // Assert
         await Assert.That(engine).IsNotNull();
@@ -153,7 +153,7 @@ public class AutoscalingExtensionsTests
         builder.Build();
 
         var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AutoscalingOptions>>();
+        var options = provider.GetRequiredKeyedService<Microsoft.Extensions.Options.IOptions<AutoscalingOptions>>(typeof(string));
 
         // Assert - Should use default values
         await Assert.That(options.Value.MinWorkers).IsEqualTo(1);

@@ -72,66 +72,6 @@ public sealed class ResilientOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public int Capacity => _inner.Capacity;
 
     /// <inheritdoc/>
-    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
-    {
-        return await _policy.ExecuteAsync(
-            async (context, cancellationToken) =>
-                await _inner.EnqueueAsync(work, workClass, cancellationToken).ConfigureAwait(false),
-            new Context("EnqueueAsync"),
-            ct).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// <para>
-    /// This method is not wrapped with resilience policies. Synchronous channel writes
-    /// are CPU-bound operations that do not experience transient failures. Resilience
-    /// policies (retry, timeout, circuit breaker) target async I/O operations where
-    /// transient failures are expected.
-    /// </para>
-    /// <para>
-    /// If the channel is full, this method returns <c>false</c> immediately.
-    /// Use <see cref="EnqueueAsync"/> for backpressure with resilience protection.
-    /// </para>
-    /// </remarks>
-    public bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default)
-    {
-        return _inner.TryEnqueue(work, workClass);
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// <para>
-    /// This method is not wrapped with resilience policies. Synchronous channel writes
-    /// are CPU-bound operations that do not experience transient failures. Resilience
-    /// policies (retry, timeout, circuit breaker) target async I/O operations where
-    /// transient failures are expected.
-    /// </para>
-    /// <para>
-    /// If the channel is full, this method throws <see cref="InvalidOperationException"/>.
-    /// Use <see cref="EnqueueAsync"/> for backpressure with resilience protection.
-    /// </para>
-    /// </remarks>
-    public void Run(TWork work, WorkClass workClass = WorkClass.Default)
-        => _inner.Run(work, workClass);
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// <para>
-    /// This method is not wrapped with resilience policies. Synchronous channel writes
-    /// are CPU-bound operations that do not experience transient failures. Resilience
-    /// policies (retry, timeout, circuit breaker) target async I/O operations where
-    /// transient failures are expected.
-    /// </para>
-    /// <para>
-    /// If the channel is full, this method returns <c>false</c> immediately.
-    /// Use <see cref="EnqueueAsync"/> for backpressure with resilience protection.
-    /// </para>
-    /// </remarks>
-    public bool TryRun(TWork work, WorkClass workClass = WorkClass.Default)
-        => _inner.TryRun(work, workClass);
-
-    /// <inheritdoc/>
     public Func<string, CancellationToken, Task> CreateWorkerFunction()
         => _inner.CreateWorkerFunction();
 
@@ -156,14 +96,37 @@ public sealed class ResilientOrchestrator<TWork> : IWorkOrchestrator<TWork>
         => _inner.DrainAsync(ct);
 
     /// <inheritdoc/>
-    public Task StopAsync(CancellationToken ct = default)
+    public Task AbortAsync(CancellationToken ct = default)
     {
-        return _inner.StopAsync(ct);
+        return _inner.AbortAsync(ct);
     }
 
     /// <inheritdoc/>
     public ValueTask DisposeAsync()
     {
         return _inner.DisposeAsync();
+    }
+
+    /// <inheritdoc/>
+    public void Complete() => _inner.Complete();
+
+    /// <inheritdoc/>
+    public Task Completion => _inner.Completion;
+
+    /// <inheritdoc/>
+    public EnqueueResult Enqueue(TWork work, WorkEnqueueOptions options = default)
+    {
+        var result = _inner.Enqueue(work, options);
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public bool TryEnqueue(TWork work, WorkEnqueueOptions options = default) => Enqueue(work, options).IsAccepted;
+
+    /// <inheritdoc/>
+    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkEnqueueOptions options = default, CancellationToken ct = default)
+    {
+        var result = await _policy.ExecuteAsync(async (_, token) => await _inner.EnqueueAsync(work, options, token).ConfigureAwait(false), new Context("EnqueueAsync"), ct).ConfigureAwait(false);
+        return result;
     }
 }

@@ -171,7 +171,7 @@ public class OrchestratorWorkQueueRewriteTests
     }
 
     /// <summary>
-    /// Verifies that <see cref="WorkOrchestrator{TWork}.StopAsync"/> and
+    /// Verifies that <see cref="WorkOrchestrator{TWork}.AbortAsync"/> and
     /// <see cref="WorkOrchestrator{TWork}.DisposeAsync"/> preserve their semantics on
     /// the rewritten queue: the shutdown token cancels parked handlers so StopAsync
     /// completes well inside its graceful window, post-stop admissions are rejected as
@@ -193,7 +193,7 @@ public class OrchestratorWorkQueueRewriteTests
 
         // Act — StopAsync cancels workers; the cooperative handler unblocks promptly,
         // well inside the 30-second graceful-shutdown window.
-        await orchestrator.StopAsync().WaitAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+        await orchestrator.AbortAsync().WaitAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
         // Assert — shutdown token fired and the queue is closed to new work.
         await Assert.That(shutdownToken.IsCancellationRequested).IsTrue();

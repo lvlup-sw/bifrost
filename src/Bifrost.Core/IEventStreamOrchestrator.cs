@@ -36,76 +36,13 @@ namespace Bifrost.Core;
 /// </remarks>
 public interface IEventStreamOrchestrator<TWork> : IWorkOrchestrator<TWork>
 {
-    /// <summary>
-    /// Gets an async enumerable of orchestrator events, filtered by type and optionally by correlation ID.
-    /// </summary>
-    /// <typeparam name="TEvent">The type of event to filter for.</typeparam>
-    /// <param name="correlationId">
-    /// Optional correlation ID to filter events. When <c>null</c>, all events of the specified type
-    /// are returned. When specified, only events implementing <see cref="ICorrelatedEvent"/> with
-    /// a matching correlation ID (case-sensitive, ordinal comparison) are returned.
-    /// </param>
-    /// <param name="cancellationToken">Cancellation token to cancel the enumeration.</param>
-    /// <returns>An async enumerable of events of the specified type.</returns>
-    /// <remarks>
-    /// <para>
-    /// The returned stream is unbounded and will continue yielding events
-    /// until cancelled. Only events matching <typeparamref name="TEvent"/>
-    /// will be returned.
-    /// </para>
-    /// <para>
-    /// Each call creates a new subscriber with an independent channel. Subscribers
-    /// are automatically cleaned up when the enumeration is cancelled or disposed.
-    /// </para>
-    /// <para>
-    /// Example usage:
-    /// <code>
-    /// await foreach (var evt in orchestrator.GetEventStreamAsync&lt;WorkEnqueuedEvent&lt;MyWork&gt;&gt;(cancellationToken: ct))
-    /// {
-    ///     Console.WriteLine($"Work enqueued: {evt.Work}");
-    /// }
-    /// </code>
-    /// </para>
-    /// <para>
-    /// Example with correlation ID filtering:
-    /// <code>
-    /// await foreach (var evt in orchestrator.GetEventStreamAsync&lt;WorkEnqueuedEvent&lt;MyWork&gt;&gt;(correlationId: "workflow-123", cancellationToken: ct))
-    /// {
-    ///     Console.WriteLine($"Work for workflow-123: {evt.Work}");
-    /// }
-    /// </code>
-    /// </para>
-    /// </remarks>
+    /// <summary>Reads events, optionally filtering by correlation id.</summary>
+    /// <typeparam name="TEvent">The event type.</typeparam>
+    /// <param name="correlationId">The correlation filter.</param>
+    /// <param name="cancellationToken">Cancels the reader.</param>
+    /// <returns>The event stream.</returns>
     IAsyncEnumerable<TEvent> GetEventStreamAsync<TEvent>(
         string? correlationId = null,
         CancellationToken cancellationToken = default)
         where TEvent : IOrchestratorEvent;
-
-    /// <summary>
-    /// Enqueues work with an optional correlation ID.
-    /// </summary>
-    /// <param name="work">The work item to enqueue.</param>
-    /// <param name="correlationId">Optional correlation ID for the work item.</param>
-    /// <param name="workClass">
-    /// The <see cref="WorkClass"/> the item is enqueued under. Defaults to
-    /// <see cref="WorkClass.Default"/>.
-    /// </param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>
-    /// The <see cref="EnqueueResult"/> admission outcome. An enqueued event is
-    /// published only when the work item was admitted.
-    /// </returns>
-    ValueTask<EnqueueResult> EnqueueAsync(TWork work, string? correlationId, WorkClass workClass = WorkClass.Default, CancellationToken ct = default);
-
-    /// <summary>
-    /// Tries to enqueue work with an optional correlation ID without blocking.
-    /// </summary>
-    /// <param name="work">The work item to enqueue.</param>
-    /// <param name="correlationId">Optional correlation ID for the work item.</param>
-    /// <param name="workClass">
-    /// The <see cref="WorkClass"/> the item is enqueued under. Defaults to
-    /// <see cref="WorkClass.Default"/>.
-    /// </param>
-    /// <returns><c>true</c> if the work was admitted; <c>false</c> if the queue was full.</returns>
-    bool TryEnqueue(TWork work, string? correlationId, WorkClass workClass = WorkClass.Default);
 }

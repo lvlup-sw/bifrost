@@ -115,7 +115,7 @@ public sealed class AgingBoundAcceptanceTests
         (int)BitOperations.RoundUpToPowerOf2((uint)(4 * Environment.ProcessorCount));
 
     /// <summary>
-    /// Verifies the aging bound deterministically on the exact-ordering locking binding:
+    /// Verifies the aging bound deterministically on the exact-ordering locking ordering:
     /// a Batch item enqueued at T0, with the fake clock then advanced past the default
     /// 30 s <see cref="PriorityDispatchOptions.InteractiveBoostWindow"/>, STRICTLY
     /// outranks a freshly enqueued Interactive item — the consumer is started only
@@ -141,7 +141,8 @@ public sealed class AgingBoundAcceptanceTests
             {
                 Capacity = 16,
                 WorkerCount = 0,
-                DispatchStrategy = DispatchStrategy.PriorityLocking,
+                DispatchStrategy = DispatchStrategy.PriorityExact,
+                FullMode = QueueFullMode.Reject,
             },
             fakeTime,
             handler);
@@ -172,7 +173,7 @@ public sealed class AgingBoundAcceptanceTests
     }
 
     /// <summary>
-    /// Verifies the aging bound statistically on the relaxed MultiQueue binding: a
+    /// Verifies the aging bound statistically on the relaxed MultiQueue ordering: a
     /// Batch item aged past the boost window holds the global-minimum key against
     /// <c>6n</c> fresh Interactive items, so over <see cref="MedianTrialCount"/>
     /// independent trials the upper-median of its dispatch position must stay within
@@ -215,7 +216,8 @@ public sealed class AgingBoundAcceptanceTests
                 {
                     Capacity = 8 * n,
                     WorkerCount = 0,
-                    DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+                    DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+                    FullMode = QueueFullMode.Reject,
                 },
                 fakeTime);
 
@@ -319,13 +321,13 @@ public sealed class AgingBoundAcceptanceTests
     /// </para>
     /// </remarks>
     [Test]
-    [Arguments(DispatchStrategy.PriorityLocking)]
-    [Arguments(DispatchStrategy.PriorityMultiQueue)]
+    [Arguments(DispatchStrategy.PriorityExact)]
+    [Arguments(DispatchStrategy.PriorityRelaxed)]
     public async Task Batch_UnderSustainedInteractiveLoad_DispatchedWithinBoundedDispatches(DispatchStrategy strategy)
     {
         // Arrange — per-binding load shape and bound (derivation in the remarks).
         var n = SubQueueCount;
-        var isMultiQueue = strategy == DispatchStrategy.PriorityMultiQueue;
+        var isMultiQueue = strategy == DispatchStrategy.PriorityRelaxed;
         var backlogTarget = isMultiQueue ? 8 * n : 8;
         var capacity = isMultiQueue ? 10 * n : 1024; // backlog stays below the 0.90 Batch watermark
         var boostedArrivalAllowance = 11; // ⌈W/Δ⌉ = ⌈105/10⌉
@@ -341,6 +343,7 @@ public sealed class AgingBoundAcceptanceTests
                 Capacity = capacity,
                 WorkerCount = 1,
                 DispatchStrategy = strategy,
+                FullMode = QueueFullMode.Reject,
                 Priority = { InteractiveBoostWindow = SmallBoostWindow },
             },
             fakeTime,
@@ -442,7 +445,7 @@ public sealed class AgingBoundAcceptanceTests
     }
 
     /// <summary>
-    /// Runs the lockstep aging measurement on the exact-ordering locking binding: a
+    /// Runs the lockstep aging measurement on the exact-ordering locking ordering: a
     /// Batch item is enqueued at T0, then each round advances fake time by
     /// <see cref="InterArrival"/>, enqueues one fresh Interactive item, and dequeues
     /// once — returning how many dispatches preceded the Batch item.
@@ -461,7 +464,8 @@ public sealed class AgingBoundAcceptanceTests
             {
                 Capacity = 16,
                 WorkerCount = 0,
-                DispatchStrategy = DispatchStrategy.PriorityLocking,
+                DispatchStrategy = DispatchStrategy.PriorityExact,
+                FullMode = QueueFullMode.Reject,
                 Priority = { InteractiveBoostWindow = boostWindow },
             },
             fakeTime);

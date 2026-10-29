@@ -57,7 +57,8 @@ public class RejectionRoutingTests
         {
             opts.Capacity = 2;
             opts.WorkerCount = 1;
-            opts.DispatchStrategy = DispatchStrategy.PriorityMultiQueue;
+            opts.DispatchStrategy = DispatchStrategy.PriorityRelaxed;
+            opts.FullMode = QueueFullMode.Reject;
         })
         .WithDeadLetterQueue()
         .Build();
@@ -114,7 +115,8 @@ public class RejectionRoutingTests
         {
             Capacity = 1,
             WorkerCount = 0,
-            DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+            DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+            FullMode = QueueFullMode.Reject,
         });
         await using var orchestrator = new WorkOrchestrator<string>(
             Substitute.For<IWorkHandler<string>>(), options, NullLogger<WorkOrchestrator<string>>.Instance);
@@ -136,7 +138,7 @@ public class RejectionRoutingTests
 
     /// <summary>
     /// Verifies that rejections surfaced through the boolean
-    /// <see cref="IWorkOrchestrator{TWork}.TryEnqueue"/> surface are observed too:
+    /// <see cref="IWorkWriter{TWork}.TryEnqueue"/> surface are observed too:
     /// the caller still receives <c>false</c>, and the rejection is counted and
     /// routed to the dead-letter pathway with the rejection-distinguishing marker.
     /// The boolean surface carries no <see cref="RejectionReason"/>, so a
@@ -152,7 +154,8 @@ public class RejectionRoutingTests
         {
             Capacity = 1,
             WorkerCount = 0,
-            DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+            DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+            FullMode = QueueFullMode.Reject,
         });
         await using var orchestrator = new WorkOrchestrator<string>(
             Substitute.For<IWorkHandler<string>>(), options, NullLogger<WorkOrchestrator<string>>.Instance);
@@ -204,7 +207,8 @@ public class RejectionRoutingTests
         {
             opts.Capacity = 4;
             opts.WorkerCount = 1;
-            opts.DispatchStrategy = DispatchStrategy.PriorityMultiQueue;
+            opts.DispatchStrategy = DispatchStrategy.PriorityRelaxed;
+            opts.FullMode = QueueFullMode.Reject;
         })
         .WithDeadLetterQueue()
         .Build();
@@ -238,7 +242,8 @@ public class RejectionRoutingTests
         {
             Capacity = 4,
             WorkerCount = 0,
-            DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+            DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+            FullMode = QueueFullMode.Reject,
         });
         await using var orchestrator = new WorkOrchestrator<string>(
             Substitute.For<IWorkHandler<string>>(), options, NullLogger<WorkOrchestrator<string>>.Instance);
@@ -278,7 +283,8 @@ public class RejectionRoutingTests
         {
             Capacity = 1,
             WorkerCount = 0,
-            DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+            DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+            FullMode = QueueFullMode.Reject,
         });
         await using var orchestrator = new WorkOrchestrator<string>(
             Substitute.For<IWorkHandler<string>>(), options, NullLogger<WorkOrchestrator<string>>.Instance);
@@ -325,7 +331,8 @@ public class RejectionRoutingTests
         {
             Capacity = 4,
             WorkerCount = 0,
-            DispatchStrategy = DispatchStrategy.PriorityMultiQueue,
+            DispatchStrategy = DispatchStrategy.PriorityRelaxed,
+            FullMode = QueueFullMode.Reject,
         });
         await using var orchestrator = new WorkOrchestrator<string>(
             Substitute.For<IWorkHandler<string>>(), options, NullLogger<WorkOrchestrator<string>>.Instance);

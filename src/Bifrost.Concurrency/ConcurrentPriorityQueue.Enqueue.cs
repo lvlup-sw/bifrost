@@ -7,13 +7,8 @@
 namespace Bifrost.Concurrency;
 
 /// <content>
-/// The enqueue surface: random sub-queue selection with try-lock resampling that never
-/// blocks. A push draws a random sub-queue index from the thread-local RNG and attempts the
-/// sub-queue's writer lock; on contention it resamples a <i>fresh</i> random index and retries,
-/// rather than waiting on a held lock or spinning on the same queue. Because at most <c>p</c> of
-/// the <c>n = 4p</c> sub-queues can be locked simultaneously, an unlocked queue always exists, so
-/// the resample loop terminates with an expected lock-acquisition count barely above one; no
-/// attempt bound is needed.
+/// Random insertion routing with try-lock resampling. Contention retries are unbounded;
+/// the processor-based stripe count does not bound the number of participating threads.
 /// </content>
 public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 {
@@ -28,7 +23,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <param name="priority">The priority that orders the element; passed to the queue's comparer.</param>
     /// <remarks>
     /// <para>
-    /// Unbounded queues always accept the element and this method always returns normally.
+    /// Unbounded queues have no capacity rejection; comparer exceptions still propagate.
     /// </para>
     /// <para>
     /// Bounded queues (constructed with a positive <c>boundedCapacity</c>) throw
@@ -57,7 +52,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     }
 
     /// <summary>
-    /// Attempts to add an element with the specified priority to the queue without ever blocking.
+    /// Attempts to add an element with the specified priority to the queue using try-lock resampling. Completion time is unbounded.
     /// </summary>
     /// <param name="element">
     /// The element to enqueue. May be <see langword="null"/> when <typeparamref name="TElement"/>
@@ -115,25 +110,27 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </remarks>
     private bool EnqueueCore(TElement element, TPriority priority)
     {
+        // Resolve thread-local state before reserving capacity: initialization failure cannot
+        // leak a reservation, and the retry loop does not need initialization inside its try.
+        ThreadHandle handle = ThreadHandle.Current;
+        SubQueue<TElement, TPriority>[] queues = _queues;
         bool reserved = false;
 
         // Bounded-capacity reservation, taken atomically ahead of the resample loop. Guarded
         // by `_boundedCapacity > 0` so the unbounded path executes no Interlocked instruction at all.
         if (_boundedCapacity > 0)
         {
-            if (Interlocked.Increment(ref _boundedCount) > _boundedCapacity)
+            int count;
+            do
             {
-                // Over the bound: exactly undo the reservation so a failed TryEnqueue leaks nothing,
-                // and report "full" without touching any sub-queue.
-                Interlocked.Decrement(ref _boundedCount);
-                return false;
+                count = Volatile.Read(ref _boundedCount);
+                if (count >= _boundedCapacity) return false;
             }
+
+            while (Interlocked.CompareExchange(ref _boundedCount, count + 1, count) != count);
 
             reserved = true;
         }
-
-        ThreadHandle handle = ThreadHandle.Current;
-        SubQueue<TElement, TPriority>[] queues = _queues;
 
         try
         {
@@ -145,11 +142,8 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                     return true;
                 }
 
-                // Contended: end the sticky period so the resample draws a fresh random index rather than
-                // re-trying the contended one; never wait on a held lock. An unlocked sub-queue
-                // always exists (at most p of n = 4p can be locked at once), so this loop terminates
-                // probabilistically without an attempt bound. Resampling-on-contention is also what keeps
-                // stickiness wait-free: a stuck selection never blocks, it yields to a fresh draw.
+                // Contention ends the sticky period and draws a fresh random index.
+                // This retry loop has no per-operation progress bound.
                 handle.ResetStickyEnqueue();
             }
         }

@@ -11,6 +11,7 @@ using Bifrost.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using NSubstitute;
 
@@ -119,7 +120,7 @@ public class DeadLetterQueueExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<DeadLetterQueueOptions>>();
+        var options = Options.Create(provider.GetRequiredService<IOptionsMonitor<DeadLetterQueueOptions>>().Get(WorkOptions.Name<string>()));
         await Assert.That(options.Value.Capacity).IsEqualTo(500);
         await Assert.That(options.Value.MaxRetries).IsEqualTo(5);
 

@@ -25,17 +25,16 @@ namespace Bifrost.Queues;
 /// per-class queues to balance and no aging scans to run.
 /// </para>
 /// <para>
-/// <b>Starvation bound, by construction.</b> Because the boost is a bounded constant,
-/// aging is inherent: any item that has waited longer than
-/// <see cref="PriorityDispatchOptions.InteractiveBoostWindow"/> has a smaller key than
-/// a freshly enqueued Interactive item and dispatches first. The boost window IS the
-/// starvation bound — no decrease-key, no re-scoring (DR-5).
+/// The virtual-time key expresses an ordering preference, not a service-time guarantee.
+/// An older Batch key outranks a fresh Interactive key only after the boost plus batch penalty.
+/// Exact dispatch selects the minimum admitted key; MultiQueue may select a different key.
+/// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
 /// </para>
 /// <para>
-/// <b>Relaxed dispatch noise.</b> The lock-free MultiQueue binding dequeues with a
-/// documented expected rank error of <c>(5/6)·n</c>; that relaxation rides on top of
-/// the total order this key defines and is acceptable dispatch-ordering noise (DR-5).
-/// The key guarantees the ordering intent; bindings may realize it approximately.
+/// The virtual-time key expresses an ordering preference, not a service-time guarantee.
+/// An older Batch key outranks a fresh Interactive key only after the boost plus batch penalty.
+/// Exact dispatch selects the minimum admitted key; MultiQueue may select a different key.
+/// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
 /// </para>
 /// <para>
 /// <b>Units.</b> <see cref="WorkEnvelope{TWork}.EnqueuedAtTicks"/> is in

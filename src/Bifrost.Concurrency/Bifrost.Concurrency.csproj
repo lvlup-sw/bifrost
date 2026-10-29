@@ -13,7 +13,7 @@
     <IsAotCompatible>true</IsAotCompatible>
     <!-- Generate documentation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Description>Concurrency primitives for Bifrost: a MultiQueue ConcurrentPriorityQueue (lock-striped sub-queue heaps, two-choice relaxed dequeue with a quantified rank-error contract) and a lock-based exact-ordering LockingPriorityQueue.</Description>
+    <Description>A lock-striped MultiQueue priority queue with relaxed two-choice deletion.</Description>
     <PackageTags>Concurrency;PriorityQueue;ConcurrentPriorityQueue;MultiQueue;ThreadSafe</PackageTags>
   </PropertyGroup>
 

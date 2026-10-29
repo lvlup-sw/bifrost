@@ -60,14 +60,14 @@ public class AutoscalingOrchestratorDisabledTests
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
-        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
+        _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
         // Act
         await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
         // Assert
         _metrics.DidNotReceive().RecordEnqueue();
-        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -79,7 +79,7 @@ public class AutoscalingOrchestratorDisabledTests
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
-        _inner.TryEnqueue("work").Returns(true);
+        _inner.Enqueue("work").Returns(EnqueueResult.Accepted);
 
         // Act
         var result = orchestrator.TryEnqueue("work");
@@ -98,21 +98,21 @@ public class AutoscalingOrchestratorDisabledTests
         // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
-        _inner.EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
-        _inner.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
+        _inner.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         _inner.DisposeAsync().Returns(ValueTask.CompletedTask);
 
         // Act
         await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
         _ = orchestrator.PendingCount;
         _ = orchestrator.Capacity;
-        await orchestrator.StopAsync().ConfigureAwait(false);
+        await orchestrator.AbortAsync().ConfigureAwait(false);
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
         // Assert - verify delegation without metrics
         _metrics.DidNotReceive().RecordEnqueue();
-        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkClass>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
-        await _inner.Received(1).StopAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
         await _inner.Received(1).DisposeAsync().ConfigureAwait(false);
     }
 

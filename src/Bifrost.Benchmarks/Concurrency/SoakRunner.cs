@@ -10,7 +10,7 @@ using Bifrost.Queues;
 namespace Bifrost.Benchmarks.Concurrency;
 
 /// <summary>
-/// Executes one consumer-shaped soak run (design DR-8) against a single priority binding:
+/// Executes one consumer-shaped soak run (design DR-8) against a single priority ordering:
 /// class-mixed Poisson-ish producers and N async consumers drive the real
 /// <c>IWorkQueue&lt;WorkEnvelope&lt;int&gt;&gt;</c> binding (reached via
 /// <c>InternalsVisibleTo</c>), with Task.Delay-simulated work — the soak measures QUEUE

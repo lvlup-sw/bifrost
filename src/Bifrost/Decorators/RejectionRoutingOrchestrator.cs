@@ -22,14 +22,10 @@ namespace Bifrost.Decorators;
 /// <typeparam name="TWork">The type of work item to process.</typeparam>
 /// <remarks>
 /// <para>
-/// <b>Routing is observability, not retry.</b> The caller always receives the
-/// original rejected <see cref="EnqueueResult"/>; routing never re-enqueues,
-/// never blocks admission, and never converts a rejection into an acceptance.
-/// The at-least-once execution contract is unaffected: rejection happens at
-/// admission, before the item enters the queue, so admitted work is still
-/// executed at least once and rejected work was never admitted. Replaying a
-/// dead-lettered rejection is a consumer decision, and consumer idempotency
-/// obligations are unchanged — exactly as for handler-failure entries.
+/// The virtual-time key expresses an ordering preference, not a service-time guarantee.
+/// An older Batch key outranks a fresh Interactive key only after the boost plus batch penalty.
+/// Exact dispatch selects the minimum admitted key; MultiQueue may select a different key.
+/// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
 /// </para>
 /// <para>
 /// <b>Rejection-distinguishing marker.</b> Dead-letter entries produced here
@@ -46,15 +42,10 @@ namespace Bifrost.Decorators;
 /// deliberately stopped admitting.
 /// </para>
 /// <para>
-/// <b>Boolean enqueue surfaces.</b> <see cref="TryEnqueue"/> and
-/// <see cref="TryRun"/> return <c>bool</c> and carry no
-/// <see cref="RejectionReason"/>; a <c>false</c> result is inferred as
-/// <see cref="RejectionReason.Shutdown"/> when the shutdown token is cancelled
-/// and <see cref="RejectionReason.CapacityExceeded"/> otherwise. A drained (but
-/// not stopped) orchestrator therefore reports boolean rejections as capacity —
-/// a conservative approximation that routes rather than drops.
-/// <see cref="Run"/> already surfaces its rejection to the caller as an
-/// exception and is intentionally not routed.
+/// The virtual-time key expresses an ordering preference, not a service-time guarantee.
+/// An older Batch key outranks a fresh Interactive key only after the boost plus batch penalty.
+/// Exact dispatch selects the minimum admitted key; MultiQueue may select a different key.
+/// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
 /// </para>
 /// </remarks>
 internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TWork>
@@ -137,54 +128,6 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
     public int Capacity => _inner.Capacity;
 
     /// <inheritdoc/>
-    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkClass workClass = WorkClass.Default, CancellationToken ct = default)
-    {
-        var result = await _inner.EnqueueAsync(work, workClass, ct).ConfigureAwait(false);
-
-        // Reason is null on Accepted, and defensively skipped on malformed
-        // results (e.g., default(EnqueueResult) from substitutes).
-        if (!result.IsAccepted && result.Reason is { } reason)
-        {
-            RejectionObserved?.Invoke(workClass, reason);
-
-            if (reason != RejectionReason.Shutdown && _dlq is not null)
-            {
-                await RouteToDeadLetterAsync(work, reason).ConfigureAwait(false);
-            }
-        }
-
-        return result;
-    }
-
-    /// <inheritdoc/>
-    public bool TryEnqueue(TWork work, WorkClass workClass = WorkClass.Default)
-    {
-        if (_inner.TryEnqueue(work, workClass))
-        {
-            return true;
-        }
-
-        ObserveBooleanRejection(work, workClass);
-        return false;
-    }
-
-    /// <inheritdoc/>
-    public void Run(TWork work, WorkClass workClass = WorkClass.Default)
-        => _inner.Run(work, workClass);
-
-    /// <inheritdoc/>
-    public bool TryRun(TWork work, WorkClass workClass = WorkClass.Default)
-    {
-        if (_inner.TryRun(work, workClass))
-        {
-            return true;
-        }
-
-        ObserveBooleanRejection(work, workClass);
-        return false;
-    }
-
-    /// <inheritdoc/>
     public Func<string, CancellationToken, Task> CreateWorkerFunction()
         => _inner.CreateWorkerFunction();
 
@@ -201,8 +144,8 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         => _inner.RequestScaleDownAsync(count, cancellationToken);
 
     /// <inheritdoc/>
-    public Task StopAsync(CancellationToken ct = default)
-        => _inner.StopAsync(ct);
+    public Task AbortAsync(CancellationToken ct = default)
+        => _inner.AbortAsync(ct);
 
     /// <inheritdoc/>
     public Task DrainAsync(CancellationToken ct = default)
@@ -225,33 +168,6 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         => reason == RejectionReason.WatermarkExceeded
             ? WatermarkExceededMarker
             : CapacityExceededMarker;
-
-    /// <summary>
-    /// Observes a rejection reported through a boolean enqueue surface, inferring
-    /// the reason from the shutdown token (see class remarks), counting it, and
-    /// routing non-shutdown rejections to the DLQ when configured.
-    /// </summary>
-    /// <param name="work">The rejected work item.</param>
-    /// <param name="workClass">The work class it was enqueued under.</param>
-    private void ObserveBooleanRejection(TWork work, WorkClass workClass)
-    {
-        var reason = _inner.GetShutdownToken().IsCancellationRequested
-            ? RejectionReason.Shutdown
-            : RejectionReason.CapacityExceeded;
-
-        RejectionObserved?.Invoke(workClass, reason);
-
-        if (reason == RejectionReason.Shutdown || _dlq is null)
-        {
-            return;
-        }
-
-        // The channel-backed DLQ completes synchronously, in which case this
-        // helper runs to completion inline; an asynchronous custom
-        // IDeadLetterQueue implementation completes off the synchronous caller
-        // with error isolation (fire-and-forget, mirroring DeadLetterNotifier).
-        _ = AwaitRouteAsync(RouteToDeadLetterAsync(work, reason));
-    }
 
     /// <summary>
     /// Routes a rejected work item through the dead-letter machinery: persists
@@ -307,5 +223,42 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         {
             _logger.LogWarning(ex, "Failed to dead-letter rejected work item of type {WorkType}", typeof(TWork).Name);
         }
+    }
+
+    /// <inheritdoc/>
+    public void Complete() => _inner.Complete();
+
+    /// <inheritdoc/>
+    public Task Completion => _inner.Completion;
+
+    /// <inheritdoc/>
+    public EnqueueResult Enqueue(TWork work, WorkEnqueueOptions options = default)
+    {
+        var result = _inner.Enqueue(work, options);
+        if (result.Reason is { } reason)
+        {
+            RejectionObserved?.Invoke(options.Class ?? WorkClass.Default, reason);
+            if (reason != RejectionReason.Shutdown && _dlq is not null)
+                _ = AwaitRouteAsync(RouteToDeadLetterAsync(work, reason));
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public bool TryEnqueue(TWork work, WorkEnqueueOptions options = default) => Enqueue(work, options).IsAccepted;
+
+    /// <inheritdoc/>
+    public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkEnqueueOptions options = default, CancellationToken ct = default)
+    {
+        var result = await _inner.EnqueueAsync(work, options, ct).ConfigureAwait(false);
+        if (result.Reason is { } reason)
+        {
+            RejectionObserved?.Invoke(options.Class ?? WorkClass.Default, reason);
+            if (reason != RejectionReason.Shutdown && _dlq is not null)
+                await RouteToDeadLetterAsync(work, reason).ConfigureAwait(false);
+        }
+
+        return result;
     }
 }

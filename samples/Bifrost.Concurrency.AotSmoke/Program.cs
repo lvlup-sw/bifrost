@@ -42,10 +42,7 @@ Console.WriteLine("Bifrost.Concurrency AOT smoke — starting.");
 //    path through the buffer moves.
 // ─────────────────────────────────────────────────────────────────────────────
 
-var queue = new ConcurrentPriorityQueue<object, long>(
-    boundedCapacity: -1,
-    stickiness: -1,
-    bufferCapacity: 16);
+var queue = ConcurrentPriorityQueue<object, long>.Create(new() { BufferCapacity = 16 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Enqueue a spread that forces buffer FLUSH + REFILL.
@@ -167,6 +164,30 @@ if (queue.Count != 0)
 }
 
 Console.WriteLine("Buffered reference-type dispatch verified: every element dispatched exactly once, conserved, and empty after drain.");
+
+// Compact value entries exercise the scalar buffer-shift specialization under AOT.
+// A single stripe permits an exact-order assertion while descending insertion forces
+// deletion-buffer evictions, insertion flushes and subsequent heap refills.
+foreach (IComparer<int>? comparer in new IComparer<int>?[] { null, Comparer<int>.Create((x, y) => x.CompareTo(y)) })
+{
+    var compact = ConcurrentPriorityQueue<int, int>.Create(new()
+    {
+        BufferCapacity = 16, SubQueueCount = 1, Comparer = comparer,
+    });
+    for (int i = elementCount - 1; i >= 0; i--) compact.Enqueue(i, i);
+    for (int i = 0; i < elementCount; i++)
+    {
+        if (!compact.TryDequeue(out int value, out int compactPriority) || value != i || compactPriority != i)
+        {
+            Console.Error.WriteLine($"FAIL: compact buffered value entry corrupted at {i} under NativeAOT.");
+            return 1;
+        }
+    }
+
+    if (compact.Count != 0 || compact.TryDequeue(out _, out _)) return 1;
+}
+
+Console.WriteLine("Compact value dispatch verified with default and custom comparers.");
 Console.WriteLine("Bifrost.Concurrency AOT smoke — PASS.");
 return 0;
 

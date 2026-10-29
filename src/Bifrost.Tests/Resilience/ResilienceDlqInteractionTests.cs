@@ -155,7 +155,7 @@ public class ResilienceDlqInteractionTests
         // Use a handler that blocks forever so the channel stays full
         var blockingHandler = Substitute.For<IWorkHandler<string>>();
         blockingHandler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask(Task.Delay(Timeout.Infinite)));
+            .Returns(call => new ValueTask(Task.Delay(Timeout.Infinite, call.Arg<CancellationToken>())));
         services.AddSingleton(blockingHandler);
 
         // Use capacity=1 to quickly fill the channel

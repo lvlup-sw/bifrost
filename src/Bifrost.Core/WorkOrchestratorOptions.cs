@@ -53,6 +53,10 @@ public class WorkOrchestratorOptions
     /// priority strategies change the asynchronous enqueue semantics to fail-fast
     /// admission; see <see cref="DispatchStrategy"/> for the semantics table.
     /// </remarks>
+    /// <summary>Gets or sets the asynchronous full-queue policy. Priority ordering requires Reject.</summary>
+    public QueueFullMode FullMode { get; set; } = QueueFullMode.Wait;
+
+    /// <summary>Gets or sets the queue ordering policy.</summary>
     public DispatchStrategy DispatchStrategy { get; set; } = DispatchStrategy.Fifo;
 
     /// <summary>

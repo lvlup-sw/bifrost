@@ -62,35 +62,29 @@ public static class AutoscalingExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        // Register the immutable options instance (init-only properties
-        // prevent mutation after construction, so we accept a pre-built instance
-        // rather than an Action<T> mutation delegate)
-        builder.Services.AddSingleton<IOptions<AutoscalingOptions>>(
+        var key = typeof(TWork);
+        builder.Services.AddKeyedSingleton<IOptions<AutoscalingOptions>>(key,
             Options.Create(options ?? new AutoscalingOptions()));
-
-        // Register autoscaling services (TryAdd to avoid duplicates)
-        builder.Services.TryAddSingleton<IWorkerMetrics, WorkerMetrics>();
-        builder.Services.TryAddSingleton<AutoscalingEngine>();
-
-        // Register worker registry
-        builder.Services.TryAddSingleton<IWorkerRegistry, WorkerRegistry>();
-
-        // Register the autoscaling coordinator (bridges orchestrator → engine)
-        builder.Services.TryAddSingleton<IAutoscalingCoordinator>(sp =>
-        {
-            var orchestrator = sp.GetRequiredService<IWorkOrchestrator<TWork>>();
-            var registry = sp.GetRequiredService<IWorkerRegistry>();
-            return new AutoscalingCoordinator<TWork>(orchestrator, registry);
-        });
+        builder.Services.AddKeyedSingleton<IWorkerMetrics, WorkerMetrics>(key);
+        builder.Services.AddKeyedSingleton<IWorkerRegistry, WorkerRegistry>(key);
+        builder.Services.AddKeyedSingleton<IAutoscalingCoordinator>(key, (sp, _) =>
+            new AutoscalingCoordinator<TWork>(sp.GetRequiredService<IWorkOrchestrator<TWork>>(),
+                sp.GetRequiredKeyedService<IWorkerRegistry>(key)));
+        builder.Services.AddKeyedSingleton<AutoscalingEngine>(key, (sp, _) =>
+            new AutoscalingEngine(sp.GetRequiredKeyedService<IOptions<AutoscalingOptions>>(key),
+                sp.GetRequiredKeyedService<IAutoscalingCoordinator>(key),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AutoscalingEngine>>()));
+        builder.Services.AddKeyedSingleton<IAutoscalingEngine>(key, (sp, _) =>
+            sp.GetRequiredKeyedService<AutoscalingEngine>(key));
 
         // Add the autoscaling decorator
         builder.Decorators.Add(new DecoratorRegistration<TWork>(
             AutoscalingDecoratorOrder,
             (sp, inner) => new AutoscalingOrchestrator<TWork>(
                 inner,
-                sp.GetRequiredService<IWorkerRegistry>(),
-                sp.GetRequiredService<IWorkerMetrics>(),
-                sp.GetRequiredService<IOptions<AutoscalingOptions>>(),
+                sp.GetRequiredKeyedService<IWorkerRegistry>(key),
+                sp.GetRequiredKeyedService<IWorkerMetrics>(key),
+                sp.GetRequiredKeyedService<IOptions<AutoscalingOptions>>(key),
                 sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AutoscalingOrchestrator<TWork>>>())));
 
         return builder;

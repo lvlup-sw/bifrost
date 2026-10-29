@@ -1,0 +1,31 @@
+perf
+population=16 c=0 threads=1: O=43.210 P=44.739 N=44.567; N/P=-0.38% N/O=+3.14%
+population=16 c=0 threads=4: O=24.802 P=24.434 N=24.468; N/P=+0.14% N/O=-1.35%
+population=16 c=16 threads=1: O=43.263 P=43.978 N=43.210; N/P=-1.75% N/O=-0.12%
+population=16 c=16 threads=4: O=22.543 P=22.872 N=23.014; N/P=+0.62% N/O=+2.09%
+population=4096 c=0 threads=1: O=30.930 P=31.346 N=31.444; N/P=+0.31% N/O=+1.66%
+population=4096 c=0 threads=4: O=36.370 P=37.257 N=37.216; N/P=-0.11% N/O=+2.32%
+population=4096 c=16 threads=1: O=33.121 P=32.855 N=32.404; N/P=-1.37% N/O=-2.16%
+population=4096 c=16 threads=4: O=31.202 P=31.357 N=31.427; N/P=+0.22% N/O=+0.72%
+batch
+payload=value custom=False population=16 c=0: O=60.855 P=61.510 N=61.685; N/P=+0.28% N/O=+1.36%
+payload=value custom=False population=16 c=16: O=63.265 P=62.740 N=62.675; N/P=-0.10% N/O=-0.93%
+payload=value custom=False population=4096 c=0: O=71.475 P=72.505 N=73.255; N/P=+1.03% N/O=+2.49%
+payload=value custom=False population=4096 c=16: O=74.745 P=74.550 N=75.200; N/P=+0.87% N/O=+0.61%
+payload=value custom=True population=16 c=0: O=63.500 P=63.935 N=63.965; N/P=+0.05% N/O=+0.73%
+payload=value custom=True population=16 c=16: O=63.825 P=68.400 N=64.355; N/P=-5.91% N/O=+0.83%
+payload=value custom=True population=4096 c=0: O=104.205 P=110.550 N=109.985; N/P=-0.51% N/O=+5.55%
+payload=value custom=True population=4096 c=16: O=87.330 P=86.105 N=86.180; N/P=+0.09% N/O=-1.32%
+payload=reference custom=False population=16 c=0: O=63.225 P=63.395 N=63.735; N/P=+0.54% N/O=+0.81%
+payload=reference custom=False population=16 c=16: O=67.095 P=68.535 N=68.465; N/P=-0.10% N/O=+2.04%
+payload=reference custom=False population=4096 c=0: O=78.200 P=79.865 N=79.975; N/P=+0.14% N/O=+2.27%
+payload=reference custom=False population=4096 c=16: O=75.965 P=76.005 N=76.525; N/P=+0.68% N/O=+0.74%
+payload=reference custom=True population=16 c=0: O=65.650 P=67.130 N=66.730; N/P=-0.60% N/O=+1.65%
+payload=reference custom=True population=16 c=16: O=68.930 P=73.450 N=70.960; N/P=-3.39% N/O=+2.95%
+payload=reference custom=True population=4096 c=0: O=119.750 P=127.180 N=126.065; N/P=-0.88% N/O=+5.27%
+payload=reference custom=True population=4096 c=16: O=93.815 P=94.480 N=94.480; N/P=-0.00% N/O=+0.71%
+batch-sparse
+payload=value custom=True population=16 c=16: O=62.630 P=70.603 N=66.825; N/P=-5.35% N/O=+6.70%
+payload=reference custom=True population=16 c=16: O=68.990 P=75.420 N=71.757; N/P=-4.86% N/O=+4.01%
+dense
+population=4096 c=0 threads=4: O=36.306 P=36.337 N=36.273; N/P=-0.17% N/O=-0.09%

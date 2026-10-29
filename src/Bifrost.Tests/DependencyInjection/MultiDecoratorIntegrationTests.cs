@@ -106,7 +106,7 @@ public class MultiDecoratorIntegrationTests
         await Assert.That(completedEvents[0].Success).IsTrue();
 
         // Assert — metrics service is wired and accessible
-        var metrics = provider.GetRequiredService<IWorkerMetrics>();
+        var metrics = provider.GetRequiredKeyedService<IWorkerMetrics>(typeof(string));
         await Assert.That(metrics).IsNotNull();
 
         // Cleanup — cancel and observe the worker task
@@ -120,7 +120,7 @@ public class MultiDecoratorIntegrationTests
             // Expected during shutdown
         }
 
-        await orchestrator.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await orchestrator.AbortAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <summary>

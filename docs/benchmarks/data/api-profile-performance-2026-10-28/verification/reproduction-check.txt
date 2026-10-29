@@ -1,0 +1,6 @@
+Reverse-applied retained optimization.patch: all C source hashes match.
+Then reverse-applied targeted optimization.patch: all E source hashes match.
+Archived native parser reproduces all nine retained profile summaries.
+Final sequence complete: 18 isolated, 6 buffered-only, 6 full throughput, 4 full batch processes.
+All summary sample counts match the planned completed sequences.
+git diff --check passed.

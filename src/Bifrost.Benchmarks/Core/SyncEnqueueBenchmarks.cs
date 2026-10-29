@@ -50,7 +50,7 @@ public class SyncEnqueueBenchmarks
     [Benchmark(Baseline = true)]
     public bool TryRun_Sync()
     {
-        return _orchestrator!.TryRun(42);
+        return _orchestrator!.TryEnqueue(42);
     }
 
     /// <summary>
@@ -59,7 +59,7 @@ public class SyncEnqueueBenchmarks
     [Benchmark]
     public void Run_Sync()
     {
-        _orchestrator!.Run(42);
+        _orchestrator!.Enqueue(42);
     }
 
     /// <summary>

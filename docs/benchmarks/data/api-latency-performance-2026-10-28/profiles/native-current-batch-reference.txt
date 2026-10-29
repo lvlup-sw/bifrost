@@ -1,0 +1,1103 @@
+Analysis of sampling dotnet (pid 65999) every 1 millisecond
+Process:         dotnet [65999]
+Path:            /Users/USER/*/dotnet
+Load Address:    0x1049d8000
+Identifier:      dotnet
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  Python [65947]
+
+Date/Time:       2026-10-28 18:24:23.470 -0700
+Launch Time:     2026-10-28 18:24:22.433 -0700
+OS Version:      macOS 14.4.1 (23E224)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         22.5M
+Physical footprint (peak):  22.6M
+Idle exit:                  untracked
+----
+
+Call graph:
+    6873 Thread_12998089   DispatchQueue_1: com.apple.main-thread  (serial)
+    + 6873 start  (in dyld) + 2360  [0x18177e0e0]
+    +   6873 main  (in dotnet) + 184  [0x1049d9c78]
+    +     6873 exe_start(int, char const**)  (in dotnet) + 1068  [0x1049d9a10]
+    +       6873 hostfxr_main_startupinfo  (in libhostfxr.dylib) + 128  [0x104a6adfc]
+    +         6873 fx_muxer_t::execute(std::basic_string<char>, int, char const**, host_startup_info_t const&, char*, int, int*)  (in libhostfxr.dylib) + 968  [0x104a6f3d0]
+    +           6873 fx_muxer_t::handle_exec_host_command(std::basic_string<char> const&, host_startup_info_t const&, std::basic_string<char> const&, std::unordered_map<known_options, std::vector<std::basic_string<char>>, known_options_hash> const&, int, char const**, int, host_mode_t, bool, char*, int, int*)  (in libhostfxr.dylib) + 1268  [0x104a705d0]
+    +             6873 corehost_main  (in libhostpolicy.dylib) + 348  [0x104ae4d88]
+    +               6873 run_app_for_context(hostpolicy_context_t const&, int, char const**)  (in libhostpolicy.dylib) + 1068  [0x104ae3f58]
+    +                 6873 coreclr_execute_assembly  (in libcoreclr.dylib) + 232  [0x10547b53c]
+    +                   6873 CorHost2::ExecuteAssembly(unsigned int, char16_t const*, int, char16_t const**, unsigned int*)  (in libcoreclr.dylib) + 648  [0x1055bea70]
+    +                     6873 Assembly::ExecuteMainMethod(PtrArray**, int)  (in libcoreclr.dylib) + 268  [0x10559b3d8]
+    +                       6873 RunMain(MethodDesc*, short, int*, PtrArray**)  (in libcoreclr.dylib) + 620  [0x10559b094]
+    +                         6873 MethodDescCallSite::CallTargetWorker(unsigned long long const*, unsigned long long*, int)  (in libcoreclr.dylib) + 792  [0x105693514]
+    +                           6873 CallDescrWorkerInternal  (in libcoreclr.dylib) + 132  [0x1057fb020]
+    +                             6873 ???  (in <unknown binary>)  [0x1077124d8]
+    +                               3673 ???  (in <unknown binary>)  [0x107713124]
+    +                               ! 2588 ???  (in <unknown binary>)  [0x107717778]
+    +                               ! : 2173 ???  (in <unknown binary>)  [0x1077151b4]
+    +                               ! : | 1977 ???  (in <unknown binary>)  [0x107715378]
+    +                               ! : | + 382 ???  (in <unknown binary>)  [0x1077155e8]
+    +                               ! : | + ! 206 ???  (in <unknown binary>)  [0x1077154fc]
+    +                               ! : | + ! 175 ???  (in <unknown binary>)  [0x106a61664]
+    +                               ! : | + ! 1 ???  (in <unknown binary>)  [0x1077154f8]
+    +                               ! : | + 311 ???  (in <unknown binary>)  [0x1077156d0]
+    +                               ! : | + ! 273 ???  (in <unknown binary>)  [0x1077156d0]
+    +                               ! : | + ! : 273 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 164,1796,...  [0x105582234,0x105582894,...]
+    +                               ! : | + ! 35 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 36,272,...  [0x1055821b4,0x1055822a0,...]
+    +                               ! : | + ! 3 Buffer::BulkMoveWithWriteBarrier(void*, void*, unsigned long)  (in libcoreclr.dylib) + 8  [0x1056a78a0]
+    +                               ! : | + 198 ???  (in <unknown binary>)  [0x1076a9b48]
+    +                               ! : | + 189 ???  (in <unknown binary>)  [0x106544104]
+    +                               ! : | + 175 ???  (in <unknown binary>)  [0x107ab1ea8]
+    +                               ! : | + 173 ???  (in <unknown binary>)  [0x1077155ec]
+    +                               ! : | + 159 ???  (in <unknown binary>)  [0x1077155e0]
+    +                               ! : | + 158 ???  (in <unknown binary>)  [0x107710c7c]
+    +                               ! : | + 34 ???  (in <unknown binary>)  [0x107715674]
+    +                               ! : | + 33 ???  (in <unknown binary>)  [0x106a61668]
+    +                               ! : | + 27 ???  (in <unknown binary>)  [0x107715724]
+    +                               ! : | + 18 ???  (in <unknown binary>)  [0x107715550]
+    +                               ! : | + 16 ???  (in <unknown binary>)  [0x1077156b4]
+    +                               ! : | + 15 ???  (in <unknown binary>)  [0x106500038]
+    +                               ! : | + 14 ???  (in <unknown binary>)  [0x10650007c]
+    +                               ! : | + 13 ???  (in <unknown binary>)  [0x106500014]
+    +                               ! : | + 13 ???  (in <unknown binary>)  [0x107710c70]
+    +                               ! : | + 12 ???  (in <unknown binary>)  [0x1077155a4]
+    +                               ! : | + 12 ???  (in <unknown binary>)  [0x10771568c]
+    +                               ! : | + 10 ???  (in <unknown binary>)  [0x1077156dc]
+    +                               ! : | + 9 ???  (in <unknown binary>)  [0x106500034]
+    +                               ! : | + 1 ???  (in <unknown binary>)  [0x1065440f0]
+    +                               ! : | + 1 ???  (in <unknown binary>)  [0x1077154e0]
+    +                               ! : | + 1 ???  (in <unknown binary>)  [0x1077155bc]
+    +                               ! : | + 1 ???  (in <unknown binary>)  [0x1077155c8]
+    +                               ! : | + 1 ???  (in <unknown binary>)  [0x1077155f8]
+    +                               ! : | + 1 ???  (in <unknown binary>)  [0x1077156bc]
+    +                               ! : | 33 ???  (in <unknown binary>)  [0x107715390]
+    +                               ! : | + 14 ???  (in <unknown binary>)  [0x107715468]
+    +                               ! : | + 11 ???  (in <unknown binary>)  [0x1077154b4]
+    +                               ! : | + 8 ???  (in <unknown binary>)  [0x107715498]
+    +                               ! : | 26 ???  (in <unknown binary>)  [0x1077153e4]
+    +                               ! : | 18 ???  (in <unknown binary>)  [0x107710c7c]
+    +                               ! : | 17 ???  (in <unknown binary>)  [0x107715300]
+    +                               ! : | + 10 ???  (in <unknown binary>)  [0x106a61664]
+    +                               ! : | + 7 ???  (in <unknown binary>)  [0x1077154fc]
+    +                               ! : | 15 ???  (in <unknown binary>)  [0x1076a9b48]
+    +                               ! : | 12 ???  (in <unknown binary>)  [0x107715298]
+    +                               ! : | 11 ???  (in <unknown binary>)  [0x107ab1ea8]
+    +                               ! : | 10 ???  (in <unknown binary>)  [0x107715388]
+    +                               ! : | 9 ???  (in <unknown binary>)  [0x106544104]
+    +                               ! : | 9 ???  (in <unknown binary>)  [0x107715294]
+    +                               ! : | 9 ???  (in <unknown binary>)  [0x1077152f8]
+    +                               ! : | 8 ???  (in <unknown binary>)  [0x1077152c8]
+    +                               ! : | 8 ???  (in <unknown binary>)  [0x107715370]
+    +                               ! : | 5 ???  (in <unknown binary>)  [0x106a61668]
+    +                               ! : | 2 ???  (in <unknown binary>)  [0x1077152a8]
+    +                               ! : | 1 ???  (in <unknown binary>)  [0x107710c68]
+    +                               ! : | 1 ???  (in <unknown binary>)  [0x107710c70]
+    +                               ! : | 1 ???  (in <unknown binary>)  [0x107715300]
+    +                               ! : | 1 ???  (in <unknown binary>)  [0x107715390]
+    +                               ! : 196 ???  (in <unknown binary>)  [0x107715094]
+    +                               ! : | 112 ???  (in <unknown binary>)  [0x106819b10]
+    +                               ! : | + 47 ???  (in <unknown binary>)  [0x1068b3714]
+    +                               ! : | + ! 24 ???  (in <unknown binary>)  [0x107712710]
+    +                               ! : | + ! 17 ???  (in <unknown binary>)  [0x107712720]
+    +                               ! : | + ! 6 ???  (in <unknown binary>)  [0x107712718]
+    +                               ! : | + !   6 tlv_get_addr  (in libdyld.dylib) + 20  [0x181b0f0c4]
+    +                               ! : | + 23 ???  (in <unknown binary>)  [0x1068b3750]
+    +                               ! : | + 16 ???  (in <unknown binary>)  [0x1076a87c8]
+    +                               ! : | + 15 ???  (in <unknown binary>)  [0x1068b370c]
+    +                               ! : | + 10 ???  (in <unknown binary>)  [0x1068b3748]
+    +                               ! : | + 1 ???  (in <unknown binary>)  [0x1068b3744]
+    +                               ! : | 27 ???  (in <unknown binary>)  [0x106819b34]
+    +                               ! : | 16 ???  (in <unknown binary>)  [0x107ab3318]
+    +                               ! : | 13 ???  (in <unknown binary>)  [0x106819b10]
+    +                               ! : | 11 ???  (in <unknown binary>)  [0x106819b08]
+    +                               ! : | 9 ???  (in <unknown binary>)  [0x106819b4c]
+    +                               ! : | 8 ???  (in <unknown binary>)  [0x107714024]
+    +                               ! : 164 ???  (in <unknown binary>)  [0x1077151e0]
+    +                               ! : | 98 ???  (in <unknown binary>)  [0x106819d68]
+    +                               ! : | + 48 ???  (in <unknown binary>)  [0x1068b3714]
+    +                               ! : | + ! 18 ???  (in <unknown binary>)  [0x107712720]
+    +                               ! : | + ! 16 ???  (in <unknown binary>)  [0x107712710]
+    +                               ! : | + ! 14 ???  (in <unknown binary>)  [0x107712718]
+    +                               ! : | + !   14 tlv_get_addr  (in libdyld.dylib) + 20  [0x181b0f0c4]
+    +                               ! : | + 14 ???  (in <unknown binary>)  [0x1068b3750]
+    +                               ! : | + 13 ???  (in <unknown binary>)  [0x1076a87c8]
+    +                               ! : | + 10 ???  (in <unknown binary>)  [0x1068b3748]
+    +                               ! : | + 9 ???  (in <unknown binary>)  [0x1068b370c]
+    +                               ! : | + 2 ???  (in <unknown binary>)  [0x1068b3744]
+    +                               ! : | + 1 ???  (in <unknown binary>)  [0x1068b3704]
+    +                               ! : | + 1 ???  (in <unknown binary>)  [0x1068b375c]
+    +                               ! : | 26 ???  (in <unknown binary>)  [0x106819da4]
+    +                               ! : | 11 ???  (in <unknown binary>)  [0x107714024]
+    +                               ! : | 11 ???  (in <unknown binary>)  [0x107ab3318]
+    +                               ! : | 10 ???  (in <unknown binary>)  [0x106819d68]
+    +                               ! : | 8 ???  (in <unknown binary>)  [0x106819d50]
+    +                               ! : 18 ???  (in <unknown binary>)  [0x1077151ec]
+    +                               ! : 11 ???  (in <unknown binary>)  [0x1077151d8]
+    +                               ! : 8 ???  (in <unknown binary>)  [0x10771508c]
+    +                               ! : 6 ???  (in <unknown binary>)  [0x107715158]
+    +                               ! : 6 ???  (in <unknown binary>)  [0x1077151ac]
+    +                               ! : 5 ???  (in <unknown binary>)  [0x107715160]
+    +                               ! : 1 ???  (in <unknown binary>)  [0x10771509c]
+    +                               ! 1043 ???  (in <unknown binary>)  [0x107717798]
+    +                               ! : 621 ???  (in <unknown binary>)  [0x107715ea0]
+    +                               ! : | 374 ???  (in <unknown binary>)  [0x10771607c]
+    +                               ! : | + 338 ???  (in <unknown binary>)  [0x10771607c]
+    +                               ! : | + ! 338 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 244,1796,...  [0x105582284,0x105582894,...]
+    +                               ! : | + 24 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 24,48,...  [0x1055821a8,0x1055821c0,...]
+    +                               ! : | + 12 Buffer::BulkMoveWithWriteBarrier(void*, void*, unsigned long)  (in libcoreclr.dylib) + 0  [0x1056a7898]
+    +                               ! : | 56 ???  (in <unknown binary>)  [0x1077160ac]
+    +                               ! : | + 22 ???  (in <unknown binary>)  [0x107716260]
+    +                               ! : | + 15 ???  (in <unknown binary>)  [0x106746500]
+    +                               ! : | + 12 ???  (in <unknown binary>)  [0x107716224]
+    +                               ! : | + 7 ???  (in <unknown binary>)  [0x106746548]
+    +                               ! : | 40 ???  (in <unknown binary>)  [0x107716104]
+    +                               ! : | + 14 ???  (in <unknown binary>)  [0x1077154b4]
+    +                               ! : | + 11 ???  (in <unknown binary>)  [0x107715498]
+    +                               ! : | + 9 ???  (in <unknown binary>)  [0x107715468]
+    +                               ! : | + 5 ???  (in <unknown binary>)  [0x107715494]
+    +                               ! : | + 1 ???  (in <unknown binary>)  [0x107715484]
+    +                               ! : | 31 ???  (in <unknown binary>)  [0x107716188]
+    +                               ! : | 20 ???  (in <unknown binary>)  [0x107715f90]
+    +                               ! : | 14 ???  (in <unknown binary>)  [0x10650002c]
+    +                               ! : | 12 ???  (in <unknown binary>)  [0x107716088]
+    +                               ! : | 11 ???  (in <unknown binary>)  [0x107716014]
+    +                               ! : | 11 ???  (in <unknown binary>)  [0x10771604c]
+    +                               ! : | 11 ???  (in <unknown binary>)  [0x1077160e4]
+    +                               ! : | 10 ???  (in <unknown binary>)  [0x1077160a4]
+    +                               ! : | 8 ???  (in <unknown binary>)  [0x107715f68]
+    +                               ! : | 8 ???  (in <unknown binary>)  [0x107716038]
+    +                               ! : | 6 ???  (in <unknown binary>)  [0x106500014]
+    +                               ! : | 3 ???  (in <unknown binary>)  [0x10771601c]
+    +                               ! : | 2 ???  (in <unknown binary>)  [0x106500020]
+    +                               ! : | 1 ???  (in <unknown binary>)  [0x107715f60]
+    +                               ! : | 1 ???  (in <unknown binary>)  [0x107716068]
+    +                               ! : | 1 ???  (in <unknown binary>)  [0x1077160ec]
+    +                               ! : | 1 ???  (in <unknown binary>)  [0x1077160fc]
+    +                               ! : 198 ???  (in <unknown binary>)  [0x107715e7c]
+    +                               ! : | 126 ???  (in <unknown binary>)  [0x106819b10]
+    +                               ! : | + 57 ???  (in <unknown binary>)  [0x1068b3714]
+    +                               ! : | + ! 27 ???  (in <unknown binary>)  [0x107712710]
+    +                               ! : | + ! 19 ???  (in <unknown binary>)  [0x107712720]
+    +                               ! : | + ! 11 ???  (in <unknown binary>)  [0x107712718]
+    +                               ! : | + !   11 tlv_get_addr  (in libdyld.dylib) + 20,28  [0x181b0f0c4,0x181b0f0cc]
+    +                               ! : | + 22 ???  (in <unknown binary>)  [0x1068b370c]
+    +                               ! : | + 19 ???  (in <unknown binary>)  [0x1068b3750]
+    +                               ! : | + 16 ???  (in <unknown binary>)  [0x1068b3748]
+    +                               ! : | + 12 ???  (in <unknown binary>)  [0x1076a87c8]
+    +                               ! : | 28 ???  (in <unknown binary>)  [0x106819b34]
+    +                               ! : | 10 ???  (in <unknown binary>)  [0x106819b4c]
+    +                               ! : | 8 ???  (in <unknown binary>)  [0x106819b08]
+    +                               ! : | 8 ???  (in <unknown binary>)  [0x106819b10]
+    +                               ! : | 7 ???  (in <unknown binary>)  [0x107ab3318]
+    +                               ! : | 6 ???  (in <unknown binary>)  [0x107714024]
+    +                               ! : | 3 ???  (in <unknown binary>)  [0x107714028]
+    +                               ! : | 2 ???  (in <unknown binary>)  [0x107714020]
+    +                               ! : 173 ???  (in <unknown binary>)  [0x107715ec4]
+    +                               ! : | 79 ???  (in <unknown binary>)  [0x106819d68]
+    +                               ! : | + 32 ???  (in <unknown binary>)  [0x1068b3714]
+    +                               ! : | + ! 15 ???  (in <unknown binary>)  [0x107712720]
+    +                               ! : | + ! 12 ???  (in <unknown binary>)  [0x107712718]
+    +                               ! : | + ! : 12 tlv_get_addr  (in libdyld.dylib) + 20,28  [0x181b0f0c4,0x181b0f0cc]
+    +                               ! : | + ! 5 ???  (in <unknown binary>)  [0x107712710]
+    +                               ! : | + 15 ???  (in <unknown binary>)  [0x1068b3750]
+    +                               ! : | + 13 ???  (in <unknown binary>)  [0x1068b3748]
+    +                               ! : | + 12 ???  (in <unknown binary>)  [0x1068b370c]
+    +                               ! : | + 7 ???  (in <unknown binary>)  [0x1076a87c8]
+    +                               ! : | 23 ???  (in <unknown binary>)  [0x106819da4]
+    +                               ! : | 18 ???  (in <unknown binary>)  [0x106819d50]
+    +                               ! : | 18 ???  (in <unknown binary>)  [0x106819d68]
+    +                               ! : | 15 ???  (in <unknown binary>)  [0x107714024]
+    +                               ! : | 11 ???  (in <unknown binary>)  [0x106819d64]
+    +                               ! : | 6 ???  (in <unknown binary>)  [0x107ab3318]
+    +                               ! : | 3 ???  (in <unknown binary>)  [0x106819d60]
+    +                               ! : 24 ???  (in <unknown binary>)  [0x107715e74]
+    +                               ! : 10 ???  (in <unknown binary>)  [0x107715ecc]
+    +                               ! : 9 ???  (in <unknown binary>)  [0x107715e98]
+    +                               ! : 5 ???  (in <unknown binary>)  [0x107715ebc]
+    +                               ! : 2 ???  (in <unknown binary>)  [0x107715e9c]
+    +                               ! : 1 ???  (in <unknown binary>)  [0x107715f54]
+    +                               ! 22 ???  (in <unknown binary>)  [0x107717770]
+    +                               ! 11 ???  (in <unknown binary>)  [0x107717790]
+    +                               ! 9 ???  (in <unknown binary>)  [0x107717798]
+    +                               3200 ???  (in <unknown binary>)  [0x107713104]
+    +                                 1992 ???  (in <unknown binary>)  [0x1077158d8]
+    +                                 : 1188 ???  (in <unknown binary>)  [0x107715d6c]
+    +                                 : | 577 ???  (in <unknown binary>)  [0x107715ea0]
+    +                                 : | + 71 ???  (in <unknown binary>)  [0x10771601c]
+    +                                 : | + 55 ???  (in <unknown binary>)  [0x107716cbc]
+    +                                 : | + ! 47 ???  (in <unknown binary>)  [0x1077160e4]
+    +                                 : | + ! : 30 ???  (in <unknown binary>)  [0x1077162e0]
+    +                                 : | + ! : | 19 ???  (in <unknown binary>)  [0x1077163d4]
+    +                                 : | + ! : | + 16 ???  (in <unknown binary>)  [0x10771652c]
+    +                                 : | + ! : | + ! 5 ???  (in <unknown binary>)  [0x107716818]
+    +                                 : | + ! : | + ! : 3 ???  (in <unknown binary>)  [0x107716fa4]
+    +                                 : | + ! : | + ! : 2 ???  (in <unknown binary>)  [0x10650007c]
+    +                                 : | + ! : | + ! 2 ???  (in <unknown binary>)  [0x1077166d4]
+    +                                 : | + ! : | + ! 2 ???  (in <unknown binary>)  [0x1077167f4]
+    +                                 : | + ! : | + ! 1 ???  (in <unknown binary>)  [0x1077166c4]
+    +                                 : | + ! : | + ! : 1 ???  (in <unknown binary>)  [0x1077154fc]
+    +                                 : | + ! : | + ! 1 ???  (in <unknown binary>)  [0x106500038]
+    +                                 : | + ! : | + ! 1 ???  (in <unknown binary>)  [0x107710c70]
+    +                                 : | + ! : | + ! 1 ???  (in <unknown binary>)  [0x107716670]
+    +                                 : | + ! : | + ! 1 ???  (in <unknown binary>)  [0x1077166c8]
+    +                                 : | + ! : | + ! 1 ???  (in <unknown binary>)  [0x107716768]
+    +                                 : | + ! : | + ! 1 ???  (in <unknown binary>)  [0x107ab1ea8]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x107716460]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x1077164c4]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x107716528]
+    +                                 : | + ! : | 5 ???  (in <unknown binary>)  [0x1077163cc]
+    +                                 : | + ! : | 2 ???  (in <unknown binary>)  [0x1077163b0]
+    +                                 : | + ! : | 2 ???  (in <unknown binary>)  [0x107716410]
+    +                                 : | + ! : | 1 ???  (in <unknown binary>)  [0x107716400]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x10674653c]
+    +                                 : | + ! : | 1 ???  (in <unknown binary>)  [0x1077163a4]
+    +                                 : | + ! : 12 ???  (in <unknown binary>)  [0x107716328]
+    +                                 : | + ! : | 5 ???  (in <unknown binary>)  [0x107716938]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x1077175d0]
+    +                                 : | + ! : | + ! 1 ???  (in <unknown binary>)  [0x107716f6c]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x106500050]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x1077171c0]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x10771752c]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x10771754c]
+    +                                 : | + ! : | 5 ???  (in <unknown binary>)  [0x1077169d4]
+    +                                 : | + ! : | + 2 ???  (in <unknown binary>)  [0x107716f6c]
+    +                                 : | + ! : | + 2 ???  (in <unknown binary>)  [0x107716fa4]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x107716ee4]
+    +                                 : | + ! : | 1 ???  (in <unknown binary>)  [0x107716930]
+    +                                 : | + ! : | 1 ???  (in <unknown binary>)  [0x107716ec0]
+    +                                 : | + ! : 2 ???  (in <unknown binary>)  [0x10771635c]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x106500014]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x107716320]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x107716340]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x107716104]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x107715468]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x1077154b4]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x107716038]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x1077160a4]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x1077160b4]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x1077160dc]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x1077160e4]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x107716188]
+    +                                 : | + 52 ???  (in <unknown binary>)  [0x1077160ac]
+    +                                 : | + ! 19 ???  (in <unknown binary>)  [0x107716224]
+    +                                 : | + ! 13 ???  (in <unknown binary>)  [0x106746548]
+    +                                 : | + ! 7 ???  (in <unknown binary>)  [0x106746508]
+    +                                 : | + ! 7 ???  (in <unknown binary>)  [0x107716260]
+    +                                 : | + ! 6 ???  (in <unknown binary>)  [0x106746500]
+    +                                 : | + 47 ???  (in <unknown binary>)  [0x10771607c]
+    +                                 : | + ! 37 ???  (in <unknown binary>)  [0x10771607c]
+    +                                 : | + ! : 37 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 232,1072,...  [0x105582278,0x1055825c0,...]
+    +                                 : | + ! 8 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 24,272,...  [0x1055821a8,0x1055822a0,...]
+    +                                 : | + ! 2 Buffer::BulkMoveWithWriteBarrier(void*, void*, unsigned long)  (in libcoreclr.dylib) + 0  [0x1056a7898]
+    +                                 : | + 34 ???  (in <unknown binary>)  [0x1077160e4]
+    +                                 : | + ! 15 ???  (in <unknown binary>)  [0x1077162e0]
+    +                                 : | + ! : 8 ???  (in <unknown binary>)  [0x1077163d4]
+    +                                 : | + ! : | 6 ???  (in <unknown binary>)  [0x10771652c]
+    +                                 : | + ! : | + 3 ???  (in <unknown binary>)  [0x1077166d8]
+    +                                 : | + ! : | + 2 ???  (in <unknown binary>)  [0x10650004c]
+    +                                 : | + ! : | + 1 ???  (in <unknown binary>)  [0x107716860]
+    +                                 : | + ! : | 1 ???  (in <unknown binary>)  [0x107716460]
+    +                                 : | + ! : | 1 ???  (in <unknown binary>)  [0x1077164c4]
+    +                                 : | + ! : 3 ???  (in <unknown binary>)  [0x107716540]
+    +                                 : | + ! : 2 ???  (in <unknown binary>)  [0x1077163f8]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x107716400]
+    +                                 : | + ! : | 1 ???  (in <unknown binary>)  [0x106746548]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x107716398]
+    +                                 : | + ! 9 ???  (in <unknown binary>)  [0x107716328]
+    +                                 : | + ! : 3 ???  (in <unknown binary>)  [0x1077168e0]
+    +                                 : | + ! : 2 ???  (in <unknown binary>)  [0x106500014]
+    +                                 : | + ! : 2 ???  (in <unknown binary>)  [0x1077168b0]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x1077169b0]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x1077169d8]
+    +                                 : | + ! 3 ???  (in <unknown binary>)  [0x1077162bc]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x106500038]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x1077162e0]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x1077162f8]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x10771635c]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x107716a0c]
+    +                                 : | + 24 ???  (in <unknown binary>)  [0x107716104]
+    +                                 : | + ! 10 ???  (in <unknown binary>)  [0x107715468]
+    +                                 : | + ! 8 ???  (in <unknown binary>)  [0x107715498]
+    +                                 : | + ! 6 ???  (in <unknown binary>)  [0x1077154b4]
+    +                                 : | + 24 ???  (in <unknown binary>)  [0x107716188]
+    +                                 : | + 22 ???  (in <unknown binary>)  [0x107715f90]
+    +                                 : | + 21 ???  (in <unknown binary>)  [0x107715f74]
+    +                                 : | + 21 ???  (in <unknown binary>)  [0x10771604c]
+    +                                 : | + 16 ???  (in <unknown binary>)  [0x1077160cc]
+    +                                 : | + 15 ???  (in <unknown binary>)  [0x106500014]
+    +                                 : | + 15 ???  (in <unknown binary>)  [0x107716038]
+    +                                 : | + 15 ???  (in <unknown binary>)  [0x1077160e4]
+    +                                 : | + 12 ???  (in <unknown binary>)  [0x107716138]
+    +                                 : | + 12 ???  (in <unknown binary>)  [0x1077161a4]
+    +                                 : | + 11 ???  (in <unknown binary>)  [0x10650002c]
+    +                                 : | + 10 ???  (in <unknown binary>)  [0x1077160b4]
+    +                                 : | + 10 ???  (in <unknown binary>)  [0x10771612c]
+    +                                 : | + 9 ???  (in <unknown binary>)  [0x107716c28]
+    +                                 : | + ! 9 ???  (in <unknown binary>)  [0x106692520]
+    +                                 : | + !   5 ???  (in <unknown binary>)  [0x106692520]
+    +                                 : | + !   : 5 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 244,232  [0x105582284,0x105582278]
+    +                                 : | + !   3 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 24,48  [0x1055821a8,0x1055821c0]
+    +                                 : | + !   1 Buffer::BulkMoveWithWriteBarrier(void*, void*, unsigned long)  (in libcoreclr.dylib) + 0  [0x1056a7898]
+    +                                 : | + 9 ???  (in <unknown binary>)  [0x1067464a0]
+    +                                 : | + 9 ???  (in <unknown binary>)  [0x107715f6c]
+    +                                 : | + 9 ???  (in <unknown binary>)  [0x1077160a4]
+    +                                 : | + 7 ???  (in <unknown binary>)  [0x107715f98]
+    +                                 : | + 6 ???  (in <unknown binary>)  [0x107716178]
+    +                                 : | + 5 ???  (in <unknown binary>)  [0x107716190]
+    +                                 : | + 4 ???  (in <unknown binary>)  [0x107716c50]
+    +                                 : | + ! 3 ???  (in <unknown binary>)  [0x106692520]
+    +                                 : | + ! : 2 ???  (in <unknown binary>)  [0x106692520]
+    +                                 : | + ! : | 2 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 244  [0x105582284]
+    +                                 : | + ! : 1 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 272  [0x1055822a0]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x106692520]
+    +                                 : | + 4 ???  (in <unknown binary>)  [0x107715460]
+    +                                 : | + 4 ???  (in <unknown binary>)  [0x107715f68]
+    +                                 : | + 3 ???  (in <unknown binary>)  [0x107716ce8]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x1067464b0]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x106746518]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x106746534]
+    +                                 : | + 3 ???  (in <unknown binary>)  [0x107715f60]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x107716068]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x107716070]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x107716088]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x107716090]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x107716180]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x107716264]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x107716bd8]
+    +                                 : | + 1 ???  (in <unknown binary>)  [0x107716014]
+    +                                 : | + 1 ???  (in <unknown binary>)  [0x1077160ac]
+    +                                 : | + 1 ???  (in <unknown binary>)  [0x1077160dc]
+    +                                 : | + 1 ???  (in <unknown binary>)  [0x107716ce0]
+    +                                 : | 259 ???  (in <unknown binary>)  [0x107715e7c]
+    +                                 : | + 125 ???  (in <unknown binary>)  [0x106819b10]
+    +                                 : | + ! 51 ???  (in <unknown binary>)  [0x1068b3714]
+    +                                 : | + ! : 20 ???  (in <unknown binary>)  [0x107712710]
+    +                                 : | + ! : 16 ???  (in <unknown binary>)  [0x107712720]
+    +                                 : | + ! : 15 ???  (in <unknown binary>)  [0x107712718]
+    +                                 : | + ! :   15 tlv_get_addr  (in libdyld.dylib) + 20,24  [0x181b0f0c4,0x181b0f0c8]
+    +                                 : | + ! 24 ???  (in <unknown binary>)  [0x1076a87c8]
+    +                                 : | + ! 21 ???  (in <unknown binary>)  [0x1068b370c]
+    +                                 : | + ! 18 ???  (in <unknown binary>)  [0x1068b3748]
+    +                                 : | + ! 6 ???  (in <unknown binary>)  [0x1068b3750]
+    +                                 : | + ! 3 ???  (in <unknown binary>)  [0x1068b3744]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x1068b3710]
+    +                                 : | + 47 ???  (in <unknown binary>)  [0x106819b34]
+    +                                 : | + 19 ???  (in <unknown binary>)  [0x106819b08]
+    +                                 : | + 18 ???  (in <unknown binary>)  [0x106819b10]
+    +                                 : | + 18 ???  (in <unknown binary>)  [0x106819b4c]
+    +                                 : | + 13 ???  (in <unknown binary>)  [0x107714024]
+    +                                 : | + 9 ???  (in <unknown binary>)  [0x107ab3318]
+    +                                 : | + 5 ???  (in <unknown binary>)  [0x107ab331c]
+    +                                 : | + 4 ???  (in <unknown binary>)  [0x107714028]
+    +                                 : | + 1 ???  (in <unknown binary>)  [0x107714020]
+    +                                 : | 257 ???  (in <unknown binary>)  [0x107715ec4]
+    +                                 : | + 140 ???  (in <unknown binary>)  [0x106819d68]
+    +                                 : | + ! 61 ???  (in <unknown binary>)  [0x1068b3714]
+    +                                 : | + ! : 24 ???  (in <unknown binary>)  [0x107712710]
+    +                                 : | + ! : 21 ???  (in <unknown binary>)  [0x107712720]
+    +                                 : | + ! : 16 ???  (in <unknown binary>)  [0x107712718]
+    +                                 : | + ! :   16 tlv_get_addr  (in libdyld.dylib) + 20,28  [0x181b0f0c4,0x181b0f0cc]
+    +                                 : | + ! 24 ???  (in <unknown binary>)  [0x1068b370c]
+    +                                 : | + ! 20 ???  (in <unknown binary>)  [0x1068b3748]
+    +                                 : | + ! 18 ???  (in <unknown binary>)  [0x1076a87c8]
+    +                                 : | + ! 13 ???  (in <unknown binary>)  [0x1068b3750]
+    +                                 : | + ! 3 ???  (in <unknown binary>)  [0x1068b3744]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x1068b3714]
+    +                                 : | + 45 ???  (in <unknown binary>)  [0x106819da4]
+    +                                 : | + 20 ???  (in <unknown binary>)  [0x106819d68]
+    +                                 : | + 16 ???  (in <unknown binary>)  [0x107714024]
+    +                                 : | + 15 ???  (in <unknown binary>)  [0x107ab3318]
+    +                                 : | + 12 ???  (in <unknown binary>)  [0x106819d60]
+    +                                 : | + 9 ???  (in <unknown binary>)  [0x106819d50]
+    +                                 : | 31 ???  (in <unknown binary>)  [0x107715e74]
+    +                                 : | 19 ???  (in <unknown binary>)  [0x107715ecc]
+    +                                 : | 14 ???  (in <unknown binary>)  [0x107715e98]
+    +                                 : | 13 ???  (in <unknown binary>)  [0x107715ebc]
+    +                                 : | 6 ???  (in <unknown binary>)  [0x1077161a8]
+    +                                 : | 5 ???  (in <unknown binary>)  [0x107715ec0]
+    +                                 : | 2 ???  (in <unknown binary>)  [0x106819b50]
+    +                                 : | 2 ???  (in <unknown binary>)  [0x107715e9c]
+    +                                 : | 1 ???  (in <unknown binary>)  [0x106819d40]
+    +                                 : | 1 ???  (in <unknown binary>)  [0x107715e70]
+    +                                 : | 1 ???  (in <unknown binary>)  [0x107716d00]
+    +                                 : 152 ???  (in <unknown binary>)  [0x107715cd0]
+    +                                 : 73 ???  (in <unknown binary>)  [0x107715cd8]
+    +                                 : 52 ???  (in <unknown binary>)  [0x1077159e0]
+    +                                 : | 24 ???  (in <unknown binary>)  [0x107714fac]
+    +                                 : | 13 ???  (in <unknown binary>)  [0x107714fb4]
+    +                                 : | + 13 tlv_get_addr  (in libdyld.dylib) + 28,20  [0x181b0f0cc,0x181b0f0c4]
+    +                                 : | 13 ???  (in <unknown binary>)  [0x107715010]
+    +                                 : | 1 ???  (in <unknown binary>)  [0x107714fcc]
+    +                                 : | 1 ???  (in <unknown binary>)  [0x10771500c]
+    +                                 : 45 ???  (in <unknown binary>)  [0x107715aa0]
+    +                                 : 28 ???  (in <unknown binary>)  [0x107715da0]
+    +                                 : | 24 ???  (in <unknown binary>)  [0x107716af4]
+    +                                 : | + 13 ???  (in <unknown binary>)  [0x107715ea0]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x1077160ac]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x106746508]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x107716260]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x10650002c]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x107715f74]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x10771604c]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x10771607c]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x10771607c]
+    +                                 : | + ! :   1 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 104  [0x1055821f8]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x107716cbc]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x1077160e4]
+    +                                 : | + ! :   1 ???  (in <unknown binary>)  [0x1077162e0]
+    +                                 : | + ! :     1 ???  (in <unknown binary>)  [0x1077163d4]
+    +                                 : | + ! :       1 ???  (in <unknown binary>)  [0x10771652c]
+    +                                 : | + ! :         1 ???  (in <unknown binary>)  [0x1077166c8]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x1077160cc]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x1077160fc]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x107716188]
+    +                                 : | + 4 ???  (in <unknown binary>)  [0x107715ec4]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x106819d68]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x1068b3714]
+    +                                 : | + ! : | 1 ???  (in <unknown binary>)  [0x107712718]
+    +                                 : | + ! : |   1 tlv_get_addr  (in libdyld.dylib) + 12  [0x181b0f0bc]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x1076a87c8]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x106819da4]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x107ab3318]
+    +                                 : | + 3 ???  (in <unknown binary>)  [0x107715e7c]
+    +                                 : | + ! 3 ???  (in <unknown binary>)  [0x106819b10]
+    +                                 : | + !   1 ???  (in <unknown binary>)  [0x1068b3714]
+    +                                 : | + !   : 1 ???  (in <unknown binary>)  [0x107712718]
+    +                                 : | + !   :   1 tlv_get_addr  (in libdyld.dylib) + 20  [0x181b0f0c4]
+    +                                 : | + !   1 ???  (in <unknown binary>)  [0x1068b3748]
+    +                                 : | + !   1 ???  (in <unknown binary>)  [0x1076a87c8]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x107715ea4]
+    +                                 : | + 1 ???  (in <unknown binary>)  [0x107715e74]
+    +                                 : | + 1 ???  (in <unknown binary>)  [0x107716d00]
+    +                                 : | 3 ???  (in <unknown binary>)  [0x107716aa8]
+    +                                 : | 1 ???  (in <unknown binary>)  [0x107716b34]
+    +                                 : 28 ???  (in <unknown binary>)  [0x107715d6c]
+    +                                 : 27 ???  (in <unknown binary>)  [0x107715bf8]
+    +                                 : 27 ???  (in <unknown binary>)  [0x107715e10]
+    +                                 : 25 ???  (in <unknown binary>)  [0x107715a4c]
+    +                                 : 21 ???  (in <unknown binary>)  [0x107715c2c]
+    +                                 : 18 ???  (in <unknown binary>)  [0x107715c9c]
+    +                                 : 17 ???  (in <unknown binary>)  [0x1077159d8]
+    +                                 : 16 ???  (in <unknown binary>)  [0x1077159ec]
+    +                                 : 16 ???  (in <unknown binary>)  [0x107715ba8]
+    +                                 : 16 ???  (in <unknown binary>)  [0x107715d64]
+    +                                 : 15 ???  (in <unknown binary>)  [0x1077159e4]
+    +                                 : 15 ???  (in <unknown binary>)  [0x107715ab4]
+    +                                 : 15 ???  (in <unknown binary>)  [0x107715c94]
+    +                                 : 15 ???  (in <unknown binary>)  [0x107715de0]
+    +                                 : 14 ???  (in <unknown binary>)  [0x107715aa8]
+    +                                 : 14 ???  (in <unknown binary>)  [0x107715d38]
+    +                                 : 13 ???  (in <unknown binary>)  [0x107715b80]
+    +                                 : 12 ???  (in <unknown binary>)  [0x107715b54]
+    +                                 : 11 ???  (in <unknown binary>)  [0x107715cb8]
+    +                                 : 10 ???  (in <unknown binary>)  [0x107715d34]
+    +                                 : 9 ???  (in <unknown binary>)  [0x107715a80]
+    +                                 : 8 ???  (in <unknown binary>)  [0x107715cc4]
+    +                                 : 8 ???  (in <unknown binary>)  [0x107715cc8]
+    +                                 : 8 ???  (in <unknown binary>)  [0x107715d30]
+    +                                 : 7 ???  (in <unknown binary>)  [0x107715d80]
+    +                                 : 6 ???  (in <unknown binary>)  [0x107715a94]
+    +                                 : 6 ???  (in <unknown binary>)  [0x107715c20]
+    +                                 : 6 ???  (in <unknown binary>)  [0x107715c74]
+    +                                 : 6 ???  (in <unknown binary>)  [0x107715d2c]
+    +                                 : 6 ???  (in <unknown binary>)  [0x107ab1ea8]
+    +                                 : 5 ???  (in <unknown binary>)  [0x107715d20]
+    +                                 : | 3 ???  (in <unknown binary>)  [0x1077154fc]
+    +                                 : | 2 ???  (in <unknown binary>)  [0x106a61664]
+    +                                 : 5 ???  (in <unknown binary>)  [0x107715ccc]
+    +                                 : 3 ???  (in <unknown binary>)  [0x107714f8c]
+    +                                 : 3 ???  (in <unknown binary>)  [0x107715a5c]
+    +                                 : 3 ???  (in <unknown binary>)  [0x107715b50]
+    +                                 : 3 ???  (in <unknown binary>)  [0x107715ba4]
+    +                                 : 2 ???  (in <unknown binary>)  [0x1076a9b48]
+    +                                 : 2 ???  (in <unknown binary>)  [0x107715b0c]
+    +                                 : 2 ???  (in <unknown binary>)  [0x107715b70]
+    +                                 : 1 ???  (in <unknown binary>)  [0x106544104]
+    +                                 : 1 ???  (in <unknown binary>)  [0x107710c7c]
+    +                                 : 1 ???  (in <unknown binary>)  [0x1077159e8]
+    +                                 : 1 ???  (in <unknown binary>)  [0x107715a0c]
+    +                                 : 1 ???  (in <unknown binary>)  [0x107715a44]
+    +                                 : 1 ???  (in <unknown binary>)  [0x107715a84]
+    +                                 : 1 ???  (in <unknown binary>)  [0x107715a98]
+    +                                 : 1 ???  (in <unknown binary>)  [0x107715bf4]
+    +                                 : 1 ???  (in <unknown binary>)  [0x107715d18]
+    +                                 : 1 ???  (in <unknown binary>)  [0x107715d20]
+    +                                 : 1 ???  (in <unknown binary>)  [0x107715d70]
+    +                                 1172 ???  (in <unknown binary>)  [0x1077158b8]
+    +                                 : 1144 ???  (in <unknown binary>)  [0x107714cd8]
+    +                                 : | 961 ???  (in <unknown binary>)  [0x107714ef4]
+    +                                 : | + 569 ???  (in <unknown binary>)  [0x1077151b4]
+    +                                 : | + ! 122 ???  (in <unknown binary>)  [0x107715378]
+    +                                 : | + ! : 32 ???  (in <unknown binary>)  [0x1077156d0]
+    +                                 : | + ! : | 25 ???  (in <unknown binary>)  [0x1077156d0]
+    +                                 : | + ! : | + 25 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 1072,224,...  [0x1055825c0,0x105582270,...]
+    +                                 : | + ! : | 7 InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 36,272,...  [0x1055821b4,0x1055822a0,...]
+    +                                 : | + ! : 12 ???  (in <unknown binary>)  [0x1077155bc]
+    +                                 : | + ! : 9 ???  (in <unknown binary>)  [0x1077155e8]
+    +                                 : | + ! : | 5 ???  (in <unknown binary>)  [0x106a61664]
+    +                                 : | + ! : | 4 ???  (in <unknown binary>)  [0x1077154fc]
+    +                                 : | + ! : 8 ???  (in <unknown binary>)  [0x1077155f8]
+    +                                 : | + ! : 8 ???  (in <unknown binary>)  [0x107ab1ea8]
+    +                                 : | + ! : 7 ???  (in <unknown binary>)  [0x107715550]
+    +                                 : | + ! : 6 ???  (in <unknown binary>)  [0x1077156b4]
+    +                                 : | + ! : 5 ???  (in <unknown binary>)  [0x107715674]
+    +                                 : | + ! : 5 ???  (in <unknown binary>)  [0x10771568c]
+    +                                 : | + ! : 4 ???  (in <unknown binary>)  [0x106500034]
+    +                                 : | + ! : 4 ???  (in <unknown binary>)  [0x106500038]
+    +                                 : | + ! : 4 ???  (in <unknown binary>)  [0x106544104]
+    +                                 : | + ! : 4 ???  (in <unknown binary>)  [0x107715724]
+    +                                 : | + ! : 3 ???  (in <unknown binary>)  [0x1076a9b48]
+    +                                 : | + ! : 3 ???  (in <unknown binary>)  [0x1077156dc]
+    +                                 : | + ! : 2 ???  (in <unknown binary>)  [0x106500014]
+    +                                 : | + ! : 2 ???  (in <unknown binary>)  [0x1077155a4]
+    +                                 : | + ! : 2 ???  (in <unknown binary>)  [0x1077155ec]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x10650007c]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x107710c70]
+    +                                 : | + ! 91 ???  (in <unknown binary>)  [0x1077152a8]
+    +                                 : | + ! 83 ???  (in <unknown binary>)  [0x107715330]
+    +                                 : | + ! : 71 ???  (in <unknown binary>)  [0x107715810]
+    +                                 : | + ! : 5 ???  (in <unknown binary>)  [0x106500014]
+    +                                 : | + ! : 3 ???  (in <unknown binary>)  [0x106500038]
+    +                                 : | + ! : 3 ???  (in <unknown binary>)  [0x1077157ac]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x10650007c]
+    +                                 : | + ! 47 ???  (in <unknown binary>)  [0x107715390]
+    +                                 : | + ! : 17 ???  (in <unknown binary>)  [0x1077154b4]
+    +                                 : | + ! : 16 ???  (in <unknown binary>)  [0x107715468]
+    +                                 : | + ! : 14 ???  (in <unknown binary>)  [0x107715498]
+    +                                 : | + ! 37 ???  (in <unknown binary>)  [0x107715354]
+    +                                 : | + ! : 17 ???  (in <unknown binary>)  [0x106500038]
+    +                                 : | + ! : 11 ???  (in <unknown binary>)  [0x10771543c]
+    +                                 : | + ! : 9 ???  (in <unknown binary>)  [0x10650007c]
+    +                                 : | + ! 36 ???  (in <unknown binary>)  [0x10771530c]
+    +                                 : | + ! 28 ???  (in <unknown binary>)  [0x1077153e4]
+    +                                 : | + ! 24 ???  (in <unknown binary>)  [0x107715388]
+    +                                 : | + ! 21 ???  (in <unknown binary>)  [0x107715294]
+    +                                 : | + ! 18 ???  (in <unknown binary>)  [0x107715300]
+    +                                 : | + ! : 9 ???  (in <unknown binary>)  [0x106a61664]
+    +                                 : | + ! : 9 ???  (in <unknown binary>)  [0x1077154fc]
+    +                                 : | + ! 13 ???  (in <unknown binary>)  [0x1077153c4]
+    +                                 : | + ! 12 ???  (in <unknown binary>)  [0x107715390]
+    +                                 : | + ! 5 ???  (in <unknown binary>)  [0x106544104]
+    +                                 : | + ! 5 ???  (in <unknown binary>)  [0x107710c70]
+    +                                 : | + ! 5 ???  (in <unknown binary>)  [0x10771534c]
+    +                                 : | + ! 5 ???  (in <unknown binary>)  [0x107ab1ea8]
+    +                                 : | + ! 4 ???  (in <unknown binary>)  [0x1076a9b48]
+    +                                 : | + ! 3 ???  (in <unknown binary>)  [0x1077152c8]
+    +                                 : | + ! 3 ???  (in <unknown binary>)  [0x107715358]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x1077153dc]
+    +                                 : | + ! 2 ???  (in <unknown binary>)  [0x107715460]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x107710c7c]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x107715370]
+    +                                 : | + ! 1 ???  (in <unknown binary>)  [0x107715790]
+    +                                 : | + 175 ???  (in <unknown binary>)  [0x107715094]
+    +                                 : | + ! 95 ???  (in <unknown binary>)  [0x106819b10]
+    +                                 : | + ! : 36 ???  (in <unknown binary>)  [0x1068b3714]
+    +                                 : | + ! : | 12 ???  (in <unknown binary>)  [0x107712718]
+    +                                 : | + ! : | + 12 tlv_get_addr  (in libdyld.dylib) + 20  [0x181b0f0c4]
+    +                                 : | + ! : | 12 ???  (in <unknown binary>)  [0x107712710]
+    +                                 : | + ! : | 12 ???  (in <unknown binary>)  [0x107712720]
+    +                                 : | + ! : 18 ???  (in <unknown binary>)  [0x1068b3750]
+    +                                 : | + ! : 15 ???  (in <unknown binary>)  [0x1068b3748]
+    +                                 : | + ! : 12 ???  (in <unknown binary>)  [0x1068b370c]
+    +                                 : | + ! : 10 ???  (in <unknown binary>)  [0x1076a87c8]
+    +                                 : | + ! : 4 ???  (in <unknown binary>)  [0x1068b36e0]
+    +                                 : | + ! 20 ???  (in <unknown binary>)  [0x106819b4c]
+    +                                 : | + ! 15 ???  (in <unknown binary>)  [0x106819b34]
+    +                                 : | + ! 13 ???  (in <unknown binary>)  [0x107714024]
+    +                                 : | + ! 12 ???  (in <unknown binary>)  [0x106819b08]
+    +                                 : | + ! 10 ???  (in <unknown binary>)  [0x106819b10]
+    +                                 : | + ! 10 ???  (in <unknown binary>)  [0x107ab3318]
+    +                                 : | + 162 ???  (in <unknown binary>)  [0x1077151e0]
+    +                                 : | + ! 83 ???  (in <unknown binary>)  [0x106819d68]
+    +                                 : | + ! : 37 ???  (in <unknown binary>)  [0x1068b3714]
+    +                                 : | + ! : | 20 ???  (in <unknown binary>)  [0x107712710]
+    +                                 : | + ! : | 12 ???  (in <unknown binary>)  [0x107712720]
+    +                                 : | + ! : | 4 ???  (in <unknown binary>)  [0x107712718]
+    +                                 : | + ! : | + 4 tlv_get_addr  (in libdyld.dylib) + 20,12  [0x181b0f0c4,0x181b0f0bc]
+    +                                 : | + ! : | 1 ???  (in <unknown binary>)  [0x107712718]
+    +                                 : | + ! : 16 ???  (in <unknown binary>)  [0x1068b370c]
+    +                                 : | + ! : 10 ???  (in <unknown binary>)  [0x1068b3748]
+    +                                 : | + ! : 9 ???  (in <unknown binary>)  [0x1068b3750]
+    +                                 : | + ! : 9 ???  (in <unknown binary>)  [0x1076a87c8]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x1068b3714]
+    +                                 : | + ! : 1 ???  (in <unknown binary>)  [0x1077126f0]
+    +                                 : | + ! 28 ???  (in <unknown binary>)  [0x106819da4]
+    +                                 : | + ! 14 ???  (in <unknown binary>)  [0x107ab3318]
+    +                                 : | + ! 12 ???  (in <unknown binary>)  [0x106819d50]
+    +                                 : | + ! 10 ???  (in <unknown binary>)  [0x107714024]
+    +                                 : | + ! 8 ???  (in <unknown binary>)  [0x106819d68]
+    +                                 : | + ! 7 ???  (in <unknown binary>)  [0x106819d60]
+    +                                 : | + 15 ???  (in <unknown binary>)  [0x1077151d8]
+    +                                 : | + 14 ???  (in <unknown binary>)  [0x1077151ec]
+    +                                 : | + 12 ???  (in <unknown binary>)  [0x10771508c]
+    +                                 : | + 6 ???  (in <unknown binary>)  [0x1077151ac]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x10771509c]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x107715158]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x107715160]
+    +                                 : | + 2 ???  (in <unknown binary>)  [0x1077151c0]
+    +                                 : | 44 ???  (in <unknown binary>)  [0x107714db8]
+    +                                 : | + 25 ???  (in <unknown binary>)  [0x107714fac]
+    +                                 : | + 11 ???  (in <unknown binary>)  [0x107714fb4]
+    +                                 : | + ! 11 tlv_get_addr  (in libdyld.dylib) + 20  [0x181b0f0c4]
+    +                                 : | + 6 ???  (in <unknown binary>)  [0x107715010]
+    +                                 : | + 1 ???  (in <unknown binary>)  [0x107714fb0]
+    +                                 : | + 1 ???  (in <unknown binary>)  [0x107714fb4]
+    +                                 : | 42 ???  (in <unknown binary>)  [0x107714ec4]
+    +                                 : | 27 ???  (in <unknown binary>)  [0x107714f14]
+    +                                 : | 15 ???  (in <unknown binary>)  [0x107714e3c]
+    +                                 : | 12 ???  (in <unknown binary>)  [0x107714eec]
+    +                                 : | 12 ???  (in <unknown binary>)  [0x107714ef4]
+    +                                 : | 11 ???  (in <unknown binary>)  [0x107714dc4]
+    +                                 : | 7 ???  (in <unknown binary>)  [0x107714e9c]
+    +                                 : | 6 ???  (in <unknown binary>)  [0x107714db0]
+    +                                 : | 6 ???  (in <unknown binary>)  [0x107714e94]
+    +                                 : | 1 ???  (in <unknown binary>)  [0x107714ec0]
+    +                                 : 16 ???  (in <unknown binary>)  [0x107714ce0]
+    +                                 : 7 ???  (in <unknown binary>)  [0x107714cd4]
+    +                                 : 5 ???  (in <unknown binary>)  [0x107714cd0]
+    +                                 25 ???  (in <unknown binary>)  [0x1077158b0]
+    +                                 10 ???  (in <unknown binary>)  [0x1077158d0]
+    +                                 1 ???  (in <unknown binary>)  [0x1077158b8]
+    6873 Thread_12998091
+    + 6873 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6873 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6873 SEHExceptionThread(void*)  (in libcoreclr.dylib) + 156  [0x10583ca98]
+    +       6873 MachMessage::Receive(unsigned int)  (in libcoreclr.dylib) + 80  [0x10583d6f8]
+    +         6873 mach_msg  (in libsystem_kernel.dylib) + 24  [0x181ac6578]
+    +           6873 mach_msg_overwrite  (in libsystem_kernel.dylib) + 476  [0x181acee34]
+    +             6873 mach_msg2_internal  (in libsystem_kernel.dylib) + 80  [0x181ad8b24]
+    +               6873 mach_msg2_trap  (in libsystem_kernel.dylib) + 8  [0x181ac61f4]
+    6873 Thread_12998092: .NET SynchManager
+    + 6873 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6873 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6873 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x10583a624]
+    +       6873 CorUnix::CPalSynchronizationManager::WorkerThread(void*)  (in libcoreclr.dylib) + 112  [0x105831944]
+    +         6873 CorUnix::CPalSynchronizationManager::ReadBytesFromProcessPipe(int, unsigned char*, int)  (in libcoreclr.dylib) + 472  [0x105831eec]
+    +           6873 kevent  (in libsystem_kernel.dylib) + 8  [0x181acc340]
+    6873 Thread_12998093: .NET EventPipe
+    + 6873 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6873 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6873 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x10583a624]
+    +       6873 server_thread(void*)  (in libcoreclr.dylib) + 364  [0x1054a7734]
+    +         6873 ds_ipc_stream_factory_get_next_available_stream(void (*)(char const*, unsigned int))  (in libcoreclr.dylib) + 796  [0x1054a3180]
+    +           6873 ds_ipc_poll(_DiagnosticsIpcPollHandle*, unsigned long, unsigned int, void (*)(char const*, unsigned int))  (in libcoreclr.dylib) + 180  [0x10552038c]
+    +             6873 __poll_nocancel  (in libsystem_kernel.dylib) + 8  [0x181ad3b54]
+    6873 Thread_12998094: .NET DebugPipe
+    + 6873 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6873 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6873 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x10583a624]
+    +       6873 DbgTransportSession::TransportWorkerStatic(void*)  (in libcoreclr.dylib) + 40  [0x10551a0e0]
+    +         6873 DbgTransportSession::TransportWorker()  (in libcoreclr.dylib) + 200  [0x10551b15c]
+    +           6873 TwoWayPipe::WaitForConnection()  (in libcoreclr.dylib) + 40  [0x10551fd5c]
+    +             6873 open$NOCANCEL  (in libsystem_kernel.dylib) + 64  [0x181ada914]
+    +               6873 __open_nocancel  (in libsystem_kernel.dylib) + 8  [0x181ac6de0]
+    6873 Thread_12998095: .NET Debugger
+    + 6873 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6873 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6873 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x10583a624]
+    +       6873 DebuggerRCThread::ThreadProcStatic(void*)  (in libcoreclr.dylib) + 56  [0x105518588]
+    +         6873 DebuggerRCThread::ThreadProc()  (in libcoreclr.dylib) + 260  [0x1055187d8]
+    +           6873 DebuggerRCThread::MainLoop()  (in libcoreclr.dylib) + 220  [0x10551891c]
+    +             6873 CorUnix::InternalWaitForMultipleObjectsEx(CorUnix::CPalThread*, unsigned int, void* const*, int, unsigned int, int, int)  (in libcoreclr.dylib) + 1292  [0x105833414]
+    +               6873 CorUnix::CPalSynchronizationManager::BlockThread(CorUnix::CPalThread*, unsigned int, bool, bool, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 300  [0x10582fff0]
+    +                 6873 CorUnix::CPalSynchronizationManager::ThreadNativeWait(CorUnix::_ThreadNativeWaitData*, unsigned int, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 116  [0x105830244]
+    +                   6873 _pthread_cond_wait  (in libsystem_pthread.dylib) + 1272  [0x181b07588]
+    +                     6873 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x181ac99ec]
+    6873 Thread_12998096
+    + 6873 thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+    +   6873 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+    +     6873 CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x10583a624]
+    +       6873 FinalizerThread::FinalizerThreadStart(void*)  (in libcoreclr.dylib) + 92  [0x1056c693c]
+    +         6873 ManagedThreadBase::KickOff(void (*)(void*), void*)  (in libcoreclr.dylib) + 236  [0x1056648e0]
+    +           6873 FinalizerThread::FinalizerThreadWorker(void*)  (in libcoreclr.dylib) + 144  [0x1056c64f4]
+    +             6045 FinalizerThread::WaitForFinalizerEvent(CLREvent*)  (in libcoreclr.dylib) + 272  [0x1056c6444]
+    +             ! 6045 CorUnix::InternalWaitForMultipleObjectsEx(CorUnix::CPalThread*, unsigned int, void* const*, int, unsigned int, int, int)  (in libcoreclr.dylib) + 1292  [0x105833414]
+    +             !   6045 CorUnix::CPalSynchronizationManager::BlockThread(CorUnix::CPalThread*, unsigned int, bool, bool, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 300  [0x10582fff0]
+    +             !     6045 CorUnix::CPalSynchronizationManager::ThreadNativeWait(CorUnix::_ThreadNativeWaitData*, unsigned int, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 116  [0x105830244]
+    +             !       6045 _pthread_cond_wait  (in libsystem_pthread.dylib) + 1272  [0x181b07588]
+    +             !         6045 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x181ac99ec]
+    +             828 FinalizerThread::WaitForFinalizerEvent(CLREvent*)  (in libcoreclr.dylib) + 48  [0x1056c6364]
+    +               828 CLREventBase::WaitEx(unsigned int, WaitMode, PendingSync*)  (in libcoreclr.dylib) + 188  [0x105738a54]
+    +                 828 WaitForSingleObjectEx  (in libcoreclr.dylib) + 80  [0x105833704]
+    +                   828 CorUnix::InternalWaitForMultipleObjectsEx(CorUnix::CPalThread*, unsigned int, void* const*, int, unsigned int, int, int)  (in libcoreclr.dylib) + 1292  [0x105833414]
+    +                     827 CorUnix::CPalSynchronizationManager::BlockThread(CorUnix::CPalThread*, unsigned int, bool, bool, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 300  [0x10582fff0]
+    +                     : 827 CorUnix::CPalSynchronizationManager::ThreadNativeWait(CorUnix::_ThreadNativeWaitData*, unsigned int, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 340  [0x105830324]
+    +                     :   827 _pthread_cond_wait  (in libsystem_pthread.dylib) + 1272  [0x181b07588]
+    +                     :     827 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x181ac99ec]
+    +                     1 CorUnix::CPalSynchronizationManager::BlockThread(CorUnix::CPalThread*, unsigned int, bool, bool, CorUnix::ThreadWakeupReason*, unsigned int*)  (in libcoreclr.dylib) + 356  [0x105830028]
+    6873 Thread_12998098
+    + 6873 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x181b01d28]
+    +   6873 _pthread_wqthread  (in libsystem_pthread.dylib) + 364  [0x181b03058]
+    +     6873 __workq_kernreturn  (in libsystem_kernel.dylib) + 8  [0x181ac7ea4]
+    3826 Thread_12998099
+      3826 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x181b01d28]
+        3826 _pthread_wqthread  (in libsystem_pthread.dylib) + 364  [0x181b03058]
+          3826 __workq_kernreturn  (in libsystem_kernel.dylib) + 8  [0x181ac7ea4]
+
+Total number in stack (recursive counted multiple, when >=5):
+        13       InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib) + 0  [0x105582190]
+        12       ???  (in <unknown binary>)  [0x1068b3714]
+        12       tlv_get_addr  (in libdyld.dylib) + 0  [0x181b0f0b0]
+        11       ???  (in <unknown binary>)  [0x107712718]
+        10       ???  (in <unknown binary>)  [0x1076a87c8]
+        9       ???  (in <unknown binary>)  [0x106819b10]
+        9       ???  (in <unknown binary>)  [0x106819d68]
+        9       ???  (in <unknown binary>)  [0x1068b3748]
+        9       ???  (in <unknown binary>)  [0x107ab3318]
+        8       ???  (in <unknown binary>)  [0x1068b370c]
+        8       ???  (in <unknown binary>)  [0x1068b3750]
+        8       ???  (in <unknown binary>)  [0x107712710]
+        8       ???  (in <unknown binary>)  [0x107712720]
+        8       ???  (in <unknown binary>)  [0x107714024]
+        7       ???  (in <unknown binary>)  [0x106500014]
+        6       ???  (in <unknown binary>)  [0x106500038]
+        6       ???  (in <unknown binary>)  [0x1077154fc]
+        6       ???  (in <unknown binary>)  [0x10771607c]
+        6       ???  (in <unknown binary>)  [0x1077160e4]
+        6       ???  (in <unknown binary>)  [0x107ab1ea8]
+        6       _pthread_start  (in libsystem_pthread.dylib) + 136  [0x181b06f94]
+        6       thread_start  (in libsystem_pthread.dylib) + 8  [0x181b01d34]
+        5       ???  (in <unknown binary>)  [0x10650007c]
+        5       ???  (in <unknown binary>)  [0x106544104]
+        5       ???  (in <unknown binary>)  [0x106692520]
+        5       ???  (in <unknown binary>)  [0x106819da4]
+        5       ???  (in <unknown binary>)  [0x106a61664]
+        5       ???  (in <unknown binary>)  [0x1076a9b48]
+        5       ???  (in <unknown binary>)  [0x107710c70]
+        5       ???  (in <unknown binary>)  [0x107715468]
+        5       ???  (in <unknown binary>)  [0x1077154b4]
+        5       CorUnix::CPalThread::ThreadEntry(void*)  (in libcoreclr.dylib) + 352  [0x10583a624]
+
+Sort by top of stack, same collapsed (when >= 5):
+        __psynch_cvwait  (in libsystem_kernel.dylib)        13745
+        __workq_kernreturn  (in libsystem_kernel.dylib)        10699
+        __open_nocancel  (in libsystem_kernel.dylib)        6873
+        __poll_nocancel  (in libsystem_kernel.dylib)        6873
+        kevent  (in libsystem_kernel.dylib)        6873
+        mach_msg2_trap  (in libsystem_kernel.dylib)        6873
+        InlinedMemmoveGCRefsHelper(void*, void const*, unsigned long)  (in libcoreclr.dylib)        759
+        ???  (in <unknown binary>)  [0x1077154fc]        230
+        ???  (in <unknown binary>)  [0x1076a9b48]        222
+        ???  (in <unknown binary>)  [0x106544104]        208
+        ???  (in <unknown binary>)  [0x107ab1ea8]        206
+        ???  (in <unknown binary>)  [0x106a61664]        201
+        ???  (in <unknown binary>)  [0x107710c7c]        178
+        ???  (in <unknown binary>)  [0x1077155ec]        175
+        ???  (in <unknown binary>)  [0x1077155e0]        159
+        ???  (in <unknown binary>)  [0x107715cd0]        152
+        ???  (in <unknown binary>)  [0x107712710]        148
+        ???  (in <unknown binary>)  [0x1068b370c]        131
+        ???  (in <unknown binary>)  [0x107712720]        130
+        ???  (in <unknown binary>)  [0x106819da4]        123
+        ???  (in <unknown binary>)  [0x106819b34]        117
+        ???  (in <unknown binary>)  [0x1068b3750]        117
+        tlv_get_addr  (in libdyld.dylib)        116
+        ???  (in <unknown binary>)  [0x1068b3748]        113
+        ???  (in <unknown binary>)  [0x1076a87c8]        111
+        ???  (in <unknown binary>)  [0x1077152a8]        93
+        ???  (in <unknown binary>)  [0x107714024]        92
+        ???  (in <unknown binary>)  [0x107ab3318]        89
+        ???  (in <unknown binary>)  [0x10771601c]        74
+        ???  (in <unknown binary>)  [0x107715cd8]        73
+        ???  (in <unknown binary>)  [0x107715810]        71
+        ???  (in <unknown binary>)  [0x106819b4c]        57
+        ???  (in <unknown binary>)  [0x107716188]        57
+        ???  (in <unknown binary>)  [0x106819d68]        56
+        ???  (in <unknown binary>)  [0x107715e74]        56
+        ???  (in <unknown binary>)  [0x1077153e4]        54
+        ???  (in <unknown binary>)  [0x106819b08]        50
+        ???  (in <unknown binary>)  [0x107715468]        50
+        ???  (in <unknown binary>)  [0x106819b10]        49
+        ???  (in <unknown binary>)  [0x107714fac]        49
+        ???  (in <unknown binary>)  [0x1077154b4]        49
+        ???  (in <unknown binary>)  [0x106819d50]        47
+        ???  (in <unknown binary>)  [0x107715aa0]        45
+        ???  (in <unknown binary>)  [0x106500014]        44
+        ???  (in <unknown binary>)  [0x106500038]        42
+        ???  (in <unknown binary>)  [0x107714ec4]        42
+        ???  (in <unknown binary>)  [0x107715f90]        42
+        ???  (in <unknown binary>)  [0x107715498]        41
+        ???  (in <unknown binary>)  [0x107715674]        39
+        ???  (in <unknown binary>)  [0x106a61668]        38
+        ???  (in <unknown binary>)  [0x10771530c]        36
+        ???  (in <unknown binary>)  [0x107715388]        34
+        ???  (in <unknown binary>)  [0x10771604c]        34
+        ???  (in <unknown binary>)  [0x1077151ec]        32
+        ???  (in <unknown binary>)  [0x107715724]        31
+        ???  (in <unknown binary>)  [0x107716224]        31
+        ???  (in <unknown binary>)  [0x107715294]        30
+        ???  (in <unknown binary>)  [0x107716260]        30
+        ???  (in <unknown binary>)  [0x107715ecc]        29
+        ???  (in <unknown binary>)  [0x107715d6c]        28
+        ???  (in <unknown binary>)  [0x10650002c]        27
+        ???  (in <unknown binary>)  [0x10650007c]        27
+        ???  (in <unknown binary>)  [0x107714f14]        27
+        ???  (in <unknown binary>)  [0x107715bf8]        27
+        ???  (in <unknown binary>)  [0x107715e10]        27
+        ???  (in <unknown binary>)  [0x1077160e4]        27
+        ???  (in <unknown binary>)  [0x1077151d8]        26
+        ???  (in <unknown binary>)  [0x107715550]        25
+        ???  (in <unknown binary>)  [0x1077158b0]        25
+        ???  (in <unknown binary>)  [0x107715a4c]        25
+        ???  (in <unknown binary>)  [0x107716038]        24
+        ???  (in <unknown binary>)  [0x107715e98]        23
+        ???  (in <unknown binary>)  [0x107715f74]        23
+        ???  (in <unknown binary>)  [0x106819d60]        22
+        ???  (in <unknown binary>)  [0x1077156b4]        22
+        ???  (in <unknown binary>)  [0x107717770]        22
+        ???  (in <unknown binary>)  [0x106746500]        21
+        ???  (in <unknown binary>)  [0x106746548]        21
+        ???  (in <unknown binary>)  [0x107710c70]        21
+        ???  (in <unknown binary>)  [0x107715c2c]        21
+        ???  (in <unknown binary>)  [0x10771508c]        20
+        ???  (in <unknown binary>)  [0x1077160a4]        20
+        ???  (in <unknown binary>)  [0x107715010]        19
+        ???  (in <unknown binary>)  [0x107715c9c]        18
+        ???  (in <unknown binary>)  [0x107715ebc]        18
+        Buffer::BulkMoveWithWriteBarrier(void*, void*, unsigned long)  (in libcoreclr.dylib)        18
+        ???  (in <unknown binary>)  [0x10771568c]        17
+        ???  (in <unknown binary>)  [0x1077159d8]        17
+        ???  (in <unknown binary>)  [0x1077160cc]        17
+        ???  (in <unknown binary>)  [0x107714ce0]        16
+        ???  (in <unknown binary>)  [0x1077159ec]        16
+        ???  (in <unknown binary>)  [0x107715ba8]        16
+        ???  (in <unknown binary>)  [0x107715d64]        16
+        ???  (in <unknown binary>)  [0x107714e3c]        15
+        ???  (in <unknown binary>)  [0x1077159e4]        15
+        ???  (in <unknown binary>)  [0x107715ab4]        15
+        ???  (in <unknown binary>)  [0x107715c94]        15
+        ???  (in <unknown binary>)  [0x107715de0]        15
+        ???  (in <unknown binary>)  [0x1077155a4]        14
+        ???  (in <unknown binary>)  [0x107715aa8]        14
+        ???  (in <unknown binary>)  [0x107715d38]        14
+        ???  (in <unknown binary>)  [0x107716088]        14
+        ???  (in <unknown binary>)  [0x106500034]        13
+        ???  (in <unknown binary>)  [0x107715390]        13
+        ???  (in <unknown binary>)  [0x1077153c4]        13
+        ???  (in <unknown binary>)  [0x1077155bc]        13
+        ???  (in <unknown binary>)  [0x1077156dc]        13
+        ???  (in <unknown binary>)  [0x107715b80]        13
+        ???  (in <unknown binary>)  [0x107714eec]        12
+        ???  (in <unknown binary>)  [0x107714ef4]        12
+        ???  (in <unknown binary>)  [0x1077151ac]        12
+        ???  (in <unknown binary>)  [0x107715298]        12
+        ???  (in <unknown binary>)  [0x107715b54]        12
+        ???  (in <unknown binary>)  [0x107715f68]        12
+        ???  (in <unknown binary>)  [0x107716014]        12
+        ???  (in <unknown binary>)  [0x107716138]        12
+        ???  (in <unknown binary>)  [0x1077161a4]        12
+        ???  (in <unknown binary>)  [0x106819d64]        11
+        ???  (in <unknown binary>)  [0x107714dc4]        11
+        ???  (in <unknown binary>)  [0x1077152c8]        11
+        ???  (in <unknown binary>)  [0x10771543c]        11
+        ???  (in <unknown binary>)  [0x107715cb8]        11
+        ???  (in <unknown binary>)  [0x1077160b4]        11
+        ???  (in <unknown binary>)  [0x107717790]        11
+        ???  (in <unknown binary>)  [0x1077158d0]        10
+        ???  (in <unknown binary>)  [0x107715d34]        10
+        ???  (in <unknown binary>)  [0x10771612c]        10
+        ???  (in <unknown binary>)  [0x1067464a0]        9
+        ???  (in <unknown binary>)  [0x1068b3744]        9
+        ???  (in <unknown binary>)  [0x1077152f8]        9
+        ???  (in <unknown binary>)  [0x107715370]        9
+        ???  (in <unknown binary>)  [0x1077155f8]        9
+        ???  (in <unknown binary>)  [0x107715a80]        9
+        ???  (in <unknown binary>)  [0x107715f6c]        9
+        ???  (in <unknown binary>)  [0x107717798]        9
+        ???  (in <unknown binary>)  [0x106746508]        8
+        ???  (in <unknown binary>)  [0x107715158]        8
+        ???  (in <unknown binary>)  [0x107715cc4]        8
+        ???  (in <unknown binary>)  [0x107715cc8]        8
+        ???  (in <unknown binary>)  [0x107715d30]        8
+        ???  (in <unknown binary>)  [0x107714028]        7
+        ???  (in <unknown binary>)  [0x107714cd4]        7
+        ???  (in <unknown binary>)  [0x107714e9c]        7
+        ???  (in <unknown binary>)  [0x107715160]        7
+        ???  (in <unknown binary>)  [0x107715d80]        7
+        ???  (in <unknown binary>)  [0x107715f98]        7
+        ???  (in <unknown binary>)  [0x107714db0]        6
+        ???  (in <unknown binary>)  [0x107714e94]        6
+        ???  (in <unknown binary>)  [0x107715460]        6
+        ???  (in <unknown binary>)  [0x107715a94]        6
+        ???  (in <unknown binary>)  [0x107715c20]        6
+        ???  (in <unknown binary>)  [0x107715c74]        6
+        ???  (in <unknown binary>)  [0x107715d2c]        6
+        ???  (in <unknown binary>)  [0x107716178]        6
+        ???  (in <unknown binary>)  [0x1077161a8]        6
+        ???  (in <unknown binary>)  [0x107714cd0]        5
+        ???  (in <unknown binary>)  [0x10771534c]        5
+        ???  (in <unknown binary>)  [0x107715494]        5
+        ???  (in <unknown binary>)  [0x107715ccc]        5
+        ???  (in <unknown binary>)  [0x107715ec0]        5
+        ???  (in <unknown binary>)  [0x107716190]        5
+        ???  (in <unknown binary>)  [0x1077163cc]        5
+        ???  (in <unknown binary>)  [0x107716fa4]        5
+        ???  (in <unknown binary>)  [0x107ab331c]        5
+
+Binary Images:
+       0x1049d8000 -        0x1049e3593 +dotnet (0) <D02CE65E-C15E-3116-BDDE-81EE55CB0242> /Users/*/dotnet
+       0x104a64000 -        0x104aa258f +libhostfxr.dylib (0) <E7871808-49FB-3F9F-9922-E0548BCD31A3> /Users/*/libhostfxr.dylib
+       0x104acc000 -        0x104b0405f +libhostpolicy.dylib (0) <FE6B8A42-FB22-3C56-8DB4-17E396EE6386> /Users/*/libhostpolicy.dylib
+       0x104b34000 -        0x104b42b73 +libSystem.Native.dylib (0) <FEF6B6C6-4F56-3D2E-BF6A-E80D626BC3F7> /Users/*/libSystem.Native.dylib
+       0x105478000 -        0x1058c31ff +libcoreclr.dylib (0) <F17F4EC9-B2E5-39D9-BD70-FDAA8CF2DFF1> /Users/*/libcoreclr.dylib
+       0x1464c0000 -        0x14670f90f +libclrjit.dylib (0) <5181947F-E0A5-37EF-AB0C-83E9657579C7> /Users/*/libclrjit.dylib
+       0x181728000 -        0x181777d83  libobjc.A.dylib (912.3) <76C8305C-4066-390C-8F3E-F0858D756AD8> /usr/lib/libobjc.A.dylib
+       0x181778000 -        0x1818009db  dyld (1.0.0 - 1160.6) <F6DD3EC2-85A4-3AB1-8486-B189CD980EBE> /usr/lib/dyld
+       0x181801000 -        0x181805ff8  libsystem_blocks.dylib (90) <E9F1A3B9-AE38-3F4C-BF14-8A6E012AD36C> /usr/lib/system/libsystem_blocks.dylib
+       0x181806000 -        0x181850fff  libxpc.dylib (2748.101.4) <C43D5322-9B69-37EE-B51E-45FDE5D81B5B> /usr/lib/system/libxpc.dylib
+       0x181851000 -        0x18186bfff  libsystem_trace.dylib (1510.100.36) <681EBF40-B321-364A-88EA-04AB45E3DA66> /usr/lib/system/libsystem_trace.dylib
+       0x18186c000 -        0x181914fd7  libcorecrypto.dylib (1638.100.62) <95C1D199-1B36-32B2-9BE7-5723A58D0D96> /usr/lib/system/libcorecrypto.dylib
+       0x181915000 -        0x181951ff7  libsystem_malloc.dylib (521.100.59) <B36EAAD5-558D-39E8-AB0D-FD87F2EF154B> /usr/lib/system/libsystem_malloc.dylib
+       0x181952000 -        0x181999fff  libdispatch.dylib (1477.100.9) <7F973554-8168-35BF-AE86-2E9123E81BF7> /usr/lib/system/libdispatch.dylib
+       0x18199a000 -        0x18199cfff  libsystem_featureflags.dylib (86) <D8AF5585-B9E4-38C0-B48B-CFD5C13DEB82> /usr/lib/system/libsystem_featureflags.dylib
+       0x18199d000 -        0x181a1bff3  libsystem_c.dylib (1592.100.35) <49477E07-E77B-332F-B98D-79CA210A866D> /usr/lib/system/libsystem_c.dylib
+       0x181a1c000 -        0x181aa8ff7  libc++.1.dylib (1700.255) <08C4329E-407F-310B-B037-75A8020B2963> /usr/lib/libc++.1.dylib
+       0x181aa9000 -        0x181ac4ffb  libc++abi.dylib (1700.255) <4FED965B-18AD-3A4F-8928-1F0A3C35345F> /usr/lib/libc++abi.dylib
+       0x181ac5000 -        0x181affffb  libsystem_kernel.dylib (10063.101.17) <2A91FD2C-4CEF-3211-A025-7A1C0A8C2DB5> /usr/lib/system/libsystem_kernel.dylib
+       0x181b00000 -        0x181b0cfff  libsystem_pthread.dylib (519.101.1) <45239F06-CC53-36D0-9933-7776AC7EA2FA> /usr/lib/system/libsystem_pthread.dylib
+       0x181b0d000 -        0x181b32ff7  libdyld.dylib (1160.6) <72199A80-9C55-376D-8ECF-EE68AFA57B7A> /usr/lib/system/libdyld.dylib
+       0x181b33000 -        0x181b3afe7  libsystem_platform.dylib (316.100.10) <031F3E8C-5227-3138-A444-68174C1C28CF> /usr/lib/system/libsystem_platform.dylib
+       0x181b3b000 -        0x181b67ffb  libsystem_info.dylib (583.0.1) <615EAFA2-4446-3994-89E9-858A0552F1B8> /usr/lib/system/libsystem_info.dylib
+       0x181b68000 -        0x182040fff  com.apple.CoreFoundation (6.9 - 2420) <33908A83-098F-3437-973E-FB848C4F39DF> /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation
+       0x182041000 -        0x1822fafff  com.apple.LaunchServices (1141.1 - 1141.1) <1323AB9B-A0CD-38EB-87EC-91E87903E147> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/LaunchServices
+       0x182447000 -        0x1827e2fef  libBLAS.dylib (1447.100.11) <4D6ED213-D805-3C75-A3EF-B0F659CF8132> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib
+       0x1827e3000 -        0x1828d4ff7  com.apple.Lexicon-framework (1.0 - 134.9) <8DD8828B-6E72-32BE-A064-67FE2E312A39> /System/Library/PrivateFrameworks/Lexicon.framework/Versions/A/Lexicon
+       0x1828d5000 -        0x18293bfff  libSparse.dylib (125) <3B1EB1F6-1BE1-3F02-97F8-D6E6BB45D4DF> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libSparse.dylib
+       0x18293c000 -        0x1829cffff  com.apple.SystemConfiguration (1.21 - 1.21) <7E12A3B1-3C5B-3E1E-A2C7-D0436242A012> /System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration
+       0x1829d0000 -        0x182a04ff3  libCRFSuite.dylib (52) <2B56C52C-832D-3E69-B3B8-A9606DF0F0B5> /usr/lib/libCRFSuite.dylib
+       0x182cbc000 -        0x183919fff  com.apple.Foundation (6.9 - 2420) <1B93A4D2-DB73-3F3B-A726-C8EACC5128E0> /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation
+       0x18391a000 -        0x183afffff  com.apple.LanguageModeling (1.0 - 366.9) <B6856E4D-DFB5-30CF-B9BF-779C4D0FED6E> /System/Library/PrivateFrameworks/LanguageModeling.framework/Versions/A/LanguageModeling
+       0x184889000 -        0x184c5bfff  com.apple.security (7.0 - 61123.100.169) <E3032FF9-E461-36A1-90F1-C7EE260C0118> /System/Library/Frameworks/Security.framework/Versions/A/Security
+       0x184c5c000 -        0x184f22fff  libicucore.A.dylib (74000.303) <50DE7E22-A040-3E0F-836E-BEF36B36EC01> /usr/lib/libicucore.A.dylib
+       0x184f23000 -        0x184f2dff3  libsystem_darwin.dylib (1592.100.35) <8DB1E11F-85AB-3699-AD96-228BE7D8C715> /usr/lib/system/libsystem_darwin.dylib
+       0x184f2e000 -        0x185233fff  com.apple.CoreServices.CarbonCore (1333 - 1333) <A8E6D1C2-3232-3EE7-AC52-C70C8D24CFE8> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/CarbonCore.framework/Versions/A/CarbonCore
+       0x185234000 -        0x185274ff7  com.apple.CoreServicesInternal (505 - 505) <F81CEFD5-5C8F-30DA-AF7B-3D3C219ABA9E> /System/Library/PrivateFrameworks/CoreServicesInternal.framework/Versions/A/CoreServicesInternal
+       0x185275000 -        0x1852b5fff  com.apple.CSStore (1141.1 - 1141.1) <EF032633-55D2-370B-8738-2ABF5FD79875> /System/Library/PrivateFrameworks/CoreServicesStore.framework/Versions/A/CoreServicesStore
+       0x1852b6000 -        0x185398fff  com.apple.framework.IOKit (2.0.2 - 100076.101.1) <1832B4AB-F904-37C3-8809-4E251EB3E184> /System/Library/Frameworks/IOKit.framework/Versions/A/IOKit
+       0x185399000 -        0x1853a9fff  libsystem_notify.dylib (317.100.2) <EDCEB984-2FC8-3EB5-9016-3453A3DDEE8F> /usr/lib/system/libsystem_notify.dylib
+       0x186e1c000 -        0x186e1cfff  libnetwork.dylib (3762.101.1) <361592F9-71A5-337E-AF0E-296924118C9B> /usr/lib/libnetwork.dylib
+       0x186e1d000 -        0x1871f1fff  com.apple.CFNetwork (1.0 - 1494.0.7) <60C90B3D-7A28-31A4-ACCF-705E5269FE77> /System/Library/Frameworks/CFNetwork.framework/Versions/A/CFNetwork
+       0x1871f2000 -        0x18720bffb  libsystem_networkextension.dylib (1838.101.1) <EBACF63D-8B18-37FF-8952-85FD99605BD7> /usr/lib/system/libsystem_networkextension.dylib
+       0x18720c000 -        0x18720dfff  libenergytrace.dylib (23) <5FDB6DBB-B0DF-3D80-89CB-0F00B03C5DCE> /usr/lib/libenergytrace.dylib
+       0x18720e000 -        0x187283fdf  libMobileGestalt.dylib (1332.100.10) <64498125-B4F9-3115-B1B2-926E1C740647> /usr/lib/libMobileGestalt.dylib
+       0x187284000 -        0x18729bfff  libsystem_asl.dylib (398) <B8B21C7C-4530-3EA2-AB35-BA98B82F33D0> /usr/lib/system/libsystem_asl.dylib
+       0x18729c000 -        0x1872bcff0  com.apple.TCC (1.0 - 1) <F40DBA8E-C2BB-39BC-B732-0D5AA729999E> /System/Library/PrivateFrameworks/TCC.framework/Versions/A/TCC
+       0x18884d000 -        0x188866fff  com.apple.ProtocolBuffer (1 - 300.24.10.5.2) <1145F0EE-B89D-3AA1-892D-F7135CDE5137> /System/Library/PrivateFrameworks/ProtocolBuffer.framework/Versions/A/ProtocolBuffer
+       0x188867000 -        0x188a19fff  libsqlite3.dylib (351) <877868A7-B883-3A57-8F35-4DBEF7386DC1> /usr/lib/libsqlite3.dylib
+       0x188bf3000 -        0x188c66ff7  com.apple.AE (944 - 944) <1885B57C-7EF6-3921-BA18-0DE48C174133> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/AE.framework/Versions/A/AE
+       0x188c67000 -        0x188c71fff  libdns_services.dylib (2200.100.94.0.2) <6326929E-6A18-358A-801A-E2A8BD6D20A6> /usr/lib/libdns_services.dylib
+       0x188c72000 -        0x188c7aff3  libsystem_symptoms.dylib (1871.100.22) <372ACDF1-29E7-34DA-B035-BD7671EB5A8B> /usr/lib/system/libsystem_symptoms.dylib
+       0x188c7b000 -        0x1898c9fff  com.apple.Network (1.0 - 1) <D7D230C1-AD42-3A19-9090-0953FE6B787C> /System/Library/Frameworks/Network.framework/Versions/A/Network
+       0x1898ca000 -        0x1898f8fff  com.apple.analyticsd (1.0 - 1) <F045814E-1A3D-344A-8C78-B3A510FE2BB2> /System/Library/PrivateFrameworks/CoreAnalytics.framework/Versions/A/CoreAnalytics
+       0x1898f9000 -        0x1898fafff  libDiagnosticMessagesClient.dylib (113) <3FD99EC3-B540-369A-A989-A44B40770968> /usr/lib/libDiagnosticMessagesClient.dylib
+       0x1898fb000 -        0x189941fff  com.apple.spotlight.metadata.utilities (1.0 - 2274.23) <05E9916C-60D2-35AB-BB45-51C9EA9AFB18> /System/Library/PrivateFrameworks/MetadataUtilities.framework/Versions/A/MetadataUtilities
+       0x189942000 -        0x1899dcfff  com.apple.Metadata (14.4 - 2274.23) <A109A8B3-FE9F-3147-8FAE-B3F236FB0162> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Metadata
+       0x1899dd000 -        0x1899e5ffb  com.apple.DiskArbitration (2.7 - 2.7) <FB7E6533-8177-3C9D-841C-6E784899ABE3> /System/Library/Frameworks/DiskArbitration.framework/Versions/A/DiskArbitration
+       0x1899e6000 -        0x189dcffdf  com.apple.vImage (8.1 - 587.100.1) <5905E516-D7AC-358C-AF65-AF145940909A> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vImage.framework/Versions/A/vImage
+       0x18a43a000 -        0x18a449fff  com.apple.OpenDirectory (14.4 - 642) <4F0DD0B8-40A9-390F-824D-32284D211063> /System/Library/Frameworks/OpenDirectory.framework/Versions/A/OpenDirectory
+       0x18a44a000 -        0x18a469ffb  com.apple.CFOpenDirectory (14.4 - 642) <05E096FC-C25F-3024-89DD-D8AFEBA60EE6> /System/Library/Frameworks/OpenDirectory.framework/Versions/A/Frameworks/CFOpenDirectory.framework/Versions/A/CFOpenDirectory
+       0x18a46a000 -        0x18a476ff7  com.apple.CoreServices.FSEvents (1376.100.3 - 1376.100.3) <9854F074-AA6A-3384-AC3D-7CBFA4A3B6E6> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/FSEvents.framework/Versions/A/FSEvents
+       0x18a477000 -        0x18a4a1fff  com.apple.coreservices.SharedFileList (225 - 225) <DE02FEC9-622D-36FC-9496-6E28466F8BFF> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/SharedFileList.framework/Versions/A/SharedFileList
+       0x18a4a2000 -        0x18a4a8fff  libapp_launch_measurement.dylib (17) <E9794766-3765-3112-B9F6-AE7E3E4FC37E> /usr/lib/libapp_launch_measurement.dylib
+       0x18a4a9000 -        0x18a4f2fff  com.apple.CoreAutoLayout (1.0 - 32) <AE7454CD-FDF4-3151-A0F8-67A64A331064> /System/Library/PrivateFrameworks/CoreAutoLayout.framework/Versions/A/CoreAutoLayout
+       0x18a4f3000 -        0x18a5dcff3  libxml2.2.dylib (37.15) <6D8E1641-C5BF-31E1-8D8A-443AAEB7C01F> /usr/lib/libxml2.2.dylib
+       0x18bdfc000 -        0x18be26ff3  libsystem_containermanager.dylib (582.100.15) <C9DB5B40-6F90-348A-A518-3ACFB49B39FE> /usr/lib/system/libsystem_containermanager.dylib
+       0x18be27000 -        0x18be3efff  com.apple.IOSurface (352.41.7 - 352.41.7) <7EE8E9F4-ECEF-3633-A084-9C2D8E2AEC34> /System/Library/Frameworks/IOSurface.framework/Versions/A/IOSurface
+       0x18cdbe000 -        0x18cdc2fff  libsystem_configuration.dylib (1300.100.9) <D57D8736-2800-3066-82D4-C433A2DC10C4> /usr/lib/system/libsystem_configuration.dylib
+       0x18cdc3000 -        0x18cdc8ff3  libsystem_sandbox.dylib (2190.101.1) <2F95044C-6CEF-3731-B1B9-F7D6A51B3A3F> /usr/lib/system/libsystem_sandbox.dylib
+       0x18cdcb000 -        0x18cdceffb  com.apple.AppleSystemInfo (3.1.5 - 3.1.5) <90AFB068-BC56-3ABB-93D1-C9D2AE2D5C56> /System/Library/PrivateFrameworks/AppleSystemInfo.framework/Versions/A/AppleSystemInfo
+       0x18cdcf000 -        0x18cdd0fff  liblangid.dylib (138) <01F8F980-177E-3142-9A7E-F40272283389> /usr/lib/liblangid.dylib
+       0x18cdd1000 -        0x18cef3fff  com.apple.CoreNLP (1.0 - 313) <89E09C0E-0349-3495-8646-A3F84B1304F3> /System/Library/PrivateFrameworks/CoreNLP.framework/Versions/A/CoreNLP
+       0x18cef4000 -        0x18cef9fff  com.apple.LinguisticData (1.0 - 483.10) <E54F8409-DB75-3540-9884-AA72814A4F63> /System/Library/PrivateFrameworks/LinguisticData.framework/Versions/A/LinguisticData
+       0x18cefa000 -        0x18d7cdfe7  libBNNS.dylib (830.101.1) <34827228-2E67-3A03-816D-BA464EC38C43> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBNNS.dylib
+       0x18d7ce000 -        0x18d8bef87  libvDSP.dylib (1043.100.6) <6C6D994F-02CC-322D-AB27-D140292BAB6E> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libvDSP.dylib
+       0x18d8bf000 -        0x18d8f2fff  com.apple.CoreEmoji (1.0 - 200.311) <937A5C1C-C6B3-3A11-B340-97BF725FD2CF> /System/Library/PrivateFrameworks/CoreEmoji.framework/Versions/A/CoreEmoji
+       0x18d8f3000 -        0x18d902ffb  com.apple.IOMobileFramebuffer (343.0.0 - 343.0.0) <BCBC0330-AE6C-3888-972F-BF9FA9508E34> /System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/Versions/A/IOMobileFramebuffer
+       0x18db24000 -        0x18dbb1fff  com.apple.securityfoundation (6.0 - 55283) <C26C56E1-3806-30EF-A0C9-3C144C1B0490> /System/Library/Frameworks/SecurityFoundation.framework/Versions/A/SecurityFoundation
+       0x18dbb2000 -        0x18dbd8fff  com.apple.coreservices.BackgroundTaskManagement (1.0 - 104) <D8198EBD-3472-3656-BF3D-D4DED8F5449E> /System/Library/PrivateFrameworks/BackgroundTaskManagement.framework/Versions/A/BackgroundTaskManagement
+       0x18dbe4000 -        0x18dbe6fff  libquarantine.dylib (172.100.3) <158A39C2-F9C6-32CA-845B-F1DFB711718A> /usr/lib/system/libquarantine.dylib
+       0x18dbe7000 -        0x18dbf2fff  libCheckFix.dylib (32) <A7DAEDE9-A4AC-330D-8790-23C64CB24D3E> /usr/lib/libCheckFix.dylib
+       0x18dbf3000 -        0x18dc0afff  libcoretls.dylib (186) <E8F5AFCB-3397-3F90-B7EF-6E654C653F4D> /usr/lib/libcoretls.dylib
+       0x18dc0b000 -        0x18dc1cffb  libbsm.0.dylib (89) <C20BA6D7-6BD8-3F50-93DF-22AB57DC1168> /usr/lib/libbsm.0.dylib
+       0x18dc1d000 -        0x18dc78fff  libmecab.dylib (1062.307) <5349B279-7E48-3AD6-B924-0CA008BB5F84> /usr/lib/libmecab.dylib
+       0x18dc79000 -        0x18dc7bffb  libgermantok.dylib (29) <658F83D0-8935-35E4-931A-2714E7DC3955> /usr/lib/libgermantok.dylib
+       0x18dc7c000 -        0x18dc90fff  libLinearAlgebra.dylib (1447.100.11) <B328B92C-1E68-3AD3-BA9A-347FA62FC29D> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libLinearAlgebra.dylib
+       0x18e2c9000 -        0x18e38cfc7  com.apple.AppleFSCompression (163 - 1.0) <D9D85513-5CFF-39A4-9517-12582A8AD422> /System/Library/PrivateFrameworks/AppleFSCompression.framework/Versions/A/AppleFSCompression
+       0x18e38d000 -        0x18e399ffb  libbz2.1.0.dylib (45) <92297FDA-90D5-3274-8425-D00F9A0CD2D0> /usr/lib/libbz2.1.0.dylib
+       0x18e39a000 -        0x18e39ffff  libsystem_coreservices.dylib (152.5.1) <324A6A0A-BBDE-3257-9A75-6A74C85E3430> /usr/lib/system/libsystem_coreservices.dylib
+       0x18e3a0000 -        0x18e3d1fff  com.apple.CoreServices.OSServices (1141.1 - 1141.1) <2BFE09A3-3B7A-3DD8-B1A9-19054A14C7BE> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/OSServices.framework/Versions/A/OSServices
+       0x18e6b9000 -        0x18e6c7fff  libz.1.dylib (91.40.4) <6C4F90C2-6EFC-3551-8150-285D3D954E15> /usr/lib/libz.1.dylib
+       0x18e6c8000 -        0x18e6feff3  libsystem_m.dylib (3252.100.9) <9735ABAE-2939-30EB-90D4-C6F23F795B2F> /usr/lib/system/libsystem_m.dylib
+       0x18e6ff000 -        0x18e702fff  libcharset.1.dylib (99) <9187B6AE-DEA8-3FC2-B810-C2E49C8048D1> /usr/lib/libcharset.1.dylib
+       0x18e703000 -        0x18e70affb  libmacho.dylib (1010.6) <DD2A9F47-7F80-344C-B6FE-82682F8AAB4A> /usr/lib/system/libmacho.dylib
+       0x18e70b000 -        0x18e72afff  libkxld.dylib (10063.101.17) <EF748736-1572-3A9C-B876-BBA32D6956BF> /usr/lib/system/libkxld.dylib
+       0x18e72b000 -        0x18e738ff7  libcommonCrypto.dylib (600028.100.1) <0BA453ED-E5A2-3C2F-86F4-CFCFFA6C1879> /usr/lib/system/libcommonCrypto.dylib
+       0x18e739000 -        0x18e744fff  libunwind.dylib (1700.242) <31BBAE83-7FFD-30A6-8BFC-6D5D17A6CC82> /usr/lib/system/libunwind.dylib
+       0x18e745000 -        0x18e74cfff  liboah.dylib (318.5) <3FE71C4F-17CC-3B93-AE29-05CE7D116F1B> /usr/lib/liboah.dylib
+       0x18e74d000 -        0x18e756fff  libcopyfile.dylib (196.100.4) <3DF60503-459B-3DA5-BD91-E72518FA9370> /usr/lib/system/libcopyfile.dylib
+       0x18e757000 -        0x18e75afff  libcompiler_rt.dylib (103.2) <DE476BC5-36E2-3F7A-87C8-1EF2BE6ADFDA> /usr/lib/system/libcompiler_rt.dylib
+       0x18e75b000 -        0x18e75fffb  libsystem_collections.dylib (1592.100.35) <2EA02C23-E13C-39AE-B850-82CEABACE7A6> /usr/lib/system/libsystem_collections.dylib
+       0x18e760000 -        0x18e762ffb  libsystem_secinit.dylib (147.100.1) <11D0DCC2-FC9F-3E2C-B2CF-0662E64DC96D> /usr/lib/system/libsystem_secinit.dylib
+       0x18e763000 -        0x18e765ffb  libremovefile.dylib (70.100.4) <92A7E10F-1F6C-30D5-9C44-D42352D3A674> /usr/lib/system/libremovefile.dylib
+       0x18e766000 -        0x18e766ffb  libkeymgr.dylib (31) <291CFCDE-CF87-3F39-A3E3-36C4303BEC16> /usr/lib/system/libkeymgr.dylib
+       0x18e767000 -        0x18e76fff7  libsystem_dnssd.dylib (2200.100.94.0.2) <4D030E4B-27FC-3C22-8467-A8CAFECA7761> /usr/lib/system/libsystem_dnssd.dylib
+       0x18e770000 -        0x18e775fff  libcache.dylib (93) <C0BCBAE5-4913-3D80-8E3A-9D4DEC1EA827> /usr/lib/system/libcache.dylib
+       0x18e776000 -        0x18e777fff  libSystem.B.dylib (1345.100.2) <BE250157-7A2B-39DA-B404-983D7989DFC6> /usr/lib/libSystem.B.dylib
+       0x18e778000 -        0x18e77bfff  libfakelink.dylib (5) <8D9D7804-A8F3-3CF3-9F99-67463051A4D1> /usr/lib/libfakelink.dylib
+       0x18e77c000 -        0x18e77cffb  com.apple.SoftLinking (1.0 - 47) <A25FC67A-C812-328E-8545-1BF6BEEF65C0> /System/Library/PrivateFrameworks/SoftLinking.framework/Versions/A/SoftLinking
+       0x18e77d000 -        0x18e7b2ff3  libpcap.A.dylib (131) <DD40870A-D755-3E6F-81FB-1949CAB321FD> /usr/lib/libpcap.A.dylib
+       0x18e7b3000 -        0x18e7b9ff7  libiconv.2.dylib (99) <EBF0B2BA-6A01-3BE8-874E-772A01059C9C> /usr/lib/libiconv.2.dylib
+       0x18e7ba000 -        0x18e7cbfff  libcmph.dylib (8) <8E49A694-0D21-34F2-919E-C73818A176A7> /usr/lib/libcmph.dylib
+       0x18e7cc000 -        0x18e854fff  libarchive.2.dylib (131) <D2C4E20C-0B7E-3A93-A849-384EBB909B89> /usr/lib/libarchive.2.dylib
+       0x18e855000 -        0x18e8cbff3  com.apple.SearchKit (1.4.1 - 1.4.1) <D89B72E5-2620-32EC-A029-A2ED399447F2> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/SearchKit.framework/Versions/A/SearchKit
+       0x18e8cc000 -        0x18e8cdff7  libThaiTokenizer.dylib (15) <05F7FC32-BAA9-34C5-A783-24289456A459> /usr/lib/libThaiTokenizer.dylib
+       0x18e8ce000 -        0x18e8f4ff7  com.apple.applesauce (1.0 - 16.60.1) <91969C80-75D6-360C-AEA4-E3015BBAAE30> /System/Library/PrivateFrameworks/AppleSauce.framework/Versions/A/AppleSauce
+       0x18e8f5000 -        0x18e90fffb  libapple_nghttp2.dylib (20) <211C76CA-1DA2-334A-9430-31814E3D4440> /usr/lib/libapple_nghttp2.dylib
+       0x18e910000 -        0x18e922ff3  libSparseBLAS.dylib (1447.100.11) <94B2ABC5-6A47-379B-BC97-0ED54AC65E1A> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libSparseBLAS.dylib
+       0x18e925000 -        0x18e92afff  libpam.2.dylib (33) <8ED1307E-63AF-3C1F-B1B6-C155515F92B3> /usr/lib/libpam.2.dylib
+       0x18e92b000 -        0x18e9faff7  libcompression.dylib (169.100.2) <20933059-9E27-3834-B420-6A9C4FACB565> /usr/lib/libcompression.dylib
+       0x18e9fb000 -        0x18e9ffffb  libQuadrature.dylib (7) <6269A517-248D-312D-AD14-C8628A297786> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libQuadrature.dylib
+       0x18ea00000 -        0x18fb7afcf  libLAPACK.dylib (1447.100.11) <1AE3697E-810A-3259-8B55-894B8777CF5C> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libLAPACK.dylib
+       0x18fb7b000 -        0x18fbd1fff  com.apple.DictionaryServices (1.2 - 355) <92CC115F-D8B9-3D20-B6E4-CEEFCBABBB7D> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/DictionaryServices.framework/Versions/A/DictionaryServices
+       0x18fbd2000 -        0x18fbf0ff7  liblzma.5.dylib (20) <2AF65A72-B0C5-369C-84E3-27AD61D5AD5D> /usr/lib/liblzma.5.dylib
+       0x18fbf1000 -        0x18fbf2ffb  libcoretls_cfhelpers.dylib (186) <CF31DA72-FD76-30CD-AFF8-CEDA8AC3C526> /usr/lib/libcoretls_cfhelpers.dylib
+       0x18fbf3000 -        0x18fc62ff7  com.apple.APFS (2236.101.1 - 2236.101.1) <2B21E745-F8AB-3ABE-87C6-A0715494C289> /System/Library/PrivateFrameworks/APFS.framework/Versions/A/APFS
+       0x18fc63000 -        0x18fc71ffb  libxar.1.dylib (498) <63123423-7E28-38F2-A10F-F449F31CA8FD> /usr/lib/libxar.1.dylib
+       0x18fc72000 -        0x18fc75ff7  libutil.dylib (72) <78B61AF1-44AA-3363-B30A-E51CBD4479C0> /usr/lib/libutil.dylib
+       0x18fc76000 -        0x18fca1ff3  libxslt.1.dylib (20.3) <3812D0DF-CD14-392B-AA83-515492972C27> /usr/lib/libxslt.1.dylib
+       0x18fcaa000 -        0x18fd25fff  libvMisc.dylib (1043.100.6) <D1B359CA-6BD5-3F1B-988E-2157F767F7A3> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libvMisc.dylib
+       0x190051000 -        0x19005bfff  libheimdal-asn1.dylib (689) <F0E176F3-C662-3325-A4A4-9E55468F1B4A> /usr/lib/libheimdal-asn1.dylib
+       0x1917bf000 -        0x191d1cfff  libswiftCore.dylib (5.10 - 5.10.0.12.5) <05650D36-BBC5-3760-AEC7-4D2751B5D729> /usr/lib/swift/libswiftCore.dylib
+       0x193cee000 -        0x193e2bfff  com.apple.combine (1.0 - 311) <471FD19F-E3B4-3FCE-8CDE-6329067DD0CC> /System/Library/Frameworks/Combine.framework/Versions/A/Combine
+       0x195dc3000 -        0x195dc3fff  com.apple.Accelerate.vecLib (3.11 - vecLib 3.11) <87C48560-FD22-310A-9A39-972083577952> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/vecLib
+       0x195dec000 -        0x195decfff  com.apple.CoreServices (1226 - 1226) <12D0527E-1521-3A45-B16C-CB1B3AF39604> /System/Library/Frameworks/CoreServices.framework/Versions/A/CoreServices
+       0x1960ab000 -        0x1960abfff  com.apple.Accelerate (1.11 - Accelerate 1.11) <894C0646-5CF2-3103-B4D0-CD8F1D19CC3E> /System/Library/Frameworks/Accelerate.framework/Versions/A/Accelerate
+       0x197451000 -        0x197468ff7  libswiftDispatch.dylib (41) <DAE7C867-9EF9-3D00-8CE0-44B15D6ABE76> /usr/lib/swift/libswiftDispatch.dylib
+       0x199cc0000 -        0x199cc3ff5  libswiftObjectiveC.dylib (8) <5090AB15-A2C1-3DAB-8C95-0B5EFAC3F99F> /usr/lib/swift/libswiftObjectiveC.dylib
+       0x199cc4000 -        0x199cdefff  libswiftos.dylib (1049.100.4) <BC6FAA6B-C783-349E-9439-3A3E54F2C623> /usr/lib/swift/libswiftos.dylib
+       0x1a4f51000 -        0x1a4f5aff3  libswiftDarwin.dylib (5.10 - 5.10.0.12.5) <BF10D745-A09D-30F6-B1FD-61E32108E378> /usr/lib/swift/libswiftDarwin.dylib
+       0x1a7411000 -        0x1a7435fff  libmis.dylib (386.100.27) <7BAA4FC0-C4DD-39DE-A26D-34AF23C960D0> /usr/lib/libmis.dylib
+       0x1a7443000 -        0x1a7449fff  libswiftCoreFoundation.dylib (2401) <86C3F3D1-8C85-315F-8C1C-8D12DA54E0EF> /usr/lib/swift/libswiftCoreFoundation.dylib
+       0x1a7455000 -        0x1a748cff2  libswiftXPC.dylib (36.100.7.0.1) <BFEE4FBF-0ECF-37C0-BD7F-502FE5F358D1> /usr/lib/swift/libswiftXPC.dylib
+       0x1a748e000 -        0x1a748efff  libswiftIOKit.dylib (1) <EAF2C3B2-10AD-36CD-A920-A45DFE81E6FF> /usr/lib/swift/libswiftIOKit.dylib
+       0x1b7a9a000 -        0x1b7aa1fff  com.apple.MobileSystemServices (1.0 - 1) <AC486041-576F-3A3E-86CD-CFD4E42D7F0E> /System/Library/PrivateFrameworks/MobileSystemServices.framework/Versions/A/MobileSystemServices
+       0x1d5513000 -        0x1d5516fff  com.apple.ConfigProfileHelper (16.4 - 1652) <621FBF28-1E2B-3659-9D84-A9D3B4DA88E3> /System/Library/PrivateFrameworks/ConfigProfileHelper.framework/Versions/A/ConfigProfileHelper
+       0x219b77000 -        0x219b8afff  com.apple.private.AppleMobileFileIntegrity-fmk (1.0 - 1) <5B6928E2-3EE3-321C-8CE7-F3C5C1679893> /System/Library/PrivateFrameworks/AppleMobileFileIntegrity.framework/Versions/A/AppleMobileFileIntegrity
+       0x21c3b2000 -        0x21c511fff  com.apple.CollectionsInternal (1.1.0 - 22) <7DC7FE56-7C52-373F-BF56-5AC17E19F784> /System/Library/PrivateFrameworks/CollectionsInternal.framework/Versions/A/CollectionsInternal
+       0x229c49000 -        0x229d28fff  com.apple.InstalledContentLibrary (1.0 - 1.0) <26922896-2AFC-384E-8D22-C95E6334DA62> /System/Library/PrivateFrameworks/InstalledContentLibrary.framework/Versions/A/InstalledContentLibrary
+       0x22bac4000 -        0x22c05cfff  com.apple.MIL (3304.6 - 3304.6.1) <1776A9FD-0D44-34A1-B53D-55518418469F> /System/Library/PrivateFrameworks/MIL.framework/Versions/A/MIL
+       0x22d375000 -        0x22d3c0fff  com.apple.MessageSecurity (1.0 - 101.100.4) <A64CA60D-6DC2-3CC1-82DC-98C86D3779BF> /System/Library/PrivateFrameworks/MessageSecurity.framework/Versions/A/MessageSecurity
+       0x232443000 -        0x23244bff7  com.apple.ReflectionInternal (1.0.0 - 22) <EABFD56A-54C6-3455-A976-D053BEB1C1F3> /System/Library/PrivateFrameworks/ReflectionInternal.framework/Versions/A/ReflectionInternal
+       0x2329c9000 -        0x2329e0fff  com.apple.RuntimeInternal (1.0.0 - 22) <050F1161-476D-3D52-8B97-65FA89346889> /System/Library/PrivateFrameworks/RuntimeInternal.framework/Versions/A/RuntimeInternal
+       0x246bb2000 -        0x246bbdfff  libCoreEntitlements.dylib (53.100.3.0.1) <976BAB8A-2F18-3CFD-973F-645335DD6C56> /usr/lib/libCoreEntitlements.dylib
+       0x246da0000 -        0x246dabfff  libTLE.dylib (53.100.3.0.1) <05A71C26-388C-329A-9D8A-D601BBB1C37B> /usr/lib/libTLE.dylib
+       0x2481a5000 -        0x248210ff7  libswift_Concurrency.dylib (5.10 - 5.10.0.12.5) <D6C9A750-A3E9-3AA3-9D68-E0D6B1469648> /usr/lib/swift/libswift_Concurrency.dylib
+       0x248250000 -        0x2482f8ff7  libswift_RegexParser.dylib (5.10 - 5.10.0.12.5) <F9659498-9A32-3EAE-A550-C85533C08F05> /usr/lib/swift/libswift_RegexParser.dylib
+       0x2482f9000 -        0x24839bff7  libswift_StringProcessing.dylib (5.10 - 5.10.0.12.5) <5329D85F-7446-3295-8064-C8288457FB38> /usr/lib/swift/libswift_StringProcessing.dylib
+       0x2484f2000 -        0x2484f5fff  libsystem_darwindirectory.dylib (86.0.2) <0395D567-DBD9-3F03-A9E0-A0969963A834> /usr/lib/system/libsystem_darwindirectory.dylib
+       0x2484f6000 -        0x2484f9fff  libsystem_eligibility.dylib (47.101.3) <6C663441-D4D5-361C-ABE7-B68D7B6E5B9B> /usr/lib/system/libsystem_eligibility.dylib
+       0x2484fa000 -        0x2484fdffb  libsystem_sanitizers.dylib (8) <EEA82D78-5036-3A22-8DC6-4E131A57941B> /usr/lib/system/libsystem_sanitizers.dylib

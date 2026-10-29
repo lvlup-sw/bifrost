@@ -89,7 +89,7 @@ public sealed class PriorityDispatchAcceptanceTests
     {
         // Arrange / Act — gate a single worker on the first item, pile the batch
         // backlog plus one interactive item behind it, release, drain.
-        var order = await RunGatedBacklogTrialAsync(DispatchStrategy.PriorityLocking).ConfigureAwait(false);
+        var order = await RunGatedBacklogTrialAsync(DispatchStrategy.PriorityExact).ConfigureAwait(false);
 
         // Assert — the gate dispatched first (it captured the worker), and the
         // interactive item is the IMMEDIATE next dispatch despite 64 batch items
@@ -171,7 +171,7 @@ public sealed class PriorityDispatchAcceptanceTests
         var positions = new List<int>(TrialCount);
         for (var trial = 0; trial < TrialCount; trial++)
         {
-            var order = await RunGatedBacklogTrialAsync(DispatchStrategy.PriorityMultiQueue).ConfigureAwait(false);
+            var order = await RunGatedBacklogTrialAsync(DispatchStrategy.PriorityRelaxed).ConfigureAwait(false);
 
             await Assert.That(order.Count).IsEqualTo(BatchBacklog + 2);
             await Assert.That(order[0]).IsEqualTo("gate");
@@ -219,8 +219,8 @@ public sealed class PriorityDispatchAcceptanceTests
     /// </para>
     /// </remarks>
     [Test]
-    [Arguments(DispatchStrategy.PriorityMultiQueue)]
-    [Arguments(DispatchStrategy.PriorityLocking)]
+    [Arguments(DispatchStrategy.PriorityRelaxed)]
+    [Arguments(DispatchStrategy.PriorityExact)]
     public async Task Interactive_UnderMultiProducerMultiConsumerLoad_LowerMeanWaitThanBatch(DispatchStrategy strategy)
     {
         // Arrange — real time (waits must be real durations), 4 workers, capacity
@@ -233,6 +233,7 @@ public sealed class PriorityDispatchAcceptanceTests
             Capacity = 4096,
             WorkerCount = 4,
             DispatchStrategy = strategy,
+            FullMode = QueueFullMode.Reject,
         };
         options.Priority.InteractiveBoostWindow = TimeSpan.FromSeconds(30);
         options.Priority.BatchPenaltyWindow = TimeSpan.FromSeconds(30);
@@ -322,6 +323,7 @@ public sealed class PriorityDispatchAcceptanceTests
             Capacity = 256,
             WorkerCount = 1,
             DispatchStrategy = strategy,
+            FullMode = QueueFullMode.Reject,
         };
 
         await using var orchestrator = new WorkOrchestrator<string>(

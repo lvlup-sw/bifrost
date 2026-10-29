@@ -6,67 +6,46 @@
 
 namespace Bifrost.Core;
 
-/// <summary>
-/// The admission outcome of an enqueue attempt.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Rejection is an admission outcome: it occurs before the work item enters
-/// the queue, so the at-least-once execution contract is unaffected — work
-/// that was admitted is still executed at least once, and work that was
-/// rejected was never admitted in the first place.
-/// </para>
-/// <para>
-/// Rejected work routes to the dead-letter queue decorator when one is
-/// configured, carrying the <see cref="Reason"/> for diagnosis and replay.
-/// </para>
-/// <para>
-/// This is a readonly record struct for efficient, immutable representation
-/// of admission outcomes without heap allocation.
-/// </para>
-/// </remarks>
+/// <summary>The state of an admission outcome.</summary>
+public enum EnqueueStatus
+{
+    /// <summary>No operation has supplied an outcome.</summary>
+    Uninitialized,
+
+    /// <summary>The item entered the queue.</summary>
+    Accepted,
+
+    /// <summary>The item did not enter the queue.</summary>
+    Rejected,
+}
+
+/// <summary>An immutable admission outcome. Acceptance is not a durability or execution guarantee.</summary>
 public readonly record struct EnqueueResult
 {
-    private EnqueueResult(bool isAccepted, RejectionReason? reason)
+    private EnqueueResult(EnqueueStatus status, RejectionReason? reason)
     {
-        IsAccepted = isAccepted;
+        Status = status;
         Reason = reason;
     }
 
-    /// <summary>
-    /// Gets the singleton result representing a successfully admitted enqueue.
-    /// </summary>
-    /// <value>
-    /// A result with <see cref="IsAccepted"/> set to <see langword="true"/>
-    /// and <see cref="Reason"/> set to <see langword="null"/>.
-    /// </value>
-    public static EnqueueResult Accepted { get; } = new(true, null);
+    /// <summary>Gets the outcome state. The default value is uninitialized.</summary>
+    public EnqueueStatus Status { get; }
 
-    /// <summary>
-    /// Gets a value indicating whether the work item was admitted.
-    /// </summary>
-    /// <value>
-    /// <see langword="true"/> if the work item was admitted to the queue;
-    /// otherwise, <see langword="false"/>.
-    /// </value>
-    public bool IsAccepted { get; }
+    /// <summary>Gets whether the item was admitted.</summary>
+    public bool IsAccepted => Status == EnqueueStatus.Accepted;
 
-    /// <summary>
-    /// Gets the reason the work item was rejected at admission.
-    /// </summary>
-    /// <value>
-    /// The rejection reason when <see cref="IsAccepted"/> is
-    /// <see langword="false"/>; otherwise, <see langword="null"/>.
-    /// </value>
+    /// <summary>Gets the rejection reason, or null for accepted and uninitialized values.</summary>
     public RejectionReason? Reason { get; }
 
-    /// <summary>
-    /// Creates a result representing an enqueue rejected at admission.
-    /// </summary>
-    /// <param name="reason">The reason the work item was rejected.</param>
-    /// <returns>
-    /// A result with <see cref="IsAccepted"/> set to <see langword="false"/>
-    /// and <see cref="Reason"/> set to <paramref name="reason"/>.
-    /// </returns>
-    public static EnqueueResult Rejected(RejectionReason reason) => new(false, reason);
+    /// <summary>Gets an accepted outcome.</summary>
+    public static EnqueueResult Accepted { get; } = new(EnqueueStatus.Accepted, null);
+
+    /// <summary>Creates a rejected outcome.</summary>
+    /// <param name="reason">The admission rejection reason.</param>
+    /// <returns>A rejected outcome.</returns>
+    public static EnqueueResult Rejected(RejectionReason reason)
+    {
+        if (!Enum.IsDefined(reason)) throw new ArgumentOutOfRangeException(nameof(reason));
+        return new(EnqueueStatus.Rejected, reason);
+    }
 }

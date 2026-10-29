@@ -13,7 +13,7 @@ namespace Bifrost.Benchmarks.Concurrency;
 /// <summary>
 /// A tiny uniform façade over the three throughput targets so the workload loops stay
 /// target-agnostic: a workload calls <see cref="Enqueue"/> / <see cref="TryDequeue"/> and the
-/// adapter dispatches to the relaxed <c>TryDequeue</c>, the strict <c>TryDequeueMin</c>, or the
+/// adapter dispatches to the relaxed <c>TryDequeue</c>, the strict <c>TryDequeueBestObserved</c>, or the
 /// locking global-lock queue. The element type is fixed to <see cref="long"/> and the priority to
 /// <see cref="long"/> — the harness measures contention, not generic-shape variation.
 /// </summary>
@@ -42,7 +42,7 @@ internal sealed class RelaxedQueueAdapter : IThroughputQueue
 
     /// <summary>Initializes a new adapter over a fresh relaxed MultiQueue queue with the given stickiness factor.</summary>
     /// <param name="stickiness">The stickiness factor <c>s</c> the queue samples sub-queues with.</param>
-    public RelaxedQueueAdapter(int stickiness) => _queue = new ConcurrentPriorityQueue<long, long>(boundedCapacity: -1, stickiness: stickiness);
+    public RelaxedQueueAdapter(int stickiness) => _queue = ConcurrentPriorityQueue<long, long>.Create(new() { Stickiness = stickiness });
 
     /// <summary>
     /// Initializes a new adapter over a fresh relaxed MultiQueue queue with the given stickiness factor
@@ -51,7 +51,7 @@ internal sealed class RelaxedQueueAdapter : IThroughputQueue
     /// <param name="stickiness">The stickiness factor <c>s</c> the queue samples sub-queues with.</param>
     /// <param name="bufferCapacity">The logical buffer capacity <c>C ∈ [0, 16]</c>; <c>0</c> disables buffering.</param>
     public RelaxedQueueAdapter(int stickiness, int bufferCapacity)
-        => _queue = new ConcurrentPriorityQueue<long, long>(boundedCapacity: -1, stickiness: stickiness, bufferCapacity: bufferCapacity);
+        => _queue = ConcurrentPriorityQueue<long, long>.Create(new() { Stickiness = stickiness, BufferCapacity = bufferCapacity });
 
     /// <inheritdoc/>
     public void Enqueue(long priority) => _queue.Enqueue(priority, priority);
@@ -60,7 +60,7 @@ internal sealed class RelaxedQueueAdapter : IThroughputQueue
     public bool TryDequeue() => _queue.TryDequeue(out _, out _);
 }
 
-/// <summary>The MultiQueue queue driven through the strict O(n) <c>TryDequeueMin</c>.</summary>
+/// <summary>The MultiQueue queue driven through the strict O(n) <c>TryDequeueBestObserved</c>.</summary>
 internal sealed class DequeueMinQueueAdapter : IThroughputQueue
 {
     private readonly ConcurrentPriorityQueue<long, long> _queue;
@@ -68,15 +68,15 @@ internal sealed class DequeueMinQueueAdapter : IThroughputQueue
     /// <summary>Initializes a new adapter over a fresh strict-semantics MultiQueue queue with the given stickiness factor.</summary>
     /// <param name="stickiness">
     /// The stickiness factor <c>s</c>; threaded through for a uniform construction surface, though the
-    /// strict <c>TryDequeueMin</c> path scans all sub-queues and is unaffected by sampling stickiness.
+    /// strict <c>TryDequeueBestObserved</c> path scans all sub-queues and is unaffected by sampling stickiness.
     /// </param>
-    public DequeueMinQueueAdapter(int stickiness) => _queue = new ConcurrentPriorityQueue<long, long>(boundedCapacity: -1, stickiness: stickiness);
+    public DequeueMinQueueAdapter(int stickiness) => _queue = ConcurrentPriorityQueue<long, long>.Create(new() { Stickiness = stickiness });
 
     /// <inheritdoc/>
     public void Enqueue(long priority) => _queue.Enqueue(priority, priority);
 
     /// <inheritdoc/>
-    public bool TryDequeue() => _queue.TryDequeueMin(out _, out _);
+    public bool TryDequeue() => _queue.TryDequeueBestObserved(out _, out _);
 }
 
 /// <summary>The <c>LockingPriorityQueue</c> global-lock baseline.</summary>

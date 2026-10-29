@@ -16,93 +16,32 @@ namespace Bifrost.Queues;
 /// The MultiQueue concurrent-priority binding of <see cref="IWorkQueue{T}"/> (DR-4):
 /// a bounded <see cref="ConcurrentPriorityQueue{TElement, TPriority}"/> ordered by the
 /// WFQ virtual-time key (<see cref="PriorityKey"/>, DR-5), composed with an
-/// item-counting <see cref="SemaphoreSlim"/> wake-up. The orchestrator selects this
-/// binding when class-based priority dispatch is enabled with the lock-free MultiQueue
-/// strategy (T18's <c>DispatchStrategy.PriorityMultiQueue</c>); the default strategy
+/// counted <see cref="SemaphoreSlim"/> wake-up. The orchestrator selects this
+/// binding when class-based priority dispatch is enabled with the lock-striped MultiQueue
+/// strategy (T18's <c>DispatchStrategy.PriorityRelaxed</c>); the default strategy
 /// remains <see cref="FifoChannelWorkQueue{T}"/>.
 /// </summary>
 /// <typeparam name="TWork">The type of work item carried by each envelope.</typeparam>
 /// <remarks>
-/// <para>
-/// <b>Semaphore-counts-items invariant.</b> The semaphore's permit count tracks the
-/// number of accepted-but-unclaimed items: <see cref="TryEnqueue(in WorkEnvelope{TWork})"/>
-/// releases exactly one permit per item the priority queue ACCEPTED (a capacity or
-/// post-completion rejection never releases), and each successful
-/// <see cref="WaitToDequeueAsync(CancellationToken)"/> consumes exactly one. N accepted
-/// items therefore fund exactly N successful waits — no lost or phantom wake-ups.
-/// </para>
-/// <para>
-/// <b>Relaxed ordering (DR-5).</b> Dequeue order respects the virtual-time key only
-/// approximately: the MultiQueue's two-choice <c>TryDequeue</c> removes an element with
-/// an expected rank error of <c>(5/6)·n</c> (n = sub-queue count ≈ 4 × processor count),
-/// a relaxation that rides on top of the total order the key defines and is acceptable
-/// dispatch-ordering noise per design DR-5. Correctness must never depend on how close
-/// to the true minimum a pop lands; the starvation bound comes from the bounded boost
-/// window in the key itself, not from dequeue exactness.
-/// </para>
-/// <para>
-/// <b>Completion wake mechanism.</b> <see cref="Complete"/> must wake consumers parked
-/// on the semaphore of an empty queue (the no-hang property) without disturbing the
-/// permit accounting of residual items. It does so by releasing one permit per
-/// registered waiter: <see cref="WaitToDequeueAsync(CancellationToken)"/> registers
-/// itself (an <see cref="Interlocked"/> increment, a full fence) BEFORE reading the
-/// completed flag, and <see cref="Complete"/> publishes the flag (with a full fence)
-/// BEFORE reading the waiter count — a store-buffering handshake guaranteeing that a
-/// waiter either observes completion and never parks, or is observed by
-/// <see cref="Complete"/> and receives a wake-up permit. Never neither, so no consumer
-/// is left parked forever. After completion the semaphore is no longer authoritative
-/// (residual items may be drained directly via <see cref="TryDequeue(out WorkEnvelope{TWork})"/>
-/// without consuming permits), so the wait degrades to a poll: <c>true</c> while
-/// residual items remain, <c>false</c> once completed AND empty. Over-released permits
-/// from this handshake are harmless: a woken waiter that finds the queue completed and
-/// empty reports shutdown, and post-completion waits never park.
-/// </para>
-/// <para>
-/// <b>Class-aware watermark admission (DR-6).</b> Under pressure this binding sheds
-/// the LOWEST class FIRST, at admission: Batch enqueues are rejected once the
-/// approximate count reaches <see cref="PriorityDispatchOptions.BatchAdmissionWatermark"/>
-/// × capacity (0.90 by default), Default at
-/// <see cref="PriorityDispatchOptions.DefaultAdmissionWatermark"/> × capacity (0.95),
-/// and Interactive is admitted to
-/// <see cref="PriorityDispatchOptions.InteractiveAdmissionWatermark"/> × capacity
-/// (1.0 — hard capacity). This is the WRED / priority-load-shedding precedent applied
-/// at the enqueue gate: shedding happens by REFUSING new low-class work while
-/// reserving the remaining headroom for urgent work, so no eviction machinery (and no
-/// remove-from-middle support in the CPQ) is ever needed. It is also the design's
-/// admission-side priority-inversion fix: the rejected alternative —
-/// producer-waits-at-capacity — would let a backlog of Batch items block the producer
-/// of an Interactive item, inverting priority at the queue boundary; shedding the low
-/// class at admission keeps the gate open for urgent work instead.
-/// </para>
-/// <para>
-/// <b>Approximate-count tolerance (DR-6).</b> The watermark check reads
-/// <see cref="Count"/>, the MultiQueue's striped sum, which is approximate under
-/// concurrency — so admission near a watermark may transiently over- or under-admit
-/// by roughly the in-flight operation count. This slop is tolerated by design:
-/// watermarks are load-shedding heuristics, not invariants, and the structure's hard
-/// capacity gate remains the exact backstop. At quiescence the striped sum is exact,
-/// so the boundary is exact (count 89 admits Batch at the default 0.90 × 100; count
-/// 90 rejects).
-/// </para>
-/// <para>
-/// <b>Interaction with the virtual-time key (DR-5 × DR-6).</b> The two mechanisms are
-/// complementary, not overlapping: watermarks govern the ADMISSION side (which
-/// classes still get in as the queue fills — shed order under pressure), while the
-/// key's bounded boost window governs the DEQUEUE side (admitted low-class work
-/// cannot be starved longer than the boost window). Neither subsumes the other — the
-/// key alone cannot prevent a full queue of Batch work from crowding out Interactive
-/// admission, and watermarks alone cannot bound how long admitted Batch work waits.
-/// </para>
-/// <para>
-/// <see cref="Complete"/> is a concrete-only member — it is not part of
-/// <see cref="IWorkQueue{T}"/>; the orchestrator reaches it via the concrete type,
-/// mirroring <see cref="FifoChannelWorkQueue{T}"/>. This binding has no producer-wait
-/// accept path: producers that need backpressure observe <c>TryEnqueue == false</c>.
-/// </para>
+/// <para>Each accepted enqueue funds a semaphore wake. A wait consumes one permit, but a
+/// consumer may drain multiple entries afterward; permit count is not queue length and a wake
+/// does not reserve an item. Consumers must retry dequeue/wait when another consumer wins.</para>
+/// <para>Completion closes admission and waits for in-flight producers to publish their entries
+/// and wakes before publishing the completed flag. Waiters register before reading that flag;
+/// completion publishes it before reading the waiter count, with full fences. Thus a waiter
+/// observes closure or receives a completion wake. After closure, waits poll residual entries.</para>
+/// <para>Watermarks are approximate under concurrency because they use striped Count; hard
+/// capacity remains enforced by the underlying queue's reservation counter. Enqueue reports
+/// CapacityExceeded, WatermarkExceeded or Shutdown; TryEnqueue discards that distinction.</para>
+/// <para>Virtual-time offsets express ordering preferences, not service-time guarantees.
+/// A Batch key outranks a fresh Interactive key after the boost plus batch penalty. MultiQueue
+/// removal is relaxed, so it need not select that key. Backlog and handler availability also
+/// determine waiting time. Admission is not durable execution.</para>
 /// </remarks>
 internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<TWork>>, IDisposable
 {
     private readonly ConcurrentPriorityQueue<WorkEnvelope<TWork>, long> _queue;
+    private int _admissionState;
     private readonly SemaphoreSlim _signal = new(0);
     private readonly PriorityKey.Boosts _boosts;
 
@@ -137,10 +76,9 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     private int _waiterCount;
 
     /// <summary>
-    /// Idempotency gate for <see cref="Complete"/>: the first caller flips it and
-    /// performs the completion wake; later calls are no-ops.
+    /// Serializes completion calls through admission closure and consumer wake-up.
     /// </summary>
-    private int _completedGate;
+    private readonly Lock _completionGate = new();
 
     /// <summary>
     /// Whether the queue has been completed for adding. Volatile: read on the enqueue
@@ -202,7 +140,12 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
             options.CpqTuning,
             RuntimeHelpers.IsReferenceOrContainsReferences<WorkEnvelope<TWork>>());
 
-        _queue = new ConcurrentPriorityQueue<WorkEnvelope<TWork>, long>(capacity, _resolvedStickiness, _resolvedBufferCapacity);
+        _queue = ConcurrentPriorityQueue<WorkEnvelope<TWork>, long>.Create(new()
+        {
+            Capacity = capacity,
+            Stickiness = _resolvedStickiness,
+            BufferCapacity = _resolvedBufferCapacity,
+        });
     }
 
     /// <summary>
@@ -233,38 +176,42 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// priority queue. <c>false</c> means a watermark rejection, hard capacity
     /// exhaustion, or a completed queue — intentionally indistinguishable per the
     /// <see cref="IWorkQueue{T}"/> contract; a rejection never releases a wake-up
-    /// permit, so the semaphore-counts-items invariant is preserved. The watermark
+    /// permit. The watermark
     /// check is approximate under concurrency (striped count) and exact at quiescence;
     /// the structure's hard capacity gate stays as the exact backstop.
     /// </remarks>
-    public bool TryEnqueue(in WorkEnvelope<TWork> item)
+    public bool TryEnqueue(in WorkEnvelope<TWork> item) => Enqueue(item).IsAccepted;
+
+    /// <inheritdoc/>
+    public EnqueueResult Enqueue(in WorkEnvelope<TWork> item)
     {
-        if (_completed)
+        // The high bit closes admission. Complete waits for previously admitted producers,
+        // including their wake-up releases, before allowing consumers to observe completion.
+        int state;
+        do
         {
-            // Mirrors the FIFO binding's completed-channel behavior: rejection via false,
-            // never an exception.
-            return false;
+            state = Volatile.Read(ref _admissionState);
+            if (state < 0) return EnqueueResult.Rejected(RejectionReason.Shutdown);
+            if (state == int.MaxValue) throw new InvalidOperationException("Too many concurrent producers.");
         }
 
-        if (_queue.Count >= _thresholds.ThresholdFor(item.Class))
+        while (Interlocked.CompareExchange(ref _admissionState, state + 1, state) != state);
+        try
         {
-            // Watermark shed (DR-6): the queue has filled past this class's admission
-            // threshold — refuse the item, reserving the remaining headroom for more
-            // urgent classes. No permit is released. The striped count read here may
-            // be slightly stale under concurrency; that slop is tolerated by design.
-            return false;
+            int count = _queue.Count;
+            if (count >= _queue.Capacity)
+                return EnqueueResult.Rejected(RejectionReason.CapacityExceeded);
+            if (count >= _thresholds.ThresholdFor(item.Class))
+                return EnqueueResult.Rejected(RejectionReason.WatermarkExceeded);
+            if (!_queue.TryEnqueue(item, PriorityKey.Compute(in item, in _boosts)))
+                return EnqueueResult.Rejected(RejectionReason.CapacityExceeded);
+            _signal.Release();
+            return EnqueueResult.Accepted;
         }
-
-        if (!_queue.TryEnqueue(item, PriorityKey.Compute(in item, in _boosts)))
+        finally
         {
-            // Hard capacity: the bounded gate rejected the item — no permit is released.
-            // This exact backstop also covers any watermark under-count slop.
-            return false;
+            Interlocked.Decrement(ref _admissionState);
         }
-
-        // Semaphore counts ITEMS: exactly one permit per accepted item.
-        _signal.Release();
-        return true;
     }
 
     /// <inheritdoc/>
@@ -335,8 +282,7 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// <inheritdoc/>
     /// <remarks>
     /// Delegates to the MultiQueue's relaxed two-choice dequeue: the removed envelope has
-    /// one of the smallest virtual-time keys, within the documented <c>(5/6)·n</c>
-    /// expected rank error (acceptable dispatch noise per DR-5). A <c>false</c> may be
+    /// a relaxed virtual-time priority with no deterministic rank bound. A <c>false</c> may be
     /// spurious under concurrent mutation — consumers loop back to
     /// <see cref="WaitToDequeueAsync(CancellationToken)"/> per the canonical consume loop.
     /// </remarks>
@@ -354,22 +300,24 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// </summary>
     public void Complete()
     {
-        if (Interlocked.Exchange(ref _completedGate, 1) == 1)
+        lock (_completionGate)
         {
-            return;
-        }
+            if (_completed) return;
+            Interlocked.Or(ref _admissionState, int.MinValue);
+            SpinWait spinner = default;
+            while (Volatile.Read(ref _admissionState) != int.MinValue) spinner.SpinOnce();
+            _completed = true;
 
-        _completed = true;
+            // Full fence between publishing the flag and reading the waiter count: pairs
+            // with the Interlocked.Increment in WaitToDequeueAsync so a waiter that missed
+            // the flag is always visible here and receives a wake-up permit.
+            Interlocked.MemoryBarrier();
 
-        // Full fence between publishing the flag and reading the waiter count: pairs
-        // with the Interlocked.Increment in WaitToDequeueAsync so a waiter that missed
-        // the flag is always visible here and receives a wake-up permit.
-        Interlocked.MemoryBarrier();
-
-        var waiters = Volatile.Read(ref _waiterCount);
-        if (waiters > 0)
-        {
-            _signal.Release(waiters);
+            var waiters = Volatile.Read(ref _waiterCount);
+            if (waiters > 0)
+            {
+                _signal.Release(waiters);
+            }
         }
     }
 

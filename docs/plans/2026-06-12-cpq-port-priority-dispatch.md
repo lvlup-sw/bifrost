@@ -1,5 +1,7 @@
 # Implementation Plan: CPQ Port + Priority-Aware Work Dispatch
 
+> Superseded API/contract notes: the [2026-10 migration](../migrations/2026-10-priority-api.md) removes public LockingPriorityQueue and Auto selection, corrects progress and rank-error claims, and removes the claimed wall-clock starvation bound. Historical measurements below remain workload-specific evidence.
+
 **Design:** `docs/designs/2026-06-12-cpq-port-priority-dispatch.md`
 **Issue:** [#17](https://github.com/lvlup-sw/bifrost/issues/17)
 **Iron Law:** No production code without a failing test first.

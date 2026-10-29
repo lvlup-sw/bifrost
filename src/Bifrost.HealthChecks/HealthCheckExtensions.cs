@@ -120,22 +120,22 @@ public static class HealthCheckExtensions
     ///     .AddAutoscalingHealthChecks();
     /// </code>
     /// </example>
-    public static IHealthChecksBuilder AddAutoscalingHealthChecks(this IHealthChecksBuilder builder)
+    public static IHealthChecksBuilder AddAutoscalingHealthChecks<TWork>(this IHealthChecksBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         builder
             .Add(new HealthCheckRegistration(
-                "autoscaling-engine",
+                $"autoscaling-engine-{typeof(TWork).FullName}",
                 sp => new AutoscalingHealthCheck(
-                    sp.GetRequiredService<IWorkerRegistry>(),
-                    sp.GetRequiredService<IOptions<AutoscalingOptions>>()),
+                    sp.GetRequiredKeyedService<IWorkerRegistry>(typeof(TWork)),
+                    sp.GetRequiredKeyedService<IOptions<AutoscalingOptions>>(typeof(TWork))),
                 failureStatus: HealthStatus.Unhealthy,
                 tags: ["autoscaling"]))
             .Add(new HealthCheckRegistration(
-                "worker-registry",
+                $"worker-registry-{typeof(TWork).FullName}",
                 sp => new WorkerRegistryHealthCheck(
-                    sp.GetRequiredService<IWorkerRegistry>()),
+                    sp.GetRequiredKeyedService<IWorkerRegistry>(typeof(TWork))),
                 failureStatus: HealthStatus.Unhealthy,
                 tags: ["autoscaling"]));
 

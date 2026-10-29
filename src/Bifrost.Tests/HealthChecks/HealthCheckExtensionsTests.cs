@@ -159,13 +159,13 @@ public class HealthCheckExtensionsTests
         mockRegistry.IdleWorkerCount.Returns(2);
         mockRegistry.GetAllWorkers().Returns([]);
 
-        services.AddSingleton(mockRegistry);
-        services.AddSingleton<IOptions<AutoscalingOptions>>(
+        services.AddKeyedSingleton<IWorkerRegistry>(typeof(string), mockRegistry);
+        services.AddKeyedSingleton<IOptions<AutoscalingOptions>>(typeof(string),
             Options.Create(new AutoscalingOptions { MinWorkers = 1, MaxWorkers = 16 }));
 
         // Act
         services.AddHealthChecks()
-            .AddAutoscalingHealthChecks();
+            .AddAutoscalingHealthChecks<string>();
 
         var provider = services.BuildServiceProvider();
         var healthCheckService = provider.GetService<HealthCheckService>();
@@ -174,7 +174,7 @@ public class HealthCheckExtensionsTests
         await Assert.That(healthCheckService).IsNotNull();
 
         var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
-        await Assert.That(report.Entries.ContainsKey("autoscaling-engine")).IsTrue();
+        await Assert.That(report.Entries.ContainsKey("autoscaling-engine-System.String")).IsTrue();
     }
 
     /// <summary>
@@ -192,13 +192,13 @@ public class HealthCheckExtensionsTests
         mockRegistry.IdleWorkerCount.Returns(2);
         mockRegistry.GetAllWorkers().Returns([]);
 
-        services.AddSingleton(mockRegistry);
-        services.AddSingleton<IOptions<AutoscalingOptions>>(
+        services.AddKeyedSingleton<IWorkerRegistry>(typeof(string), mockRegistry);
+        services.AddKeyedSingleton<IOptions<AutoscalingOptions>>(typeof(string),
             Options.Create(new AutoscalingOptions { MinWorkers = 1, MaxWorkers = 16 }));
 
         // Act
         services.AddHealthChecks()
-            .AddAutoscalingHealthChecks();
+            .AddAutoscalingHealthChecks<string>();
 
         var provider = services.BuildServiceProvider();
         var healthCheckService = provider.GetService<HealthCheckService>();
@@ -207,7 +207,7 @@ public class HealthCheckExtensionsTests
         await Assert.That(healthCheckService).IsNotNull();
 
         var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
-        await Assert.That(report.Entries.ContainsKey("worker-registry")).IsTrue();
+        await Assert.That(report.Entries.ContainsKey("worker-registry-System.String")).IsTrue();
     }
 
     /// <summary>
@@ -221,7 +221,7 @@ public class HealthCheckExtensionsTests
         var builder = services.AddHealthChecks();
 
         // Act
-        var result = builder.AddAutoscalingHealthChecks();
+        var result = builder.AddAutoscalingHealthChecks<string>();
 
         // Assert
         await Assert.That(result).IsEqualTo(builder);
@@ -234,7 +234,7 @@ public class HealthCheckExtensionsTests
     public async Task AddAutoscalingHealthChecks_ThrowsWhenBuilderNull()
     {
         // Act & Assert
-        await Assert.That(() => HealthCheckExtensions.AddAutoscalingHealthChecks(null!))
+        await Assert.That(() => HealthCheckExtensions.AddAutoscalingHealthChecks<string>(null!))
             .Throws<ArgumentNullException>();
     }
 }

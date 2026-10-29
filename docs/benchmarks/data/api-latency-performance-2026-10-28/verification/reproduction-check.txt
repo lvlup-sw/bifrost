@@ -1,0 +1,12 @@
+patching file SubQueue.cs
+patching file ThreadHandle.cs
+patching file SubQueue.cs
+patching file SubQueueBuffer.cs
+current all source hashes match
+preprofile all source hashes match
+Final confirmation complete: {'batch-sparse': 24, 'buffered-single': 12, 'perf': 12, 'batch': 4}
+Validation and profile harnesses unchanged; all summaries have expected sample counts.
+All archived Python scripts parse.
+Archived parser reproduces all four native profiles.
+Retained production changes: SubQueue.cs and ThreadHandle.cs only; source matches tested final hashes.
+git diff --check passed.

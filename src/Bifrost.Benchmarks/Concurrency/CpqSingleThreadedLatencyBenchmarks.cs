@@ -89,7 +89,7 @@ public class CpqSingleThreadedLatencyBenchmarks
     public void Setup()
     {
         _multiQueueInt = new ConcurrentPriorityQueue<int, int>();
-        _multiQueueStickyInt = new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 4);
+        _multiQueueStickyInt = ConcurrentPriorityQueue<int, int>.Create(new() { Stickiness = 4 });
         _lockingInt = new LockingPriorityQueue<int, int>();
         _rawInt = new PriorityQueue<int, int>();
         _rawUnlockedInt = new PriorityQueue<int, int>();

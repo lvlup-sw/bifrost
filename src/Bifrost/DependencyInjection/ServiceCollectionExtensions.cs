@@ -36,7 +36,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Register options with DataAnnotations validation
-        services.AddOptions<WorkOrchestratorOptions>()
+        services.AddOptions<WorkOrchestratorOptions>(Bifrost.Core.WorkOptions.Name<TWork>())
             .Configure(configure ?? (_ => { }))
             .ValidateDataAnnotations()
             .ValidateOnStart();

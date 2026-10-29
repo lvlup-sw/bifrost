@@ -19,7 +19,7 @@ namespace Bifrost.Resilience;
 /// behavior for the work orchestrator.
 /// </para>
 /// <para><b>Scope:</b> Resilience policies apply to <b>enqueue operations only</b>
-/// (<see cref="Bifrost.Core.IWorkOrchestrator{TWork}.EnqueueAsync"/>).
+/// (<see cref="Bifrost.Core.IWorkWriter{TWork}.EnqueueAsync"/>).
 /// Synchronous methods (<c>TryEnqueue</c>, <c>TryRun</c>, <c>Run</c>) bypass
 /// resilience policies because channel writes are CPU-bound and do not experience
 /// transient failures.</para>
