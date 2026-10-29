@@ -1,33 +1,19 @@
-## Summary
+## Background
 
-<!-- 2-3 sentences: What changed and why it matters -->
+<!-- Why this change exists. State the problem, the constraint, or the linked issue. Use two to four sentences. Put `Closes #N` on its own line. -->
+
+## Design Decisions
+
+<!-- Choices that a reviewer cannot infer from the diff. If there are none, write None. -->
 
 ## Changes
 
-<!-- Scannable list of key changes. Use **Bold** for component names. -->
+<!-- What landed, at component level. Do not list files. -->
 
-- **Component** — Description of change
+## Verification Performed
 
-## Test Plan
+<!-- Commands you ran and the result, in the past tense. Do not write a future checklist. -->
 
-<!-- How was this tested? What scenarios were covered? -->
+## Post-Merge Operations
 
-## Performance Impact
-
-<!-- If applicable: Did you run benchmarks? Any allocation changes? -->
-
-- [ ] No performance impact expected
-- [ ] Benchmarks run, results: <!-- paste or link -->
-- [ ] New benchmarks added
-
-## Checklist
-
-- [ ] Tests pass (`dotnet test`)
-- [ ] Coverage maintained (80%+)
-- [ ] XML documentation updated for public APIs
-- [ ] No new StyleCop warnings
-- [ ] CHANGELOG.md updated (if user-facing change)
-
-## Related Issues
-
-<!-- Fixes #123, Closes #456, Related to #789 -->
+<!-- Steps a human must do after merge. If there are none, write None. -->

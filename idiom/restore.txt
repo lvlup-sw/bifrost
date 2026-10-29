@@ -1,0 +1,16 @@
+  Determining projects to restore...
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.HealthChecks/Bifrost.HealthChecks.csproj (in 102 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.Scheduling.Core/Bifrost.Scheduling.Core.csproj (in 3 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.Scheduling/Bifrost.Scheduling.csproj (in 3 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj (in 0.8 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.OpenTelemetry/Bifrost.OpenTelemetry.csproj (in 2 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.Scheduling.Testing/Bifrost.Scheduling.Testing.csproj (in 3 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.Core/Bifrost.Core.csproj (in 0.7 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj (in 21 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost/Bifrost.csproj (in 2 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.Resilience/Bifrost.Resilience.csproj (in 3 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.Tests.Scheduling/Bifrost.Tests.Scheduling.csproj (in 29 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/samples/Bifrost.Scheduling.AotSmoke/Bifrost.Scheduling.AotSmoke.csproj (in 9 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.Tests/Bifrost.Tests.csproj (in 4 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj (in 1 ms).
+  Restored /home/reedsalus/.codex/worktrees/92f2/bifrost/samples/Bifrost.Concurrency.AotSmoke/Bifrost.Concurrency.AotSmoke.csproj (in 1 ms).

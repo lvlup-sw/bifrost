@@ -72,3 +72,5 @@ Tests use TUnit and Microsoft Testing Platform. Use `dotnet test --project src/B
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).
+
+<!-- ci-lanes scratch proof: docs-only PR for targeting. -->

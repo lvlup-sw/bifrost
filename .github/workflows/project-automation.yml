@@ -34,7 +34,7 @@ jobs:
   # ============================================================
   label-sync:
     if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
-    uses: lvlup-sw/.github/.github/workflows/label-sync.yml@778433e667a510e15b61e52fdbfd55e3664f286f # main
+    uses: lvlup-sw/.github/.github/workflows/label-sync.yml@v1
     secrets: inherit
 
   # ============================================================
@@ -246,7 +246,7 @@ jobs:
     permissions:
       issues: write
     steps:
-      - uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639 # v9
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
         with:
           stale-issue-message: |
             This issue has been automatically marked as stale because it has not had
@@ -287,7 +287,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -299,7 +299,7 @@ jobs:
           args: --latest --strip header
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           body: ${{ steps.changelog.outputs.content }}
           generate_release_notes: false
