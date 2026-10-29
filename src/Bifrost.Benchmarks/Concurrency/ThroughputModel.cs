@@ -51,20 +51,20 @@ public enum ThroughputTarget
 {
     /// <summary>
     /// The MultiQueue <c>ConcurrentPriorityQueue</c> using the relaxed two-choice <c>TryDequeue</c>:
-    /// the near-linear-scaling throughput path with a bounded rank error.
+    /// the relaxed throughput path. Ordering accuracy and scaling depend on the workload.
     /// </summary>
     MultiQueueRelaxed,
 
     /// <summary>
-    /// The MultiQueue <c>ConcurrentPriorityQueue</c> using the strict <c>TryDequeueBestObserved</c>: the exact
-    /// global-minimum path, an O(n) scan that carries no scalability claim — included so the sweep
-    /// shows the cost of strictness against the relaxed path.
+    /// The MultiQueue <c>ConcurrentPriorityQueue</c> using <c>TryDequeueBestObserved</c>: a non-atomic
+    /// O(n) best-observed scan, not an exact concurrent global minimum. The legacy CSV target name
+    /// is retained so archived measurements remain readable.
     /// </summary>
     MultiQueueDequeueMin,
 
     /// <summary>
-    /// The <c>LockingPriorityQueue</c> global-lock baseline: every operation serializes on a
-    /// single lock, the floor the relaxed design must beat to justify itself.
+    /// The benchmark's synchronized BCL <c>PriorityQueue</c> baseline. Every access uses one lock;
+    /// this is independent of the removed public <c>LockingPriorityQueue</c> implementation.
     /// </summary>
     LockingBaseline,
 }
