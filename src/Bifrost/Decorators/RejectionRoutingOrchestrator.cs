@@ -22,10 +22,10 @@ namespace Bifrost.Decorators;
 /// <typeparam name="TWork">The type of work item to process.</typeparam>
 /// <remarks>
 /// <para>
-/// The virtual-time key expresses an ordering preference, not a service-time guarantee.
-/// An older Batch key outranks a fresh Interactive key only after the boost plus batch penalty.
-/// Exact dispatch selects the minimum admitted key; MultiQueue may select a different key.
-/// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
+/// <see cref="RejectionObserved"/> is invoked for every rejection, including
+/// <see cref="RejectionReason.Shutdown"/>. Dead-letter routing is skipped for
+/// Shutdown or when no DLQ is configured. Routing provides observability and
+/// does not retry rejected work.
 /// </para>
 /// <para>
 /// <b>Rejection-distinguishing marker.</b> Dead-letter entries produced here
@@ -42,10 +42,9 @@ namespace Bifrost.Decorators;
 /// deliberately stopped admitting.
 /// </para>
 /// <para>
-/// The virtual-time key expresses an ordering preference, not a service-time guarantee.
-/// An older Batch key outranks a fresh Interactive key only after the boost plus batch penalty.
-/// Exact dispatch selects the minimum admitted key; MultiQueue may select a different key.
-/// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
+/// Synchronous <c>Enqueue</c> and <c>TryEnqueue</c> route without waiting for
+/// asynchronous persistence and isolate routing errors. <c>EnqueueAsync</c>
+/// awaits persistence and propagates persistence errors to the caller.
 /// </para>
 /// </remarks>
 internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TWork>

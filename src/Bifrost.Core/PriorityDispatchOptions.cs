@@ -27,12 +27,6 @@ namespace Bifrost.Core;
 /// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
 /// </para>
 /// <para>
-/// The virtual-time key expresses an ordering preference, not a service-time guarantee.
-/// An older Batch key outranks a fresh Interactive key only after the boost plus batch penalty.
-/// Exact dispatch selects the minimum admitted key; MultiQueue may select a different key.
-/// Backlog and handler availability determine actual waiting time. Admission is not durable execution.
-/// </para>
-/// <para>
 /// Each watermark fraction must lie in <c>(0, 1]</c>, enforced by its setter. The
 /// cross-property monotonicity requirement — fractions non-decreasing with class
 /// urgency, <c>Batch ≤ Default ≤ Interactive</c>, so a more urgent class is never
