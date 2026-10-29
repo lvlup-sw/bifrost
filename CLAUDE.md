@@ -30,3 +30,10 @@ scripts/ci/coverage-gate.sh <cobertura.xml>      # 80% line/branch/method gate
 
 - `src/Bifrost{.Core,.HealthChecks,.OpenTelemetry,.Resilience}` — packable libraries.
 - Design notes: `docs/designs/`. Benchmarks: `docs/benchmarks/`.
+
+## Pull requests
+
+When you create or update a pull request, follow `.claude/skills/write-pr/SKILL.md`.
+Use only the five headings in `.github/PULL_REQUEST_TEMPLATE.md`.
+Write the body in Simple English.
+Keep the body short.

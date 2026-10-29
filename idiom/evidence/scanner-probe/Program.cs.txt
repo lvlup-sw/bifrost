@@ -1,0 +1,25 @@
+using System.Reflection;
+using System.Reflection.PortableExecutable;
+using System.Runtime.Loader;
+using System.Buffers.Binary;
+var repo = args[0];
+var dir = Path.Combine(repo, "src/Bifrost.Tests.Scheduling/bin/Release/net10.0");
+AssemblyLoadContext.Default.Resolving += (_, name) => File.Exists(Path.Combine(dir, name.Name + ".dll")) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(dir, name.Name + ".dll")) : null;
+var subject = Path.Combine(dir, "Bifrost.Scheduling.Core.dll");
+var bytes = File.ReadAllBytes(subject);
+var optional = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x3c)) + 24;
+var directory = optional + (BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(optional)) == 0x20b ? 112 : 96);
+Array.Clear(bytes, directory + 14 * 8, 8);
+var fixture = Path.Combine(Path.GetTempPath(), "bifrost-idiom-native-fixture.dll");
+File.WriteAllBytes(fixture, bytes);
+using (var reader = new PEReader(File.OpenRead(fixture))) { Console.WriteLine($"Fixture HasMetadata={reader.HasMetadata}"); if(reader.HasMetadata) return 3; }
+var asm = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(dir, "Bifrost.Tests.Scheduling.dll"));
+foreach(var (type, method) in new[] { ("BannedTimeApiTests", "FindMemberReferenceViolations"), ("BannedTimeApiTests", "FindNonTimeProviderTaskDelayViolations"), ("AotSafetyTests", "FindMemberReferenceViolations") }) {
+ var t=asm.GetType("Bifrost.Tests.Scheduling.Architecture."+type, true)!;
+ var m=t.GetMethod(method, BindingFlags.NonPublic|BindingFlags.Static)!;
+ object?[] inputs=method=="FindNonTimeProviderTaskDelayViolations" ? [new[]{fixture}] : [new[]{fixture},new[]{("System.DateTime","get_UtcNow")}];
+ var violations=(System.Collections.ICollection)m.Invoke(null,inputs)!;
+ Console.WriteLine($"{type}.{method}: invalid subject returned {violations.Count} violations (caller would accept empty)");
+ if(violations.Count != 0) return 4;
+}
+return 0;
