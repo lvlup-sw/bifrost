@@ -1,6 +1,0 @@
-batch-sparse,value,True,16,16,,pairMedianNs current=64.235 [63.820,65.020] n=6 plain-inline=63.820 [63.300,66.860] n=6 pushcache=64.400 [63.720,66.420] n=6 pushcache-inline=63.945 [63.650,64.780] n=6
-batch-sparse,value,True,16,16,,stripeMedianNs current=71.405 [71.200,72.110] n=6 plain-inline=69.845 [69.320,71.550] n=6 pushcache=71.145 [70.810,71.410] n=6 pushcache-inline=70.530 [70.320,70.750] n=6
-batch-sparse,reference,True,16,16,,pairMedianNs current=71.265 [70.650,72.510] n=6 plain-inline=71.145 [69.970,77.500] n=6 pushcache=71.930 [70.570,72.470] n=6 pushcache-inline=71.865 [71.290,78.480] n=6
-batch-sparse,reference,True,16,16,,stripeMedianNs current=83.850 [83.110,85.750] n=6 plain-inline=80.480 [80.030,81.930] n=6 pushcache=80.740 [79.880,82.670] n=6 pushcache-inline=80.795 [78.930,81.850] n=6
-buffered-single,,,16,16,1,Mops current=42.506 [42.371,42.641] n=2 plain-inline=42.467 [42.160,42.774] n=2 pushcache=41.452 [41.256,41.648] n=2 pushcache-inline=41.329 [41.048,41.610] n=2
-buffered-single,,,4096,16,1,Mops current=33.809 [33.474,34.145] n=2 plain-inline=33.878 [33.780,33.976] n=2 pushcache=33.999 [33.905,34.093] n=2 pushcache-inline=33.885 [33.705,34.064] n=2

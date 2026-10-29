@@ -1,4 +1,0 @@
-batch-sparse,value,True,16,16,,pairMedianNs current=64.580 [64.000,64.780] n=6 outline=64.040 [63.830,65.200] n=6 outline-inline=64.795 [63.630,65.160] n=6 outline-partial=64.900 [63.760,65.280] n=6 inline=64.320 [63.730,64.880] n=6
-batch-sparse,value,True,16,16,,stripeMedianNs current=71.155 [70.880,71.580] n=6 outline=71.355 [71.220,71.620] n=6 outline-inline=69.510 [69.140,69.930] n=6 outline-partial=69.155 [69.090,69.370] n=6 inline=69.730 [69.400,70.000] n=6
-batch-sparse,reference,True,16,16,,pairMedianNs current=71.480 [70.600,71.900] n=6 outline=71.785 [71.320,72.540] n=6 outline-inline=71.735 [71.200,76.280] n=6 outline-partial=71.500 [70.800,72.650] n=6 inline=71.300 [70.900,72.100] n=6
-batch-sparse,reference,True,16,16,,stripeMedianNs current=83.915 [82.580,85.450] n=6 outline=80.675 [79.500,81.100] n=6 outline-inline=80.895 [80.230,81.770] n=6 outline-partial=80.625 [79.930,80.870] n=6 inline=80.655 [79.930,82.870] n=6

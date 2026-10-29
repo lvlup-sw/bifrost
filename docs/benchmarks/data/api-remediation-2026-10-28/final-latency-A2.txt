@@ -1,8 +1,0 @@
-latency custom=False population=16 c=0 pairMeanNs=61.9 pairP50Ns=42.0 pairP99Ns=125.0 heldMeanNs=28.1 heldP50Ns=41.0 heldP99Ns=42.0 allocated=0
-latency custom=False population=16 c=16 pairMeanNs=62.0 pairP50Ns=42.0 pairP99Ns=125.0 heldMeanNs=40.6 heldP50Ns=42.0 heldP99Ns=83.0 allocated=0
-latency custom=False population=4096 c=0 pairMeanNs=71.1 pairP50Ns=83.0 pairP99Ns=125.0 heldMeanNs=47.7 heldP50Ns=42.0 heldP99Ns=84.0 allocated=0
-latency custom=False population=4096 c=16 pairMeanNs=71.9 pairP50Ns=83.0 pairP99Ns=84.0 heldMeanNs=41.2 heldP50Ns=42.0 heldP99Ns=84.0 allocated=0
-latency custom=True population=16 c=0 pairMeanNs=63.0 pairP50Ns=42.0 pairP99Ns=125.0 heldMeanNs=51.8 heldP50Ns=42.0 heldP99Ns=84.0 allocated=0
-latency custom=True population=16 c=16 pairMeanNs=59.9 pairP50Ns=42.0 pairP99Ns=125.0 heldMeanNs=57.5 heldP50Ns=42.0 heldP99Ns=84.0 allocated=0
-latency custom=True population=4096 c=0 pairMeanNs=113.1 pairP50Ns=125.0 pairP99Ns=167.0 heldMeanNs=106.9 heldP50Ns=125.0 heldP99Ns=166.0 allocated=0
-latency custom=True population=4096 c=16 pairMeanNs=85.2 pairP50Ns=83.0 pairP99Ns=125.0 heldMeanNs=53.8 heldP50Ns=42.0 heldP99Ns=84.0 allocated=24720

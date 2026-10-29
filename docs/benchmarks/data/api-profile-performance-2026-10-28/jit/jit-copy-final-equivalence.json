@@ -1,4 +1,0 @@
-{
-  "Bifrost.Concurrency.SubQueue`2[int,int]:BufferedPopHeldRoot(byref,byref):int:this (FullOpts)": true,
-  "Bifrost.Concurrency.SubQueue`2[System.__Canon,int]:BufferedPopHeldRoot(byref,byref):int:this (FullOpts)": true
-}

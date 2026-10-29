@@ -1,5 +1,0 @@
-Production source: byte-identical to start-of-investigation snapshot.
-Unique-priority traces: 36/36 byte-identical to original.
-Duplicate-priority traces: 36/36 byte-identical to original.
-Rank/delay records: 160/160 byte-identical to original.
-Retained full matrices: 12 processes, all exited successfully.

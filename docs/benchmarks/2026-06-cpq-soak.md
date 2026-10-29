@@ -1,12 +1,10 @@
 # CPQ Consumer-Shaped Soak (DR-8)
 
-> API review correction (2026-10-28): “bound”, “held” and “exceeded” in the historical charts refer to this workload's empirical ceiling. Neither binding promises a starvation-time bound. Batch/Interactive key crossover includes both boost and batch penalty. Public binding selection has since changed; see the [migration](../migrations/2026-10-priority-api.md).
-
 **Date:** 2026-06-15
 
 The consumer-shaped soak is the DR-8 release-gate artifact for the CPQ priority-dispatch port. DataFerry's published results cover contended micro-benchmarks; this measures the regime Bifrost actually runs in — 1–8 workers, seconds-long work items, a barely-contended queue — driving both internal priority bindings (`LockingPriorityWorkQueue` and `ConcurrentPriorityWorkQueue`) through a 600 s mixed-arrival window at workers {2, 8} and recording per-class queue-wait, dispatch fairness, allocation stability, and a starvation probe.
 
-In this regime the exact min-key locking binding wins decisively: at 8 workers it holds interactive p95 queue-wait to 1.0 s against the relaxed MultiQueue's 15.4 s, and it keeps the classes cleanly separated where the MultiQueue's relaxed two-choice dequeue compresses them together. The locking binding stays below the workload-specific comparison ceiling at every measured worker count; MultiQueue exceeds that ceiling at 2 workers. This measured ceiling is not a starvation theorem or a general wall-clock guarantee. Both bindings allocate flat with zero collections and shed the lowest class first identically. These are the numbers behind the README's strategy-selection guidance.
+In this regime the exact min-key locking binding wins decisively: at 8 workers it holds interactive p95 queue-wait to 1.0 s against the relaxed MultiQueue's 15.4 s, and it keeps the classes cleanly separated where the MultiQueue's relaxed two-choice dequeue compresses them together. The locking binding holds the DR-5 starvation bound at every worker count; the relaxed MultiQueue, which carries no by-construction ordering guarantee, exceeds it at 2 workers. Both bindings allocate flat with zero collections and shed the lowest class first identically. These are the numbers behind the README's strategy-selection guidance.
 
 ## Environment
 

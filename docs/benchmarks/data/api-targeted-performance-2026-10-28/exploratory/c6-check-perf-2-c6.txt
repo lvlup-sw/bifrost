@@ -1,8 +1,0 @@
-perf population=16 c=0 threads=1 Mops=44.863 allocated=0
-perf population=16 c=0 threads=4 Mops=24.699 allocated=0
-perf population=16 c=16 threads=1 Mops=43.756 allocated=0
-perf population=16 c=16 threads=4 Mops=23.054 allocated=0
-perf population=4096 c=0 threads=1 Mops=31.425 allocated=8240
-perf population=4096 c=0 threads=4 Mops=35.852 allocated=32960
-perf population=4096 c=16 threads=1 Mops=32.463 allocated=8264
-perf population=4096 c=16 threads=4 Mops=31.206 allocated=24720

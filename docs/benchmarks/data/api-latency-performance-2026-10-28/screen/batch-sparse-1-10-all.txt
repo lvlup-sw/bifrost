@@ -1,2 +1,0 @@
-batch payload=value custom=True population=16 c=16 pairMedianNs=64.24 pairP90Ns=65.00 stripeMedianNs=71.36 allocated=0
-batch payload=reference custom=True population=16 c=16 pairMedianNs=71.35 pairP90Ns=72.40 stripeMedianNs=85.25 allocated=0

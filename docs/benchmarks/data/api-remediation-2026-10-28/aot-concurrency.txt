@@ -1,6 +1,0 @@
-  Determining projects to restore...
-  All projects are up-to-date for restore.
-  Bifrost.Concurrency -> /Users/rsalus/Dev/aima/bifrost/src/Bifrost.Concurrency/bin/Release/net10.0/Bifrost.Concurrency.dll
-  Bifrost.Concurrency.AotSmoke -> /Users/rsalus/Dev/aima/bifrost/samples/Bifrost.Concurrency.AotSmoke/bin/Release/net10.0/osx-arm64/Bifrost.Concurrency.AotSmoke.dll
-  Generating native code
-  Bifrost.Concurrency.AotSmoke -> /private/tmp/bifrost-validation/aot-concurrency/
