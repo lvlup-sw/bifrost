@@ -1,0 +1,2172 @@
+{
+  "version": 1,
+  "parameters": "--include-transitive",
+  "projects": [
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.Core/Bifrost.Core.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.Tests/Bifrost.Tests.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.TimeProvider.Testing",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            },
+            {
+              "id": "NSubstitute",
+              "requestedVersion": "5.3.0",
+              "resolvedVersion": "5.3.0"
+            },
+            {
+              "id": "Polly",
+              "requestedVersion": "8.6.4",
+              "resolvedVersion": "8.6.4"
+            },
+            {
+              "id": "TUnit",
+              "requestedVersion": "1.2.11",
+              "resolvedVersion": "1.2.11"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Castle.Core",
+              "resolvedVersion": "5.1.1"
+            },
+            {
+              "id": "EnumerableAsyncProcessor",
+              "resolvedVersion": "3.8.4"
+            },
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.DiaSymReader",
+              "resolvedVersion": "2.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.AmbientMetadata.Application",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Compliance.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Binder",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.CommandLine",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.EnvironmentVariables",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.FileExtensions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Json",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.UserSecrets",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.AutoActivation",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyModel",
+              "resolvedVersion": "6.0.2"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.ExceptionSummarization",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Physical",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileSystemGlobbing",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http.Diagnostics",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http.Resilience",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Configuration",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Console",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Debug",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.EventLog",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.EventSource",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.ObjectPool",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.DataAnnotations",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Primitives",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Resilience",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Telemetry",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Telemetry.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.Testing.Extensions.CodeCoverage",
+              "resolvedVersion": "18.1.0"
+            },
+            {
+              "id": "Microsoft.Testing.Extensions.TrxReport",
+              "resolvedVersion": "2.0.2"
+            },
+            {
+              "id": "Microsoft.Testing.Extensions.TrxReport.Abstractions",
+              "resolvedVersion": "2.0.2"
+            },
+            {
+              "id": "Microsoft.Testing.Platform",
+              "resolvedVersion": "2.0.2"
+            },
+            {
+              "id": "Microsoft.Testing.Platform.MSBuild",
+              "resolvedVersion": "2.0.1"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "OpenTelemetry.Api",
+              "resolvedVersion": "1.16.0"
+            },
+            {
+              "id": "Polly.Core",
+              "resolvedVersion": "8.6.4"
+            },
+            {
+              "id": "Polly.Extensions",
+              "resolvedVersion": "8.4.2"
+            },
+            {
+              "id": "Polly.RateLimiting",
+              "resolvedVersion": "8.4.2"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.Diagnostics.EventLog",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            },
+            {
+              "id": "System.Threading.RateLimiting",
+              "resolvedVersion": "8.0.0"
+            },
+            {
+              "id": "TUnit.Assertions",
+              "resolvedVersion": "1.2.11"
+            },
+            {
+              "id": "TUnit.Core",
+              "resolvedVersion": "1.2.11"
+            },
+            {
+              "id": "TUnit.Engine",
+              "resolvedVersion": "1.2.11"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost/Bifrost.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.DataAnnotations",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Primitives",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.HealthChecks/Bifrost.HealthChecks.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.DataAnnotations",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Primitives",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.Resilience/Bifrost.Resilience.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http.Resilience",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            },
+            {
+              "id": "Polly",
+              "requestedVersion": "8.6.4",
+              "resolvedVersion": "8.6.4"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.Extensions.AmbientMetadata.Application",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Compliance.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Binder",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.AutoActivation",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.ExceptionSummarization",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http.Diagnostics",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Configuration",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.ObjectPool",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.DataAnnotations",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Primitives",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Resilience",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Telemetry",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Telemetry.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "Polly.Core",
+              "resolvedVersion": "8.6.4"
+            },
+            {
+              "id": "Polly.Extensions",
+              "resolvedVersion": "8.4.2"
+            },
+            {
+              "id": "Polly.RateLimiting",
+              "resolvedVersion": "8.4.2"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            },
+            {
+              "id": "System.Threading.RateLimiting",
+              "resolvedVersion": "8.0.0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.OpenTelemetry/Bifrost.OpenTelemetry.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            },
+            {
+              "id": "OpenTelemetry.Api",
+              "requestedVersion": "1.16.0",
+              "resolvedVersion": "1.16.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.DataAnnotations",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Primitives",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "BenchmarkDotNet",
+              "requestedVersion": "0.14.0",
+              "resolvedVersion": "0.14.0"
+            },
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.Extensions.TimeProvider.Testing",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "BenchmarkDotNet.Annotations",
+              "resolvedVersion": "0.14.0"
+            },
+            {
+              "id": "CommandLineParser",
+              "resolvedVersion": "2.9.1"
+            },
+            {
+              "id": "Cronos",
+              "resolvedVersion": "0.13.0"
+            },
+            {
+              "id": "Gee.External.Capstone",
+              "resolvedVersion": "2.3.0"
+            },
+            {
+              "id": "Iced",
+              "resolvedVersion": "1.17.0"
+            },
+            {
+              "id": "Microsoft.Bcl.AsyncInterfaces",
+              "resolvedVersion": "1.1.0"
+            },
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.Analyzers",
+              "resolvedVersion": "3.3.3"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.Common",
+              "resolvedVersion": "4.1.0"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.CSharp",
+              "resolvedVersion": "4.1.0"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.Diagnostics.NETCore.Client",
+              "resolvedVersion": "0.2.251802"
+            },
+            {
+              "id": "Microsoft.Diagnostics.Runtime",
+              "resolvedVersion": "2.2.332302"
+            },
+            {
+              "id": "Microsoft.Diagnostics.Tracing.TraceEvent",
+              "resolvedVersion": "3.1.8"
+            },
+            {
+              "id": "Microsoft.DotNet.PlatformAbstractions",
+              "resolvedVersion": "3.1.6"
+            },
+            {
+              "id": "Microsoft.Extensions.AmbientMetadata.Application",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Compliance.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Binder",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.AutoActivation",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.ExceptionSummarization",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http.Diagnostics",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http.Resilience",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Configuration",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.ObjectPool",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.DataAnnotations",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Primitives",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Resilience",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Telemetry",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Telemetry.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.NETCore.Platforms",
+              "resolvedVersion": "5.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "Perfolizer",
+              "resolvedVersion": "0.3.17"
+            },
+            {
+              "id": "Polly",
+              "resolvedVersion": "8.6.4"
+            },
+            {
+              "id": "Polly.Core",
+              "resolvedVersion": "8.6.4"
+            },
+            {
+              "id": "Polly.Extensions",
+              "resolvedVersion": "8.4.2"
+            },
+            {
+              "id": "Polly.RateLimiting",
+              "resolvedVersion": "8.4.2"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.CodeDom",
+              "resolvedVersion": "5.0.0"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            },
+            {
+              "id": "System.Management",
+              "resolvedVersion": "5.0.0"
+            },
+            {
+              "id": "System.Threading.RateLimiting",
+              "resolvedVersion": "8.0.0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.BannedApiAnalyzers",
+              "requestedVersion": "4.14.0",
+              "resolvedVersion": "4.14.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            },
+            {
+              "id": "TUnit",
+              "requestedVersion": "1.2.11",
+              "resolvedVersion": "1.2.11"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "EnumerableAsyncProcessor",
+              "resolvedVersion": "3.8.4"
+            },
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.DiaSymReader",
+              "resolvedVersion": "2.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyModel",
+              "resolvedVersion": "6.0.2"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.Testing.Extensions.CodeCoverage",
+              "resolvedVersion": "18.1.0"
+            },
+            {
+              "id": "Microsoft.Testing.Extensions.TrxReport",
+              "resolvedVersion": "2.0.2"
+            },
+            {
+              "id": "Microsoft.Testing.Extensions.TrxReport.Abstractions",
+              "resolvedVersion": "2.0.2"
+            },
+            {
+              "id": "Microsoft.Testing.Platform",
+              "resolvedVersion": "2.0.2"
+            },
+            {
+              "id": "Microsoft.Testing.Platform.MSBuild",
+              "resolvedVersion": "2.0.1"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            },
+            {
+              "id": "TUnit.Assertions",
+              "resolvedVersion": "1.2.11"
+            },
+            {
+              "id": "TUnit.Core",
+              "resolvedVersion": "1.2.11"
+            },
+            {
+              "id": "TUnit.Engine",
+              "resolvedVersion": "1.2.11"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.Scheduling.Core/Bifrost.Scheduling.Core.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Cronos",
+              "requestedVersion": "0.13.0",
+              "resolvedVersion": "0.13.0"
+            },
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.BannedApiAnalyzers",
+              "requestedVersion": "4.14.0",
+              "resolvedVersion": "4.14.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.Scheduling/Bifrost.Scheduling.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.BannedApiAnalyzers",
+              "requestedVersion": "4.14.0",
+              "resolvedVersion": "4.14.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Cronos",
+              "resolvedVersion": "0.13.0"
+            },
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.DataAnnotations",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Primitives",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.Scheduling.Testing/Bifrost.Scheduling.Testing.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.TimeProvider.Testing",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Cronos",
+              "resolvedVersion": "0.13.0"
+            },
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.DataAnnotations",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Primitives",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/src/Bifrost.Tests.Scheduling/Bifrost.Tests.Scheduling.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Testing",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Abstractions",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.TimeProvider.Testing",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            },
+            {
+              "id": "NSubstitute",
+              "requestedVersion": "5.3.0",
+              "resolvedVersion": "5.3.0"
+            },
+            {
+              "id": "TUnit",
+              "requestedVersion": "1.2.11",
+              "resolvedVersion": "1.2.11"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Castle.Core",
+              "resolvedVersion": "5.1.1"
+            },
+            {
+              "id": "Cronos",
+              "resolvedVersion": "0.13.0"
+            },
+            {
+              "id": "EnumerableAsyncProcessor",
+              "resolvedVersion": "3.8.4"
+            },
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.DiaSymReader",
+              "resolvedVersion": "2.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.AmbientMetadata.Application",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Compliance.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Binder",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.AutoActivation",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyModel",
+              "resolvedVersion": "6.0.2"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.ExceptionSummarization",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http.Diagnostics",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Http.Resilience",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Configuration",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.ObjectPool",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.DataAnnotations",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Primitives",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Resilience",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Telemetry",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Telemetry.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.Testing.Extensions.CodeCoverage",
+              "resolvedVersion": "18.1.0"
+            },
+            {
+              "id": "Microsoft.Testing.Extensions.TrxReport",
+              "resolvedVersion": "2.0.2"
+            },
+            {
+              "id": "Microsoft.Testing.Extensions.TrxReport.Abstractions",
+              "resolvedVersion": "2.0.2"
+            },
+            {
+              "id": "Microsoft.Testing.Platform",
+              "resolvedVersion": "2.0.2"
+            },
+            {
+              "id": "Microsoft.Testing.Platform.MSBuild",
+              "resolvedVersion": "2.0.1"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "Polly",
+              "resolvedVersion": "8.6.4"
+            },
+            {
+              "id": "Polly.Core",
+              "resolvedVersion": "8.6.4"
+            },
+            {
+              "id": "Polly.Extensions",
+              "resolvedVersion": "8.4.2"
+            },
+            {
+              "id": "Polly.RateLimiting",
+              "resolvedVersion": "8.4.2"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.Diagnostics.EventLog",
+              "resolvedVersion": "6.0.0"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            },
+            {
+              "id": "System.Threading.RateLimiting",
+              "resolvedVersion": "8.0.0"
+            },
+            {
+              "id": "TUnit.Assertions",
+              "resolvedVersion": "1.2.11"
+            },
+            {
+              "id": "TUnit.Core",
+              "resolvedVersion": "1.2.11"
+            },
+            {
+              "id": "TUnit.Engine",
+              "resolvedVersion": "1.2.11"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/samples/Bifrost.Scheduling.AotSmoke/Bifrost.Scheduling.AotSmoke.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging",
+              "requestedVersion": "10.0.0",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Cronos",
+              "resolvedVersion": "0.13.0"
+            },
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Binder",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.CommandLine",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.EnvironmentVariables",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.FileExtensions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.Json",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Configuration.UserSecrets",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileProviders.Physical",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.FileSystemGlobbing",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Hosting.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Abstractions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Configuration",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Console",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.Debug",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.EventLog",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Logging.EventSource",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Options.DataAnnotations",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.Extensions.Primitives",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.Diagnostics.EventLog",
+              "resolvedVersion": "10.0.0"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/home/bench/bifrost/samples/Bifrost.Concurrency.AotSmoke/Bifrost.Concurrency.AotSmoke.csproj",
+      "frameworks": [
+        {
+          "framework": "net10.0",
+          "topLevelPackages": [
+            {
+              "id": "Lvlup.Build",
+              "requestedVersion": "1.4.0",
+              "resolvedVersion": "1.4.0"
+            },
+            {
+              "id": "Microsoft.NET.ILLink.Tasks",
+              "requestedVersion": "[10.0.9, )",
+              "resolvedVersion": "10.0.9",
+              "autoReferenced": "true"
+            },
+            {
+              "id": "Microsoft.SourceLink.GitHub",
+              "requestedVersion": "10.0.403",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "MinVer",
+              "requestedVersion": "6.0.0",
+              "resolvedVersion": "6.0.0"
+            }
+          ],
+          "transitivePackages": [
+            {
+              "id": "Microsoft.Build.Tasks.Git",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.CodeAnalysis.NetAnalyzers",
+              "resolvedVersion": "10.0.100"
+            },
+            {
+              "id": "Microsoft.SourceLink.Common",
+              "resolvedVersion": "10.0.403"
+            },
+            {
+              "id": "Microsoft.VisualStudio.Threading.Analyzers",
+              "resolvedVersion": "17.14.15"
+            },
+            {
+              "id": "StyleCop.Analyzers",
+              "resolvedVersion": "1.2.0-beta.556"
+            },
+            {
+              "id": "StyleCop.Analyzers.Unstable",
+              "resolvedVersion": "1.2.0.556"
+            },
+            {
+              "id": "System.IO.Hashing",
+              "resolvedVersion": "10.0.14"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

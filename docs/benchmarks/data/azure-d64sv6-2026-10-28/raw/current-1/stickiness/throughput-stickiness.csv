@@ -1,0 +1,39 @@
+# Bifrost CPQ throughput sweep — generated 2026-10-29 04:56:27Z
+# ProcessorCount: 64
+# OS: Ubuntu 24.04.5 LTS
+# CPU arch: X64
+# Runtime: .NET 10.0.9
+# GC mode: Workstation, Concurrent: Interactive
+Target,Workload,ThreadCount,Stickiness,WindowSeconds,TotalOps,OpsPerSecond
+MultiQueueRelaxed,UniformMixed5050,1,1,3,38248886,12748732.86
+MultiQueueRelaxed,UniformMixed5050,1,2,3,41164860,13721099.06
+MultiQueueRelaxed,UniformMixed5050,1,4,3,42956834,14318387.2
+MultiQueueRelaxed,UniformMixed5050,1,8,3,43448242,14482331.21
+MultiQueueRelaxed,UniformMixed5050,2,1,3,33034762,11011051.46
+MultiQueueRelaxed,UniformMixed5050,2,2,3,42414632,14137728.1
+MultiQueueRelaxed,UniformMixed5050,2,4,3,53343086,17780342.35
+MultiQueueRelaxed,UniformMixed5050,2,8,3,62510136,20835943.85
+MultiQueueRelaxed,SplitProducerConsumer,1,1,3,35283771,11760815.58
+MultiQueueRelaxed,SplitProducerConsumer,1,2,3,36284570,12094411.19
+MultiQueueRelaxed,SplitProducerConsumer,1,4,3,35651233,11883289.2
+MultiQueueRelaxed,SplitProducerConsumer,1,8,3,34222839,11407232.38
+MultiQueueRelaxed,SplitProducerConsumer,2,1,3,31540544,10513170.54
+MultiQueueRelaxed,SplitProducerConsumer,2,2,3,37377805,12458828.95
+MultiQueueRelaxed,SplitProducerConsumer,2,4,3,44530040,14842927.6
+MultiQueueRelaxed,SplitProducerConsumer,2,8,3,53029220,17675842.81
+MultiQueueRelaxed,NarrowKeyRange,1,1,3,46236368,15411559.12
+MultiQueueRelaxed,NarrowKeyRange,1,2,3,46752016,15583217.86
+MultiQueueRelaxed,NarrowKeyRange,1,4,3,48086172,16027928.48
+MultiQueueRelaxed,NarrowKeyRange,1,8,3,48686432,16228229.7
+MultiQueueRelaxed,NarrowKeyRange,2,1,3,35858354,11952369.12
+MultiQueueRelaxed,NarrowKeyRange,2,2,3,45824028,15274169.92
+MultiQueueRelaxed,NarrowKeyRange,2,4,3,56892994,18963692.26
+MultiQueueRelaxed,NarrowKeyRange,2,8,3,67977542,22658454.09
+MultiQueueRelaxed,Drain,1,1,3,1000000,8821920.71
+MultiQueueRelaxed,Drain,1,2,3,1000000,11003763.29
+MultiQueueRelaxed,Drain,1,4,3,1000000,11461988.04
+MultiQueueRelaxed,Drain,1,8,3,1000000,12116806.01
+MultiQueueRelaxed,Drain,2,1,3,1000000,7913258.03
+MultiQueueRelaxed,Drain,2,2,3,1000000,10086573.06
+MultiQueueRelaxed,Drain,2,4,3,1000000,13611961.1
+MultiQueueRelaxed,Drain,2,8,3,1000000,16361497.47

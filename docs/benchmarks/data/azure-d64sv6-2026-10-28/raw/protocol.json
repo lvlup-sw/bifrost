@@ -1,0 +1,76 @@
+{
+  "collection_commit": "e31bddd4c64463ae53d0cd0760f692b25fd03de5",
+  "vm_sku": "Standard_D64s_v6",
+  "region": "eastus2",
+  "zone": "1",
+  "os_image": "Canonical:ubuntu-24_04-lts:server:24.04.202610210",
+  "sdk": "10.0.301",
+  "runtime": "10.0.9",
+  "gc": "Workstation",
+  "server_repeats": 4,
+  "window_seconds": 3,
+  "logical_cpus": 64,
+  "physical_cores": 32,
+  "numa_nodes": 1,
+  "bdn_job": "ShortRun",
+  "bdn_repeats": 2,
+  "bdn_cases_per_repeat": 40,
+  "validation_blocks": 3,
+  "original_current_order": [
+    "original",
+    "current",
+    "current",
+    "original"
+  ],
+  "optimization_order": [
+    "old",
+    "preprofile",
+    "current",
+    "current",
+    "preprofile",
+    "old"
+  ],
+  "tests": [
+    {
+      "suite": "Bifrost.Tests",
+      "total": 797,
+      "failed": 0,
+      "succeeded": 797,
+      "skipped": 0
+    },
+    {
+      "suite": "Bifrost.Tests.Scheduling",
+      "total": 286,
+      "failed": 0,
+      "succeeded": 286,
+      "skipped": 0
+    },
+    {
+      "suite": "Bifrost.Tests.Concurrency",
+      "total": 135,
+      "failed": 0,
+      "succeeded": 135,
+      "skipped": 0
+    },
+    {
+      "suite": "stress",
+      "total": 8,
+      "failed": 0,
+      "succeeded": 8,
+      "skipped": 0
+    }
+  ],
+  "setup_retry": "The first guest clone targeted a branch deleted after PR #74 merged. Setup resumed from the permanent PR ref before measurement.",
+  "archive": {
+    "campaign_status": {
+      "phase": "complete",
+      "detail": "Raw archive uploaded. Safe to deallocate after local retrieval.",
+      "updatedAt": "2026-10-29T05:56:20.296396+00:00",
+      "commit": "e31bddd4c64463ae53d0cd0760f692b25fd03de5"
+    },
+    "archive_sha256": "2039c5900d8a9bfeaa65bdaeccfbcde9f498e8c62bbc1ccc5f0508ec0db17ade",
+    "archive_bytes": 11255182,
+    "deallocated_at": "2026-10-29T05:56:57.694516+00:00"
+  },
+  "public_dataset": "Contains all measurement CSVs, validation stdout, BDN logs, verification logs, provenance, source hashes, and process order. Build binaries and full artifacts remain in the checksum-verified private archive."
+}

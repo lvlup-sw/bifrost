@@ -6,6 +6,7 @@ Start with the [repository README](../README.md) for the library's capabilities,
 - [Scheduling sample](../samples/Bifrost.Scheduling.AotSmoke/Program.cs) shows scheduler registration and dispatch modes.
 - [Benchmarks](benchmarks/BENCHMARKS.md) describes how to run the benchmark suite; the other files in [benchmarks](benchmarks/) record individual results.
 - [Priority API benchmark runbook](benchmarks/2026-10-priority-api-benchmark-runbook.md) covers recreating, updating, and extending the Xeon CPQ report for PR #69.
+- [October Xeon campaign](benchmarks/data/azure-d64sv6-2026-10-28/README.md) records the full 64-thread server run, repeated latency measurements, and source-control comparisons.
 - [Designs](designs/) and the [original orchestrator design](design/channel-orchestrator-library.md) capture design decisions and proposals, including the [scheduling design](designs/2026-04-10-durable-scheduling-api.md) and [priority-dispatch design](designs/2026-06-12-cpq-port-priority-dispatch.md).
 - [Plans](plans/), [research](research/), and [proposals](proposals/) preserve working notes and historical context.
 

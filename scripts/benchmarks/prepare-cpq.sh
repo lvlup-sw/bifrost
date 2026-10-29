@@ -20,12 +20,21 @@ git cat-file -e "$control_sha^{commit}" 2>/dev/null || {
   echo "Missing historical control. Fetch it first: git fetch origin $control_sha" >&2
   exit 1
 }
-if [[ -e $1 ]]; then
-  echo "Output directory must be new: $1" >&2
+# Capturing added inputs must not recursively archive the run's own output.
+run_root=$(python3 - "$1" "$repo_root" <<'PYTHON'
+import pathlib, sys
+output = pathlib.Path(sys.argv[1]).resolve()
+repo = pathlib.Path(sys.argv[2]).resolve()
+if output == repo or repo in output.parents:
+    raise SystemExit("Output directory must be outside the repository.")
+print(output)
+PYTHON
+)
+if [[ -e $run_root ]]; then
+  echo "Output directory must be new: $run_root" >&2
   exit 2
 fi
-mkdir -p -- "$1"
-run_root=$(cd -- "$1" && pwd)
+mkdir -p -- "$run_root"
 control_root="$run_root/controls"
 bench_project="$repo_root/src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj"
 bench_dll="$repo_root/src/Bifrost.Benchmarks/bin/Release/net10.0/Bifrost.Benchmarks.dll"

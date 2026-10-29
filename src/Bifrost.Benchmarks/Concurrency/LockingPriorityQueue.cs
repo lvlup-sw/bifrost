@@ -17,10 +17,9 @@ namespace Bifrost.Benchmarks.Concurrency;
 /// <typeparam name="TPriority">The type used for priority values.</typeparam>
 /// <remarks>
 /// <para>
-/// This is a supported binding, not a baseline strawman: every dequeue returns the exact
-/// minimum-priority element, because all operations serialize on one global lock around a
-/// standard binary heap. The trade-off is that the lock eliminates intra-queue parallelism,
-/// so throughput degrades as contention rises.
+/// This benchmark-only baseline serializes every access to the BCL heap with the same lock.
+/// A successful dequeue removes the minimum-priority element while holding that lock.
+/// Lock contention limits concurrent throughput.
 /// </para>
 /// <para>
 /// <b>When to prefer this queue:</b>
@@ -34,9 +33,9 @@ namespace Bifrost.Benchmarks.Concurrency;
 /// </list>
 /// <para>
 /// <b>When to prefer the MultiQueue-based <c>ConcurrentPriorityQueue&lt;TElement, TPriority&gt;</c>:</b>
-/// high contention (many workers hammering the queue) where relaxed ordering (a bounded rank
-/// error on dequeue) is acceptable in exchange for scalable throughput. Pick per measurement:
-/// benchmark both bindings under your workload's contention profile.
+/// concurrent workloads where approximate priority ordering is acceptable. Measure both
+/// implementations under the intended workload; ordering accuracy and scaling depend on
+/// contention, queue population and configuration.
 /// </para>
 /// <para>
 /// <b>Thread Safety:</b> All operations are protected by a single <c>lock</c> statement,
