@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .bg   { fill: oklch(0.985 0.005 255); }
+    .ttl  { fill: oklch(0.30 0.03 265); }
+    .step { fill: oklch(0.44 0.03 265); }
+    .th   { fill: oklch(0.52 0.13 266); }
+    .ths  { stroke: oklch(0.52 0.13 266); }
+    .onc  { fill: oklch(0.98 0.005 255); }
+    .muts { stroke: oklch(0.58 0.02 262); }
+    .acc  { fill: oklch(0.62 0.19 27); }
+    .accs { stroke: oklch(0.62 0.19 27); }
+    .halo { fill: oklch(0.90 0.07 30); }
+    .rootf{ fill: oklch(0.985 0.005 255); }
+    .faint{ opacity: 0.35; }
+  </style>
+
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="5.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#747a94"/>
+    </marker>
+    <marker id="ahr" markerWidth="9" markerHeight="9" refX="5.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#df523c"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="8" y="8" width="744" height="284" rx="16" fill="#f7f8fb" stroke="#e7e9f0" stroke-width="1"/>
+
+  <!-- progression chevrons -->
+  <text class="acc" x="258" y="192" text-anchor="middle" font-size="26" font-weight="700" fill="#df523c">&#8250;</text>
+  <text class="acc" x="502" y="192" text-anchor="middle" font-size="26" font-weight="700" fill="#df523c">&#8250;</text>
+
+  <!-- ===== Panel 1: both pops read the root ===== -->
+  <text class="step" x="140" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#454b66">both pops read 3</text>
+  <g text-anchor="middle" font-size="12" font-weight="700">
+    <rect class="th" x="76"  y="66" width="48" height="24" rx="7" fill="#4c53c2"/><text class="onc" x="100" y="83" fill="#f7f8fb">T1</text>
+    <rect class="th" x="156" y="66" width="48" height="24" rx="7" fill="#4c53c2"/><text class="onc" x="180" y="83" fill="#f7f8fb">T2</text>
+  </g>
+  <g class="muts" stroke="#747a94" stroke-width="2" marker-end="url(#ah)">
+    <line x1="100" y1="92" x2="126" y2="176"/>
+    <line x1="180" y1="92" x2="154" y2="176"/>
+  </g>
+  <circle class="rootf ths" cx="140" cy="196" r="24" fill="#f7f8fb" stroke="#4c53c2" stroke-width="2.5"/>
+  <text class="th" x="140" y="202" text-anchor="middle" font-size="16" font-weight="700" fill="#4c53c2">3</text>
+
+  <!-- ===== Panel 2: both grab the same value ===== -->
+  <text class="step" x="380" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#454b66">both grab the same 3</text>
+  <g text-anchor="middle" font-size="12" font-weight="700">
+    <rect class="th" x="316" y="66" width="48" height="24" rx="7" fill="#4c53c2"/><text class="onc" x="340" y="83" fill="#f7f8fb">T1</text>
+    <rect class="th" x="396" y="66" width="48" height="24" rx="7" fill="#4c53c2"/><text class="onc" x="420" y="83" fill="#f7f8fb">T2</text>
+  </g>
+  <circle class="halo" cx="380" cy="196" r="40" fill="#f8cfc3" opacity="0.5"/>
+  <g text-anchor="middle" font-size="12" font-weight="700">
+    <circle class="rootf accs" cx="352" cy="128" r="11" fill="#f7f8fb" stroke="#df523c" stroke-width="2"/><text class="acc" x="352" y="132" fill="#df523c">3</text>
+    <circle class="rootf accs" cx="408" cy="128" r="11" fill="#f7f8fb" stroke="#df523c" stroke-width="2"/><text class="acc" x="408" y="132" fill="#df523c">3</text>
+  </g>
+  <g class="accs" stroke="#df523c" stroke-width="1.8" marker-end="url(#ahr)">
+    <line x1="368" y1="180" x2="356" y2="142"/>
+    <line x1="392" y1="180" x2="404" y2="142"/>
+  </g>
+  <circle class="rootf accs" cx="380" cy="196" r="24" fill="#f7f8fb" stroke="#df523c" stroke-width="3"/>
+  <text class="acc" x="380" y="202" text-anchor="middle" font-size="16" font-weight="700" fill="#df523c">3</text>
+
+  <!-- ===== Panel 3: the value comes out twice ===== -->
+  <text class="step" x="620" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#454b66">3 comes out twice</text>
+  <g text-anchor="middle" font-size="12" font-weight="700">
+    <circle class="rootf accs" cx="586" cy="104" r="12" fill="#f7f8fb" stroke="#df523c" stroke-width="2"/><text class="acc" x="586" y="108" fill="#df523c">3</text>
+    <circle class="rootf accs" cx="654" cy="104" r="12" fill="#f7f8fb" stroke="#df523c" stroke-width="2"/><text class="acc" x="654" y="108" fill="#df523c">3</text>
+  </g>
+  <g class="accs" stroke="#df523c" stroke-width="1.8" marker-end="url(#ahr)">
+    <line x1="606" y1="178" x2="592" y2="120"/>
+    <line x1="634" y1="178" x2="648" y2="120"/>
+  </g>
+  <circle class="rootf accs" cx="620" cy="196" r="24" fill="#f7f8fb" stroke="#df523c" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <text class="acc" x="620" y="202" text-anchor="middle" font-size="16" font-weight="700" fill="#df523c" opacity="0.45">3</text>
+</svg>
