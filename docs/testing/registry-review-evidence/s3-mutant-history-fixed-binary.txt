@@ -1,0 +1,24 @@
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.11 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+failed ReplaySavedHistory (48ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equal to HistoryObservation { FailureClass = registry-metadata, Expected = computed next fire and live dispatcher, Actual = JobDescriptor { Name = job-2, State = Running, Cadence = IntervalCadence { Interval = 00:01:00, Jitter = 0 }, LastFiredAt = , NextFireAt = 06/13/2026 12:01:00 +00:00, IsRunning = True } }
+  but found HistoryObservation { FailureClass = , Expected = memory=|durable=|attempts=1|effects=0|faults=1|wakes=, Actual = memory=|durable=|attempts=1|effects=0|faults=1|wakes= }
+  
+  at Assert.That(actual).IsEqualTo(record.Observation)
+
+Test run summary: Failed! - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry-review/src/Bifrost.Tests.Scheduling/bin/Debug/net10.0/Bifrost.Tests.Scheduling.dll (net10.0|x64)
+  total: 1
+  failed: 1
+  succeeded: 0
+  skipped: 0
+  duration: 372ms

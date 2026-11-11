@@ -64,6 +64,69 @@ public sealed class SystematicRegistryRaceTests
         }
     }
 
+    [Test]
+    public async Task CancelledWaiterDoesNotMutateOrLeakGate()
+    {
+        var store = new GateStore { Armed = true };
+        using var registry = new ScheduleRegistry(store, new FakeTimeProvider(SystematicRegistryTests.Epoch));
+        var registration = registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, new SystematicRegistryTests.NoopDispatcher()).AsTask();
+        await store.Arrived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        using var cancellation = new CancellationTokenSource();
+        var update = registry.UpdateAsync("job", Cadence.Interval(TimeSpan.FromMinutes(9)), MissedFirePolicy.Coalesce, cancellation.Token).AsTask();
+        await cancellation.CancelAsync();
+        var cancelled = false;
+        try
+        {
+            await update.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        catch (OperationCanceledException)
+        {
+            cancelled = true;
+        }
+        finally
+        {
+            store.Release.TrySetResult();
+        }
+
+        await registration.WaitAsync(TimeSpan.FromSeconds(10));
+        await Assert.That(cancelled).IsTrue();
+        await Assert.That(store.Record!.Cadence).IsEqualTo(Cadence.Interval(TimeSpan.FromMinutes(1)));
+        await registry.PauseAsync("job").AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+        await Assert.That(store.Record.State).IsEqualTo(JobState.Paused);
+    }
+
+    [Test]
+    public async Task DisposedWaiterDoesNotReachStore()
+    {
+        var store = new GateStore { Armed = true };
+        using var registry = new ScheduleRegistry(store, new FakeTimeProvider(SystematicRegistryTests.Epoch));
+        var registration = registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, new SystematicRegistryTests.NoopDispatcher()).AsTask();
+        await store.Arrived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var update = registry.UpdateAsync("job", Cadence.Interval(TimeSpan.FromMinutes(9)), MissedFirePolicy.Coalesce).AsTask();
+        await registry.DisposeAsync();
+        store.Release.TrySetResult();
+        var disposed = false;
+        try
+        {
+            await update.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        catch (ObjectDisposedException)
+        {
+            disposed = true;
+        }
+
+        try
+        {
+            await registration.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        catch (System.Threading.Channels.ChannelClosedException)
+        {
+        }
+
+        await Assert.That(disposed).IsTrue();
+        await Assert.That(store.Record!.Cadence).IsEqualTo(Cadence.Interval(TimeSpan.FromMinutes(1)));
+    }
+
     private sealed class GateStore : IScheduleStore
     {
         public TaskCompletionSource Arrived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -1,0 +1,57 @@
+{
+  "SchemaVersion": 1,
+  "SourceSha": "cccb9be0da6662c970a3757053705964b13ccf78",
+  "SourceDirty": true,
+  "Runtime": ".NET 10.0.11",
+  "Build": "Debug/net10.0",
+  "Invariant": "registry-restart-checkpoint",
+  "OracleRelation": "successful handoff precedes checkpoint; durable frozen acknowledgment suppresses replay",
+  "Source": {
+    "Configuration": {
+      "checkpointFault": 0
+    },
+    "Commands": [
+      {
+        "Kind": "register",
+        "Id": "job",
+        "Value": 1
+      },
+      {
+        "Kind": "advance",
+        "Id": "job",
+        "Value": 1
+      },
+      {
+        "Kind": "freeze",
+        "Id": "before-checkpoint",
+        "Value": 0
+      },
+      {
+        "Kind": "restart",
+        "Id": "job",
+        "Value": 1
+      }
+    ],
+    "Parameters": null
+  },
+  "Followup": null,
+  "LogicalClockTicks": 639169488000000000,
+  "FaultPosition": null,
+  "ActorOrder": [
+    "register",
+    "advance",
+    "synchronous-dispatch",
+    "checkpoint-before",
+    "freeze:before-checkpoint",
+    "checkpoint-effect",
+    "checkpoint-after",
+    "restart"
+  ],
+  "UncontrolledScheduleLimitation": "synthetic durable image; inline synchronous router; no OS crash or real storage",
+  "Observation": {
+    "FailureClass": "",
+    "Expected": "handoff=1;durable=0;replay=1;first=1",
+    "Actual": "handoff=1;durable=0;replay=1;first=1"
+  },
+  "ReplayCommand": "BIFROST_REGISTRY_RESTART_REPLAY=/absolute/path.json dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter \u0027/*/*/SystematicRegistryRestartReplayTests/ReplaySavedRestartHistory\u0027"
+}
