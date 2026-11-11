@@ -1,0 +1,37 @@
+
+   _____ _              _               _   _ ______ _______  
+  / ____| |            | |             | \ | |  ____|__   __| 
+ | (___ | |_ _ __ _   _| | _____ _ __  |  \| | |__     | |    
+  \___ \| __| '__| | | | |/ / _ \ '__| | . ` |  __|    | |    
+  ____) | |_| |  | |_| |   <  __/ |    | |\  | |____   | |    
+ |_____/ \__|_|   \__, |_|\_\___|_| (_)|_| \_|______|  |_|    
+                   __/ |                                      
+                  |___/                                       
+
+
+Version: 4.13.0
+
+A new version of Stryker.NET (5.1.0) is available. Please consider upgrading 
+using `dotnet tool update -g dotnet-stryker`
+
+[17:53:55 INF] Stryker will use a max of 1 parallel testsessions.
+[17:53:55 WRN] Stryker is running in single threaded mode due to concurrency being set to 1.
+[17:53:55 INF] Analysis starting.
+[17:53:55 INF] Analyzing 1 test project(s).
+[17:54:00 INF] Found project /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/tool-pilots/src/Bifrost.Scheduling.Core/Bifrost.Scheduling.Core.csproj to mutate.
+[17:54:00 INF] Analysis complete.
+[17:54:00 INF] Building test project /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/tool-pilots/src/Bifrost.Tests.Scheduling/Bifrost.Tests.Scheduling.csproj (1/1)
+[17:54:00 INF] Building project Bifrost.Tests.Scheduling.csproj using dotnet build Bifrost.Tests.Scheduling.csproj -c Debug --property:Platform=AnyCPU (directory /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/tool-pilots/src/Bifrost.Tests.Scheduling.)
+[17:54:02 WRN] The Microsoft Test Platform testrunner is currently in preview. Results should be verified since this feature is still being tested.
+[17:54:02 INF] Number of tests found: 300 for project /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/tool-pilots/src/Bifrost.Scheduling.Core/Bifrost.Scheduling.Core.csproj. Initial test run started.
+[17:54:03 INF] Time Elapsed 00:00:07.7987924
+Stryker.NET failed to mutate your project. For more information see the logs 
+below:
+
+
+Initial testrun has more than 50% failing tests.
+
+SavedProductionCounterexample
+
+Test failed
+
