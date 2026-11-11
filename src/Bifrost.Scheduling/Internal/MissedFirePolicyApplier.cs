@@ -28,9 +28,8 @@ internal static class MissedFirePolicyApplier
     /// <param name="now">The current instant (DR-7); the inclusive upper bound.</param>
     /// <param name="policy">How the missed backlog is reconciled.</param>
     /// <param name="maxCatchUpCount">
-    /// The maximum number of missed occurrences enumerated. This bounds both the
-    /// returned <see cref="MissedFirePolicy.FireAllMissed"/> backlog and the work the
-    /// enumeration performs, so a long downtime never produces an unbounded list.
+    /// The maximum number of missed occurrences enumerated for
+    /// <see cref="MissedFirePolicy.FireAllMissed"/>.
     /// </param>
     /// <returns>
     /// The catch-up instants, oldest first: a single instant for
@@ -53,6 +52,11 @@ internal static class MissedFirePolicyApplier
             return [];
         }
 
+        if (policy == MissedFirePolicy.Coalesce)
+        {
+            return Coalesce(cadence, lastFiredAt, now);
+        }
+
         var missed = EnumerateMissed(cadence, lastFiredAt, now, maxCatchUpCount);
 
         if (missed.Count == 0)
@@ -60,13 +64,38 @@ internal static class MissedFirePolicyApplier
             return [];
         }
 
-        // Coalesce collapses the backlog into the single most recent catch-up.
-        if (policy == MissedFirePolicy.Coalesce)
+        return missed;
+    }
+
+    private static IReadOnlyList<DateTimeOffset> Coalesce(
+        Cadence cadence,
+        DateTimeOffset? lastFiredAt,
+        DateTimeOffset now)
+    {
+        if (cadence is IntervalCadence { Jitter: 0 } interval)
         {
-            return [missed[^1]];
+            if (lastFiredAt is not { } last || last >= now)
+            {
+                return [];
+            }
+
+            var count = (now - last).Ticks / interval.Interval.Ticks;
+            return count == 0 ? [] : [last.AddTicks(count * interval.Interval.Ticks)];
         }
 
-        return missed;
+        DateTimeOffset? latest = null;
+        var cursor = lastFiredAt;
+        while (true)
+        {
+            var next = cadence.ComputeNextFire(cursor, cursor ?? now);
+            if (next is null || next > now || (cursor is not null && next <= cursor))
+            {
+                return latest is { } occurrence ? [occurrence] : [];
+            }
+
+            latest = next;
+            cursor = next;
+        }
     }
 
     /// <summary>
