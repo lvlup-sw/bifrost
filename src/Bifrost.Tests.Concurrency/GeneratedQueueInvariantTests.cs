@@ -3,6 +3,7 @@
 using System.Collections.Concurrent;
 
 using Bifrost.Concurrency;
+using Bifrost.Tests.Systematic;
 
 namespace Bifrost.Tests.Concurrency;
 
@@ -41,7 +42,7 @@ public class GeneratedQueueInvariantTests
     [Test]
     public void Q1GeneratedSuccessfulEffectsConserveIncludingClear()
     {
-        for (int seed = 0; seed < 32; seed++)
+        for (int seed = 0; seed < InvariantRun.SeedCount(32); seed++)
         {
             foreach (int buffer in new[] { 0, 1, 16 })
             {

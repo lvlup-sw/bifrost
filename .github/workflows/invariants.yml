@@ -1,0 +1,49 @@
+name: Invariant checks
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/run-invariant-tests.py'
+      - 'docs/testing/**'
+      - '.github/workflows/invariants.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '43 4 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  invariants:
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    timeout-minutes: 20
+    env:
+      BIFROST_INVARIANT_SEED_MULTIPLIER: ${{ github.event_name == 'pull_request' && '1' || '4' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@9a946fdbd5fb07b82b2f5a4466058b876ab72bb2
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run invariant suites
+        run: python3 scripts/run-invariant-tests.py
+      - name: Check selected production mutations
+        if: github.event_name != 'pull_request'
+        env:
+          BIFROST_INVARIANT_SEED_MULTIPLIER: '1'
+        run: python3 docs/testing/queue-mutation-check.py
+      - name: Retain evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: invariant-evidence
+          retention-days: 30
+          path: |
+            artifacts/invariants/
+            docs/testing/*mutation*.log
+            docs/testing/*mutation*.json
+            docs/testing/*replay*.json
+            src/Bifrost.Tests*/**/*replay*.json

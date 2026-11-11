@@ -1,6 +1,7 @@
 import argparse
 import json
 import pathlib
+import os
 import subprocess
 import time
 
@@ -17,7 +18,7 @@ suites = {
     'Bifrost.Tests.Concurrency': ['GeneratedQueueInvariantTests', 'QueueReplayTests'],
     'Bifrost.Tests.Scheduling': ['IntervalInvariantTests', 'SchedulerReplayTests'],
 }
-summary = {'sourceSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(), 'dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True).strip()), 'configuration': args.configuration, 'results': []}
+summary = {'sourceSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(), 'dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True).strip()), 'configuration': args.configuration, 'seedMultiplier': os.environ.get('BIFROST_INVARIANT_SEED_MULTIPLIER', '1'), 'results': []}
 failed = False
 for project, classes in suites.items():
     if not args.skip_build:
