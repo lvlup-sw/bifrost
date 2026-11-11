@@ -29,3 +29,9 @@ One test failed (728 ms suite duration). A real timer callback enters the scalin
 ## A2 candidate validation
 
 The candidate registers entered timer callbacks under a lifecycle lock. Stop disables future callbacks, awaits the entered callbacks, then drains the scaling tasks they registered. Start marks the engine running before enabling the timer. The gated regression passes (1/1, 660 ms); the main test assembly passes (801/801, 3.209 s). Existing comments remain; no new comments were added. A candidate fix is committed separately from the failing regression and still needs independent review. This test covers one controlled callback/stop ordering, not all lifecycle interleavings. Concurrent restart semantics, Dispose overlap, failed-action recovery and exact cooldown boundaries remain to be checked.
+
+## Clock and timer boundaries
+
+An internal TimeProvider constructor supplies the clock and timer for tests. Existing public constructors still use TimeProvider.System. This seam is required to test exact cooldown equality without wall-clock races. Four elapsed values (0, 99, 100, 101 ticks) check a 100-tick cooldown. An inclusive-comparison production mutant fails exactly at the boundary (one selected test, exit2). The original comparison is restored.
+
+A fake timer drives an action that first fails and later succeeds, then Stop, restart, and Dispose. No new actions occur after completed Stop or Dispose when no callback is active. The new clock suite passes 2/2 (644 ms); the full main suite passes 803/803 (3.205 s). Active-callback disposal remains a documented contract question: IDisposable promises resource release, not synchronous completion of already executing handlers. The gated Stop test covers active callbacks separately. Concurrent Start/Stop overlap has no new ordering guarantee and remains outside this test domain. The internal seam and candidate fix still require independent review.
