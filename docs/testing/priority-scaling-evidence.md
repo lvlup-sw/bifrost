@@ -19,3 +19,9 @@ The new test class is internal. A directory-scoped SA1600 setting permits the us
 ## Production mutation checks
 
 Three temporary mutations each caused the selected test to fail (one selected test, zero passes, exit 2): reversed priority boost sign (P1), Interactive mapped to Batch admission threshold (P2), and inclusive high-watermark comparison (A1). The adjacent `*-mutation.txt` files retain assertion output; `priority-mutations.json` records commands' selected methods and wall times. Each original source was restored in a finally block. The restored suite passed all three tests in 663 ms. These probes establish sensitivity to those specific changes, not to every possible defect.
+
+## A2 baseline failure
+
+`dotnet run --project src/Bifrost.Tests -- --treenode-filter '/*/*/AutoscalingLifecycleInvariantTests/*'`
+
+One test failed (728 ms suite duration). A real timer callback enters the scaling-decision event and blocks on an explicit gate. StopAsync completes before that gate is released. Once released, the callback requests scaling through the coordinator despite the completed stop. This contradicts the interface's completion description (engine has stopped) and the implementation's intended pending-task drain. The replay uses explicit event ordering, not probabilistic sleep. The timer's initial arrival is bounded by a five-second wait and is not a recorded internal thread schedule. This regression remains failing pending a separately reviewed candidate fix. Exact failure output is retained in `autoscaling-stop-baseline.txt`.
