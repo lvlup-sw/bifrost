@@ -1,0 +1,176 @@
+{
+  "baseline": "0fc121384950d964722a8de36d72a26679a428d3",
+  "proposalRevision": 3,
+  "invariants": [
+    {
+      "id": "Q1",
+      "propertyAndBoundary": "At quiescence, admitted entries equal removed plus retained entries. Multiplicity and payload/priority pairs must match. Clear effects require separate accounting.",
+      "domainAndOracle": "Unique IDs, ties, and duplicate payload values. Independent multiset of successful effects.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "Q2",
+      "propertyAndBoundary": "At capacity, admission fails without state changes. Sequential Clear restores fresh capacity.",
+      "domainAndOracle": "Capacities 1, 2, 3 and powers of two \u00b11. Reject/remove/refill cycles. Model of admission decisions and full snapshots.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "Q3",
+      "propertyAndBoundary": "At quiescence, best-observed removal returns a minimum under the effective comparer. Ties do not require stable payload order.",
+      "domainAndOracle": "Lawful custom comparers, reference/value priorities, and representable extremes. Independent ordered multiset.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "Q4",
+      "propertyAndBoundary": "Recovery from comparer failures preserves coherent contents, counts, and future operations as the contract requires.",
+      "domainAndOracle": "Exceptions at each reachable comparison across heap/buffer shapes. Before/after snapshots and a recovery suffix.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "Q5",
+      "propertyAndBoundary": "Concurrent publication produces no invented or duplicate successful removals. False results obey observed-empty semantics.",
+      "domainAndOracle": "Small actor counts, sparse/last-item states, and publication barriers. Permitted-history checks and final conservation.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "P1",
+      "propertyAndBoundary": "Consistent transformations of physical times and timestamp units preserve priority-key ordering.",
+      "domainAndOracle": "Fake timestamp frequencies. Exact rational conversion with explicit rounding and overflow domain.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "P2",
+      "propertyAndBoundary": "With monotone class thresholds, a more urgent class does not face earlier rejection at the same occupancy.",
+      "domainAndOracle": "Threshold\u22121/threshold/threshold+1. Small capacities and fractional watermarks. Independent decision table.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "O1",
+      "propertyAndBoundary": "Close, drain-wait cancellation, abort, and disposal preserve their distinct lifecycle effects.",
+      "domainAndOracle": "Gated handlers and admission/Complete/Drain/Abort/Dispose histories. Explicit lifecycle model.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "O2",
+      "propertyAndBoundary": "Counts distinguish work, admission calls, attempts, worker exits, and handler outcomes.",
+      "domainAndOracle": "Scripted handlers and observers. Event ledger per identity. Only contract-defined outcome transitions.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "R1",
+      "propertyAndBoundary": "Admission retry count, cancellation, and timeout obey the policy. The model does not assume exactly-once admission.",
+      "domainAndOracle": "Fail N times, then accept. N around the retry budget. Failures before and after effects. Actual inner-call count.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "D1",
+      "propertyAndBoundary": "At quiescence, written DLQ entries equal read plus retained plus dropped entries.",
+      "domainAndOracle": "Capacity-one DropOldest model. Concurrent writes/reads, early drain termination, and cancellation.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "S1",
+      "propertyAndBoundary": "Interval progress and phase match the arithmetic model within the declared time domain.",
+      "domainAndOracle": "Tick-exact arithmetic. Null/earlier/equal/future last-fire states, tiny intervals, and representable boundaries.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "S2",
+      "propertyAndBoundary": "Coalesce selects the newest due occurrence. FireAll returns its capped backlog. Skip returns none.",
+      "domainAndOracle": "Backlogs K\u22121/K/K+1 and much larger. Independent due sequence and phase-extension relation.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "S3",
+      "propertyAndBoundary": "Registry/store changes agree at the documented commit boundary. Stale generations cannot overwrite replacements.",
+      "domainAndOracle": "Register/update/pause/resume/unregister histories. Store failures before and after effects. Same-name races. Independent model of committed state.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "S4",
+      "propertyAndBoundary": "Restart replay preserves occurrence identity. The model does not assume exactly-once delivery.",
+      "domainAndOracle": "Durable fake store. Crashes before and after dispatch and checkpoint. A `(job, scheduled time)` ledger separate from attempts.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "A1",
+      "propertyAndBoundary": "Autoscaling decisions obey effective limits and exact watermark/cooldown rules.",
+      "domainAndOracle": "Independent decision table. Threshold equality and adjacent values. Minimum/maximum/step partitions.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    },
+    {
+      "id": "A2",
+      "propertyAndBoundary": "Scaling callbacks and Stop/Dispose obey documented overlap and completion guarantees.",
+      "domainAndOracle": "Gated coordinator tasks and a controllable timer. Callback-start/stop races and recovery after failed actions.",
+      "status": "proposed",
+      "contractReview": null,
+      "tests": [],
+      "negativeControls": [],
+      "limitations": []
+    }
+  ]
+}
