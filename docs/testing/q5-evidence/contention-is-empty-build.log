@@ -1,0 +1,19 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+  Bifrost.Concurrency -> /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Concurrency/bin/Release/net10.0/Bifrost.Concurrency.dll
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
+  Bifrost.Tests.Concurrency -> /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/bin/Release/net10.0/Bifrost.Tests.Concurrency.dll
+
+Build succeeded.
+
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
+    4 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.63

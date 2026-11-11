@@ -1,0 +1,101 @@
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.11 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+failed Q5HeldSparseLastItemRequiresRetryAndThenSuccess (11ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: Q5 held populated stripe was treated as empty
+  Operation { Actor = 1, Step = 0, Kind = dequeue, Start = 1, End = 2, Success = False, Id = 0, Priority = 0 }
+    at Bifrost.Tests.Concurrency.ObservedEmptyInvariantTests.Check(Boolean condition, String message, History history) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/ObservedEmptyInvariantTests.cs:24
+    at Bifrost.Tests.Concurrency.ObservedEmptyInvariantTests.Q5HeldSparseLastItemRequiresRetryAndThenSuccess() in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/ObservedEmptyInvariantTests.cs:127
+failed Q5ProducerComparerOverlapsConsumerWithoutPermittingFalse (11ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: Q5 overlapping producer and consumer cannot erase the resident prefill
+  Operation { Actor = 0, Step = 0, Kind = enqueue, Start = 1, End = 4, Success = True, Id = 2, Priority = 2 }
+  Operation { Actor = 1, Step = 0, Kind = dequeue, Start = 2, End = 3, Success = False, Id = 0, Priority = 0 }
+    at Bifrost.Tests.Concurrency.ObservedEmptyInvariantTests.Check(Boolean condition, String message, History history) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/ObservedEmptyInvariantTests.cs:24
+    at Bifrost.Tests.Concurrency.ObservedEmptyInvariantTests.Q5ProducerComparerOverlapsConsumerWithoutPermittingFalse() in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/ObservedEmptyInvariantTests.cs:187
+failed Q5OverlappingProducersAndConsumersCannotExhaustPrefill (11ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: Q5 seed=0 stripes=1 buffer=0 false despite an unremovable prefill survivor
+  Operation { Actor = 3, Step = 0, Kind = dequeue, Start = 1, End = 7, Success = True, Id = 0, Priority = 0 }
+  Operation { Actor = 0, Step = 0, Kind = enqueue, Start = 2, End = 8, Success = True, Id = 49, Priority = 1 }
+  Operation { Actor = 1, Step = 0, Kind = dequeue, Start = 3, End = 4, Success = False, Id = 0, Priority = 0 }
+  Operation { Actor = 2, Step = 0, Kind = dequeue, Start = 5, End = 6, Success = False, Id = 0, Priority = 0 }
+  Operation { Actor = 0, Step = 1, Kind = enqueue, Start = 9, End = 11, Success = True, Id = 50, Priority = 2 }
+  Operation { Actor = 3, Step = 1, Kind = dequeue, Start = 10, End = 14, Success = True, Id = 48, Priority = 0 }
+  Operation { Actor = 1, Step = 1, Kind = dequeue, Start = 12, End = 15, Success = True, Id = 6, Priority = 0 }
+  Operation { Actor = 2, Step = 1, Kind = dequeue, Start = 13, End = 16, Success = True, Id = 21, Priority = 0 }
+  Operation { Actor = 2, Step = 2, Kind = dequeue, Start = 17, End = 18, Success = True, Id = 24, Priority = 0 }
+  Operation { Actor = 1, Step = 2, Kind = dequeue, Start = 19, End = 20, Success = True, Id = 27, Priority = 0 }
+  Operation { Actor = 0, Step = 2, Kind = enqueue, Start = 21, End = 22, Success = True, Id = 51, Priority = 0 }
+  Operation { Actor = 3, Step = 2, Kind = dequeue, Start = 23, End = 24, Success = True, Id = 30, Priority = 0 }
+  Operation { Actor = 3, Step = 3, Kind = dequeue, Start = 25, End = 26, Success = True, Id = 51, Priority = 0 }
+  Operation { Actor = 1, Step = 3, Kind = dequeue, Start = 27, End = 30, Success = True, Id = 33, Priority = 0 }
+  Operation { Actor = 2, Step = 3, Kind = dequeue, Start = 28, End = 32, Success = True, Id = 36, Priority = 0 }
+  Operation { Actor = 0, Step = 3, Kind = enqueue, Start = 29, End = 31, Success = True, Id = 52, Priority = 1 }
+  Operation { Actor = 2, Step = 4, Kind = dequeue, Start = 33, End = 34, Success = True, Id = 9, Priority = 0 }
+  Operation { Actor = 0, Step = 4, Kind = enqueue, Start = 35, End = 36, Success = True, Id = 53, Priority = 2 }
+  Operation { Actor = 1, Step = 4, Kind = dequeue, Start = 37, End = 38, Success = True, Id = 39, Priority = 0 }
+  Operation { Actor = 3, Step = 4, Kind = dequeue, Start = 39, End = 40, Success = True, Id = 42, Priority = 0 }
+  Operation { Actor = 3, Step = 5, Kind = dequeue, Start = 41, End = 43, Success = True, Id = 45, Priority = 0 }
+  Operation { Actor = 2, Step = 5, Kind = dequeue, Start = 42, End = 45, Success = True, Id = 12, Priority = 0 }
+  Operation { Actor = 1, Step = 5, Kind = dequeue, Start = 44, End = 46, Success = True, Id = 3, Priority = 0 }
+  Operation { Actor = 0, Step = 5, Kind = enqueue, Start = 47, End = 48, Success = True, Id = 54, Priority = 0 }
+  Operation { Actor = 1, Step = 6, Kind = dequeue, Start = 49, End = 51, Success = True, Id = 15, Priority = 0 }
+  Operation { Actor = 3, Step = 6, Kind = dequeue, Start = 50, End = 53, Success = True, Id = 54, Priority = 0 }
+  Operation { Actor = 2, Step = 6, Kind = dequeue, Start = 52, End = 54, Success = True, Id = 18, Priority = 0 }
+  Operation { Actor = 0, Step = 6, Kind = enqueue, Start = 55, End = 56, Success = True, Id = 55, Priority = 1 }
+  Operation { Actor = 2, Step = 7, Kind = dequeue, Start = 57, End = 58, Success = True, Id = 43, Priority = 1 }
+  Operation { Actor = 0, Step = 7, Kind = enqueue, Start = 59, End = 60, Success = True, Id = 56, Priority = 2 }
+  Operation { Actor = 1, Step = 7, Kind = dequeue, Start = 61, End = 62, Success = True, Id = 55, Priority = 1 }
+  Operation { Actor = 3, Step = 7, Kind = dequeue, Start = 63, End = 64, Success = True, Id = 49, Priority = 1 }
+  Operation { Actor = 1, Step = 8, Kind = dequeue, Start = 65, End = 67, Success = True, Id = 22, Priority = 1 }
+  Operation { Actor = 2, Step = 8, Kind = dequeue, Start = 66, End = 70, Success = True, Id = 25, Priority = 1 }
+  Operation { Actor = 3, Step = 8, Kind = dequeue, Start = 68, End = 69, Success = False, Id = 0, Priority = 0 }
+  Operation { Actor = 0, Step = 8, Kind = enqueue, Start = 71, End = 72, Success = True, Id = 57, Priority = 0 }
+  Operation { Actor = 2, Step = 9, Kind = dequeue, Start = 73, End = 75, Success = True, Id = 57, Priority = 0 }
+  Operation { Actor = 0, Step = 9, Kind = enqueue, Start = 74, End = 76, Success = True, Id = 58, Priority = 1 }
+  Operation { Actor = 1, Step = 9, Kind = dequeue, Start = 77, End = 78, Success = True, Id = 34, Priority = 1 }
+  Operation { Actor = 3, Step = 9, Kind = dequeue, Start = 79, End = 80, Success = True, Id = 58, Priority = 1 }
+  Operation { Actor = 1, Step = 10, Kind = dequeue, Start = 81, End = 82, Success = True, Id = 1, Priority = 1 }
+  Operation { Actor = 0, Step = 10, Kind = enqueue, Start = 83, End = 84, Success = True, Id = 59, Priority = 2 }
+  Operation { Actor = 2, Step = 10, Kind = dequeue, Start = 85, End = 87, Success = True, Id = 31, Priority = 1 }
+  Operation { Actor = 3, Step = 10, Kind = dequeue, Start = 86, End = 88, Success = True, Id = 46, Priority = 1 }
+  Operation { Actor = 2, Step = 11, Kind = dequeue, Start = 89, End = 90, Success = True, Id = 7, Priority = 1 }
+  Operation { Actor = 1, Step = 11, Kind = dequeue, Start = 91, End = 92, Success = True, Id = 28, Priority = 1 }
+  Operation { Actor = 0, Step = 11, Kind = enqueue, Start = 93, End = 94, Success = True, Id = 60, Priority = 0 }
+  Operation { Actor = 3, Step = 11, Kind = dequeue, Start = 95, End = 96, Success = True, Id = 60, Priority = 0 }
+  Operation { Actor = 2, Step = 12, Kind = dequeue, Start = 97, End = 99, Success = True, Id = 52, Priority = 1 }
+  Operation { Actor = 1, Step = 12, Kind = dequeue, Start = 98, End = 100, Success = True, Id = 40, Priority = 1 }
+  Operation { Actor = 0, Step = 12, Kind = enqueue, Start = 101, End = 103, Success = True, Id = 61, Priority = 1 }
+  Operation { Actor = 3, Step = 12, Kind = dequeue, Start = 102, End = 104, Success = True, Id = 10, Priority = 1 }
+  Operation { Actor = 3, Step = 13, Kind = dequeue, Start = 105, End = 106, Success = True, Id = 61, Priority = 1 }
+  Operation { Actor = 2, Step = 13, Kind = dequeue, Start = 107, End = 108, Success = True, Id = 13, Priority = 1 }
+  Operation { Actor = 0, Step = 13, Kind = enqueue, Start = 109, End = 111, Success = True, Id = 62, Priority = 2 }
+  Operation { Actor = 1, Step = 13, Kind = dequeue, Start = 110, End = 112, Success = True, Id = 37, Priority = 1 }
+  Operation { Actor = 3, Step = 14, Kind = dequeue, Start = 113, End = 115, Success = True, Id = 16, Priority = 1 }
+  Operation { Actor = 2, Step = 14, Kind = dequeue, Start = 114, End = 117, Success = True, Id = 4, Priority = 1 }
+  Operation { Actor = 1, Step = 14, Kind = dequeue, Start = 116, End = 118, Success = True, Id = 19, Priority = 1 }
+  Operation { Actor = 0, Step = 14, Kind = enqueue, Start = 119, End = 120, Success = True, Id = 63, Priority = 0 }
+  Operation { Actor = 0, Step = 15, Kind = enqueue, Start = 121, End = 122, Success = True, Id = 64, Priority = 1 }
+  Operation { Actor = 2, Step = 15, Kind = dequeue, Start = 123, End = 124, Success = True, Id = 63, Priority = 0 }
+  Operation { Actor = 1, Step = 15, Kind = dequeue, Start = 125, End = 126, Success = True, Id = 64, Priority = 1 }
+  Operation { Actor = 3, Step = 15, Kind = dequeue, Start = 127, End = 128, Success = True, Id = 56, Priority = 2 }
+    at Bifrost.Tests.Concurrency.ObservedEmptyInvariantTests.Check(Boolean condition, String message, History history) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/ObservedEmptyInvariantTests.cs:24
+    at Bifrost.Tests.Concurrency.ObservedEmptyInvariantTests.Q5OverlappingProducersAndConsumersCannotExhaustPrefill() in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/ObservedEmptyInvariantTests.cs:77
+
+  In process file artifacts produced:
+    - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/work/q5-reproduced/contention-is-empty.trx
+
+Test run summary: Failed! - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/q5-review/src/Bifrost.Tests.Concurrency/bin/Release/net10.0/Bifrost.Tests.Concurrency.dll (net10.0|x64)
+  total: 4
+  failed: 3
+  succeeded: 1
+  skipped: 0
+  duration: 194ms
