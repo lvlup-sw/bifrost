@@ -53,5 +53,5 @@
     "Expected": "handoff=1;durable=0;replay=1;first=1",
     "Actual": "handoff=1;durable=0;replay=1;first=1"
   },
-  "ReplayCommand": "BIFROST_REGISTRY_RESTART_REPLAY=/absolute/path.json dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter \u0027/*/*/SystematicRegistryRestartReplayTests/ReplaySavedRestartHistory\u0027"
+  "ReplayCommand": "BIFROST_REGISTRY_RESTART_REPLAY='docs/testing/registry-review-evidence/restart-0-before-checkpoint.json' dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter '/*/*/SystematicRegistryRestartReplayTests/ReplaySavedRestartHistory'"
 }

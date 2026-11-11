@@ -51,8 +51,10 @@ public sealed class SystematicRegistryTests
                 if (directory is not null)
                 {
                     Directory.CreateDirectory(directory);
-                    await File.WriteAllTextAsync(Path.Combine(directory, $"registry-{seed}.source.json"), Artifact(history, null, result).ToJson());
-                    await File.WriteAllTextAsync(Path.Combine(directory, $"registry-{seed}.min.json"), artifact.ToJson());
+                    var sourcePath = Path.Combine(directory, $"registry-{seed}.source.json");
+                    var minimizedPath = Path.Combine(directory, $"registry-{seed}.min.json");
+                    await File.WriteAllTextAsync(sourcePath, WithReplayPath(Artifact(history, null, result), sourcePath, "BIFROST_REGISTRY_REPLAY", "SystematicRegistryTests/ReplaySavedHistory").ToJson());
+                    await File.WriteAllTextAsync(minimizedPath, WithReplayPath(artifact, minimizedPath, "BIFROST_REGISTRY_REPLAY", "SystematicRegistryTests/ReplaySavedHistory").ToJson());
                     await File.WriteAllTextAsync(Path.Combine(directory, $"registry-{seed}.reduction.txt"), $"evaluations={reduced.Evaluations}; one-minimal={reduced.IsOneMinimalWithinCandidates}; class={reduced.Observation.FailureClass}; original={history.Commands.Length}; reduced={reduced.History.Commands.Length}");
                 }
             }
@@ -116,6 +118,9 @@ public sealed class SystematicRegistryTests
         var actual = record.Replay(IsValid, (source, _) => Execute(source));
         await Assert.That(actual).IsEqualTo(record.Observation);
     }
+
+    internal static ReplayRecord WithReplayPath(ReplayRecord record, string path, string variable, string test)
+        => record with { ReplayCommand = variable + "='" + path.Replace("'", "'\\''", StringComparison.Ordinal) + "' dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter '/*/*/" + test + "'" };
 
     internal static ReplayRecord Artifact(HistoryCase source, HistoryCase? followup, HistoryObservation observation) => new(
         1, System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(ScheduleRegistry).Assembly)!.InformationalVersion.Split('+')[^1], true, System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,

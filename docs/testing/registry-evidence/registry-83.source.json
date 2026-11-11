@@ -263,7 +263,7 @@
   "Observation": {
     "FailureClass": "registry-metadata",
     "Expected": "computed next fire and live dispatcher",
-    "Actual": "JobDescriptor { Name = job-2, State = Running, Cadence = IntervalCadence { Interval = 00:28:00, Jitter = 0 }, LastFiredAt = , NextFireAt = 06/13/2026 12:28:00 \u002B00:00, IsRunning = True }"
+    "Actual": "JobDescriptor { Name = job-2, State = Running, Cadence = IntervalCadence { Interval = 00:28:00, Jitter = 0 }, LastFiredAt = , NextFireAt = 06/13/2026 12:28:00 +00:00, IsRunning = True }"
   },
-  "ReplayCommand": "BIFROST_REGISTRY_REPLAY=/absolute/path/to/artifact.json dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter \u0027/*/*/SystematicRegistryTests/ReplaySavedHistory\u0027"
+  "ReplayCommand": "BIFROST_REGISTRY_REPLAY='docs/testing/registry-evidence/registry-83.source.json' dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter '/*/*/SystematicRegistryTests/ReplaySavedHistory'"
 }

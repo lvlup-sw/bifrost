@@ -45,6 +45,7 @@ public sealed class SystematicRegistryRestartReplayTests
         var directory = (temporary ? null : Environment.GetEnvironmentVariable("BIFROST_REGISTRY_ARTIFACTS")) ?? Path.Combine(Path.GetTempPath(), "bifrost-registry-restart-" + Guid.NewGuid());
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, $"restart-{fault}-{cut}.json");
+        record = SystematicRegistryTests.WithReplayPath(record, path, "BIFROST_REGISTRY_RESTART_REPLAY", "SystematicRegistryRestartReplayTests/ReplaySavedRestartHistory");
         await File.WriteAllTextAsync(path, record.ToJson());
         try
         {
