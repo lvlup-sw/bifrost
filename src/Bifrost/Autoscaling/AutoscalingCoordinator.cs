@@ -115,8 +115,15 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
                 }
             }
 
-            var workerFunc = _orchestrator.CreateWorkerFunction(StateCallback);
-            await _registry.CreateWorkerAsync(workerId, workerFunc, cancellationToken).ConfigureAwait(false);
+            Task WorkerFunction(string id, CancellationToken token)
+            {
+                var worker = _registry.GetWorkerInfo(id)
+                    ?? throw new InvalidOperationException("Worker must be registered before it starts.");
+                return _orchestrator.CreateWorkerFunction(StateCallback, worker.RetirementToken)(id, token);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await _registry.CreateWorkerAsync(workerId, WorkerFunction, _orchestrator.GetShutdownToken()).ConfigureAwait(false);
         }
     }
 

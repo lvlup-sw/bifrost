@@ -202,6 +202,10 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
     /// <inheritdoc/>
     public Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback)
+        => CreateWorkerFunction(stateCallback, CancellationToken.None);
+
+    /// <inheritdoc/>
+    public Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback, CancellationToken retirementToken)
         => (id, token) =>
         {
             lock (_lifecycleGate)
@@ -210,17 +214,23 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                 _activeWorkers++;
             }
 
-            return RunRegisteredWorkerAsync(id, stateCallback, token);
+            return RunRegisteredWorkerAsync(id, stateCallback, token, retirementToken);
         };
 
-    private async Task RunRegisteredWorkerAsync(string id, Action<bool>? callback, CancellationToken token)
+    private async Task RunRegisteredWorkerAsync(string id, Action<bool>? callback, CancellationToken token,
+        CancellationToken retirementToken = default)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _shutdownToken);
+        // Allocate the additional source once per dynamic worker, never per item.
+        using var dequeueCancellation = retirementToken.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(linked.Token, retirementToken)
+            : null;
+        var dequeueToken = dequeueCancellation?.Token ?? linked.Token;
         try
         {
-            await ConsumeQueueAsync(id, callback, linked.Token).ConfigureAwait(false);
+            await ConsumeQueueAsync(id, callback, linked.Token, dequeueToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (linked.IsCancellationRequested)
+        catch (OperationCanceledException) when (dequeueToken.IsCancellationRequested)
         {
         }
         catch (Exception error)
@@ -230,6 +240,17 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         }
         finally
         {
+            // A priority wait can acquire a permit just as retirement wins. Hand a wake
+            // to a remaining consumer so an accepted item cannot be left without a signal.
+            if (retirementToken.IsCancellationRequested)
+            {
+                switch (_queue)
+                {
+                    case LockingPriorityWorkQueue<TWork> exact: exact.WakeConsumer(); break;
+                    case ConcurrentPriorityWorkQueue<TWork> relaxed: relaxed.WakeConsumer(); break;
+                }
+            }
+
             lock (_lifecycleGate)
             {
                 _activeWorkers--;
@@ -245,11 +266,11 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public Task RequestScaleDownAsync(int count, CancellationToken cancellationToken = default) => Task.CompletedTask;
     internal bool TryReadEnvelope(out WorkEnvelope<TWork> envelope) => _queue.TryDequeue(out envelope);
 
-    private async Task ConsumeQueueAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct)
+    private async Task ConsumeQueueAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct, CancellationToken dequeueToken)
     {
-        while (await _queue.WaitToDequeueAsync(ct).ConfigureAwait(false))
+        while (!dequeueToken.IsCancellationRequested && await _queue.WaitToDequeueAsync(dequeueToken).ConfigureAwait(false))
         {
-            while (!ct.IsCancellationRequested && _queue.TryDequeue(out var envelope))
+            while (!dequeueToken.IsCancellationRequested && _queue.TryDequeue(out var envelope))
             {
                 var observer = QueueWaitObserved;
                 observer?.Invoke(envelope.Class, _timeProvider.GetElapsedTime(envelope.EnqueuedAtTicks));

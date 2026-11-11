@@ -131,10 +131,15 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
             }
 
             // Get a worker function from the inner orchestrator, which captures the real channel reader
-            var workerFunc = _inner.CreateWorkerFunction(StateCallback);
+            Task WorkerFunction(string id, CancellationToken token)
+            {
+                var worker = _registry.GetWorkerInfo(id)
+                    ?? throw new InvalidOperationException("Worker must be registered before it starts.");
+                return _inner.CreateWorkerFunction(StateCallback, worker.RetirementToken)(id, token);
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
-            await _registry.CreateWorkerAsync(workerId, workerFunc, _inner.GetShutdownToken()).ConfigureAwait(false);
+            await _registry.CreateWorkerAsync(workerId, WorkerFunction, _inner.GetShutdownToken()).ConfigureAwait(false);
         }
     }
 
@@ -171,6 +176,10 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <inheritdoc/>
     public Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback)
         => _inner.CreateWorkerFunction(stateCallback);
+
+    /// <inheritdoc/>
+    public Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback, CancellationToken retirementToken)
+        => _inner.CreateWorkerFunction(stateCallback, retirementToken);
 
     /// <inheritdoc/>
     public CancellationToken GetShutdownToken()

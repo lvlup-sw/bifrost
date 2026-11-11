@@ -160,6 +160,9 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// </summary>
     internal int ResolvedBufferCapacityForTest => _resolvedBufferCapacity;
 
+    // Retirement can consume an item permit without taking the item. Restore a wake.
+    internal void WakeConsumer() => _signal.Release();
+
     /// <inheritdoc/>
     /// <remarks>
     /// The MultiQueue sums lock-striped per-sub-queue counters without locking, so the

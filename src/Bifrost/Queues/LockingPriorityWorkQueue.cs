@@ -115,6 +115,9 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
         _queue = new PriorityQueue<WorkEnvelope<TWork>, long>(capacity);
     }
 
+    // Retirement can consume an item permit without taking the item. Restore a wake.
+    internal void WakeConsumer() => _signal.Release();
+
     /// <inheritdoc/>
     /// <remarks>
     /// The locking structure reads the heap count under its global lock, so the value

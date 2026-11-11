@@ -197,10 +197,11 @@
     },
     {
       "id": "A2",
-      "propertyAndBoundary": "Scaling callbacks and Stop/Dispose obey documented overlap and completion guarantees.",
-      "domainAndOracle": "Gated coordinator tasks and a controllable timer. Callback-start/stop races and recovery after failed actions.",
+      "propertyAndBoundary": "Scaling callbacks and Stop/Dispose obey documented overlap and completion guarantees. Worker retirement preserves current handlers and queued work.",
+      "domainAndOracle": "Gated coordinator tasks and a controllable timer. Callback-start/stop races and recovery after failed actions. Idle/busy retirement, repeated cycles, request-token lifetime, abort, and priority wake handoff.",
       "tests": [
         "src/Bifrost.Tests/Systematic/AutoscalingLifecycleInvariantTests.cs",
+        "src/Bifrost.Tests/Autoscaling/WorkerRetirementTests.cs",
         "src/Bifrost.Tests/Systematic/AutoscalingClockInvariantTests.cs"
       ],
       "limitations": [

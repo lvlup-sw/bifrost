@@ -80,6 +80,10 @@ public sealed class ResilientOrchestrator<TWork> : IWorkOrchestrator<TWork>
         => _inner.CreateWorkerFunction(stateCallback);
 
     /// <inheritdoc/>
+    public Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback, CancellationToken retirementToken)
+        => _inner.CreateWorkerFunction(stateCallback, retirementToken);
+
+    /// <inheritdoc/>
     public Task RequestScaleUpAsync(int count, CancellationToken cancellationToken = default)
         => _inner.RequestScaleUpAsync(count, cancellationToken);
 
