@@ -100,13 +100,13 @@ public sealed class SystematicRegistryCheckpointRaceTests
         var store = new CheckpointGateStore(false);
         using var registry = new ScheduleRegistry(store, new FakeTimeProvider(SystematicRegistryTests.Epoch));
         await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, new SystematicRegistryTests.NoopDispatcher());
-        using var loop = CreateLoop(registry, store);
-        Fire(loop, 1);
+        var generation = registry.TryGetRecord("job")!;
+        var first = registry.CheckpointAsync(generation, SystematicRegistryTests.Epoch.AddMinutes(1), SystematicRegistryTests.Epoch.AddMinutes(2)).AsTask();
         await store.Arrived.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Fire(loop, 2);
-        Fire(loop, 3);
+        var second = registry.CheckpointAsync(generation, SystematicRegistryTests.Epoch.AddMinutes(2), SystematicRegistryTests.Epoch.AddMinutes(3)).AsTask();
+        var third = registry.CheckpointAsync(generation, SystematicRegistryTests.Epoch.AddMinutes(3), SystematicRegistryTests.Epoch.AddMinutes(4)).AsTask();
         store.Release.TrySetResult();
-        await store.AllFinished.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.WhenAll(first, second, third).WaitAsync(TimeSpan.FromSeconds(10));
         await Assert.That(store.Record!.LastFiredAt).IsEqualTo(SystematicRegistryTests.Epoch.AddMinutes(3));
     }
 

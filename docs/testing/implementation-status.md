@@ -22,8 +22,8 @@ With task-local SDK 10.0.404 and runtime 10.0.15:
 
 - Main tests: 825 passed.
 - Concurrency tests: 160 passed, including the native stress category. The separate stress run passed 8 tests.
-- Scheduling tests: 348 passed.
-- Wider invariant lane: 19 suites, 106 cases, four times the queue seed corpus; all passed.
+- Scheduling tests: 359 passed after the overhead follow-up.
+- Wider invariant lane: 22 suites, 117 cases, four times the queue seed corpus; all passed.
 - Each shipping assembly exceeded the existing 80% line and branch floor with the existing generated-code exclusions.
 - Both NativeAOT samples passed. Scheduling was republished after the final scheduler fixes.
 - Zero discovery failed as intended. The exact nightly queue and lifecycle mutation commands detected all selected faults and restored source.
@@ -33,8 +33,12 @@ Commands, counts and logs are in `integration-evidence/`. The original installed
 
 ## Limits
 
-Finite histories do not prove the absence of every latent defect. Native schedules are not reconstructed from seeds. P1 uses exact representable units. Scheduler arithmetic generation uses zero jitter and representable dates. Generic Coalesce retains one occurrence but scans an advancing backlog; only its zero-jitter interval path is constant-time. Custom cadence CPU bounds remain unresolved.
+Finite histories do not prove the absence of every latent defect. Native schedules are not reconstructed from seeds. P1 uses exact representable units. Scheduler arithmetic generation uses zero jitter and representable dates. Generic Coalesce retains one occurrence but scans an advancing backlog; its zero-jitter interval path is constant-time and built-in cron uses reverse calendar lookup. Custom cadence CPU bounds remain unresolved.
 
 Stryker's RNG-dependent survivors are classified, not counted as adequate. Coyote explores selected task boundaries and does not model every native lock/channel operation. Daikon results remain hypotheses. Solver proofs cover declared arithmetic bounds. Restart tests use frozen durable images rather than killing a process. Arbitrary synchronous reentrant custom stores/event sinks and concurrent autoscaling restart during Stop have no new ordering guarantee.
 
 These limits retain the proposal's scope. Production deployment and merging the candidate branch are not part of this implementation handoff.
+
+## Overhead follow-up
+
+`scheduling-overhead.md` records adoption of exact-name gates, cron reverse lookup, checkpoint monotonicity after ambiguous writes, benchmark results and limits. New regressions run in the invariant lane. Batching is tracked in issue #86. Earlier component reports describe historical stripe-based revisions.

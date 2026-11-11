@@ -35,8 +35,9 @@ namespace Bifrost.Scheduling.Registry;
 /// </remarks>
 public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposable, IDisposable
 {
-    private readonly SemaphoreSlim[] mutationGates = Enumerable.Range(0, 64).Select(static _ => new SemaphoreSlim(1, 1)).ToArray();
+    private readonly JobMutationGates mutationGates = new();
     private readonly ConditionalWeakTable<JobRecord, JobRecord> checkpointOrigins = new();
+    private readonly ConditionalWeakTable<JobRecord, CheckpointProgress> checkpointProgress = new();
     private readonly IScheduleStore store;
     private readonly TimeProvider timeProvider;
     private readonly SchedulerMetrics metrics;
@@ -219,16 +220,8 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
-        var gate = this.mutationGates[(int)((uint)StringComparer.Ordinal.GetHashCode(name) % (uint)this.mutationGates.Length)];
-        await gate.WaitAsync(ct).ConfigureAwait(false);
-        try
-        {
-            return await this.UnregisterCoreAsync(name, ct).ConfigureAwait(false);
-        }
-        finally
-        {
-            gate.Release();
-        }
+        using var lease = await this.mutationGates.EnterAsync(name, ct).ConfigureAwait(false);
+        return await this.UnregisterCoreAsync(name, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -245,23 +238,28 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
     internal async ValueTask CheckpointAsync(JobRecord expected, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
     {
-        var gate = this.mutationGates[(int)((uint)StringComparer.Ordinal.GetHashCode(expected.Name) % (uint)this.mutationGates.Length)];
-        await gate.WaitAsync().ConfigureAwait(false);
-        try
+        using var lease = await this.mutationGates.EnterAsync(expected.Name).ConfigureAwait(false);
+        if (this.jobs.TryGetValue(expected.Name, out var current)
+            && ReferenceEquals(this.CheckpointOrigin(current), this.CheckpointOrigin(expected)))
         {
-            if (this.jobs.TryGetValue(expected.Name, out var current)
-                && ReferenceEquals(this.CheckpointOrigin(current), this.CheckpointOrigin(expected)))
+            var progress = this.checkpointProgress.GetValue(this.CheckpointOrigin(current), static _ => new CheckpointProgress());
+            if ((current.LastFiredAt is { } recorded && firedAt <= recorded)
+                || (progress.HighestAttempt is { } attempted && firedAt < attempted))
             {
-                await this.store.RecordFiredAsync(expected.Name, firedAt, nextFireAt, CancellationToken.None).ConfigureAwait(false);
-                var updated = current with { LastFiredAt = firedAt, NextFireAt = nextFireAt };
-                this.checkpointOrigins.Add(updated, this.CheckpointOrigin(current));
-                this.jobs.TryUpdate(expected.Name, updated, current);
+                return;
             }
+
+            progress.HighestAttempt = firedAt;
+            await this.store.RecordFiredAsync(expected.Name, firedAt, nextFireAt, CancellationToken.None).ConfigureAwait(false);
+            var updated = current with { LastFiredAt = firedAt, NextFireAt = nextFireAt };
+            this.checkpointOrigins.Add(updated, this.CheckpointOrigin(current));
+            this.jobs.TryUpdate(expected.Name, updated, current);
         }
-        finally
-        {
-            gate.Release();
-        }
+    }
+
+    private sealed class CheckpointProgress
+    {
+        internal DateTimeOffset? HighestAttempt { get; set; }
     }
 
     private JobRecord CheckpointOrigin(JobRecord record)
@@ -271,16 +269,8 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
-        var gate = this.mutationGates[(int)((uint)StringComparer.Ordinal.GetHashCode(name) % (uint)this.mutationGates.Length)];
-        await gate.WaitAsync(ct).ConfigureAwait(false);
-        try
-        {
-            await action().ConfigureAwait(false);
-        }
-        finally
-        {
-            gate.Release();
-        }
+        using var lease = await this.mutationGates.EnterAsync(name, ct).ConfigureAwait(false);
+        await action().ConfigureAwait(false);
     }
 
     private async ValueTask RegisterCoreAsync(

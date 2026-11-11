@@ -1,0 +1,34 @@
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.15 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+failed OlderAndDuplicateCheckpointsCannotRegressMetadata (26ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be 1
+  but found 3
+  
+  at Assert.That(store.Writes).IsEqualTo(1)
+failed AmbiguousFailurePreventsOlderWriteAndAllowsSameOccurrenceRetry(False) (26ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be 1
+  but found 2
+  
+  at Assert.That(store.Writes).IsEqualTo(1)
+failed AmbiguousFailurePreventsOlderWriteAndAllowsSameOccurrenceRetry(True) (26ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be 1
+  but found 2
+  
+  at Assert.That(store.Writes).IsEqualTo(1)
+
+Test run summary: Failed! - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Scheduling/bin/Release/net10.0/Bifrost.Tests.Scheduling.dll (net10.0|x64)
+  total: 3
+  failed: 3
+  succeeded: 0
+  skipped: 0
+  duration: 402ms

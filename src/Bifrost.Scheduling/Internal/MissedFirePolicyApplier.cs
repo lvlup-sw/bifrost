@@ -83,6 +83,17 @@ internal static class MissedFirePolicyApplier
             return count == 0 ? [] : [last.AddTicks(count * interval.Interval.Ticks)];
         }
 
+        if (cadence is CronCadence cron)
+        {
+            if (lastFiredAt is not { } last || last >= now)
+            {
+                return [];
+            }
+
+            var previous = cron.ComputePreviousFire(now);
+            return previous is { } occurrence && occurrence > last ? [occurrence] : [];
+        }
+
         DateTimeOffset? latest = null;
         var cursor = lastFiredAt;
         while (true)
