@@ -114,6 +114,37 @@ public sealed class IntervalInvariantTests
         await Assert.That(MissedFirePolicyApplier.ComputeMissedFires(Cadence.At(Epoch), Epoch, Epoch, MissedFirePolicy.Coalesce)).IsEmpty();
     }
 
+    [Test]
+    public async Task Coalesce_UsesInstantArithmeticAcrossOffsetsAndDateExtremes()
+    {
+        var last = Epoch.ToOffset(TimeSpan.FromHours(14)).AddTicks(-101);
+        var now = Epoch.ToOffset(TimeSpan.FromHours(-12));
+        var result = MissedFirePolicyApplier.ComputeMissedFires(new IntervalCadence(TimeSpan.FromTicks(1)), last, now, MissedFirePolicy.Coalesce);
+        await Assert.That(result.Single().UtcTicks).IsEqualTo(Epoch.UtcTicks);
+        var extreme = MissedFirePolicyApplier.ComputeMissedFires(new IntervalCadence(TimeSpan.FromTicks(1)), DateTimeOffset.MinValue, DateTimeOffset.MaxValue, MissedFirePolicy.Coalesce);
+        await Assert.That(extreme.Single()).IsEqualTo(DateTimeOffset.MaxValue);
+    }
+
+    [Test]
+    public async Task Coalesce_StopsWhenCustomCadenceDoesNotAdvance()
+    {
+        var cadence = new NonAdvancingCadence();
+        var result = MissedFirePolicyApplier.ComputeMissedFires(cadence, Epoch.AddTicks(-1), Epoch, MissedFirePolicy.Coalesce);
+        await Assert.That(result).IsEmpty();
+        await Assert.That(cadence.Calls).IsEqualTo(1);
+    }
+
+    private sealed record NonAdvancingCadence : Cadence
+    {
+        public int Calls { get; private set; }
+
+        public override DateTimeOffset? ComputeNextFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)
+        {
+            if (++this.Calls > 2) throw new InvalidOperationException("Cadence did not make progress.");
+            return lastFiredAt;
+        }
+    }
+
     private static long NextTicks(long? last, long now, long interval)
     {
         if (last is null)
