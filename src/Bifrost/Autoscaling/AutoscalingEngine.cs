@@ -42,6 +42,9 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     private readonly IAutoscalingCoordinator _coordinator;
     private readonly ILogger<AutoscalingEngine> _logger;
     private readonly Lock _scalingLock = new();
+    private readonly Lock _lifecycleLock = new();
+    private TaskCompletionSource? _callbacksDrained;
+    private int _activeCallbacks;
     private readonly Timer _evaluationTimer;
     private readonly ConcurrentDictionary<int, Task> _pendingScalingTasks = new();
     private int _pendingTaskId;
@@ -131,13 +134,24 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     /// <inheritdoc/>
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
-        if (_isRunning)
+        lock (_lifecycleLock)
         {
-            return Task.CompletedTask;
-        }
+            if (_isRunning)
+            {
+                return Task.CompletedTask;
+            }
 
-        _evaluationTimer.Change(TimeSpan.Zero, _options.CheckInterval);
-        _isRunning = true;
+            _isRunning = true;
+            try
+            {
+                _evaluationTimer.Change(TimeSpan.Zero, _options.CheckInterval);
+            }
+            catch
+            {
+                _isRunning = false;
+                throw;
+            }
+        }
 
         _logger.LogInformation(
             "Autoscaling engine started with CheckInterval={CheckInterval}, EffectiveMinWorkers={EffectiveMinWorkers}",
@@ -150,13 +164,19 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     /// <inheritdoc/>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        if (!_isRunning)
+        Task callbacks;
+        lock (_lifecycleLock)
         {
-            return;
+            if (_isRunning)
+            {
+                _evaluationTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                _isRunning = false;
+            }
+
+            callbacks = _callbacksDrained?.Task ?? Task.CompletedTask;
         }
 
-        _evaluationTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-        _isRunning = false;
+        await callbacks.ConfigureAwait(false);
 
         // Drain pending scaling tasks
         await Task.WhenAll(_pendingScalingTasks.Values).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
@@ -276,11 +296,37 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
 
     private void EvaluateScalingCallback(object? state)
     {
-        if (!_isRunning)
+        lock (_lifecycleLock)
         {
-            return;
+            if (!_isRunning)
+            {
+                return;
+            }
+
+            if (_activeCallbacks++ == 0)
+            {
+                _callbacksDrained = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
         }
 
+        try
+        {
+            EvaluateScalingCallbackCore();
+        }
+        finally
+        {
+            lock (_lifecycleLock)
+            {
+                if (--_activeCallbacks == 0)
+                {
+                    _callbacksDrained!.TrySetResult();
+                }
+            }
+        }
+    }
+
+    private void EvaluateScalingCallbackCore()
+    {
         try
         {
             var decision = EvaluateScaling();
