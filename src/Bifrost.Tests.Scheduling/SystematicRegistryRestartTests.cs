@@ -16,6 +16,29 @@ namespace Bifrost.Tests.Scheduling;
 public sealed class SystematicRegistryRestartTests
 {
     [Test]
+    public async Task CheckpointFollowsDispatcherHandoff()
+    {
+        var attempts = new ConcurrentQueue<string>();
+        var store = new DurableStore();
+        var attemptsAtCheckpoint = -1;
+        store.BeforeCheckpoint = () => attemptsAtCheckpoint = attempts.Count;
+        await using var process = await Process.StartAsync(store, SystematicRegistryTests.Epoch, attempts, false, router: new InlineRouter());
+        process.Clock.Advance(TimeSpan.FromMinutes(1));
+        await process.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(10));
+        await Assert.That(attemptsAtCheckpoint).IsEqualTo(1);
+    }
+
+    private sealed class InlineRouter : IJobDispatcherRouter
+    {
+        public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)
+        {
+#pragma warning disable VSTHRD002
+            dispatcher.DispatchAsync(context, ct).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
+        }
+    }
+
+    [Test]
     [Arguments(0, false)]
     [Arguments(1, false)]
     [Arguments(2, false)]
@@ -197,7 +220,7 @@ public sealed class SystematicRegistryRestartTests
         public FakeTimeProvider Clock { get; }
         public ScheduleRegistry Registry { get; }
         public ScheduleTickLoop Loop { get; }
-        public static async Task<Process> StartAsync(DurableStore store, DateTimeOffset now, ConcurrentQueue<string> attempts, bool fails, Action<string>? boundary = null)
+        public static async Task<Process> StartAsync(DurableStore store, DateTimeOffset now, ConcurrentQueue<string> attempts, bool fails, Action<string>? boundary = null, IJobDispatcherRouter? router = null)
         {
             var clock = new FakeTimeProvider(now);
             var registry = new ScheduleRegistry(store, clock);
@@ -209,7 +232,7 @@ public sealed class SystematicRegistryRestartTests
             }
 
             var sink = new Sink();
-            var loop = new ScheduleTickLoop(registry, store, clock, new JobDispatcherRouter(sink), sink, NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions());
+            var loop = new ScheduleTickLoop(registry, store, clock, router ?? new JobDispatcherRouter(sink), sink, NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions());
             await ((IHostedService)loop).StartAsync(CancellationToken.None);
             await loop.WaitForIdleAsync(TimeSpan.FromSeconds(10));
             return new(clock, registry, loop);
