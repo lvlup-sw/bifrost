@@ -148,6 +148,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     {
         lock (_lifecycleLock)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             if (_isRunning)
             {
                 return Task.CompletedTask;
@@ -297,13 +298,17 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (_disposed)
+        lock (_lifecycleLock)
         {
-            return;
-        }
+            if (_disposed)
+            {
+                return;
+            }
 
-        _evaluationTimer.Dispose();
-        _disposed = true;
+            _disposed = true;
+            _isRunning = false;
+            _evaluationTimer.Dispose();
+        }
     }
 
     private void EvaluateScalingCallback(object? state)
