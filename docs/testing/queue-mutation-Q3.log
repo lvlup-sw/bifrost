@@ -1,7 +1,7 @@
-/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
-/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
-/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
-/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
 
 ████████╗██╗   ██╗███╗   ██╗██╗████████╗
 ╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
@@ -15,14 +15,14 @@
    Engine Mode: SourceGenerated
 
 failed Q3LawfulComparerMinimaAtQuiescence (17ms)
-  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: Q3 seed=0 buffer=0 remaining=79 type=System.Int32 peek min
-    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.Check(Boolean value, String context) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:27
-    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.VerifyMinimum[T](Int32 seed, Int32 buffer, IComparer`1 comparer, Func`2 priority) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:165
-    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.Q3LawfulComparerMinimaAtQuiescence() in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:140
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: Q3 seed=0 buffer=0 remaining=78 type=System.Int32 peek min
+    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.Check(Boolean value, String context) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:28
+    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.VerifyMinimum[T](Int32 seed, Int32 buffer, IComparer`1 comparer, Func`2 priority) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:166
+    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.Q3LawfulComparerMinimaAtQuiescence() in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:141
 
-Test run summary: Failed! - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/bin/Debug/net10.0/Bifrost.Tests.Concurrency.dll (net10.0|x64)
+Test run summary: Failed! - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/bin/Debug/net10.0/Bifrost.Tests.Concurrency.dll (net10.0|x64)
   total: 1
   failed: 1
   succeeded: 0
   skipped: 0
-  duration: 196ms
+  duration: 204ms

@@ -1,7 +1,7 @@
-/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
-/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
-/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
-/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
 
 ████████╗██╗   ██╗███╗   ██╗██╗████████╗
 ╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
@@ -14,15 +14,15 @@
 
    Engine Mode: SourceGenerated
 
-failed MetamorphicQuiescentRelations (21ms)
+failed MetamorphicQuiescentRelations (24ms)
   TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: M output count
-    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.Check(Boolean value, String context) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:27
-    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.Drain(ValueTuple`2[] input, Int32 stripes, Int32 buffer, Boolean prefix) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:392
-    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.MetamorphicQuiescentRelations() in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:367
+    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.Check(Boolean value, String context) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:28
+    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.Drain(ValueTuple`2[] input, Int32 stripes, Int32 buffer, Boolean prefix) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:393
+    at Bifrost.Tests.Concurrency.GeneratedQueueInvariantTests.MetamorphicQuiescentRelations() in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs:368
 
-Test run summary: Failed! - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/queue/src/Bifrost.Tests.Concurrency/bin/Debug/net10.0/Bifrost.Tests.Concurrency.dll (net10.0|x64)
+Test run summary: Failed! - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/src/Bifrost.Tests.Concurrency/bin/Debug/net10.0/Bifrost.Tests.Concurrency.dll (net10.0|x64)
   total: 1
   failed: 1
   succeeded: 0
   skipped: 0
-  duration: 196ms
+  duration: 216ms
