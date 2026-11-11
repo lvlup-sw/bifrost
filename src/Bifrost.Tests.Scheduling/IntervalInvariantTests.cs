@@ -19,13 +19,21 @@ public sealed class IntervalInvariantTests
         for (var sample = 0; sample < 128; sample++)
         {
             var ticks = random.NextInt64(1, TimeSpan.TicksPerDay);
-            var now = Epoch.AddTicks(random.NextInt64(-TimeSpan.TicksPerDay, TimeSpan.TicksPerDay));
+            var anchor = new DateTimeOffset(new[] { 2, 2026, 9998 }[sample % 3], 6, 13, 12, 0, 0, TimeSpan.Zero);
+            var now = anchor.AddTicks(random.NextInt64(-TimeSpan.TicksPerDay, TimeSpan.TicksPerDay));
             foreach (var last in new DateTimeOffset?[] { null, now.AddTicks(-ticks * random.Next(1, 501) - random.NextInt64(ticks)), now, now.AddTicks(ticks * 3) })
             {
                 var expected = NextTicks(last?.Ticks, now.Ticks, ticks);
                 var actual = new IntervalCadence(TimeSpan.FromTicks(ticks)).ComputeNextFire(last, now);
                 await Assert.That(actual?.Ticks).IsEqualTo(expected);
                 await Assert.That(actual > now).IsTrue();
+                var translated = new IntervalCadence(TimeSpan.FromTicks(ticks)).ComputeNextFire(last?.AddTicks(7919), now.AddTicks(7919));
+                await Assert.That(translated?.Ticks).IsEqualTo(expected + 7919);
+                if (last is { } previous && now.Ticks - previous.Ticks >= ticks)
+                {
+                    var extended = new IntervalCadence(TimeSpan.FromTicks(ticks)).ComputeNextFire(previous.AddTicks(-31 * ticks), now);
+                    await Assert.That(extended?.Ticks).IsEqualTo(expected);
+                }
             }
         }
     }
