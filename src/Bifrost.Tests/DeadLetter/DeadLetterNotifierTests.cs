@@ -32,8 +32,8 @@ public class DeadLetterNotifierTests
     {
         // Arrange
         var notifier = CreateNotifier();
-        WorkDeadLetteredEvent<string>? received = null;
-        notifier.Subscribe(evt => received = evt);
+        var received = new TaskCompletionSource<WorkDeadLetteredEvent<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        notifier.Subscribe(evt => received.TrySetResult(evt));
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
@@ -41,7 +41,7 @@ public class DeadLetterNotifierTests
         notifier.Notify(evt);
 
         // Assert
-        await Assert.That(received).IsEqualTo(evt);
+        await Assert.That(await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false)).IsEqualTo(evt);
     }
 
     /// <summary>
@@ -87,12 +87,18 @@ public class DeadLetterNotifierTests
         // Arrange
         var notifier = CreateNotifier();
         var callCount = 0;
-        var subscription = notifier.Subscribe(_ => callCount++);
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var subscription = notifier.Subscribe(_ =>
+        {
+            Interlocked.Increment(ref callCount);
+            done.TrySetResult();
+        });
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
         // Act
         notifier.Notify(evt);
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         subscription.Dispose();
         notifier.Notify(evt);
 
@@ -129,12 +135,18 @@ public class DeadLetterNotifierTests
         // Act
         firstSubscription.Dispose();
         var secondCallCount = 0;
-        var secondSubscription = notifier.Subscribe(_ => secondCallCount++);
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondSubscription = notifier.Subscribe(_ =>
+        {
+            Interlocked.Increment(ref secondCallCount);
+            done.TrySetResult();
+        });
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
         notifier.Notify(evt);
 
         // Assert
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(secondCallCount).IsEqualTo(1);
     }
 

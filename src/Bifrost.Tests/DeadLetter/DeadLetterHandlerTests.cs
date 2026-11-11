@@ -133,12 +133,18 @@ public class DeadLetterHandlerTests
             .Returns(_ => new ValueTask(Task.FromException(new InvalidOperationException("fail"))));
         var handler = CreateHandler();
         var notificationCount = 0;
-        _notifier.Subscribe(_ => notificationCount++);
+        var notified = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _notifier.Subscribe(_ =>
+        {
+            Interlocked.Increment(ref notificationCount);
+            notified.TrySetResult();
+        });
 
         // Act
         await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
 
         // Assert
+        await notified.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(notificationCount).IsEqualTo(1);
     }
 

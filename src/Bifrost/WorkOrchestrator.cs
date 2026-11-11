@@ -289,8 +289,16 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     private async Task ProcessEnvelopeAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct,
         WorkEnvelope<TWork> envelope)
     {
-        QueueWaitObserved?.Invoke(envelope.Class, _timeProvider.GetElapsedTime(envelope.EnqueuedAtTicks));
-        stateCallback?.Invoke(true);
+        try
+        {
+            QueueWaitObserved?.Invoke(envelope.Class, _timeProvider.GetElapsedTime(envelope.EnqueuedAtTicks));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Queue-wait observer failed for worker {WorkerId}", workerId);
+        }
+
+        NotifyWorkerState(stateCallback, true, workerId);
         try
         {
             await _handler.HandleAsync(envelope.Work, ct).ConfigureAwait(false);
@@ -305,7 +313,19 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         }
         finally
         {
-            stateCallback?.Invoke(false);
+            NotifyWorkerState(stateCallback, false, workerId);
+        }
+    }
+
+    private void NotifyWorkerState(Action<bool>? callback, bool busy, string workerId)
+    {
+        try
+        {
+            callback?.Invoke(busy);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "State observer failed for worker {WorkerId}", workerId);
         }
     }
 

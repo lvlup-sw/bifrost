@@ -39,6 +39,7 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     private readonly IWorkOrchestrator<TWork> _inner;
     private readonly ILogger<EventStreamOrchestrator<TWork>> _logger;
     private readonly ConcurrentDictionary<Guid, Channel<IOrchestratorEvent>> _eventSubscribers = new();
+    private readonly object _subscriptionGate = new();
     private volatile bool _disposed;
     private volatile bool _draining;
 
@@ -115,15 +116,16 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     /// <inheritdoc/>
     public ValueTask DisposeAsync()
     {
-        _disposed = true;
-
-        // Complete all subscriber channels
-        foreach (var subscriber in _eventSubscribers.Values)
+        lock (_subscriptionGate)
         {
-            subscriber.Writer.TryComplete();
-        }
+            _disposed = true;
+            foreach (var subscriber in _eventSubscribers.Values)
+            {
+                subscriber.Writer.TryComplete();
+            }
 
-        _eventSubscribers.Clear();
+            _eventSubscribers.Clear();
+        }
 
         return _inner.DisposeAsync();
     }
@@ -146,7 +148,13 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
                 SingleWriter = false,
             });
 
-        _eventSubscribers.TryAdd(subscriberId, subscriberChannel);
+        // Registration and disposal must be atomic: a channel added after disposal's
+        // snapshot would otherwise never be completed. Publishing takes no new lock.
+        lock (_subscriptionGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _eventSubscribers.TryAdd(subscriberId, subscriberChannel);
+        }
 
         // If drain has started, ensure late subscribers terminate immediately
         if (_draining)

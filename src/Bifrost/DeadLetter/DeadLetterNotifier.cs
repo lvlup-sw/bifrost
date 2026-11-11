@@ -12,7 +12,9 @@ namespace Bifrost.DeadLetter;
 
 /// <summary>
 /// Multi-subscriber notifier for dead letter events. Subscribers are invoked
-/// fire-and-forget with per-subscriber error isolation.
+/// fire-and-forget on the thread pool with per-subscriber error isolation.
+/// Callbacks can overlap and must return promptly. Notifications are best-effort,
+/// are not drained at shutdown, and do not provide bounded delivery or replay.
 /// </summary>
 /// <typeparam name="TWork">The type of work item.</typeparam>
 internal sealed class DeadLetterNotifier<TWork>
@@ -41,6 +43,7 @@ internal sealed class DeadLetterNotifier<TWork>
         List<Func<WorkDeadLetteredEvent<TWork>, Task>> snapshot;
         lock (_lock)
         {
+            if (_callbacks.Count == 0) return;
             snapshot = [.. _callbacks];
         }
 
@@ -48,7 +51,7 @@ internal sealed class DeadLetterNotifier<TWork>
         {
             // Fire-and-forget to avoid blocking the handler loop.
             // Errors are logged but don't affect the main processing path.
-            _ = NotifySafe(callback, evt);
+            _ = Task.Run(() => NotifySafe(callback, evt));
         }
     }
 

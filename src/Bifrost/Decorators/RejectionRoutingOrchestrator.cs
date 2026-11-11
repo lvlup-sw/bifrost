@@ -240,7 +240,7 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         var result = _inner.Enqueue(work, options);
         if (result.Reason is { } reason)
         {
-            RejectionObserved?.Invoke(options.Class ?? WorkClass.Default, reason);
+            ObserveRejection(options.Class ?? WorkClass.Default, reason);
             if (reason != RejectionReason.Shutdown && _dlq is not null)
                 _ = AwaitRouteAsync(RouteToDeadLetterAsync(work, reason));
         }
@@ -257,11 +257,23 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         var result = await _inner.EnqueueAsync(work, options, ct).ConfigureAwait(false);
         if (result.Reason is { } reason)
         {
-            RejectionObserved?.Invoke(options.Class ?? WorkClass.Default, reason);
+            ObserveRejection(options.Class ?? WorkClass.Default, reason);
             if (reason != RejectionReason.Shutdown && _dlq is not null)
                 await RouteToDeadLetterAsync(work, reason).ConfigureAwait(false);
         }
 
         return result;
+    }
+
+    private void ObserveRejection(WorkClass workClass, RejectionReason reason)
+    {
+        try
+        {
+            RejectionObserved?.Invoke(workClass, reason);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Rejection observer failed for work type {WorkType}", typeof(TWork).Name);
+        }
     }
 }
