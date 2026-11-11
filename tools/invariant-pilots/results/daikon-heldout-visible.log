@@ -1,9 +1,0 @@
-                                                                               [2026-11-10T17:52:07.222111994]:                                               At ppt Bifrost.Admission.Accepted:::POINT, Invariant 'capacity is a power of 2' invalidated by sample capacity=3: at line 109 in file tools/invariant-pilots/results/heldout.dtrace
-At ppt Bifrost.Admission.Accepted:::POINT, Invariant 'before is boolean' invalidated by sample before=2: at line 137 in file tools/invariant-pilots/results/heldout.dtrace
-At ppt Bifrost.Admission.Accepted:::POINT, Invariant 'after is a power of 2' invalidated by sample after=3: at line 137 in file tools/invariant-pilots/results/heldout.dtrace
-At ppt Bifrost.Admission.Rejected:::POINT, Invariant 'capacity is a power of 2' invalidated by sample capacity=3: at line 151 in file tools/invariant-pilots/results/heldout.dtrace
-At ppt Bifrost.Admission.Canceled:::POINT, Invariant 'capacity is a power of 2' invalidated by sample capacity=3: at line 165 in file tools/invariant-pilots/results/heldout.dtrace
-At ppt Bifrost.Admission.Exception:::POINT, Invariant 'capacity is a power of 2' invalidated by sample capacity=3: at line 179 in file tools/invariant-pilots/results/heldout.dtrace
-
-tools/invariant-pilots/results/training.inv.gz: 6 errors found in 5,974 samples (0.10%)
-tools/invariant-pilots/results/training.inv.gz: 6 false positives, out of 49, which is 12.24%.

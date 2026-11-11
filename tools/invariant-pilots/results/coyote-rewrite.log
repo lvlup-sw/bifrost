@@ -1,7 +1,0 @@
-Microsoft (R) Coyote version 1.7.11.0 for .NET 10.0.11
-Copyright (C) Microsoft Corporation. All rights reserved.
-
-. Rewriting /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/tool-pilots/tools/invariant-pilots/bin/Debug/net10.0/Pilots.dll.
-... Rewriting the 'Pilots.dll' assembly (Pilots, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null)
-..... Writing the modified 'Pilots.dll' assembly to /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/tool-pilots/tools/invariant-pilots/bin/Debug/net10.0/Pilots.dll
-... Elapsed 0.1432692 sec.

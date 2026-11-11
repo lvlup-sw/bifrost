@@ -4,6 +4,8 @@ import subprocess
 import time
 
 root = pathlib.Path(__file__).resolve().parents[2]
+output = root / 'artifacts/invariants/mutations'
+output.mkdir(parents=True, exist_ok=True)
 project = 'src/Bifrost.Tests.Concurrency'
 production = root / 'src/Bifrost.Concurrency'
 cases = [
@@ -26,7 +28,7 @@ for family, file, before, after, test in cases:
         command = ['dotnet', 'run', '--project', project, '--', '--treenode-filter', f'/*/*/GeneratedQueueInvariantTests/{test}', '--output', 'Detailed', '--no-ansi']
         run = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=120)
         output = run.stdout + run.stderr
-        (root / 'docs/testing' / f'queue-mutation-{family}.log').write_text(output)
+        (output / f'queue-mutation-{family}.log').write_text(output)
         killed = run.returncode != 0 and 'failed: 1' in output and 'error CS' not in output and 'error SA' not in output
         results.append(dict(family=family, mutation=f'{file}: {before} -> {after}', exit=run.returncode, killed=killed, elapsedSeconds=round(time.monotonic()-started, 3)))
         print(json.dumps(results[-1]), flush=True)
@@ -34,4 +36,4 @@ for family, file, before, after, test in cases:
             raise RuntimeError(f'{family}: mutant did not produce the expected test failure')
     finally:
         path.write_text(original)
-(root / 'docs/testing/queue-mutation-results.json').write_text(json.dumps(results, indent=2) + '\n')
+(output / 'queue-mutation-results.json').write_text(json.dumps(results, indent=2) + '\n')

@@ -37,7 +37,7 @@
 
   <ItemGroup>
     <None Update="Systematic/synthetic-fifo-counterexample.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../docs/testing/lifecycle-counterexample.json" Link="lifecycle-counterexample.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Systematic/lifecycle-counterexample.json" TargetPath="lifecycle-counterexample.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

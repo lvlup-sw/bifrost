@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/**'
       - 'scripts/run-invariant-tests.py'
+      - 'scripts/invariants/**'
       - 'docs/testing/**'
       - '.github/workflows/invariants.yml'
   workflow_dispatch:
@@ -35,17 +36,12 @@ jobs:
         env:
           BIFROST_INVARIANT_SEED_MULTIPLIER: '1'
         run: |
-          python3 docs/testing/queue-mutation-check.py
-          python3 docs/testing/lifecycle-mutations.py
+          python3 scripts/invariants/queue-mutation-check.py
+          python3 scripts/invariants/lifecycle-mutations.py
       - name: Retain evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: invariant-evidence
           retention-days: 30
-          path: |
-            artifacts/invariants/
-            docs/testing/*mutation*.log
-            docs/testing/*mutation*.json
-            docs/testing/*replay*.json
-            src/Bifrost.Tests*/**/*replay*.json
+          path: artifacts/invariants/
