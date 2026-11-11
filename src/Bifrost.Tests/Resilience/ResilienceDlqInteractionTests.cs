@@ -153,9 +153,14 @@ public class ResilienceDlqInteractionTests
         services.AddLogging();
 
         // Use a handler that blocks forever so the channel stays full
+        var handlerEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var blockingHandler = Substitute.For<IWorkHandler<string>>();
         blockingHandler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(call => new ValueTask(Task.Delay(Timeout.Infinite, call.Arg<CancellationToken>())));
+            .Returns(call =>
+            {
+                handlerEntered.TrySetResult();
+                return new ValueTask(Task.Delay(Timeout.Infinite, call.Arg<CancellationToken>()));
+            });
         services.AddSingleton(blockingHandler);
 
         // Use capacity=1 to quickly fill the channel
@@ -166,16 +171,16 @@ public class ResilienceDlqInteractionTests
         });
         builder.WithDeadLetterQueue(opts => opts.MaxRetries = 3);
         builder.Build();
-        var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
         // Fill the channel: first item goes to handler (blocks), second fills the channel
         await orchestrator.EnqueueAsync("item-in-handler").ConfigureAwait(false);
 
-        // Wait briefly for the worker to pick up the first item
-        await Task.Delay(100).ConfigureAwait(false);
-        orchestrator.TryEnqueue("fill-channel");
+        // Queue capacity is available only after the handler has actually started.
+        await handlerEntered.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        await Assert.That(orchestrator.TryEnqueue("fill-channel")).IsTrue();
 
         // Act - try to enqueue when full. This is an enqueue-level failure:
         // the DLQ retry machinery must NOT engage (it wraps handler execution

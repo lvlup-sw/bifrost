@@ -65,6 +65,15 @@ dotnet run --project src/Bifrost.Tests -c Release -- --treenode-filter '/*/*/Wor
 The invariant runner includes this class. These are bounded histories, not a proof
 of every native interleaving or a release qualification on Windows.
 
+## CI test repair
+
+The first hosted CI run exposed an existing race in
+`DLQ_DoesNotRetryEnqueueFailures`: its 100 ms sleep did not guarantee handler entry.
+When the first item remained queued, both the fill item and overflow item were
+rejected, producing two DLQ entries instead of one. The test now waits for an
+explicit handler-entry signal, asserts that the fill item is admitted, and disposes
+the service provider even if an assertion fails. No DLQ production behavior changes.
+
 ## Performance check
 
 The extra cancellation source is allocated once per dynamic worker. The per-item
