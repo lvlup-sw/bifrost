@@ -178,8 +178,9 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
     /// </summary>
     /// <param name="work">The rejected work item.</param>
     /// <param name="reason">The non-shutdown rejection reason.</param>
+    /// <param name="correlationId">Producer correlation metadata.</param>
     /// <returns>A ValueTask that completes when the entry is persisted.</returns>
-    private async ValueTask RouteToDeadLetterAsync(TWork work, RejectionReason reason)
+    private async ValueTask RouteToDeadLetterAsync(TWork work, RejectionReason reason, string? correlationId)
     {
         var marker = MarkerFor(reason);
 
@@ -188,13 +189,13 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
             marker,
             AttemptCount: 0,
             DateTimeOffset.UtcNow,
-            CorrelationId: null);
+            CorrelationId: correlationId);
 
         // CancellationToken.None: dead-letter persistence is guaranteed even if
         // the producer's token is cancelled, mirroring DeadLetterHandler.
         await _dlq!.EnqueueAsync(deadLettered, CancellationToken.None).ConfigureAwait(false);
 
-        var evt = new WorkDeadLetteredEvent<TWork>(work, marker, 0, DateTimeOffset.UtcNow);
+        var evt = new WorkDeadLetteredEvent<TWork>(work, marker, 0, DateTimeOffset.UtcNow, correlationId);
         _notifier?.Notify(evt);
 
         try
@@ -242,7 +243,7 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         {
             ObserveRejection(options.Class ?? WorkClass.Default, reason);
             if (reason != RejectionReason.Shutdown && _dlq is not null)
-                _ = AwaitRouteAsync(RouteToDeadLetterAsync(work, reason));
+                _ = AwaitRouteAsync(RouteToDeadLetterAsync(work, reason, options.CorrelationId));
         }
 
         return result;
@@ -259,7 +260,7 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         {
             ObserveRejection(options.Class ?? WorkClass.Default, reason);
             if (reason != RejectionReason.Shutdown && _dlq is not null)
-                await RouteToDeadLetterAsync(work, reason).ConfigureAwait(false);
+                await RouteToDeadLetterAsync(work, reason, options.CorrelationId).ConfigureAwait(false);
         }
 
         return result;

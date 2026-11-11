@@ -116,6 +116,7 @@ public static class BifrostHttpResilienceExtensions
         ResiliencePipelineBuilder<HttpResponseMessage> pipelineBuilder,
         BifrostHttpResiliencePolicy policy)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(policy.MaxRetries);
         pipelineBuilder.AddTimeout(policy.TotalRequestTimeout);
 
         if (policy.MaxRetries > 0)
