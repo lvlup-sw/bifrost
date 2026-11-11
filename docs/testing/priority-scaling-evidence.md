@@ -1,0 +1,17 @@
+# Priority and scaling checks
+
+Status: partial implementation. P1, P2 and A1 have executed boundary checks. Production negative controls, history replay integration, cooldown boundaries, A2 lifecycle and review remain outstanding.
+
+Source baseline: `0fc121384950d964722a8de36d72a26679a428d3`.
+
+## Executed checks
+
+`dotnet run --project src/Bifrost.Tests/Bifrost.Tests.csproj -- --treenode-filter '/*/*/PriorityScalingInvariantTests/*'`
+
+Three tests passed, none skipped, reported test duration 647 ms. Build requires network and worker access unavailable in the restricted sandbox.
+
+- P1: 288 class/timestamp cases across four frequencies and six exactly representable quarter-second boost windows. BigInteger rational conversion provides expected keys. Timestamp translation checks 288 follow-up cases. The selected domain avoids rounding ambiguity and overflow. Arbitrary fractional windows remain untested.
+- P2: 90 capacity/watermark configurations, independent decimal floor thresholds, occupancy sweeps including threshold equality, and urgency implications. Capacity values include 1, 2, 3 and powers of two plus or minus one. Watermarks are positive, as required by PriorityDispatchOptions. An initial zero-watermark test was rejected by the valid-input guard and corrected; it was not a product defect.
+- A1: 2,430 combinations of initial worker counts, step sizes, current workers and exact/adjacent binary watermark values. An independent signed movement table checks action and target count. Cooldown is zero in this family. Coordinator substitutes supply only current counts; the real engine computes decisions.
+
+The new test class is internal. A directory-scoped SA1600 setting permits the user's requested comment-free test code. No production diagnostics were disabled.
