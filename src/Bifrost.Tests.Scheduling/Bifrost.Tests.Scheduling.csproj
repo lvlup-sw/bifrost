@@ -29,4 +29,8 @@
     <ProjectReference Include="..\Bifrost.Resilience\Bifrost.Resilience.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="../Bifrost.Testing.Systematic/HistoryTools.cs" Link="Systematic/HistoryTools.cs" />
+  </ItemGroup>
+
 </Project>
