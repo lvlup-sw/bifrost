@@ -1054,10 +1054,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         var dispatchedAt = this.timeProvider.GetUtcNow();
         this.metrics.RecordFired(jobName, dispatchedAt - scheduledOccurrence);
 
-        // Best-effort checkpoint: the fire already happened, so a checkpoint failure
-        // must not undo it, fault the loop, or stall it.
-        this.SafeCheckpoint(jobName, scheduledOccurrence, nextFireAt);
-
         // Open a per-fire DI scope (F2/M2), now that the handoff signal has been
         // published. When no root provider was supplied the scope is null and the fire
         // falls back to the no-op provider, so scoped resolution returns null rather
@@ -1111,6 +1107,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         try
         {
             this.router.Dispatch(tracked, context, CancellationToken.None);
+            this.SafeCheckpoint(jobName, scheduledOccurrence, nextFireAt);
         }
 #pragma warning disable CA1031 // Undo the in-flight bookkeeping on any handoff fault.
         catch
