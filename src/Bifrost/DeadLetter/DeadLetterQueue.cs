@@ -28,7 +28,6 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
     private readonly Channel<DeadLetteredWork<TWork>> _channel;
     private readonly ILogger<DeadLetterQueue<TWork>> _logger;
     private readonly int _capacity;
-    private int _count;
     private long _droppedCount;
 
     /// <summary>
@@ -51,11 +50,16 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
                 FullMode = BoundedChannelFullMode.DropOldest,
                 SingleReader = false,
                 SingleWriter = false,
+            },
+            _ =>
+            {
+                Interlocked.Increment(ref _droppedCount);
+                _logger.LogWarning("DLQ at capacity ({Capacity}), oldest item will be dropped", _capacity);
             });
     }
 
     /// <inheritdoc/>
-    public int Count => Volatile.Read(ref _count);
+    public int Count => _channel.Reader.Count;
 
     /// <summary>
     /// Gets the total number of items that have been dropped due to the queue being at capacity.
@@ -67,27 +71,7 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
     {
         ct.ThrowIfCancellationRequested();
 
-        if (_channel.Reader.CanCount && _channel.Reader.Count >= _capacity)
-        {
-            Interlocked.Increment(ref _droppedCount);
-            _logger.LogWarning("DLQ at capacity ({Capacity}), oldest item will be dropped", _capacity);
-        }
-
-        if (_channel.Writer.TryWrite(item))
-        {
-            // Only increment if we haven't exceeded capacity.
-            // With DropOldest, TryWrite always succeeds, but the channel
-            // may have dropped an old item. We need to track actual count.
-            if (_channel.Reader.CanCount)
-            {
-                // Use the channel's actual count for accuracy
-                Volatile.Write(ref _count, _channel.Reader.Count);
-            }
-            else
-            {
-                Interlocked.Increment(ref _count);
-            }
-        }
+        _channel.Writer.TryWrite(item);
 
         return ValueTask.CompletedTask;
     }
@@ -150,7 +134,6 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
 
             if (_queue._channel.Reader.TryRead(out DeadLetteredWork<TWork> item))
             {
-                Interlocked.Decrement(ref _queue._count);
                 Current = item;
                 return new ValueTask<bool>(true);
             }

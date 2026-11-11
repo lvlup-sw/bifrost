@@ -30,3 +30,9 @@ These are bounded histories, not proofs over all schedules. The real logger gate
 ## Mutation sensitivity
 
 The temporary drain-to-abort mutation fails O1's assertion that canceling a drain wait leaves worker cancellation clear. Increasing configured retries by one fails R1's independent inner-call bound. Replacing DropOldest with DropWrite fails the D1 retained-identity check. Logs retain each command and exit. A DropNewest probe survived: at capacity one, dropping the newest buffered item and dropping the oldest buffered item are the same operation. That equivalent probe is retained as a limitation, not counted as a killed mutant. All production mutations were restored before the test commit.
+
+## Candidate fix validation
+
+The separate candidate fix uses Channel's actual dropped-item callback for DroppedCount and the channel's Count directly, eliminating both pre-write eviction prediction and a second cached occupancy counter. The original failing oracle is unchanged. An additional stress check runs 16 generated seed batches, each with four producers writing 16 unique identities and two concurrent readers; after all actors finish, no identity is read twice and 64 = read + dropped with zero retained. Actor interleavings in this stress check are uncontrolled and only the seed/configuration are reproducible; the saved gated witness supplies deterministic replay.
+
+`lifecycle-candidate.log`: all 9 lifecycle methods pass, 3.097 seconds. `lifecycle-existing-dlq.log`: all 13 existing DeadLetterQueueTests pass, 663 ms. The baseline log predates the additional stress method and contains 8 methods. Tests ran in Debug/net10.0 on .NET 10.0.11. Existing local-remote SourceLink warnings are unrelated to these changes. Full repository tests and global concurrency exploration were not run in this worktree.

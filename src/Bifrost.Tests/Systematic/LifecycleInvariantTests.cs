@@ -217,6 +217,41 @@ public sealed class LifecycleInvariantTests
     }
 
     [Test]
+    public async Task D1_ConcurrentGeneratedBatchesConserveIdentities()
+    {
+        for (var seed = 0; seed < 16; seed++)
+        {
+            var queue = NewQueue(NullLogger<DeadLetterQueue<string>>.Instance);
+            var read = new ConcurrentBag<string>();
+            var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var writers = Enumerable.Range(0, 4).Select(actor => Task.Run(async () =>
+            {
+                await start.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                for (var step = 0; step < 16; step++)
+                {
+                    await queue.EnqueueAsync(Item($"seed-{seed}/writer-{actor}/write-{step}")).ConfigureAwait(false);
+                    if ((step + actor + seed) % 3 == 0) await Task.Yield();
+                }
+            })).ToArray();
+            var readers = Enumerable.Range(0, 2).Select(_ => Task.Run(async () =>
+            {
+                await start.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                for (var step = 0; step < 16; step++)
+                {
+                    await foreach (var item in queue.ReadAllAsync().ConfigureAwait(false)) read.Add(item.Work);
+                    await Task.Yield();
+                }
+            })).ToArray();
+            start.TrySetResult();
+            await Task.WhenAll(writers.Concat(readers)).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await foreach (var item in queue.ReadAllAsync().ConfigureAwait(false)) read.Add(item.Work);
+            Require(read.Distinct().Count() == read.Count, $"seed={seed}: no identity read twice");
+            Require(queue.Count == 0 && read.Count + queue.DroppedCount == 64,
+                $"seed={seed}: written=64 read={read.Count} retained={queue.Count} dropped={queue.DroppedCount}; interleaving uncontrolled");
+        }
+    }
+
+    [Test]
     public async Task D1_EarlyAndCanceledDrainPreservesResidual()
     {
         var queue = new DeadLetterQueue<string>(Options.Create(new DeadLetterQueueOptions
