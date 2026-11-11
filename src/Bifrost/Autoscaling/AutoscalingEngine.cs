@@ -45,7 +45,8 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     private readonly Lock _lifecycleLock = new();
     private TaskCompletionSource? _callbacksDrained;
     private int _activeCallbacks;
-    private readonly Timer _evaluationTimer;
+    private readonly ITimer _evaluationTimer;
+    private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<int, Task> _pendingScalingTasks = new();
     private int _pendingTaskId;
     private DateTimeOffset _lastScalingTime = DateTimeOffset.MinValue;
@@ -63,7 +64,18 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
         IOptions<AutoscalingOptions> options,
         IAutoscalingCoordinator coordinator,
         ILogger<AutoscalingEngine> logger)
+        : this(options, coordinator, logger, TimeProvider.System)
     {
+    }
+
+    internal AutoscalingEngine(
+        IOptions<AutoscalingOptions> options,
+        IAutoscalingCoordinator coordinator,
+        ILogger<AutoscalingEngine> logger,
+        TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        _timeProvider = timeProvider;
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(coordinator);
         ArgumentNullException.ThrowIfNull(logger);
@@ -87,7 +99,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
         }
 
         // Create timer but don't start it yet
-        _evaluationTimer = new Timer(
+        _evaluationTimer = _timeProvider.CreateTimer(
             EvaluateScalingCallback,
             state: null,
             dueTime: Timeout.InfiniteTimeSpan,
@@ -209,7 +221,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
         lock (_scalingLock)
         {
             // Check cooldown period
-            var now = DateTimeOffset.UtcNow;
+            var now = _timeProvider.GetUtcNow();
             var timeSinceLastScaling = now - _lastScalingTime;
 
             if (timeSinceLastScaling < _options.CooldownPeriod)
