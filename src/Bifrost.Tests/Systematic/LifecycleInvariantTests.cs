@@ -336,11 +336,13 @@ public sealed class LifecycleInvariantTests
         var logger = new GatedLogger();
         var queue = NewQueue(logger);
         queue.EnqueueAsync(Item(history.Commands[0].Id)).GetAwaiter().GetResult();
-        var writer = Task.Run(async () => await queue.EnqueueAsync(Item(history.Commands[1].Id)).ConfigureAwait(false));
-        Require(logger.Entered.Wait(TimeSpan.FromSeconds(5)), "writer entered warning boundary");
+        var writer = Task.Factory.StartNew(
+            () => queue.EnqueueAsync(Item(history.Commands[1].Id)).GetAwaiter().GetResult(),
+            CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         var read = new List<string>();
         try
         {
+            Require(logger.Entered.Wait(TimeSpan.FromSeconds(5)), "writer entered warning boundary");
             Drain();
         }
 
