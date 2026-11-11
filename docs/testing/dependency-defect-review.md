@@ -17,9 +17,11 @@ The implementation and public-API regressions are separate layers above that PR.
 | [#5](https://github.com/lvlup-sw/bifrost/issues/5) | Deferred event-stream allocation proposal. Changing public event types and interface-subscription behavior is outside the worker-retirement fix. |
 | [#45](https://github.com/lvlup-sw/bifrost/issues/45) | Publishing and supply-chain rollout tracking. No credentials, publishing policies, or deployment settings change in this stack. |
 
-The other dependency-register entries concern separate upstream components and
-require their source repositories and environment-specific fixtures. They are not
-established Bifrost defects. No private deployment details are retained here.
+Dependency-register entries D-002 through D-005 concern consumer tooling and
+deployment infrastructure outside the library’s functional boundaries. They are
+excluded from this review and require no Bifrost follow-up. They do not count as
+remaining library defects or validation gaps. No private deployment details are
+retained here.
 
 ## Historical regression details
 
@@ -52,4 +54,5 @@ The installed SDK's default 10.0.11 AOT pack fails NuGet audit; the validation
 command uses `-p:RuntimeFrameworkVersion=10.0.15` with audit enabled.
 
 No issue is closed manually. #82 is addressed by the added regression. The
-remaining research and external integration reports retain their stated limits.
+remaining Bifrost research and qualification issues retain their stated limits.
+Consumer-only reports D-002 through D-005 are excluded from that remaining work.
