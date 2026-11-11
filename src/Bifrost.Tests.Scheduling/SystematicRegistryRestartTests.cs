@@ -28,6 +28,50 @@ public sealed class SystematicRegistryRestartTests
         await Assert.That(attemptsAtCheckpoint).IsEqualTo(1);
     }
 
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ThrowingHandoffDoesNotClaimDurableAcknowledgment(bool effectBeforeThrow)
+    {
+        var attempts = new ConcurrentQueue<string>();
+        var store = new DurableStore();
+        var clock = new FakeTimeProvider(SystematicRegistryTests.Epoch);
+        using var registry = new ScheduleRegistry(store, clock);
+        await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.FireAllMissed, new RecordingDispatcher(attempts, false));
+        var sink = new Sink();
+        using var loop = new ScheduleTickLoop(registry, store, clock, new ThrowingRouter(effectBeforeThrow), sink, NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions());
+        var dispatch = typeof(ScheduleTickLoop).GetMethod("Dispatch", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        Exception? fault = null;
+        try
+        {
+            dispatch.Invoke(loop, ["job", SystematicRegistryTests.Epoch.AddMinutes(1), SystematicRegistryTests.Epoch.AddMinutes(2)]);
+        }
+        catch (System.Reflection.TargetInvocationException exception)
+        {
+            fault = exception.InnerException;
+        }
+
+        await Assert.That(fault is SystematicRegistryTests.InjectedStoreException).IsTrue();
+        await Assert.That(attempts.Count).IsEqualTo(effectBeforeThrow ? 1 : 0);
+        await Assert.That(store.CheckpointAttempts).IsEqualTo(0);
+        await Assert.That(store.Record!.LastFiredAt).IsNull();
+    }
+
+    private sealed class ThrowingRouter(bool effectBeforeThrow) : IJobDispatcherRouter
+    {
+        public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)
+        {
+            if (effectBeforeThrow)
+            {
+#pragma warning disable VSTHRD002
+                dispatcher.DispatchAsync(context, ct).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
+            }
+
+            throw new SystematicRegistryTests.InjectedStoreException();
+        }
+    }
+
     private sealed class InlineRouter : IJobDispatcherRouter
     {
         public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)

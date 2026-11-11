@@ -1,0 +1,50 @@
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Core/Bifrost.Core.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Core/Bifrost.Core.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Scheduling.Core/Bifrost.Scheduling.Core.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Scheduling.Core/Bifrost.Scheduling.Core.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost/Bifrost.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost/Bifrost.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Scheduling/Bifrost.Scheduling.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Scheduling/Bifrost.Scheduling.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Resilience/Bifrost.Resilience.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Resilience/Bifrost.Resilience.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Scheduling.Testing/Bifrost.Scheduling.Testing.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Scheduling.Testing/Bifrost.Scheduling.Testing.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Tests.Scheduling/Bifrost.Tests.Scheduling.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Tests.Scheduling/Bifrost.Tests.Scheduling.csproj]
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.11 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+failed GeneratedCommittedHistories(83) (73ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equal to ""
+  but found "registry-metadata"
+  
+  at Assert.That(result.FailureClass).IsEqualTo(string.Empty)
+failed GeneratedCommittedHistories(17) (73ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equal to ""
+  but found "registry-metadata"
+  
+  at Assert.That(result.FailureClass).IsEqualTo(string.Empty)
+failed GeneratedCommittedHistories(2026) (73ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equal to ""
+  but found "registry-metadata"
+  
+  at Assert.That(result.FailureClass).IsEqualTo(string.Empty)
+
+Test run summary: Failed! - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry/src/Bifrost.Tests.Scheduling/bin/Debug/net10.0/Bifrost.Tests.Scheduling.dll (net10.0|x64)
+  total: 3
+  failed: 3
+  succeeded: 0
+  skipped: 0
+  duration: 376ms

@@ -41,6 +41,22 @@ public sealed class SystematicRegistryTests
 
             var history = new HistoryCase(new() { ["seed"] = seed }, commands.ToArray());
             var result = Execute(history);
+            if (result.FailureClass.Length != 0)
+            {
+                var reduced = HistoryReducer.Reduce(history, IsValid, Execute);
+                var artifact = Artifact(reduced.History, null, reduced.Observation);
+                var replay = ReplayRecord.FromJson(artifact.ToJson()).Replay(IsValid, (a, _) => Execute(a));
+                await Assert.That(replay.FailureClass).IsEqualTo(result.FailureClass);
+                var directory = Environment.GetEnvironmentVariable("BIFROST_REGISTRY_ARTIFACTS");
+                if (directory is not null)
+                {
+                    Directory.CreateDirectory(directory);
+                    await File.WriteAllTextAsync(Path.Combine(directory, $"registry-{seed}.source.json"), Artifact(history, null, result).ToJson());
+                    await File.WriteAllTextAsync(Path.Combine(directory, $"registry-{seed}.min.json"), artifact.ToJson());
+                    await File.WriteAllTextAsync(Path.Combine(directory, $"registry-{seed}.reduction.txt"), $"evaluations={reduced.Evaluations}; one-minimal={reduced.IsOneMinimalWithinCandidates}; class={reduced.Observation.FailureClass}; original={history.Commands.Length}; reduced={reduced.History.Commands.Length}");
+                }
+            }
+
             await Assert.That(result.FailureClass).IsEqualTo(string.Empty);
         }
     }
@@ -91,11 +107,21 @@ public sealed class SystematicRegistryTests
         }
     }
 
+    [Test]
+    public async Task ReplaySavedHistory()
+    {
+        var path = Environment.GetEnvironmentVariable("BIFROST_REGISTRY_REPLAY");
+        var history = new HistoryCase(new(), [new("register:0", "job", 1), new("pause:1", "job")]);
+        var record = path is null ? Artifact(history, null, Execute(history)) : ReplayRecord.FromJson(await File.ReadAllTextAsync(path));
+        var actual = record.Replay(IsValid, (source, _) => Execute(source));
+        await Assert.That(actual).IsEqualTo(record.Observation);
+    }
+
     internal static ReplayRecord Artifact(HistoryCase source, HistoryCase? followup, HistoryObservation observation) => new(
-        1, "d6a4688eb12b542fadb0dfa656285148ee8239aa", true, System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+        1, System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(ScheduleRegistry).Assembly)!.InformationalVersion.Split('+')[^1], true, System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
         "Debug/net10.0", "registry-committed-state", "memory commits only on returned store success; durable effects may precede a thrown response", source, followup,
-        Epoch.Ticks, null, source.Commands.Select(command => command.Kind + "/" + command.Id).ToArray(), null, observation,
-        "dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter '/*/*/SystematicRegistryTests/*'");
+        Epoch.Ticks, Array.FindIndex(source.Commands, command => command.Kind.EndsWith(":1", StringComparison.Ordinal) || command.Kind.EndsWith(":2", StringComparison.Ordinal)) is var index && index >= 0 ? index : null, source.Commands.Select(command => command.Kind + "/" + command.Id).ToArray(), null, observation,
+        "BIFROST_REGISTRY_REPLAY=/absolute/path/to/artifact.json dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter '/*/*/SystematicRegistryTests/ReplaySavedHistory'");
 
     internal static bool IsValid(HistoryCase history)
     {

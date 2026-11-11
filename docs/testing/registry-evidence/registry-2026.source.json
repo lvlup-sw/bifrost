@@ -1,0 +1,269 @@
+{
+  "SchemaVersion": 1,
+  "SourceSha": "4cc55bc129f0cf49fd3d003407045f745cda8a79",
+  "SourceDirty": true,
+  "Runtime": ".NET 10.0.11",
+  "Build": "Debug/net10.0",
+  "Invariant": "registry-committed-state",
+  "OracleRelation": "memory commits only on returned store success; durable effects may precede a thrown response",
+  "Source": {
+    "Configuration": {
+      "seed": 2026
+    },
+    "Commands": [
+      {
+        "Kind": "register:0",
+        "Id": "job-0",
+        "Value": 56
+      },
+      {
+        "Kind": "register:2",
+        "Id": "job-2",
+        "Value": 5
+      },
+      {
+        "Kind": "register:2",
+        "Id": "job-2",
+        "Value": 38
+      },
+      {
+        "Kind": "register:2",
+        "Id": "job-1",
+        "Value": 12
+      },
+      {
+        "Kind": "register:1",
+        "Id": "job-1",
+        "Value": 8
+      },
+      {
+        "Kind": "resume:0",
+        "Id": "job-0",
+        "Value": 32
+      },
+      {
+        "Kind": "register:0",
+        "Id": "job-2",
+        "Value": 55
+      },
+      {
+        "Kind": "register:2",
+        "Id": "job-1",
+        "Value": 16
+      },
+      {
+        "Kind": "register:2",
+        "Id": "job-1",
+        "Value": 1
+      },
+      {
+        "Kind": "resume:0",
+        "Id": "job-0",
+        "Value": 7
+      },
+      {
+        "Kind": "unregister:0",
+        "Id": "job-0",
+        "Value": 34
+      },
+      {
+        "Kind": "register:0",
+        "Id": "job-0",
+        "Value": 18
+      },
+      {
+        "Kind": "unregister:1",
+        "Id": "job-0",
+        "Value": 18
+      },
+      {
+        "Kind": "register:0",
+        "Id": "job-1",
+        "Value": 59
+      },
+      {
+        "Kind": "update:0",
+        "Id": "job-1",
+        "Value": 60
+      },
+      {
+        "Kind": "unregister:0",
+        "Id": "job-2",
+        "Value": 15
+      },
+      {
+        "Kind": "register:0",
+        "Id": "job-2",
+        "Value": 54
+      },
+      {
+        "Kind": "resume:0",
+        "Id": "job-0",
+        "Value": 16
+      },
+      {
+        "Kind": "resume:2",
+        "Id": "job-1",
+        "Value": 14
+      },
+      {
+        "Kind": "update:1",
+        "Id": "job-2",
+        "Value": 26
+      },
+      {
+        "Kind": "update:1",
+        "Id": "job-1",
+        "Value": 49
+      },
+      {
+        "Kind": "unregister:1",
+        "Id": "job-0",
+        "Value": 37
+      },
+      {
+        "Kind": "resume:0",
+        "Id": "job-2",
+        "Value": 60
+      },
+      {
+        "Kind": "unregister:0",
+        "Id": "job-1",
+        "Value": 58
+      },
+      {
+        "Kind": "update:2",
+        "Id": "job-0",
+        "Value": 56
+      },
+      {
+        "Kind": "resume:0",
+        "Id": "job-2",
+        "Value": 22
+      },
+      {
+        "Kind": "update:0",
+        "Id": "job-2",
+        "Value": 54
+      },
+      {
+        "Kind": "register:0",
+        "Id": "job-1",
+        "Value": 18
+      },
+      {
+        "Kind": "unregister:2",
+        "Id": "job-2",
+        "Value": 31
+      },
+      {
+        "Kind": "pause:0",
+        "Id": "job-2",
+        "Value": 51
+      },
+      {
+        "Kind": "pause:1",
+        "Id": "job-0",
+        "Value": 3
+      },
+      {
+        "Kind": "pause:0",
+        "Id": "job-1",
+        "Value": 39
+      },
+      {
+        "Kind": "resume:2",
+        "Id": "job-2",
+        "Value": 56
+      },
+      {
+        "Kind": "pause:2",
+        "Id": "job-2",
+        "Value": 37
+      },
+      {
+        "Kind": "unregister:0",
+        "Id": "job-2",
+        "Value": 49
+      },
+      {
+        "Kind": "resume:1",
+        "Id": "job-0",
+        "Value": 13
+      },
+      {
+        "Kind": "pause:1",
+        "Id": "job-1",
+        "Value": 60
+      },
+      {
+        "Kind": "register:1",
+        "Id": "job-2",
+        "Value": 13
+      },
+      {
+        "Kind": "pause:0",
+        "Id": "job-1",
+        "Value": 28
+      },
+      {
+        "Kind": "update:1",
+        "Id": "job-1",
+        "Value": 46
+      }
+    ],
+    "Parameters": null
+  },
+  "Followup": null,
+  "LogicalClockTicks": 639169488000000000,
+  "FaultPosition": 1,
+  "ActorOrder": [
+    "register:0/job-0",
+    "register:2/job-2",
+    "register:2/job-2",
+    "register:2/job-1",
+    "register:1/job-1",
+    "resume:0/job-0",
+    "register:0/job-2",
+    "register:2/job-1",
+    "register:2/job-1",
+    "resume:0/job-0",
+    "unregister:0/job-0",
+    "register:0/job-0",
+    "unregister:1/job-0",
+    "register:0/job-1",
+    "update:0/job-1",
+    "unregister:0/job-2",
+    "register:0/job-2",
+    "resume:0/job-0",
+    "resume:2/job-1",
+    "update:1/job-2",
+    "update:1/job-1",
+    "unregister:1/job-0",
+    "resume:0/job-2",
+    "unregister:0/job-1",
+    "update:2/job-0",
+    "resume:0/job-2",
+    "update:0/job-2",
+    "register:0/job-1",
+    "unregister:2/job-2",
+    "pause:0/job-2",
+    "pause:1/job-0",
+    "pause:0/job-1",
+    "resume:2/job-2",
+    "pause:2/job-2",
+    "unregister:0/job-2",
+    "resume:1/job-0",
+    "pause:1/job-1",
+    "register:1/job-2",
+    "pause:0/job-1",
+    "update:1/job-1"
+  ],
+  "UncontrolledScheduleLimitation": null,
+  "Observation": {
+    "FailureClass": "registry-metadata",
+    "Expected": "computed next fire and live dispatcher",
+    "Actual": "JobDescriptor { Name = job-2, State = Running, Cadence = IntervalCadence { Interval = 00:05:00, Jitter = 0 }, LastFiredAt = , NextFireAt = 06/13/2026 12:05:00 \u002B00:00, IsRunning = True }"
+  },
+  "ReplayCommand": "BIFROST_REGISTRY_REPLAY=/absolute/path/to/artifact.json dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter \u0027/*/*/SystematicRegistryTests/ReplaySavedHistory\u0027"
+}

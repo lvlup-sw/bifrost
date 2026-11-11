@@ -1,0 +1,1 @@
+evaluations=59; one-minimal=True; class=registry-metadata; original=40; reduced=1

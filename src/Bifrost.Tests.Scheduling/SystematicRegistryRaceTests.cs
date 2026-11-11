@@ -9,13 +9,17 @@ namespace Bifrost.Tests.Scheduling;
 public sealed class SystematicRegistryRaceTests
 {
     [Test]
-    [Arguments("update")]
-    [Arguments("pause")]
-    [Arguments("resume")]
-    [Arguments("register-fault")]
-    public async Task OldGenerationCannotOverwriteReplacement(string operation)
+    [Arguments("update", true)]
+    [Arguments("update", false)]
+    [Arguments("pause", true)]
+    [Arguments("pause", false)]
+    [Arguments("resume", true)]
+    [Arguments("resume", false)]
+    [Arguments("register-fault", true)]
+    [Arguments("register-fault", false)]
+    public async Task OldGenerationCannotOverwriteReplacement(string operation, bool afterEffect)
     {
-        var store = new GateStore();
+        var store = new GateStore { AfterEffect = afterEffect };
         using var registry = new ScheduleRegistry(store, new FakeTimeProvider(SystematicRegistryTests.Epoch));
         var oldDispatcher = new SystematicRegistryTests.NoopDispatcher();
         if (operation != "register-fault")
@@ -65,20 +69,33 @@ public sealed class SystematicRegistryRaceTests
         public TaskCompletionSource Arrived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public JobRecord? Record { get; private set; }
+        public bool AfterEffect { get; set; }
         public bool Armed { get; set; }
         public bool Fail { get; set; }
         public async ValueTask SaveAsync(JobRecord job, CancellationToken ct)
         {
-            Record = job;
-            if (Armed)
+            if (!Armed)
             {
-                Armed = false;
-                Arrived.TrySetResult();
-                await Release.Task.WaitAsync(ct);
-                if (Fail)
-                {
-                    throw new SystematicRegistryTests.InjectedStoreException();
-                }
+                Record = job;
+                return;
+            }
+
+            Armed = false;
+            if (AfterEffect)
+            {
+                Record = job;
+            }
+
+            Arrived.TrySetResult();
+            await Release.Task.WaitAsync(ct);
+            if (Fail)
+            {
+                throw new SystematicRegistryTests.InjectedStoreException();
+            }
+
+            if (!AfterEffect)
+            {
+                Record = job;
             }
         }
 
