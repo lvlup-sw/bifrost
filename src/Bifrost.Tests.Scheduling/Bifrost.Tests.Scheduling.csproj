@@ -33,4 +33,8 @@
     <Compile Include="../Bifrost.Testing.Systematic/HistoryTools.cs" Link="Systematic/HistoryTools.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="scheduler-coalesce-replay.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

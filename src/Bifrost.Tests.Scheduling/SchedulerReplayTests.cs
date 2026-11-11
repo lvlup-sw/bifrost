@@ -1,6 +1,5 @@
 #pragma warning disable CS1591, SA1600, SA1633
 
-using System.Runtime.CompilerServices;
 using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.Internal;
 using Bifrost.Tests.Systematic;
@@ -64,5 +63,5 @@ public sealed class SchedulerReplayTests
         Console.WriteLine($"Reduced production baseline: evaluations={reduction.Evaluations}, count=101, expected={reduction.Observation.Expected}, actual={reduction.Observation.Actual}");
     }
 
-    private static string Fixture([CallerFilePath] string source = "") => Path.Combine(Path.GetDirectoryName(source)!, "scheduler-coalesce-replay.json");
+    private static string Fixture() => Path.Combine(AppContext.BaseDirectory, "scheduler-coalesce-replay.json");
 }

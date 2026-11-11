@@ -1,6 +1,5 @@
 #pragma warning disable CS1591, SA1600, SA1633
 
-using System.Runtime.CompilerServices;
 using Bifrost.Concurrency;
 using Bifrost.Tests.Systematic;
 
@@ -163,7 +162,7 @@ public sealed class QueueReplayTests
         }
     }
 
-    private static string Fixture([CallerFilePath] string source = "") => Path.Combine(Path.GetDirectoryName(source)!, "queue-clear-replay.json");
+    private static string Fixture() => Path.Combine(AppContext.BaseDirectory, "queue-clear-replay.json");
 
     [Test]
     public void ActorFaultAndPairedRecordsRoundTrip()

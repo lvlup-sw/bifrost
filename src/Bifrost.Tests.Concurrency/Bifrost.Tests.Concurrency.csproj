@@ -21,4 +21,8 @@
     <ProjectReference Include="..\Bifrost.Concurrency\Bifrost.Concurrency.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="queue-clear-replay.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -1,7 +1,5 @@
 #pragma warning disable CS1591, SA1600
 
-using System.Runtime.CompilerServices;
-
 namespace Bifrost.Tests.Systematic;
 
 public sealed class HistoryToolsTests
@@ -197,6 +195,6 @@ public sealed class HistoryToolsTests
         return new(expected == actual ? string.Empty : "synthetic-fifo-order", expected, actual);
     }
 
-    private static string FixturePath([CallerFilePath] string sourcePath = "") =>
-        Path.Combine(Path.GetDirectoryName(sourcePath)!, "synthetic-fifo-counterexample.json");
+    private static string FixturePath() =>
+        Path.Combine(AppContext.BaseDirectory, "Systematic", "synthetic-fifo-counterexample.json");
 }

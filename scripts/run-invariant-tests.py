@@ -30,6 +30,7 @@ for project, classes in suites.items():
         build = subprocess.run([args.dotnet, 'build', f'src/{project}/{project}.csproj', '-c', args.configuration], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         (output / f'{project}-build.log').write_text(build.stdout)
         if build.returncode:
+            print(build.stdout, flush=True)
             summary['results'].append({'project': project, 'stage': 'build', 'exit': build.returncode})
             failed = True
             continue
@@ -45,6 +46,8 @@ for project, classes in suites.items():
         summary['results'].append({'project': project, 'class': name, 'command': command, 'exit': result.returncode, 'counters': counters, 'seconds': round(time.monotonic() - started, 3)})
         failed |= result.returncode != 0 or selected == 0
         print(f'{name}: exit={result.returncode}', flush=True)
+        if result.returncode != 0 or selected == 0:
+            print(result.stdout, flush=True)
 summary['elapsedSeconds'] = round(time.monotonic() - started_all, 3)
 (output / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
 raise SystemExit(1 if failed else 0)

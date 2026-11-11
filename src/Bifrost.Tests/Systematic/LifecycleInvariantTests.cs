@@ -1,7 +1,6 @@
 #pragma warning disable CS1591, SA1600
 
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 
 using Bifrost.Core;
 using Bifrost.Core.DeadLetter;
@@ -322,8 +321,8 @@ public sealed class LifecycleInvariantTests
         }
     }
 
-    private static string D1Fixture([CallerFilePath] string source = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../../../docs/testing/lifecycle-counterexample.json"));
+    private static string D1Fixture() =>
+        Path.Combine(AppContext.BaseDirectory, "lifecycle-counterexample.json");
 
     private static bool ValidRace(HistoryCase history) => history.Configuration.TryGetValue("capacity", out var capacity) && capacity == 1
         && history.Commands.Select(x => x.Kind).SequenceEqual(new[]
