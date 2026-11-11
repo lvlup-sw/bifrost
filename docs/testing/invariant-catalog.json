@@ -109,15 +109,17 @@
       "status": "fault-sensitive",
       "contractReview": "docs/testing/independent-review.md",
       "tests": [
-        "src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs"
+        "src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs",
+        "src/Bifrost.Tests.Concurrency/ObservedEmptyInvariantTests.cs"
       ],
       "negativeControls": [
-        "docs/testing/queue-mutation-results.json"
+        "docs/testing/queue-mutation-results.json",
+        "docs/testing/q5-observed-empty.md"
       ],
       "limitations": [
-        "Contract review and persisted replay integration pending; Q5 schedules control operation order, not internal instructions."
+        "Bounded operation histories and actual comparer-held overlap; no internal instruction or OS schedule replay. No exact concurrent priority-order or snapshot linearizability claim."
       ],
-      "evidence": "docs/testing/queue-generated-evidence.md",
+      "evidence": "docs/testing/q5-observed-empty.md",
       "contractSource": {
         "baseline": "0fc121384950d964722a8de36d72a26679a428d3",
         "path": "src/Bifrost.Concurrency/ConcurrentPriorityQueue.Dequeue.cs"

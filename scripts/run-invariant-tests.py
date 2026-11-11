@@ -19,7 +19,7 @@ os.environ["BIFROST_REPLAY_OUTPUT"] = str(output / "replays")
 os.environ["BIFROST_REGISTRY_ARTIFACTS"] = str(output / "registry")
 suites = {
     'Bifrost.Tests': ['HistoryToolsTests', 'LifecycleInvariantTests', 'LifecycleIdentityTests', 'LifecycleOutcomeInvariantTests', 'PriorityScalingInvariantTests', 'AutoscalingClockInvariantTests', 'AutoscalingLifecycleInvariantTests'],
-    'Bifrost.Tests.Concurrency': ['GeneratedQueueInvariantTests', 'QueueReplayTests'],
+    'Bifrost.Tests.Concurrency': ['GeneratedQueueInvariantTests', 'QueueReplayTests', 'ObservedEmptyInvariantTests'],
     'Bifrost.Tests.Scheduling': ['IntervalInvariantTests', 'IntervalMutationAdequacyTests', 'SchedulerReplayTests', 'SystematicRegistryTests', 'SystematicRegistryRaceTests', 'SystematicRegistryRestartTests'],
 }
 summary = {'sourceSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(), 'dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True).strip()), 'configuration': args.configuration, 'seedMultiplier': os.environ.get('BIFROST_INVARIANT_SEED_MULTIPLIER', '1'), 'results': []}
