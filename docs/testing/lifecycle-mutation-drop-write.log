@@ -1,0 +1,40 @@
+COMMAND: dotnet run --project src/Bifrost.Tests -- --treenode-filter /*/*/LifecycleInvariantTests/D1_GeneratedSequentialDropOldestLedger
+EXIT: 2
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Core/Bifrost.Core.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Core/Bifrost.Core.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost/Bifrost.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost/Bifrost.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.OpenTelemetry/Bifrost.OpenTelemetry.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.OpenTelemetry/Bifrost.OpenTelemetry.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.HealthChecks/Bifrost.HealthChecks.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.HealthChecks/Bifrost.HealthChecks.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Resilience/Bifrost.Resilience.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Resilience/Bifrost.Resilience.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Tests/Bifrost.Tests.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Tests/Bifrost.Tests.csproj]
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.11 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+failed D1_GeneratedSequentialDropOldestLedger (8ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: DropOldest retains newest identity
+    at Bifrost.Tests.Systematic.LifecycleInvariantTests.Require(Boolean condition, String detail) in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Tests/Systematic/LifecycleInvariantTests.cs:343
+    at Bifrost.Tests.Systematic.LifecycleInvariantTests.D1_GeneratedSequentialDropOldestLedger() in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Tests/Systematic/LifecycleInvariantTests.cs:214
+    at Bifrost.Tests.Systematic.LifecycleInvariantTests.D1_GeneratedSequentialDropOldestLedger() in /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Tests/Systematic/LifecycleInvariantTests.cs:217
+
+Test run summary: Failed! - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/lifecycle/src/Bifrost.Tests/bin/Debug/net10.0/Bifrost.Tests.dll (net10.0|x64)
+  total: 1
+  failed: 1
+  succeeded: 0
+  skipped: 0
+  duration: 617ms
