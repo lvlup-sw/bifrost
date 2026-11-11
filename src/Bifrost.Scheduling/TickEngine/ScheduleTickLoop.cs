@@ -1006,6 +1006,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="nextFireAt">The next occurrence, or <see langword="null"/>.</param>
     private void Dispatch(string jobName, DateTimeOffset scheduledOccurrence, DateTimeOffset? nextFireAt)
     {
+        var record = this.registry.TryGetRecord(jobName);
         var dispatcher = this.registry.TryGetDispatcher(jobName);
         if (dispatcher is null)
         {
@@ -1095,7 +1096,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         try
         {
             this.router.Dispatch(tracked, context, CancellationToken.None);
-            this.SafeCheckpoint(jobName, scheduledOccurrence, nextFireAt);
+            if (record is not null)
+            {
+                this.SafeCheckpoint(record, scheduledOccurrence, nextFireAt);
+            }
         }
 #pragma warning disable CA1031 // Undo the in-flight bookkeeping on any handoff fault.
         catch
@@ -1119,20 +1123,18 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// swallowed. It never faults the loop or stalls it: the checkpoint is observed
     /// asynchronously off the tick thread so a slow store does not block scheduling.
     /// </summary>
-    /// <param name="jobName">The job that fired.</param>
-    /// <param name="firedAt">The fire instant.</param>
-    /// <param name="nextFireAt">The next occurrence, or <see langword="null"/>.</param>
     [SuppressMessage(
         "Usage",
         "VSTHRD110:Observe result of async calls",
         Justification = "The checkpoint is intentionally best-effort and observed via " +
             "the ObserveCheckpointAsync continuation, which swallows failures.")]
-    private void SafeCheckpoint(string jobName, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
+    private void SafeCheckpoint(JobRecord record, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
     {
+        var jobName = record.Name;
         ValueTask checkpoint;
         try
         {
-            checkpoint = this.store.RecordFiredAsync(jobName, firedAt, nextFireAt, CancellationToken.None);
+            checkpoint = this.registry.CheckpointAsync(record, firedAt, nextFireAt);
         }
 #pragma warning disable CA1031 // Best-effort: a synchronous store throw must not fault the loop.
         catch (Exception ex)

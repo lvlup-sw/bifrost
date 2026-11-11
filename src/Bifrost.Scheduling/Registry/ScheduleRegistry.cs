@@ -241,6 +241,23 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     public ValueTask UpdateAsync(string name, Cadence cadence, MissedFirePolicy missedFirePolicy, CancellationToken ct = default)
         => this.MutateAsync(name, () => this.UpdateCoreAsync(name, cadence, missedFirePolicy, ct), ct);
 
+    internal async ValueTask CheckpointAsync(JobRecord expected, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
+    {
+        var gate = this.mutationGates[(int)((uint)StringComparer.Ordinal.GetHashCode(expected.Name) % (uint)this.mutationGates.Length)];
+        await gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (this.jobs.TryGetValue(expected.Name, out var current) && ReferenceEquals(current, expected))
+            {
+                await this.store.RecordFiredAsync(expected.Name, firedAt, nextFireAt, CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     private async ValueTask MutateAsync(string name, Func<ValueTask> action, CancellationToken ct)
     {
         this.ThrowIfDisposed();
