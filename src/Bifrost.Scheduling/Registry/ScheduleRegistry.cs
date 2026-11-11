@@ -5,6 +5,7 @@
 // =============================================================================
 
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
@@ -35,6 +36,7 @@ namespace Bifrost.Scheduling.Registry;
 public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposable, IDisposable
 {
     private readonly SemaphoreSlim[] mutationGates = Enumerable.Range(0, 64).Select(static _ => new SemaphoreSlim(1, 1)).ToArray();
+    private readonly ConditionalWeakTable<JobRecord, JobRecord> checkpointOrigins = new();
     private readonly IScheduleStore store;
     private readonly TimeProvider timeProvider;
     private readonly SchedulerMetrics metrics;
@@ -247,9 +249,13 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (this.jobs.TryGetValue(expected.Name, out var current) && ReferenceEquals(current, expected))
+            if (this.jobs.TryGetValue(expected.Name, out var current)
+                && ReferenceEquals(this.CheckpointOrigin(current), this.CheckpointOrigin(expected)))
             {
                 await this.store.RecordFiredAsync(expected.Name, firedAt, nextFireAt, CancellationToken.None).ConfigureAwait(false);
+                var updated = current with { LastFiredAt = firedAt, NextFireAt = nextFireAt };
+                this.checkpointOrigins.Add(updated, this.CheckpointOrigin(current));
+                this.jobs.TryUpdate(expected.Name, updated, current);
             }
         }
         finally
@@ -257,6 +263,9 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             gate.Release();
         }
     }
+
+    private JobRecord CheckpointOrigin(JobRecord record)
+        => this.checkpointOrigins.TryGetValue(record, out var origin) ? origin : record;
 
     private async ValueTask MutateAsync(string name, Func<ValueTask> action, CancellationToken ct)
     {

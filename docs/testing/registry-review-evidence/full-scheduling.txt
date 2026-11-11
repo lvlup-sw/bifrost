@@ -12,8 +12,8 @@
 
 
 Test run summary: Passed! - /home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost-current/.worktrees/registry-review/src/Bifrost.Tests.Scheduling/bin/Debug/net10.0/Bifrost.Tests.Scheduling.dll (net10.0|x64)
-  total: 341
+  total: 344
   failed: 0
-  succeeded: 341
+  succeeded: 344
   skipped: 0
-  duration: 879ms
+  duration: 796ms
