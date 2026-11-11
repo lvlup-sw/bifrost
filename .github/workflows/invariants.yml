@@ -34,7 +34,9 @@ jobs:
         if: github.event_name != 'pull_request'
         env:
           BIFROST_INVARIANT_SEED_MULTIPLIER: '1'
-        run: python3 docs/testing/queue-mutation-check.py
+        run: |
+          python3 docs/testing/queue-mutation-check.py
+          python3 docs/testing/lifecycle-mutations.py
       - name: Retain evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
