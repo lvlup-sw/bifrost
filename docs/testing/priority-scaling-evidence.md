@@ -1,6 +1,6 @@
 # Priority and scaling checks
 
-Status: partial implementation. P1, P2 and A1 have executed boundary checks. Production negative controls, history replay integration, cooldown boundaries, A2 lifecycle and review remain outstanding.
+Status: partial implementation. P1, P2 and A1 have executed boundary checks. History replay integration, cooldown boundaries, A2 lifecycle and review remain outstanding.
 
 Source baseline: `0fc121384950d964722a8de36d72a26679a428d3`.
 
@@ -15,3 +15,7 @@ Three tests passed, none skipped, reported test duration 647 ms. Build requires 
 - A1: 810 combinations of initial worker counts, step sizes, current workers and exact/adjacent binary watermark values. An independent signed movement table checks action and target count. Cooldown is zero in this family. Coordinator substitutes supply only current counts; the real engine computes decisions.
 
 The new test class is internal. A directory-scoped SA1600 setting permits the user's requested comment-free test code. No production diagnostics were disabled.
+
+## Production mutation checks
+
+Three temporary mutations each caused the selected test to fail (one selected test, zero passes, exit 2): reversed priority boost sign (P1), Interactive mapped to Batch admission threshold (P2), and inclusive high-watermark comparison (A1). The adjacent `*-mutation.txt` files retain assertion output; `priority-mutations.json` records commands' selected methods and wall times. Each original source was restored in a finally block. The restored suite passed all three tests in 663 ms. These probes establish sensitivity to those specific changes, not to every possible defect.
