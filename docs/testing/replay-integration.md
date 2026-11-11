@@ -7,7 +7,7 @@ dotnet run --project src/Bifrost.Tests.Concurrency -- --treenode-filter '/*/*/Qu
 dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter '/*/*/SchedulerReplayTests/*'
 ```
 
-The queue suite passed 6/6. The scheduler suite passed 2/2, including one baseline reduction entry point that intentionally returns without execution unless `BIFROST_REDUCE_BASELINE=1`. The saved scheduler counterexample and saved queue counterexample execute unconditionally in these runs. The queue suite also verifies malformed nested commands are rejected as InvalidDataException, and writes/reads temporary Q4, Q5 and paired MR records before executing their restored semantics.
+The initial queue suite passed 6/6. The current scheduler suite has two active checks: saved production replay and successful-history rejection by the reducer. Explicit `BIFROST_REDUCE_BASELINE=1` runs failing-baseline reduction instead of the rejection check. The saved scheduler counterexample and saved queue counterexample execute unconditionally in these runs. The queue suite also verifies malformed nested commands are rejected as InvalidDataException, and writes/reads temporary Q4, Q5 and paired MR records before executing their restored semantics.
 
 ## Scheduler production negative control
 

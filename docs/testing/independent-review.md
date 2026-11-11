@@ -49,3 +49,7 @@ The shared reducer checks validity before evaluation, preserves the exact failur
 `SchedulerReplayTests.ReduceProductionBaselineWhenRequested` returns without executing unless `BIFROST_REDUCE_BASELINE=1` (line 47 at the reviewed base). Ordinary reported 2/2 scheduler replay results contain one actual saved replay and one dormant reduction entry point. Baseline reduction is supported by the separately retained baseline logs, not by that default test count. Likewise the fixed D1 original method exercises its race oracle but not its failure-only reducer branch; the new saved-record method supplies unconditional persisted replay.
 
 Tool trials, CI discovery/retention, mutation adequacy across all 17 families, and later S3/S4 changes require integration audit. A passing suite, source inspection, or a model-only control is not interchangeable with production mutation sensitivity.
+
+## Integration follow-up
+
+The dormant scheduler entry-point finding was resolved in `cbc989b`. Default mode now executes the 500-period fixed history and asserts that the reducer rejects a passing input. The historical review above records the earlier state; it is not the current test behavior. The Q5 overlap gap was subsequently covered by `ObservedEmptyInvariantTests` and two actual production mutations, documented in `q5-observed-empty.md`.

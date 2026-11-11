@@ -288,13 +288,16 @@
       "id": "S1",
       "propertyAndBoundary": "Interval progress and phase match the arithmetic model within the declared time domain.",
       "domainAndOracle": "Tick-exact arithmetic. Null/earlier/equal/future last-fire states, tiny intervals, and representable boundaries.",
-      "status": "executed",
+      "status": "fault-sensitive",
       "contractReview": "docs/testing/independent-review.md",
       "tests": [
         "src/Bifrost.Tests.Scheduling/IntervalInvariantTests.cs",
-        "src/Bifrost.Tests.Scheduling/TickEngine/MissedFireStartupTests.cs"
+        "src/Bifrost.Tests.Scheduling/TickEngine/MissedFireStartupTests.cs",
+        "src/Bifrost.Tests.Scheduling/IntervalMutationAdequacyTests.cs"
       ],
-      "negativeControls": [],
+      "negativeControls": [
+        "tools/invariant-pilots/results/mutation-adequacy-report.json"
+      ],
       "limitations": [
         "Generated arithmetic excludes jitter and unrepresentable date results; generic Coalesce is O(backlog)."
       ],
