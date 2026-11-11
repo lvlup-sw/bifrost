@@ -45,5 +45,5 @@
     "Expected": "written=2; retained=0; read+dropped=2",
     "Actual": "read=seed,next; retained=0; dropped=1; sum=3"
   },
-  "ReplayCommand": "dotnet run --project src/Bifrost.Tests -- --treenode-filter '/*/*/LifecycleInvariantTests/D1_ConcurrentDropAndRead_RealReplayAndReduction'"
+  "ReplayCommand": "dotnet run --project src/Bifrost.Tests -- --treenode-filter '/*/*/LifecycleInvariantTests/D1_SavedCounterexampleExecutesPersistedHistory'"
 }

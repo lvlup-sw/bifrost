@@ -1,6 +1,7 @@
 #pragma warning disable CS1591, SA1600
 
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 using Bifrost.Core;
 using Bifrost.Core.DeadLetter;
@@ -292,17 +293,39 @@ public sealed class LifecycleInvariantTests
         var observed = EvaluateRace(history);
         if (observed.FailureClass.Length == 0) return;
         var reduced = HistoryReducer.Reduce(history, ValidRace, EvaluateRace);
-        var record = new ReplayRecord(1, "d6a4688eb12b542fadb0dfa656285148ee8239aa", true,
-            System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription, "Debug/net10.0", "D1", "written = read + retained + dropped",
-            reduced.History, null, 0, 1, ["seed-write", "writer-warning-enter", "reader-drain", "writer-release", "final-drain"],
-            "Logger gate controls the overlap; callback placement may change which identity is read.", reduced.Observation,
-            "dotnet run --project src/Bifrost.Tests -- --treenode-filter '/*/*/LifecycleInvariantTests/D1_ConcurrentDropAndRead_RealReplayAndReduction'");
+        var record = ReplayCapture.Create("D1", "written = read + retained + dropped",
+            reduced.History, null, reduced.Observation,
+            "BIFROST_REPLAY_FILE=<path> dotnet run --project src/Bifrost.Tests -- --treenode-filter '/*/*/LifecycleInvariantTests/D1_SavedCounterexampleExecutesPersistedHistory'",
+            ["seed-write", "writer-warning-enter", "reader-drain", "writer-release", "final-drain"],
+            "Logger gate controls the overlap; callback placement may change which identity is read.", fault: 1);
+        ReplayCapture.SaveFailure(record);
         var replay = ReplayRecord.FromJson(record.ToJson()).Replay(ValidRace, (source, _) => EvaluateRace(source));
         Require(replay == reduced.Observation, "real-component replay preserves failure class and observations");
         throw new InvalidOperationException(record.ToJson());
     }
 
-    private static bool ValidRace(HistoryCase history) => history.Configuration["capacity"] == 1
+    [Test]
+    public void D1_SavedCounterexampleExecutesPersistedHistory()
+    {
+        var path = Environment.GetEnvironmentVariable("BIFROST_REPLAY_FILE") ?? D1Fixture();
+        var record = ReplayRecord.FromJson(File.ReadAllText(path));
+        Require(record.Invariant == "D1" && record.Followup is null, "D1 replay domain");
+        var actual = record.Replay(ValidRace, (source, _) => EvaluateRace(source));
+        if (Environment.GetEnvironmentVariable("BIFROST_REPLAY_EXPECT_FAILURE") == "1")
+        {
+            Require(actual == record.Observation, "persisted D1 failure reproduces exactly");
+        }
+        else
+        {
+            Require(actual.FailureClass.Length == 0, $"persisted D1 history failed: {actual}");
+            Require(actual.Expected == record.Observation.Expected, "persisted D1 oracle relation is retained");
+        }
+    }
+
+    private static string D1Fixture([CallerFilePath] string source = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../../../docs/testing/lifecycle-counterexample.json"));
+
+    private static bool ValidRace(HistoryCase history) => history.Configuration.TryGetValue("capacity", out var capacity) && capacity == 1
         && history.Commands.Select(x => x.Kind).SequenceEqual(new[]
 {
 "write", "race-write-read", "drain"
