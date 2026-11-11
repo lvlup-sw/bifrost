@@ -31,6 +31,22 @@ internal class AutoscalingClockInvariantTests
     }
 
     [Test]
+    public async Task DisposeClearsRunningStateAndPreventsRestart()
+    {
+        var clock = new FakeTimeProvider();
+        var coordinator = Substitute.For<IAutoscalingCoordinator>();
+        coordinator.ActiveWorkerCount.Returns(1);
+        using var engine = new AutoscalingEngine(Options.Create(new AutoscalingOptions()), coordinator, NullLogger<AutoscalingEngine>.Instance, clock);
+        await engine.StartAsync().ConfigureAwait(false);
+        await Assert.That(engine.IsRunning).IsTrue();
+        engine.Dispose();
+        await Assert.That(engine.IsRunning).IsFalse();
+        await Assert.That(() => engine.StartAsync()).Throws<ObjectDisposedException>();
+        await engine.StopAsync().ConfigureAwait(false);
+        engine.Dispose();
+    }
+
+    [Test]
     public async Task TimerRecoversAfterFailedActionAndStopsAndDisposes()
     {
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
