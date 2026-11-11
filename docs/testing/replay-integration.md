@@ -43,3 +43,7 @@ Q4 histories contain an explicit `fault` command whose Value is the one-based co
 ## Boundaries
 
 These adapters do not replay internal random stripe selection or overlapping native thread schedules. The controlled Q5 adapter executes command-level actor ordering sequentially; it does not claim to reconstruct races. The original barrier tests still exercise overlap, but their internal schedules are not persisted. Queue comparison validates legal observable outcomes rather than forcing an arbitrary tie order; translated generated samples use distinct priorities. The independent fault sweep remains the original Q4 test; this adapter's finite 1..32 positions are not claimed to exhaust all reachable comparer calls. No existing broad test was removed or weakened. Scheduler jitter and custom cadence semantics remain outside this replay domain. Temporary negative controls were confined to separate worktrees; candidate production code is unchanged.
+
+## Ordinary reduction entry-point check
+
+The default `ReduceProductionBaselineWhenRequested` case now executes the real fixed 500-period history and checks that the reducer rejects its successful initial observation. It no longer returns without assertions. Explicit `BIFROST_REDUCE_BASELINE=1` still performs and records the real failing baseline reduction. The two default scheduler replay cases passed after this change (425 ms suite time). This default rejection check does not claim that baseline reduction ran.

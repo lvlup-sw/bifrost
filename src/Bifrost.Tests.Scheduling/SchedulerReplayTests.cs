@@ -44,8 +44,14 @@ public sealed class SchedulerReplayTests
     [Test]
     public async Task ReduceProductionBaselineWhenRequested()
     {
-        if (Environment.GetEnvironmentVariable("BIFROST_REDUCE_BASELINE") != "1") return;
         var initial = new HistoryCase(new() { ["intervalTicks"] = 17, ["lastTicks"] = 7919 }, [new("coalesce", "interval", 500)]);
+        if (Environment.GetEnvironmentVariable("BIFROST_REDUCE_BASELINE") != "1")
+        {
+            await Assert.That(Execute(initial).FailureClass).IsEqualTo(string.Empty);
+            await Assert.That(() => HistoryReducer.Reduce(initial, Valid, x => Execute(x))).Throws<ArgumentException>();
+            return;
+        }
+
         var reduction = HistoryReducer.Reduce(initial, Valid, x => Execute(x),
             history => Enumerable.Range(1, checked((int)history.Commands[0].Value - 1)).Select(count => history with { Commands = [history.Commands[0] with { Value = count }] }));
         await Assert.That(reduction.History.Commands[0].Value).IsEqualTo(101);
