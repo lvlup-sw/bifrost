@@ -1,5 +1,5 @@
 {
-  "source": "247ddb6 plus catalog documentation only",
+  "source": "f2cf7c5 production/test tree; later changes are documentation only",
   "sdk": "10.0.404",
   "runtime": "10.0.15",
   "settings": "Existing org dotnet-build-test generated-code exclusions",
@@ -36,8 +36,8 @@
     },
     {
       "name": "Bifrost.Scheduling",
-      "linePercent": 92.88668320926385,
-      "branchPercent": 88.21989528795811
+      "linePercent": 93.3115823817292,
+      "branchPercent": 88.71794871794872
     },
     {
       "name": "Bifrost.Scheduling.Core",

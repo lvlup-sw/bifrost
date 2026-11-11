@@ -1,23 +1,40 @@
 # Systematic testing implementation
 
-The approved proposal covers 17 invariant families. `invariant-catalog.json` retains the complete catalog and its evidence status. A proposed entry is not a completed test.
+The approved revision 3 proposal is implemented across all 17 invariant families and nine metamorphic relations. The catalog records contracts, domains, oracles, observation boundaries, owners, evidence status and limitations. `mutation-and-boundary-matrix.md` maps every family to a production negative control.
 
-## Coordination
+## Execution and review
 
-Use native agents and isolated Git worktrees. One integration owner reviews results and merges changes serially. Dispatch ready tasks when their dependencies finish. Keep reproduction tests and production fixes in separate commits. Do not use Exarchos.
+Native agents worked in isolated Git worktrees. The integration owner dispatched tasks as dependencies cleared and integrated commits serially. Tests and candidate production fixes remain separate review units. Exarchos was not used. Remote main was fetched at the start and before final validation; both resolved to `0fc121384950d964722a8de36d72a26679a428d3`.
 
-## Dependencies
-
-| Work | Depends on | Acceptance evidence |
+| Package | Implemented result | Evidence |
 |---|---|---|
-| S1/S2 scheduler | Fresh remote-main baseline | Interval oracle, all policies, startup dispatch, valid reduction, baseline failure and negative control |
-| History tools | Baseline | Replay schema, actual replay, valid reduction, failure-class preservation |
-| Q1–Q5 queue | Baseline; history integration later | Independent multiset, metamorphic relations, reached faults, controlled schedules and native stress |
-| O1/O2/R1/D1 lifecycle | History tools | Identity-aware ledger, independent models, cancellation and before/after-effect faults |
-| S3/S4 registry/restart | History tools and scheduler | Commit-boundary model, stale-generation races, crash boundaries, occurrence identity |
-| P1/P2/A1/A2 priority/scaling | History tools | Exact unit conversions, decision tables, boundary equality, gated callback histories |
-| Tool trials | Scheduler and history tools | FsCheck, Stryker discovery/failure/mutant checks, Coyote control limits, held-out Daikon falsification, bounded SMT |
-| CI and adequacy | Component evidence and trials | Discovery guard, retained replay artifacts, mutation matrix, measured lane limits; preserve existing gates |
-| Completion audit | Integrated results | Every catalog item and proposal requirement mapped to inspected evidence and explicit limits |
+| WP1 | S1/S2 independent interval oracle, all missed-fire policies, startup occurrence, cap boundaries, baseline reduction to 101, separate Coalesce fix | scheduler-invariants.md; replay-integration.md |
+| WP2 | Shared semantic command/replay format, validity checks, deterministic same-failure reducer, actual baseline/fixed file replay | history-tools.md; replay-integration.md; independent-review.md; registry-review.md |
+| WP3 | Queue, priority/admission, lifecycle/outcomes, retry, DLQ, registry/restart and autoscaling models | invariant-catalog.json; component evidence reports |
+| WP4 | Reached fault accounting, before/after-effect failures, actual overlap, controlled actor orders, native stress and synthetic crash images | queue-generated-evidence.md; q5-observed-empty.md; lifecycle-invariants.md; registry-review.md |
+| WP5 | Per-invariant negative controls, classified Stryker survivors, measured tool pilots, discovery/failure guards, PR/nightly CI and retained artifacts | mutation-and-boundary-matrix.md; tool-pilots.md; ci-invariants.md |
 
-Finite tests cannot show that all latent defects are absent. A seed does not reproduce an OS thread schedule. Record attempted and reached fault positions separately. A passing model-only negative control does not establish sensitivity to a production mutation.
+Independent review found and closed further gaps: disposed autoscaling state, saved DLQ replay, actual worker-outcome observations, overlapping queue false-return checks, saved restart replay, idle-barrier ordering and checkpoint generation/metadata races. Historical report sections retain their original revisions; integration follow-ups identify later corrections.
+
+## Final validation
+
+With task-local SDK 10.0.404 and runtime 10.0.15:
+
+- Main tests: 825 passed.
+- Concurrency tests: 160 passed, including the native stress category. The separate stress run passed 8 tests.
+- Scheduling tests: 348 passed.
+- Wider invariant lane: 19 suites, 106 cases, four times the queue seed corpus; all passed.
+- Each shipping assembly exceeded the existing 80% line and branch floor with the existing generated-code exclusions.
+- Both NativeAOT samples passed. Scheduling was republished after the final scheduler fixes.
+- Zero discovery failed as intended. The exact nightly queue and lifecycle mutation commands detected all selected faults and restored source.
+- Workflow syntax lint passed with the existing custom runner label configured.
+
+Commands, counts and logs are in `integration-evidence/`. The original installed 10.0.303 SDK failed the AOT security audit for ILCompiler 10.0.11. A task-local patched SDK resolved that environment issue; warnings and security checks were not disabled.
+
+## Limits
+
+Finite histories do not prove the absence of every latent defect. Native schedules are not reconstructed from seeds. P1 uses exact representable units. Scheduler arithmetic generation uses zero jitter and representable dates. Generic Coalesce retains one occurrence but scans an advancing backlog; only its zero-jitter interval path is constant-time. Custom cadence CPU bounds remain unresolved.
+
+Stryker's RNG-dependent survivors are classified, not counted as adequate. Coyote explores selected task boundaries and does not model every native lock/channel operation. Daikon results remain hypotheses. Solver proofs cover declared arithmetic bounds. Restart tests use frozen durable images rather than killing a process. Arbitrary synchronous reentrant custom stores/event sinks and concurrent autoscaling restart during Stop have no new ordering guarantee.
+
+These limits retain the proposal's scope. Production deployment and merging the candidate branch are not part of this implementation handoff.

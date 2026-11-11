@@ -342,16 +342,19 @@
       "propertyAndBoundary": "Registry/store changes agree at the documented commit boundary. Stale generations cannot overwrite replacements.",
       "domainAndOracle": "Register/update/pause/resume/unregister histories. Store failures before and after effects. Same-name races. Independent model of committed state.",
       "status": "fault-sensitive",
-      "contractReview": null,
+      "contractReview": "docs/testing/registry-review.md",
       "tests": [
         "src/Bifrost.Tests.Scheduling/SystematicRegistryTests.cs",
-        "src/Bifrost.Tests.Scheduling/SystematicRegistryRaceTests.cs"
+        "src/Bifrost.Tests.Scheduling/SystematicRegistryRaceTests.cs",
+        "src/Bifrost.Tests.Scheduling/SystematicRegistryCheckpointRaceTests.cs"
       ],
       "negativeControls": [
-        "docs/testing/registry-evidence/mutation-compensation.txt"
+        "docs/testing/registry-evidence/mutation-compensation.txt",
+        "docs/testing/registry-review-evidence/checkpoint-metadata-baseline.txt",
+        "docs/testing/registry-review-evidence/checkpoint-generation-baseline.txt"
       ],
       "limitations": [
-        "Independent review and persisted restart replay follow-up still pending. Synthetic frozen durable images are not process kills."
+        "Synthetic durable crash images, bounded policies/intervals; no exactly-once delivery claim. Arbitrary reentrant custom stores or synchronous event sinks are not supported by these histories."
       ],
       "contractSource": {
         "baseline": "0fc121384950d964722a8de36d72a26679a428d3",
@@ -368,15 +371,20 @@
       "propertyAndBoundary": "Restart replay preserves occurrence identity. The model does not assume exactly-once delivery.",
       "domainAndOracle": "Durable fake store. Crashes before and after dispatch and checkpoint. A `(job, scheduled time)` ledger separate from attempts.",
       "status": "fault-sensitive",
-      "contractReview": null,
+      "contractReview": "docs/testing/registry-review.md",
       "tests": [
-        "src/Bifrost.Tests.Scheduling/SystematicRegistryRestartTests.cs"
+        "src/Bifrost.Tests.Scheduling/SystematicRegistryRestartTests.cs",
+        "src/Bifrost.Tests.Scheduling/SystematicRegistryCheckpointRaceTests.cs",
+        "src/Bifrost.Tests.Scheduling/SystematicRegistryRestartReplayTests.cs",
+        "src/Bifrost.Tests.Scheduling/SystematicRegistryIdleBarrierTests.cs"
       ],
       "negativeControls": [
-        "docs/testing/registry-evidence/mutation-checkpoint.txt"
+        "docs/testing/registry-evidence/mutation-checkpoint.txt",
+        "docs/testing/registry-review-evidence/checkpoint-metadata-baseline.txt",
+        "docs/testing/registry-review-evidence/checkpoint-generation-baseline.txt"
       ],
       "limitations": [
-        "Independent review and persisted restart replay follow-up still pending. Synthetic frozen durable images are not process kills."
+        "Synthetic durable crash images, bounded policies/intervals; no exactly-once delivery claim. Arbitrary reentrant custom stores or synchronous event sinks are not supported by these histories."
       ],
       "contractSource": {
         "baseline": "0fc121384950d964722a8de36d72a26679a428d3",
@@ -395,7 +403,8 @@
       "status": "fault-sensitive",
       "contractReview": "docs/testing/independent-review.md",
       "tests": [
-        "src/Bifrost.Tests/Systematic/PriorityScalingInvariantTests.cs"
+        "src/Bifrost.Tests/Systematic/PriorityScalingInvariantTests.cs",
+        "src/Bifrost.Tests/Systematic/AutoscalingClockInvariantTests.cs"
       ],
       "negativeControls": [
         "docs/testing/priority-mutations.json"
