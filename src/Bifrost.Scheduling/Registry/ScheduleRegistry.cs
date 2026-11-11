@@ -34,6 +34,7 @@ namespace Bifrost.Scheduling.Registry;
 /// </remarks>
 public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposable, IDisposable
 {
+    private readonly SemaphoreSlim[] mutationGates = Enumerable.Range(0, 64).Select(static _ => new SemaphoreSlim(1, 1)).ToArray();
     private readonly IScheduleStore store;
     private readonly TimeProvider timeProvider;
     private readonly SchedulerMetrics metrics;
@@ -208,7 +209,55 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     }
 
     /// <inheritdoc/>
-    public async ValueTask RegisterAsync(
+    public ValueTask RegisterAsync(string name, Cadence cadence, MissedFirePolicy missedFirePolicy, IJobDispatcher dispatcher, CancellationToken ct = default)
+        => this.MutateAsync(name, () => this.RegisterCoreAsync(name, cadence, missedFirePolicy, dispatcher, ct), ct);
+
+    /// <inheritdoc/>
+    public async ValueTask<bool> UnregisterAsync(string name, CancellationToken ct = default)
+    {
+        this.ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(name);
+        var gate = this.mutationGates[(int)((uint)StringComparer.Ordinal.GetHashCode(name) % (uint)this.mutationGates.Length)];
+        await gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return await this.UnregisterCoreAsync(name, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <inheritdoc/>
+    public ValueTask PauseAsync(string name, CancellationToken ct = default)
+        => this.MutateAsync(name, () => this.PauseCoreAsync(name, ct), ct);
+
+    /// <inheritdoc/>
+    public ValueTask ResumeAsync(string name, CancellationToken ct = default)
+        => this.MutateAsync(name, () => this.ResumeCoreAsync(name, ct), ct);
+
+    /// <inheritdoc/>
+    public ValueTask UpdateAsync(string name, Cadence cadence, MissedFirePolicy missedFirePolicy, CancellationToken ct = default)
+        => this.MutateAsync(name, () => this.UpdateCoreAsync(name, cadence, missedFirePolicy, ct), ct);
+
+    private async ValueTask MutateAsync(string name, Func<ValueTask> action, CancellationToken ct)
+    {
+        this.ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(name);
+        var gate = this.mutationGates[(int)((uint)StringComparer.Ordinal.GetHashCode(name) % (uint)this.mutationGates.Length)];
+        await gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await action().ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async ValueTask RegisterCoreAsync(
         string name,
         Cadence cadence,
         MissedFirePolicy missedFirePolicy,
@@ -288,8 +337,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), CancellationToken.None).ConfigureAwait(false);
     }
 
-    /// <inheritdoc/>
-    public async ValueTask<bool> UnregisterAsync(string name, CancellationToken ct = default)
+    private async ValueTask<bool> UnregisterCoreAsync(string name, CancellationToken ct = default)
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
@@ -313,8 +361,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         return true;
     }
 
-    /// <inheritdoc/>
-    public async ValueTask PauseAsync(string name, CancellationToken ct = default)
+    private async ValueTask PauseCoreAsync(string name, CancellationToken ct = default)
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
@@ -333,8 +380,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await this.TransitionAsync(record, JobState.Paused, RegistryCommandKind.Pause, ct).ConfigureAwait(false);
     }
 
-    /// <inheritdoc/>
-    public async ValueTask ResumeAsync(string name, CancellationToken ct = default)
+    private async ValueTask ResumeCoreAsync(string name, CancellationToken ct = default)
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
@@ -353,8 +399,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await this.TransitionAsync(record, JobState.Running, RegistryCommandKind.Resume, ct).ConfigureAwait(false);
     }
 
-    /// <inheritdoc/>
-    public async ValueTask UpdateAsync(
+    private async ValueTask UpdateCoreAsync(
         string name,
         Cadence cadence,
         MissedFirePolicy missedFirePolicy,
