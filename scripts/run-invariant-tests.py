@@ -7,6 +7,7 @@ import time
 import xml.etree.ElementTree as ET
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--dotnet', default='dotnet')
 parser.add_argument('--configuration', default='Release')
 parser.add_argument('--output', default='artifacts/invariants')
 parser.add_argument('--skip-build', action='store_true')
@@ -26,14 +27,14 @@ summary = {'sourceSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cw
 failed = False
 for project, classes in suites.items():
     if not args.skip_build:
-        build = subprocess.run(['dotnet', 'build', f'src/{project}/{project}.csproj', '-c', args.configuration], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        build = subprocess.run([args.dotnet, 'build', f'src/{project}/{project}.csproj', '-c', args.configuration], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         (output / f'{project}-build.log').write_text(build.stdout)
         if build.returncode:
             summary['results'].append({'project': project, 'stage': 'build', 'exit': build.returncode})
             failed = True
             continue
     for name in classes:
-        command = ['dotnet', f'src/{project}/bin/{args.configuration}/net10.0/{project}.dll', '--treenode-filter', f'/*/*/{name}/*', '--minimum-expected-tests', '1', '--report-trx', '--report-trx-filename', f'{name}.trx', '--results-directory', str(output), '--no-ansi']
+        command = [args.dotnet, f'src/{project}/bin/{args.configuration}/net10.0/{project}.dll', '--treenode-filter', f'/*/*/{name}/*', '--minimum-expected-tests', '1', '--report-trx', '--report-trx-filename', f'{name}.trx', '--results-directory', str(output), '--no-ansi']
         report = output / f'{name}.trx'
         report.unlink(missing_ok=True)
         started = time.monotonic()
