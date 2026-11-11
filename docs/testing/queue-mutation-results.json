@@ -1,0 +1,44 @@
+[
+  {
+    "family": "Q1",
+    "mutation": "ConcurrentPriorityQueue.Collection.cs: int removed = t.LockedClear(); -> int removed = 0;",
+    "exit": 2,
+    "killed": true,
+    "elapsedSeconds": 3.822
+  },
+  {
+    "family": "Q2",
+    "mutation": "ConcurrentPriorityQueue.Enqueue.cs: if (count >= _boundedCapacity) return false; -> if (count > _boundedCapacity) return false;",
+    "exit": 2,
+    "killed": true,
+    "elapsedSeconds": 2.19
+  },
+  {
+    "family": "Q3",
+    "mutation": "ConcurrentPriorityQueue.Inspect.cs: if (found && CompareEffective(top, minimum) >= 0) -> if (found && CompareEffective(top, minimum) <= 0)",
+    "exit": 2,
+    "killed": true,
+    "elapsedSeconds": 2.183
+  },
+  {
+    "family": "Q4",
+    "mutation": "ConcurrentPriorityQueue.Enqueue.cs: Interlocked.Decrement(ref _boundedCount); -> Interlocked.Add(ref _boundedCount, 0);",
+    "exit": 2,
+    "killed": true,
+    "elapsedSeconds": 2.162
+  },
+  {
+    "family": "Q5",
+    "mutation": "ConcurrentPriorityQueue.Enqueue.cs: if (queues[index].TryLockedPush(element, priority))\n                {\n                    return true; -> if (queues[index].TryLockedPush(element, priority))\n                {\n                    queues[index].TryLockedPush(element, priority);\n                    return true;",
+    "exit": 2,
+    "killed": true,
+    "elapsedSeconds": 12.209
+  },
+  {
+    "family": "M",
+    "mutation": "ConcurrentPriorityQueue.Collection.cs: int removed = t.LockedClear(); -> int removed = 0;",
+    "exit": 2,
+    "killed": true,
+    "elapsedSeconds": 2.167
+  }
+]
