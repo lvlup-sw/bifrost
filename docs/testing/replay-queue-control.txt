@@ -1,0 +1,32 @@
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/tmp/bifrost-replay-queue-control/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/tmp/bifrost-replay-queue-control/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.build.tasks.git/10.0.403/build/Microsoft.Build.Tasks.Git.targets(25,5): warning : The URL of repository remote 'origin' is invalid: '/home/reedsalus/Documents/Codex/2026-11-10/ple/work/bifrost'. [/tmp/bifrost-replay-queue-control/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
+/home/reedsalus/.nuget/packages/microsoft.sourcelink.common/10.0.403/build/Microsoft.SourceLink.Common.targets(56,5): warning : Source control information is not available - the generated source link is empty. [/tmp/bifrost-replay-queue-control/src/Bifrost.Tests.Concurrency/Bifrost.Tests.Concurrency.csproj]
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.11 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+failed GeneratedSemanticHistories (58ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: Q1.snapshot: expected 0|; actual 1|main:2:0; command=3
+    at Bifrost.Tests.Concurrency.QueueReplayTests.Verify(HistoryCase source, HistoryCase followup, String invariant, Nullable`1 fault) in /tmp/bifrost-replay-queue-control/src/Bifrost.Tests.Concurrency/QueueReplayTests.cs:119
+    at Bifrost.Tests.Concurrency.QueueReplayTests.GeneratedSemanticHistories() in /tmp/bifrost-replay-queue-control/src/Bifrost.Tests.Concurrency/QueueReplayTests.cs:129
+  Standard output
+    Semantic replay: /tmp/bifrost-queue-captured/Q1-e35d875b0fb340e892b48b972c5f2088.json
+    Semantic replay: /tmp/bifrost-queue-captured/Q1-reduced-22cedf36dbab4ed39f91b636fa714ce6.json
+    Reduced queue history: commands=2, evaluations=353, oneMinimal=True
+  Error output
+
+Test run summary: Failed! - /tmp/bifrost-replay-queue-control/src/Bifrost.Tests.Concurrency/bin/Debug/net10.0/Bifrost.Tests.Concurrency.dll (net10.0|x64)
+  total: 1
+  failed: 1
+  succeeded: 0
+  skipped: 0
+  duration: 238ms

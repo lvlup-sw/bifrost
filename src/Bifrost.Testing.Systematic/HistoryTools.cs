@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace Bifrost.Tests.Systematic;
@@ -37,6 +39,7 @@ internal sealed record ReplayRecord(
             || string.IsNullOrWhiteSpace(record.Invariant) || record.Source is null
             || record.Observation is null || string.IsNullOrWhiteSpace(record.Runtime)
             || string.IsNullOrWhiteSpace(record.Build) || string.IsNullOrWhiteSpace(record.ReplayCommand)
+            || !ValidHistory(record.Source) || (record.Followup is not null && !ValidHistory(record.Followup))
             || record.ActorOrder is null
             || (record.ActorOrder.Length == 0 && string.IsNullOrWhiteSpace(record.UncontrolledScheduleLimitation)))
         {
@@ -45,6 +48,10 @@ internal sealed record ReplayRecord(
 
         return record;
     }
+
+    private static bool ValidHistory(HistoryCase history) =>
+        history.Configuration is not null && history.Commands is not null
+        && history.Commands.All(command => command is not null && !string.IsNullOrWhiteSpace(command.Kind) && command.Id is not null);
 
     public HistoryObservation Replay(Func<HistoryCase, bool> isValid, Func<HistoryCase, HistoryCase?, HistoryObservation> execute)
     {
@@ -196,5 +203,34 @@ internal static class HistoryReducer
         var currentSize = current.Commands.Sum(command => Magnitude(command.Value))
             + current.Configuration.Sum(pair => Magnitude(pair.Value));
         return candidateSize < currentSize;
+    }
+}
+
+internal static class ReplayCapture
+{
+    internal static ReplayRecord Create(string invariant, string relation, HistoryCase source, HistoryCase? followup, HistoryObservation observation, string command, string[] actors, string? limitation = null, long clock = 0, int? fault = null)
+    {
+        return new(1, Git("rev-parse HEAD"), Git("status --porcelain").Length > 0,
+            RuntimeInformation.FrameworkDescription,
+            System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttributes(typeof(System.Reflection.AssemblyConfigurationAttribute), false).Cast<System.Reflection.AssemblyConfigurationAttribute>().Single().Configuration + "/net10.0", invariant, relation,
+            source, followup, clock, fault, actors, limitation, observation, command);
+    }
+
+    internal static void SaveFailure(ReplayRecord record)
+    {
+        var directory = Environment.GetEnvironmentVariable("BIFROST_REPLAY_OUTPUT") ?? Path.Combine(Path.GetTempPath(), "bifrost-replays");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, record.Invariant + "-" + Guid.NewGuid().ToString("N") + ".json");
+        File.WriteAllText(path, (record with { ReplayCommand = record.ReplayCommand.Replace("<path>", "\"" + path + "\"", StringComparison.Ordinal) }).ToJson());
+        Console.WriteLine("Semantic replay: " + path);
+    }
+
+    private static string Git(string arguments)
+    {
+        using var process = Process.Start(new ProcessStartInfo("git", arguments) { RedirectStandardOutput = true, UseShellExecute = false })!;
+        var output = process.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit();
+        if (process.ExitCode != 0) throw new InvalidOperationException("Cannot establish source provenance.");
+        return output;
     }
 }

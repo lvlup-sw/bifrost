@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="../Bifrost.Testing.Systematic/*.cs" Link="Systematic/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="TUnit" />
   </ItemGroup>
 
