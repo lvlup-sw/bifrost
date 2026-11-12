@@ -140,6 +140,15 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
     private long generationCounter;
     private int inFlightDispatches;
+
+    // Fires that could not take an in-flight slot. The tick thread owns this queue.
+    // Triggers and startup catch-up use it; due heap entries stay on the heap.
+    private readonly Queue<RetainedDispatch> retainedDispatches = new();
+
+    // Per-job acknowledgement order. A later success must not checkpoint past an
+    // earlier fire that was rejected, threw, or never started.
+    private readonly object ackGate = new();
+    private readonly Dictionary<string, List<PendingFire>> pendingFires = new(StringComparer.Ordinal);
     private CancellationToken loopStoppingToken;
     private int stopState;
     private int faultedState;
@@ -709,11 +718,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         Volatile.Write(ref this.previousNowTicks, now.UtcTicks);
 
         var nextFire = this.PeekNextValidFire();
+        var workRemains = this.retainedDispatches.Count > 0
+            || (nextFire is not null && nextFire.Value <= now);
 
-        // A due job (or a past-due one) means do not wait — loop straight back to
-        // dispatch it. When the outstanding budget is already full, spinning would
-        // not start that job; wait for one slot or a command (including shutdown).
-        if (nextFire is not null && nextFire.Value <= now)
+        // Due work means do not wait — loop straight back to dispatch it. When the
+        // outstanding budget is already full, spinning would not start that work.
+        // Wait for one slot or a command (including shutdown).
+        if (workRemains)
         {
             if (Volatile.Read(ref this.inFlightDispatches) < MaxOutstandingDispatches)
             {
@@ -727,6 +738,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             }
 
             var blockedCommand = this.CommandReadyTask(stoppingToken);
+
+            // RecordTick cleared the idle observation. A slot wait has no deadline,
+            // and a parked loop with no deadline is not a stale tick.
+            this.healthMonitor.RecordIdleWait(deadline: null);
             await Task.WhenAny(slot, blockedCommand).ConfigureAwait(false);
             return;
         }
@@ -945,7 +960,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         var nextNext = record.NextFireAt
             ?? record.Cadence.ComputeNextFire(record.LastFiredAt, now);
 
-        this.Dispatch(jobName, now, nextNext);
+        this.DispatchWithinBudget(jobName, now, nextNext);
     }
 
     /// <summary>
@@ -959,6 +974,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     {
         var now = this.timeProvider.GetUtcNow();
         var dispatched = 0;
+        if (!this.DrainRetained(stoppingToken, ref dispatched))
+        {
+            return;
+        }
 
         while (!stoppingToken.IsCancellationRequested
             && dispatched < LiveCatchUpDispatchBudget
@@ -1020,6 +1039,50 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
             this.Dispatch(handle.JobName, scheduledOccurrence, nextNext);
         }
+    }
+
+    /// <summary>
+    /// Dispatches a trigger or startup fire when a slot is free. Otherwise keeps the
+    /// fire on <see cref="retainedDispatches"/> so a later tick can send it.
+    /// </summary>
+    /// <param name="jobName">The job firing.</param>
+    /// <param name="occurrence">The occurrence's logical instant.</param>
+    /// <param name="nextFireAt">The next occurrence, or <see langword="null"/>.</param>
+    private void DispatchWithinBudget(string jobName, DateTimeOffset occurrence, DateTimeOffset? nextFireAt)
+    {
+        if (this.retainedDispatches.Count > 0
+            || Volatile.Read(ref this.inFlightDispatches) >= MaxOutstandingDispatches)
+        {
+            this.retainedDispatches.Enqueue(new RetainedDispatch(jobName, occurrence, nextFireAt));
+            return;
+        }
+
+        this.Dispatch(jobName, occurrence, nextFireAt);
+    }
+
+    /// <summary>
+    /// Sends retained fires while slots and the catch-up budget remain.
+    /// </summary>
+    /// <param name="stoppingToken">The loop's stopping token.</param>
+    /// <param name="dispatched">The number of fires already sent in this batch.</param>
+    /// <returns><see langword="false"/> when the caller must stop the batch.</returns>
+    private bool DrainRetained(CancellationToken stoppingToken, ref int dispatched)
+    {
+        while (!stoppingToken.IsCancellationRequested
+            && dispatched < LiveCatchUpDispatchBudget
+            && this.retainedDispatches.Count > 0)
+        {
+            if (Volatile.Read(ref this.inFlightDispatches) >= MaxOutstandingDispatches)
+            {
+                return false;
+            }
+
+            var fire = this.retainedDispatches.Dequeue();
+            this.Dispatch(fire.JobName, fire.Occurrence, fire.NextFireAt);
+            dispatched++;
+        }
+
+        return !stoppingToken.IsCancellationRequested;
     }
 
     /// <summary>
@@ -1111,6 +1174,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             // never runs on this path, so this is the only place the outcome is recorded
             // (no double-recording).
             this.healthMonitor.RecordFireOutcome(success: false);
+            this.BlockLaterCheckpoints(jobName, scheduledOccurrence);
             return;
         }
 
@@ -1158,6 +1222,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             // missing from FailureRate/RecentFireCount. No tracking dispatcher runs on
             // this path, so this is the only recording (no double-recording).
             this.healthMonitor.RecordFireOutcome(success: false);
+            this.BlockLaterCheckpoints(jobName, scheduledOccurrence);
             return;
         }
 
@@ -1179,7 +1244,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // so the idle barrier can never strand.
         Interlocked.Increment(ref this.inFlightDispatches);
         var expected = this.registry.TryGetRecord(jobName);
-        var tracked = new InFlightTrackingDispatcher(this, dispatcher, scope, expected);
+        var pending = this.TrackFire(jobName, scheduledOccurrence, nextFireAt, expected);
+        var tracked = new InFlightTrackingDispatcher(this, dispatcher, scope, pending);
         try
         {
             this.router.Dispatch(tracked, context, this.loopStoppingToken);
@@ -1197,6 +1263,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             // A throw is not an acknowledgement: do not checkpoint.
             tracked.MarkHandoffFaulted();
             tracked.CompleteFromHandoffFault(jobName);
+            this.SettleFire(pending, acknowledged: false);
             throw;
         }
 
@@ -1211,12 +1278,143 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     }
 
     /// <summary>
+    /// Records a fire that did not start, so a later success cannot checkpoint past it.
+    /// </summary>
+    /// <param name="jobName">The job whose fire did not start.</param>
+    /// <param name="firedAt">The occurrence that stays unacknowledged.</param>
+    private void BlockLaterCheckpoints(string jobName, DateTimeOffset firedAt)
+    {
+        var blocked = new PendingFire(jobName, firedAt, null, null) { State = PendingFire.Blocked };
+        blocked.Settled = true;
+        lock (this.ackGate)
+        {
+            var list = this.FiresFor(jobName);
+            if (list.Count > 0 && list[0].State == PendingFire.Blocked)
+            {
+                return;
+            }
+
+            list.Add(blocked);
+            TrimAfterBlock(list);
+        }
+    }
+
+    /// <summary>
+    /// Remembers a handed-off fire until it is acknowledged or blocked.
+    /// </summary>
+    /// <param name="jobName">The job that fired.</param>
+    /// <param name="firedAt">The occurrence instant.</param>
+    /// <param name="nextFireAt">The next occurrence captured for a contiguous checkpoint.</param>
+    /// <param name="expected">The registry record captured before the dispatcher runs.</param>
+    /// <returns>The fire the handoff settles.</returns>
+    private PendingFire TrackFire(
+        string jobName,
+        DateTimeOffset firedAt,
+        DateTimeOffset? nextFireAt,
+        JobRecord? expected)
+    {
+        var fire = new PendingFire(jobName, firedAt, nextFireAt, expected);
+        lock (this.ackGate)
+        {
+            var list = this.FiresFor(jobName);
+            if (list.Count > 0 && list[0].State == PendingFire.Blocked)
+            {
+                fire.State = PendingFire.Blocked;
+                fire.Settled = true;
+                return fire;
+            }
+
+            list.Add(fire);
+            return fire;
+        }
+    }
+
+    /// <summary>
+    /// Marks a fire acknowledged or blocked, then checkpoints the contiguous
+    /// acknowledged prefix. A block stops every later checkpoint for that job.
+    /// </summary>
+    /// <param name="fire">The fire to settle.</param>
+    /// <param name="acknowledged">Whether the dispatcher accepted the fire.</param>
+    private void SettleFire(PendingFire fire, bool acknowledged)
+    {
+        List<PendingFire> ready;
+        lock (this.ackGate)
+        {
+            if (fire.Settled)
+            {
+                return;
+            }
+
+            fire.Settled = true;
+            fire.State = acknowledged ? PendingFire.Acknowledged : PendingFire.Blocked;
+            var list = this.FiresFor(fire.JobName);
+            ready = DrainAckedPrefix(list);
+            TrimAfterBlock(list);
+        }
+
+        foreach (var item in ready)
+        {
+            if (item.Expected is not null)
+            {
+                this.SafeCheckpoint(item.Expected, item.FiredAt, item.NextFireAt);
+            }
+        }
+    }
+
+    /// <summary>Returns the job's acknowledgement list. The caller holds <see cref="ackGate"/>.</summary>
+    /// <param name="jobName">The job name.</param>
+    /// <returns>The fires for that job, in dispatch order.</returns>
+    private List<PendingFire> FiresFor(string jobName)
+    {
+        if (!this.pendingFires.TryGetValue(jobName, out var list))
+        {
+            list = [];
+            this.pendingFires[jobName] = list;
+        }
+
+        return list;
+    }
+
+    /// <summary>Removes the leading acknowledged fires.</summary>
+    /// <param name="list">The job's fires, in dispatch order.</param>
+    /// <returns>The acknowledged prefix, in order.</returns>
+    private static List<PendingFire> DrainAckedPrefix(List<PendingFire> list)
+    {
+        var ready = new List<PendingFire>();
+        while (list.Count > 0 && list[0].State == PendingFire.Acknowledged)
+        {
+            ready.Add(list[0]);
+            list.RemoveAt(0);
+        }
+
+        return ready;
+    }
+
+    /// <summary>Drops fires that follow a permanent hole.</summary>
+    /// <param name="list">The job's fires, in dispatch order.</param>
+    private static void TrimAfterBlock(List<PendingFire> list)
+    {
+        if (list.Count == 0 || list[0].State != PendingFire.Blocked)
+        {
+            return;
+        }
+
+        if (list.Count > 1)
+        {
+            list.RemoveRange(1, list.Count - 1);
+        }
+    }
+
+    /// <summary>
     /// Checkpoints a fire to the store, best-effort (DR-4/DR-10). The fire and the
     /// next-fire schedule are already committed, so a checkpoint failure — whether the
     /// store throws synchronously or returns a faulted task — is logged at warning and
     /// swallowed. It never faults the loop or stalls it: the checkpoint is observed
     /// asynchronously off the tick thread so a slow store does not block scheduling.
     /// </summary>
+    /// <param name="record">The registry record captured before the dispatcher runs.</param>
+    /// <param name="firedAt">The occurrence the dispatcher acknowledged.</param>
+    /// <param name="nextFireAt">The next occurrence captured with that acknowledgement.</param>
     [SuppressMessage(
         "Usage",
         "VSTHRD110:Observe result of async calls",
@@ -1408,7 +1606,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         foreach (var occurrence in catchUp)
         {
             var nextAfter = record.Cadence.ComputeNextFire(occurrence, occurrence);
-            this.Dispatch(record.Name, occurrence, nextAfter);
+            this.DispatchWithinBudget(record.Name, occurrence, nextAfter);
         }
     }
 
@@ -1534,15 +1732,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// The per-fire DI scope to dispose after the fire completes, or
     /// <see langword="null"/> when no scope was created.
     /// </param>
-    /// <param name="expected">
-    /// The registry record captured before the dispatcher runs. The checkpoint uses
-    /// it so a reentrant mutation that replaces the record is left in place.
-    /// </param>
+    /// <param name="pending">The fire whose acknowledgement can advance the checkpoint.</param>
     private sealed class InFlightTrackingDispatcher(
         ScheduleTickLoop owner,
         IJobDispatcher inner,
         IServiceScope? scope,
-        JobRecord? expected)
+        PendingFire pending)
         : IJobDispatcher
     {
         // 0 = the router call is in progress, 1 = the dispatcher finished during that
@@ -1588,18 +1783,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             {
                 owner.metrics.RecordDispatchFailure(this.fire.JobName, AdmissionRejectedFailureType);
                 owner.healthMonitor.RecordFireOutcome(success: false);
+                owner.SettleFire(pending, acknowledged: false);
                 return;
             }
 
-            // The record captured before the dispatcher ran. A reentrant mutation
-            // replaces that record, and CheckpointAsync then leaves the mutation's
-            // schedule in place.
-            if (expected is not null)
-            {
-                owner.SafeCheckpoint(expected, this.fire.FireTime, this.fire.NextFireAt);
-            }
-
             owner.healthMonitor.RecordFireOutcome(success: true);
+            owner.SettleFire(pending, acknowledged: true);
         }
 
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
@@ -1632,6 +1821,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                             ex));
                         owner.metrics.RecordDispatchFailure(context.JobName, ex.GetType().Name);
                         owner.healthMonitor.RecordFireOutcome(success: false);
+                        owner.SettleFire(pending, acknowledged: false);
                     }
                 }
             }
@@ -1717,4 +1907,26 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="Generation">The generation the job was last enqueued under.</param>
     /// <param name="Occurrence">The occurrence the job is currently armed for.</param>
     private readonly record struct ScheduledJob(long Generation, DateTimeOffset Occurrence);
+
+    private readonly record struct RetainedDispatch(string JobName, DateTimeOffset Occurrence, DateTimeOffset? NextFireAt);
+
+    /// <summary>One handed-off fire, in dispatch order for its job.</summary>
+    private sealed class PendingFire(string jobName, DateTimeOffset firedAt, DateTimeOffset? nextFireAt, JobRecord? expected)
+    {
+        public const byte InFlight = 0;
+        public const byte Acknowledged = 1;
+        public const byte Blocked = 2;
+
+        public string JobName { get; } = jobName;
+
+        public DateTimeOffset FiredAt { get; } = firedAt;
+
+        public DateTimeOffset? NextFireAt { get; } = nextFireAt;
+
+        public JobRecord? Expected { get; } = expected;
+
+        public byte State { get; set; } = InFlight;
+
+        public bool Settled { get; set; }
+    }
 }

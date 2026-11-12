@@ -123,10 +123,20 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
     /// permit has been released. Does nothing after completion, so a shutdown wake
     /// for a parked waiter is left in place.
     /// </summary>
+    internal Action? BeforeMatchedWakeForTest { get; set; }
+
     internal void ConsumeMatchedWake()
     {
-        if (_completed) return;
-        _signal.Wait(0);
+        // Same handshake as the relaxed binding: completion publishes its flag and
+        // releases waiter permits under this gate, so the matched-wake take must
+        // use the gate too.
+        lock (_admissionGate)
+        {
+            if (_completed) return;
+            BeforeMatchedWakeForTest?.Invoke();
+            if (_completed) return;
+            _signal.Wait(0);
+        }
     }
 
     /// <summary>Gets the number of wake permits still available. Test inspection only.</summary>

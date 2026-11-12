@@ -43,7 +43,10 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
     /// </summary>
     public void Dispose()
     {
-        Interlocked.Exchange(ref _disposed, 1);
+        lock (_lock)
+        {
+            _disposed = 1;
+        }
     }
 
     /// <summary>
@@ -126,13 +129,16 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
         return new Subscription(this, callback);
     }
 
+    internal Action? BeforeDeliveryForTest { get; set; }
+
     private async Task DeliverBoundedAsync(
         Func<WorkDeadLetteredEvent<TWork>, Task> callback,
         WorkDeadLetteredEvent<TWork> evt)
     {
         try
         {
-            if (Volatile.Read(ref _disposed) == 0)
+            BeforeDeliveryForTest?.Invoke();
+            if (TryBeginCallback())
             {
                 await NotifySafe(callback, evt).ConfigureAwait(false);
             }
@@ -140,6 +146,19 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
         finally
         {
             _outstanding.Release();
+        }
+    }
+
+    /// <summary>
+    /// Returns whether this delivery may start. The check shares <see cref="_lock"/>
+    /// with <see cref="Dispose"/>, and the lock is not held across the callback.
+    /// </summary>
+    /// <returns><see langword="true"/> when disposal has not completed.</returns>
+    private bool TryBeginCallback()
+    {
+        lock (_lock)
+        {
+            return _disposed == 0;
         }
     }
 

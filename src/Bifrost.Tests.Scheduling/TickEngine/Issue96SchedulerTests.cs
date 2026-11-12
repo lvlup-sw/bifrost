@@ -91,9 +91,9 @@ public sealed class Issue96SchedulerTests
         for (var i = 0; i < 25; i++)
         {
             await fx.Registry.TriggerAsync("hourly").ConfigureAwait(false);
+            await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
         }
 
-        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
         await Assert.That(clock.LiveTimers).IsLessThanOrEqualTo(2);
     }
 
@@ -166,11 +166,13 @@ public sealed class Issue96SchedulerTests
             await fx.RegisterAsync("rejected", Cadence.At(Start.AddMinutes(10)), rejecting)
                 .ConfigureAwait(false);
             var before = monitor.RecentFireCount;
+            var checkpoints = store.Checkpoints;
             fx.Time.Advance(TimeSpan.FromMinutes(5));
             await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
 
             await Assert.That(monitor.RecentFireCount).IsEqualTo(before + 1);
             await Assert.That(monitor.FailureRate).IsGreaterThan(0);
+            await Assert.That(store.Checkpoints).IsEqualTo(checkpoints);
         }
     }
 
@@ -206,6 +208,28 @@ public sealed class Issue96SchedulerTests
         await Assert.That(ScopedFire.Seen[0]).IsNotSameReferenceAs(ScopedFire.Seen[1]);
     }
 
+    /// <summary>
+    /// A later success does not record the job past an earlier fire that threw.
+    /// </summary>
+    [Test]
+    public async Task LaterSuccess_DoesNotCheckpointPastAFailedFire()
+    {
+        var store = new SignalingStore();
+        var dispatcher = new FailOnceDispatcher();
+        await using var fx = await LoopFixture.StartAsync(Start, new TickHealthMonitor(), store)
+            .ConfigureAwait(false);
+        await fx.RegisterAsync("gap", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher)
+            .ConfigureAwait(false);
+
+        fx.Time.Advance(TimeSpan.FromMinutes(1));
+        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        fx.Time.Advance(TimeSpan.FromMinutes(1));
+        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+
+        await Assert.That(dispatcher.Calls).IsEqualTo(2);
+        await Assert.That(store.Checkpoints).IsEqualTo(0);
+    }
+
     private sealed class Probe : IDisposable
     {
         public void Dispose()
@@ -227,6 +251,23 @@ public sealed class Issue96SchedulerTests
     private sealed class NoopHandler : IWorkHandler<string>
     {
         public ValueTask HandleAsync(string work, CancellationToken ct) => ValueTask.CompletedTask;
+    }
+
+    private sealed class FailOnceDispatcher : IJobDispatcher
+    {
+        private int calls;
+
+        public int Calls => Volatile.Read(ref this.calls);
+
+        public ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
+        {
+            if (Interlocked.Increment(ref this.calls) == 1)
+            {
+                throw new InvalidOperationException("The first fire failed.");
+            }
+
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class CountingDispatcher : IJobDispatcher
@@ -294,8 +335,11 @@ public sealed class Issue96SchedulerTests
 
         public ValueTask SaveAsync(JobRecord job, CancellationToken ct) => this.inner.SaveAsync(job, ct);
 
+        public int Checkpoints { get; private set; }
+
         public ValueTask RecordFiredAsync(string jobName, DateTimeOffset firedAt, DateTimeOffset? nextFireAt, CancellationToken ct)
         {
+            this.Checkpoints++;
             this.Recorded.TrySetResult();
             return this.inner.RecordFiredAsync(jobName, firedAt, nextFireAt, ct);
         }

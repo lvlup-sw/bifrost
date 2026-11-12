@@ -168,10 +168,20 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// permit has been released. Does nothing after completion, so a shutdown wake
     /// for a parked waiter is left in place.
     /// </summary>
+    internal Action? BeforeMatchedWakeForTest { get; set; }
+
     internal void ConsumeMatchedWake()
     {
-        if (_completed) return;
-        _signal.Wait(0);
+        // The completion gate also covers Complete's permit release. A drain that
+        // loses the check-then-wait race would otherwise take the completion wake
+        // and leave a parked consumer blocked after the queue is empty.
+        lock (_completionGate)
+        {
+            if (_completed) return;
+            BeforeMatchedWakeForTest?.Invoke();
+            if (_completed) return;
+            _signal.Wait(0);
+        }
     }
 
     /// <summary>Gets the number of wake permits still available. Test inspection only.</summary>
