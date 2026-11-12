@@ -43,3 +43,12 @@ The eleven regression cases passed after the fixes. The main Release suite passe
 DLQ and hosted lifecycle coverage. Callback tests now await delivery explicitly.
 Host: Fedora Linux 45, x64, .NET 10.0.11. Broader qualification is recorded in the
 library investigation ledger; this result does not close issue #85.
+
+## Coverage-runner qualification
+
+The first remote CI runs exposed a fixture scheduling failure: a deliberately
+blocking callback test timed out before its callback began on the four-core
+coverage runner. A local four-processor coverage run reproduced this failure.
+That test now runs outside the suite's parallel load and waits for the blocked
+callback to exit during cleanup. It retains the original publisher/second-subscriber
+assertion and deadlines; it does not change production behavior or increase timeouts.

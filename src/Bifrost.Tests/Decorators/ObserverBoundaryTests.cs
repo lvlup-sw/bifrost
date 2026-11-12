@@ -20,6 +20,9 @@ public class ObserverBoundaryTests
 {
     /// <summary>Blocking callback prefixes cannot hold the publisher or another subscriber.</summary>
     [Test]
+    // This test deliberately parks a pool thread. Do not compete with the full
+    // orchestrator suite while measuring whether another callback can start.
+    [NotInParallel]
     [Arguments(false)]
     [Arguments(true)]
     public async Task BlockingSubscriberDoesNotBlockPublisherOrOtherSubscribers(bool asyncCallback)
@@ -28,11 +31,19 @@ public class ObserverBoundaryTests
         using var release = new ManualResetEventSlim();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var other = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Task Callback(WorkDeadLetteredEvent<int> evt)
         {
             entered.TrySetResult();
-            release.Wait();
-            return Task.CompletedTask;
+            try
+            {
+                release.Wait();
+                return Task.CompletedTask;
+            }
+            finally
+            {
+                exited.TrySetResult();
+            }
         }
 
         using var subscription = asyncCallback
@@ -48,7 +59,7 @@ public class ObserverBoundaryTests
         finally
         {
             release.Set();
-            await publish.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await Task.WhenAll(publish, exited.Task).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         }
     }
 
