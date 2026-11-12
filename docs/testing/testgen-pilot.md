@@ -8,6 +8,8 @@ Structured JSON responses, requests, and trial summaries live in [evidence/testg
 ## Coalesce calibration replay
 
 The calibration replayed `generate_property_tests` and `generate_metamorphic_tests` on two disposable Bifrost checkouts.
+The fixture binding from Exarchos `tests/support/testgen/CoalesceBinding.cs` is archived in [CoalesceBinding.cs](evidence/testgen-pilot/CoalesceBinding.cs).
+To reproduce the replay, copy [CoalesceBinding.cs](evidence/testgen-pilot/CoalesceBinding.cs) into `src/Bifrost.Tests.Scheduling/` before applying the `.patch` payloads from [coalesce-property.json](evidence/testgen-pilot/coalesce-property.json) and [coalesce-advance.json](evidence/testgen-pilot/coalesce-advance.json).
 `CoalesceBinding.cs` covers positive intervals, zero jitter, UTC ticks, and at least one due occurrence.
 Because `emitTUnit` runs `CoalesceBinding.IsValid` on both inputs, `advance.json` omits the upper-bound case from `property.json`.
 
