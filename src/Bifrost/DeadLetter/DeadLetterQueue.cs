@@ -107,7 +107,7 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
         }
 
         public IAsyncEnumerator<DeadLetteredWork<TWork>> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-            => new DrainEnumerator(_queue, cancellationToken.CanBeCanceled ? cancellationToken : _ct);
+            => new DrainEnumerator(_queue, _ct, cancellationToken);
     }
 
     /// <summary>
@@ -120,10 +120,13 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
         private readonly DeadLetterQueue<TWork> _queue;
         private readonly CancellationToken _ct;
 
-        public DrainEnumerator(DeadLetterQueue<TWork> queue, CancellationToken ct)
+        private readonly CancellationToken _enumerationToken;
+
+        public DrainEnumerator(DeadLetterQueue<TWork> queue, CancellationToken ct, CancellationToken enumerationToken)
         {
             _queue = queue;
             _ct = ct;
+            _enumerationToken = enumerationToken;
         }
 
         public DeadLetteredWork<TWork> Current { get; private set; } = default!;
@@ -131,6 +134,7 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
         public ValueTask<bool> MoveNextAsync()
         {
             _ct.ThrowIfCancellationRequested();
+            _enumerationToken.ThrowIfCancellationRequested();
 
             if (_queue._channel.Reader.TryRead(out DeadLetteredWork<TWork> item))
             {

@@ -290,11 +290,13 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             throw new DuplicateJobNameException(name);
         }
 
+        var now = this.timeProvider.GetUtcNow();
+
         // Resolve a relative one-shot to an absolute instant using the registry's
         // injected TimeProvider (R1/DR-2): the static factory Cadence.After performs
         // no clock access; resolution happens here, once, at registration time.
         cadence = cadence is RelativeOneShotCadence relative
-            ? new OneShotCadence(this.timeProvider.GetUtcNow() + relative.Delay)
+            ? new OneShotCadence(now + relative.Delay)
             : cadence;
 
         // Reject a one-shot whose fire instant is in the past: a past one-shot would
@@ -302,16 +304,16 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         // which are ergonomics traps (quartznet#636/#2180, Hangfire#1637, R10).
         // "Past" is judged against the registry's injected TimeProvider (DR-7).
         if (cadence is OneShotCadence absoluteOneShot
-            && absoluteOneShot.FireAt < this.timeProvider.GetUtcNow())
+            && absoluteOneShot.FireAt < now)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(cadence),
                 $"A one-shot cadence with FireAt '{absoluteOneShot.FireAt:O}' is in the past " +
-                $"(now: '{this.timeProvider.GetUtcNow():O}'). Register a future instant to " +
+                $"(now: '{now:O}'). Register a future instant to " +
                 "avoid a silent immediate fire or a missed-fire-policy decision at registration.");
         }
 
-        var nextFireAt = cadence.ComputeNextFire(lastFiredAt: null, now: this.timeProvider.GetUtcNow());
+        var nextFireAt = cadence.ComputeNextFire(lastFiredAt: null, now: now);
         var record = new JobRecord(
             Name: name,
             Cadence: cadence,
@@ -430,26 +432,28 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             throw new JobNotFoundException(name);
         }
 
+        var now = this.timeProvider.GetUtcNow();
+
         // Apply the same resolution and validation as registration: relative one-shots
         // are resolved against the registry clock; past one-shots are rejected (R10).
         cadence = cadence is RelativeOneShotCadence relative
-            ? new OneShotCadence(this.timeProvider.GetUtcNow() + relative.Delay)
+            ? new OneShotCadence(now + relative.Delay)
             : cadence;
 
         if (cadence is OneShotCadence absoluteOneShot
-            && absoluteOneShot.FireAt < this.timeProvider.GetUtcNow())
+            && absoluteOneShot.FireAt < now)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(cadence),
                 $"A one-shot cadence with FireAt '{absoluteOneShot.FireAt:O}' is in the past " +
-                $"(now: '{this.timeProvider.GetUtcNow():O}'). Updating to a past instant would " +
+                $"(now: '{now:O}'). Updating to a past instant would " +
                 "cause a silent immediate fire or a missed-fire-policy decision.");
         }
 
         // Recompute NextFireAt from the new cadence. Mutating operations must never
         // cause immediate execution as a side effect (R10); TriggerAsync is the only
         // fire-on-demand API.
-        var nextFireAt = cadence.ComputeNextFire(lastFiredAt: null, now: this.timeProvider.GetUtcNow());
+        var nextFireAt = cadence.ComputeNextFire(lastFiredAt: null, now: now);
         var updated = record with
         {
             Cadence = cadence,
@@ -615,7 +619,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     /// (no runtime regex codegen).
     /// </summary>
     /// <returns>The compiled job-name regex.</returns>
-    [GeneratedRegex("^[a-z0-9][a-z0-9-_.]{0,127}$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A[a-z0-9][a-z0-9-_.]{0,127}\z", RegexOptions.CultureInvariant)]
     private static partial Regex JobNameRegex();
 
     private async ValueTask PostAsync(RegistryCommand command, CancellationToken ct)
