@@ -79,7 +79,12 @@ internal static class MissedFirePolicyApplier
                 return [];
             }
 
-            var count = (now - last).Ticks / interval.Interval.Ticks;
+            var remaining = Math.Min(
+                DateTimeOffset.MaxValue.Ticks - last.Ticks,
+                DateTimeOffset.MaxValue.UtcTicks - last.UtcTicks);
+            var count = Math.Min(
+                (now - last).Ticks / interval.Interval.Ticks,
+                remaining / interval.Interval.Ticks);
             return count == 0 ? [] : [last.AddTicks(count * interval.Interval.Ticks)];
         }
 

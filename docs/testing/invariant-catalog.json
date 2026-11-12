@@ -60,12 +60,14 @@
     {
       "id": "P1",
       "propertyAndBoundary": "Consistent transformations of physical times and timestamp units preserve priority-key ordering.",
-      "domainAndOracle": "Fake timestamp frequencies. Exact rational conversion with explicit rounding and overflow domain.",
+      "domainAndOracle": "Fake timestamp frequencies, fractional truncation, wide intermediate products, and signed 64-bit saturation boundaries. Independent arbitrary-precision integer oracle.",
       "tests": [
-        "src/Bifrost.Tests/Systematic/PriorityScalingInvariantTests.cs"
+        "src/Bifrost.Tests/Systematic/PriorityScalingInvariantTests.cs",
+        "src/Bifrost.Tests/Queues/PriorityVirtualTimePropertyTests.cs",
+        "src/Bifrost.Tests/Queues/PriorityKeyBinding.cs"
       ],
       "limitations": [
-        "Deterministic enumeration is replayed by the named test command. P1 uses exact representable units; rounding/overflow outside its declared domain are excluded."
+        "Deterministic enumeration is replayed by the named test command. Negative windows, non-positive frequencies, and converted boosts exceeding long.MaxValue are separate rejection checks. Relaxed MultiQueue selection and saturated tie-breaking are outside P1."
       ]
     },
     {
@@ -76,7 +78,7 @@
         "src/Bifrost.Tests/Systematic/PriorityScalingInvariantTests.cs"
       ],
       "limitations": [
-        "Deterministic enumeration is replayed by the named test command. P1 uses exact representable units; rounding/overflow outside its declared domain are excluded."
+        "Deterministic enumeration is replayed by the named test command. Covers precomputed integer watermark thresholds; concurrent queue occupancy races are covered under Q2 and Q5."
       ]
     },
     {
@@ -135,6 +137,7 @@
       "domainAndOracle": "Tick-exact arithmetic. Null/earlier/equal/future last-fire states, tiny intervals, and representable boundaries.",
       "tests": [
         "src/Bifrost.Tests.Scheduling/IntervalInvariantTests.cs",
+        "src/Bifrost.Tests.Scheduling/IntervalDateBoundaryTests.cs",
         "src/Bifrost.Tests.Scheduling/TickEngine/MissedFireStartupTests.cs",
         "src/Bifrost.Tests.Scheduling/IntervalMutationAdequacyTests.cs",
         "src/Bifrost.Tests.Scheduling/CronCoalesceTests.cs"
@@ -149,6 +152,7 @@
       "domainAndOracle": "Backlogs K\u22121/K/K+1 and much larger. Independent due sequence and phase-extension relation.",
       "tests": [
         "src/Bifrost.Tests.Scheduling/IntervalInvariantTests.cs",
+        "src/Bifrost.Tests.Scheduling/IntervalDateBoundaryTests.cs",
         "src/Bifrost.Tests.Scheduling/TickEngine/MissedFireStartupTests.cs",
         "src/Bifrost.Tests.Scheduling/CronCoalesceTests.cs"
       ],

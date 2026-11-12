@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Bifrost.Scheduling.Core;
+using Bifrost.Scheduling.Internal;
 
 namespace Bifrost.Tests.Scheduling;
 
@@ -41,5 +42,24 @@ public class IntervalDateBoundaryTests
             await Assert.That(next > now).IsTrue();
             await Assert.That(next <= DateTimeOffset.MaxValue).IsTrue();
         }
+    }
+
+    /// <summary>Zero-jitter Coalesce stops at the last representable local date when a positive offset exhausts the calendar before UTC now.</summary>
+    [Test]
+    public async Task CoalesceNearCalendarEndWithPositiveOffsetRespectsExhaustion()
+    {
+        var cadence = new IntervalCadence(TimeSpan.FromHours(1));
+        var now = new DateTimeOffset(9999, 12, 31, 23, 0, 0, TimeSpan.Zero);
+
+        var lastWithThreeRemaining = new DateTimeOffset(9999, 12, 31, 20, 0, 0, TimeSpan.FromHours(14));
+        var coalesced = MissedFirePolicyApplier.ComputeMissedFires(cadence, lastWithThreeRemaining, now, MissedFirePolicy.Coalesce);
+        var all = MissedFirePolicyApplier.ComputeMissedFires(cadence, lastWithThreeRemaining, now, MissedFirePolicy.FireAllMissed);
+        await Assert.That(coalesced).HasCount(1);
+        await Assert.That(coalesced[0]).IsEqualTo(new DateTimeOffset(9999, 12, 31, 23, 0, 0, TimeSpan.FromHours(14)));
+        await Assert.That(coalesced[0]).IsEqualTo(all[^1]);
+
+        var exhaustedLocal = new DateTimeOffset(9999, 12, 31, 23, 30, 0, TimeSpan.FromHours(14));
+        await Assert.That(MissedFirePolicyApplier.ComputeMissedFires(cadence, exhaustedLocal, now, MissedFirePolicy.Coalesce)).IsEmpty();
+        await Assert.That(MissedFirePolicyApplier.ComputeMissedFires(cadence, exhaustedLocal, now, MissedFirePolicy.FireAllMissed)).IsEmpty();
     }
 }

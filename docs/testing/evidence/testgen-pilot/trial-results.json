@@ -1,0 +1,35 @@
+{
+  "controls": [
+    "priority-intermediate-mul-overflow-64bit"
+  ],
+  "trials": [
+    {
+      "id": "bifrost-p1-truncation-saturation-skill-1",
+      "arm": "skill",
+      "baseline": "valid-pass",
+      "controls": {
+        "priority-intermediate-mul-overflow-64bit": "assertion-kill"
+      },
+      "generationSeconds": 379.937,
+      "executionSeconds": 14.968,
+      "reviewSeconds": 432.235,
+      "shrinkingSeconds": 0,
+      "replay": "passed",
+      "retainedTests": 0
+    },
+    {
+      "id": "bifrost-p1-truncation-saturation-tools-1",
+      "arm": "tools",
+      "baseline": "valid-pass",
+      "controls": {
+        "priority-intermediate-mul-overflow-64bit": "assertion-kill"
+      },
+      "generationSeconds": 426.144,
+      "executionSeconds": 13.639,
+      "reviewSeconds": 93.977,
+      "shrinkingSeconds": 0,
+      "replay": "passed",
+      "retainedTests": 113
+    }
+  ]
+}

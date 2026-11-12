@@ -1,0 +1,17 @@
+diff --git a/src/Bifrost/Queues/PriorityKey.cs b/src/Bifrost/Queues/PriorityKey.cs
+index 55bb09a..d53e742 100644
+--- a/src/Bifrost/Queues/PriorityKey.cs
++++ b/src/Bifrost/Queues/PriorityKey.cs
+@@ -106,10 +106,9 @@ public static class PriorityKey
+
+     private static long ToTimestampTicks(TimeSpan window, long frequency)
+     {
+-        var ticks = (Int128)window.Ticks * frequency / TimeSpan.TicksPerSecond;
+-        if (ticks > long.MaxValue)
++        if (window.Ticks / TimeSpan.TicksPerSecond > long.MaxValue / frequency)
+             throw new ArgumentOutOfRangeException(nameof(window), "Priority window exceeds the timestamp range.");
+-        return (long)ticks;
++        return unchecked(window.Ticks * frequency) / TimeSpan.TicksPerSecond;
+     }
+
+     /// <summary>

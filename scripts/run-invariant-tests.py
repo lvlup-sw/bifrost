@@ -19,9 +19,9 @@ output.mkdir(parents=True, exist_ok=True)
 os.environ["BIFROST_REPLAY_OUTPUT"] = str(output / "replays")
 os.environ["BIFROST_REGISTRY_ARTIFACTS"] = str(output / "registry")
 suites = {
-    'Bifrost.Tests': ['HistoryToolsTests', 'LifecycleInvariantTests', 'LifecycleIdentityTests', 'LifecycleOutcomeInvariantTests', 'PriorityScalingInvariantTests', 'AutoscalingClockInvariantTests', 'AutoscalingLifecycleInvariantTests', 'WorkerRetirementTests', 'HostedTeardownRegressionTests'],
+    'Bifrost.Tests': ['HistoryToolsTests', 'LifecycleInvariantTests', 'LifecycleIdentityTests', 'LifecycleOutcomeInvariantTests', 'PriorityScalingInvariantTests', 'PriorityVirtualTimePropertyTests', 'AutoscalingClockInvariantTests', 'AutoscalingLifecycleInvariantTests', 'WorkerRetirementTests', 'HostedTeardownRegressionTests'],
     'Bifrost.Tests.Concurrency': ['GeneratedQueueInvariantTests', 'QueueReplayTests', 'ObservedEmptyInvariantTests', 'ComparerClearRefillRegressionTests'],
-    'Bifrost.Tests.Scheduling': ['CronCoalesceTests', 'JobMutationGatesTests', 'CheckpointOrderingTests', 'IntervalInvariantTests', 'IntervalMutationAdequacyTests', 'SchedulerReplayTests', 'SystematicRegistryTests', 'SystematicRegistryRaceTests', 'SystematicRegistryRestartTests', 'SystematicRegistryIdleBarrierTests', 'SystematicRegistryCheckpointRaceTests', 'SystematicRegistryRestartReplayTests'],
+    'Bifrost.Tests.Scheduling': ['CronCoalesceTests', 'JobMutationGatesTests', 'CheckpointOrderingTests', 'IntervalInvariantTests', 'IntervalDateBoundaryTests', 'IntervalMutationAdequacyTests', 'SchedulerReplayTests', 'SystematicRegistryTests', 'SystematicRegistryRaceTests', 'SystematicRegistryRestartTests', 'SystematicRegistryIdleBarrierTests', 'SystematicRegistryCheckpointRaceTests', 'SystematicRegistryRestartReplayTests'],
 }
 summary = {'sourceSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(), 'dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True).strip()), 'configuration': args.configuration, 'seedMultiplier': os.environ.get('BIFROST_INVARIANT_SEED_MULTIPLIER', '1'), 'results': []}
 failed = False

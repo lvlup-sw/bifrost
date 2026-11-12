@@ -9,7 +9,7 @@ dotnet run --project src/Bifrost.Tests.Concurrency -c Release
 dotnet run --project src/Bifrost.Tests.Scheduling -c Release
 ```
 
-The runner builds three test assemblies and selects 25 invariant suites. Every selection must execute at least one test. It rejects failed builds, failed tests, missing reports, and zero discovery. Use `--dotnet /path/to/dotnet` to select an SDK and `--output /path/to/results` to change the output directory. `--skip-build` requires current Release binaries unless `--configuration` selects another build.
+The runner builds three test assemblies and selects 27 invariant suites. Every selection must execute at least one test. It rejects failed builds, failed tests, missing reports, and zero discovery. Use `--dotnet /path/to/dotnet` to select an SDK and `--output /path/to/results` to change the output directory. `--skip-build` requires current Release binaries unless `--configuration` selects another build.
 
 [The catalog](invariant-catalog.json) maps 17 property families to their domains, tests, and limits. The tests cover queue accounting and ordering, admission, lifecycle outcomes, retries, DLQ conservation, scheduling, persistence, and autoscaling. Additional suites check cron equivalence, per-job gate lifetime, and checkpoint monotonicity.
 
@@ -49,6 +49,6 @@ Queue and scheduler replay classes are `QueueReplayTests` and `SchedulerReplayTe
 
 ## Scope
 
-These tests cover finite histories and declared domains. They do not prove absence of all defects, reconstruct arbitrary OS schedules, or simulate a real database crash. Priority arithmetic uses exact representable units. Jitter/custom-cadence performance, ambiguous external store effects, and unsupported reentrant callbacks need separate assessment. See [issue #85](https://github.com/lvlup-sw/bifrost/issues/85).
+These tests cover finite histories and declared domains. They do not prove absence of all defects, reconstruct arbitrary OS schedules, or simulate a real database crash. Priority arithmetic covers integer truncation and signed 64-bit saturation within valid windows. Jitter/custom-cadence performance, ambiguous external store effects, and unsupported reentrant callbacks need separate assessment. See [issue #85](https://github.com/lvlup-sw/bifrost/issues/85).
 
-[Scheduling design and benchmark summary](scheduling-overhead.md) explains the selected optimizations. The benchmark harness remains in `tools/scheduling-overhead`; exploratory FsCheck, Stryker, Coyote, Daikon, and SMT pilots are not maintained repository tooling.
+[Scheduling design and benchmark summary](scheduling-overhead.md) explains the selected optimizations. [Exarchos testgen pilot](testgen-pilot.md) records the local generator qualification and adoption scope. The benchmark harness remains in `tools/scheduling-overhead`; exploratory FsCheck, Stryker, Coyote, Daikon, and SMT pilots are not maintained repository tooling.
