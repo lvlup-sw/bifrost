@@ -11,6 +11,7 @@ using System.Threading.Channels;
 
 using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.Core.Events;
+using Bifrost.Scheduling.Dispatch;
 using Bifrost.Scheduling.Observability;
 
 namespace Bifrost.Scheduling.Registry;
@@ -501,12 +502,25 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         // so a caller cancellation should cleanly abort the trigger via OCE and enqueue
         // nothing — matching the caller-cancel→OCE contract for uncommitted operations.
         // The admission slot stays held until the tick loop hands the trigger off,
-        // drops it, or abandons it at shutdown.
+        // drops it, or abandons it at shutdown. A running dispatch must not wait:
+        // the slot it needs is released only after that dispatch finishes.
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, this.triggerAdmissionCancelled.Token);
         var acquired = false;
         try
         {
-            await this.triggerAdmission.WaitAsync(linked.Token).ConfigureAwait(false);
+            if (DispatchAdmission.IsReentrant)
+            {
+                if (!await this.triggerAdmission.WaitAsync(TimeSpan.Zero, linked.Token).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException(
+                        "TriggerAsync cannot wait for an admission slot while a dispatch is running.");
+                }
+            }
+            else
+            {
+                await this.triggerAdmission.WaitAsync(linked.Token).ConfigureAwait(false);
+            }
+
             acquired = true;
             await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name), linked.Token).ConfigureAwait(false);
             acquired = false;
@@ -717,10 +731,10 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         // would throw, so the guard makes double-dispose (sync or async) safe.
         if (Interlocked.Exchange(ref this.disposed, 1) == 0)
         {
+            // Leave the semaphore and the cancellation source usable. The tick loop
+            // can still release a slot for a command it drains after the writer completes.
             this.triggerAdmissionCancelled.Cancel();
             this.commands.Writer.Complete();
-            this.triggerAdmission.Dispose();
-            this.triggerAdmissionCancelled.Dispose();
         }
     }
 }

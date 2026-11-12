@@ -25,6 +25,7 @@ public sealed class MatchedWakeCompletionTests
         var queue = new ConcurrentPriorityWorkQueue<int>(8, new PriorityDispatchOptions(), TimestampFrequency);
         await AssertCompletionPermitSurvives(
             hook => queue.BeforeMatchedWakeForTest = hook,
+            hook => queue.BeforeCompletionLockForTest = hook,
             queue.ConsumeMatchedWake,
             queue.Complete,
             queue.WaitToDequeueAsync).ConfigureAwait(false);
@@ -39,6 +40,7 @@ public sealed class MatchedWakeCompletionTests
         var queue = new LockingPriorityWorkQueue<int>(8, new PriorityDispatchOptions(), TimestampFrequency);
         await AssertCompletionPermitSurvives(
             hook => queue.BeforeMatchedWakeForTest = hook,
+            hook => queue.BeforeCompletionLockForTest = hook,
             queue.ConsumeMatchedWake,
             queue.Complete,
             queue.WaitToDequeueAsync).ConfigureAwait(false);
@@ -46,17 +48,20 @@ public sealed class MatchedWakeCompletionTests
 
     private static async Task AssertCompletionPermitSurvives(
         Action<Action> install,
+        Action<Action> installCompletion,
         Action consumeMatchedWake,
         Action complete,
         Func<CancellationToken, ValueTask<bool>> wait)
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         install(() =>
         {
             entered.TrySetResult();
             release.Task.Wait(TimeSpan.FromSeconds(5));
         });
+        installCompletion(() => completionStarted.TrySetResult());
 
         var consume = Task.Run(consumeMatchedWake);
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
@@ -64,7 +69,7 @@ public sealed class MatchedWakeCompletionTests
         var parked = wait(CancellationToken.None).AsTask();
         await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
         var completing = Task.Run(complete);
-        await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+        await completionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(completing.IsCompleted).IsFalse();
 
         release.TrySetResult();

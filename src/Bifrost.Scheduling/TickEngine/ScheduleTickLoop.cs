@@ -1178,6 +1178,11 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         var deadline = this.shutdownDeadline;
         while (this.HasQueuedWork())
         {
+            if (deadline is { IsCompleted: true })
+            {
+                break;
+            }
+
             if (Volatile.Read(ref this.inFlightDispatches) >= MaxOutstandingDispatches)
             {
                 if (deadline is null)
@@ -1187,7 +1192,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
                 var slot = this.SlotReleasedTask();
                 var completed = await Task.WhenAny(slot, deadline).ConfigureAwait(false);
-                if (ReferenceEquals(completed, deadline))
+                if (ReferenceEquals(completed, deadline) || deadline.IsCompleted)
                 {
                     break;
                 }
@@ -2073,7 +2078,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 {
                     try
                     {
-                        await inner.DispatchAsync(context, ct).ConfigureAwait(false);
+                        using (DispatchAdmission.Enter())
+                        {
+                            await inner.DispatchAsync(context, ct).ConfigureAwait(false);
+                        }
 
                         // Publish the outcome before the phase swap so the caller that
                         // observes CompletedDuringHandoff also observes these fields.

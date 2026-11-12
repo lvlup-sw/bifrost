@@ -170,6 +170,11 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// </summary>
     internal Action? BeforeMatchedWakeForTest { get; set; }
 
+    /// <summary>
+    /// Runs at the start of <see cref="Complete"/>, before it takes the completion gate.
+    /// </summary>
+    internal Action? BeforeCompletionLockForTest { get; set; }
+
     internal void ConsumeMatchedWake()
     {
         // The completion gate also covers Complete's permit release. A drain that
@@ -327,6 +332,7 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// </summary>
     public void Complete()
     {
+        BeforeCompletionLockForTest?.Invoke();
         lock (_completionGate)
         {
             if (_completed) return;

@@ -259,6 +259,9 @@ public sealed class Issue96SchedulerTests
             await Task.Delay(10).ConfigureAwait(false);
         }
 
+        await Assert.That(monitor.IdleWait.IsWaiting).IsTrue();
+        await Assert.That(monitor.IdleWait.Deadline).IsNotNull();
+
         var health = new SchedulerHealthCheck(monitor, fx.Loop, fx.Time, TimeSpan.FromMinutes(1));
         var before = await health.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
         await Assert.That(before.Status).IsEqualTo(HealthStatus.Healthy);
@@ -266,6 +269,30 @@ public sealed class Issue96SchedulerTests
         fx.Time.Advance(TimeSpan.FromMinutes(4));
         var after = await health.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
         await Assert.That(after.Status).IsEqualTo(HealthStatus.Unhealthy);
+    }
+
+    /// <summary>
+    /// A dispatch that triggers again does not wait for a slot held by its own in-flight work.
+    /// </summary>
+    [Test]
+    public async Task DispatchThatTriggers_DoesNotWaitForItsOwnAdmissionSlot()
+    {
+        await using var fx = await LoopFixture.StartAsync(Start).ConfigureAwait(false);
+        var dispatcher = new RetriggerDispatcher(fx.Registry);
+        await fx.RegisterAsync("held", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher)
+            .ConfigureAwait(false);
+
+        var budget = ScheduleTickLoop.MaxOutstandingDispatches;
+        fx.Time.Advance(TimeSpan.FromMinutes(budget + 2));
+        var deadline = DateTime.UtcNow + Timeout;
+        while (dispatcher.Completed < budget && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10).ConfigureAwait(false);
+        }
+
+        await Assert.That(dispatcher.Completed).IsGreaterThanOrEqualTo(budget);
+        await Assert.That(dispatcher.Rejected).IsGreaterThan(0);
+        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -378,6 +405,41 @@ public sealed class Issue96SchedulerTests
     private sealed class CountingDispatcher : IJobDispatcher
     {
         public ValueTask DispatchAsync(JobFireContext context, CancellationToken ct) => ValueTask.CompletedTask;
+    }
+
+    private sealed class RetriggerDispatcher(IScheduleRegistry registry) : IJobDispatcher
+    {
+        private int started;
+        private int completed;
+        private int rejected;
+
+        public int Completed => Volatile.Read(ref this.completed);
+
+        public int Rejected => Volatile.Read(ref this.rejected);
+
+        public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
+        {
+            var call = Interlocked.Increment(ref this.started);
+            if (call <= ScheduleTickLoop.MaxOutstandingDispatches)
+            {
+                await this.TryTriggerAsync(context.JobName).ConfigureAwait(false);
+                await this.TryTriggerAsync(context.JobName).ConfigureAwait(false);
+            }
+
+            Interlocked.Increment(ref this.completed);
+        }
+
+        private async Task TryTriggerAsync(string name)
+        {
+            try
+            {
+                await registry.TriggerAsync(name).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException)
+            {
+                Interlocked.Increment(ref this.rejected);
+            }
+        }
     }
 
     private sealed class CallCountingDispatcher : IJobDispatcher

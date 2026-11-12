@@ -125,6 +125,11 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
     /// </summary>
     internal Action? BeforeMatchedWakeForTest { get; set; }
 
+    /// <summary>
+    /// Runs at the start of <see cref="Complete"/>, before it takes the admission gate.
+    /// </summary>
+    internal Action? BeforeCompletionLockForTest { get; set; }
+
     internal void ConsumeMatchedWake()
     {
         // Same handshake as the relaxed binding: completion publishes its flag and
@@ -274,6 +279,7 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
     /// </summary>
     public void Complete()
     {
+        BeforeCompletionLockForTest?.Invoke();
         lock (_admissionGate)
         {
             if (_completed) return;
