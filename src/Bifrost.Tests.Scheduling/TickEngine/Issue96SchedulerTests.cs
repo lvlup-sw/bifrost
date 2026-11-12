@@ -17,6 +17,7 @@ using Bifrost.Scheduling.TickEngine;
 using Bifrost.Tests.Scheduling.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -230,6 +231,110 @@ public sealed class Issue96SchedulerTests
         await Assert.That(store.Checkpoints).IsEqualTo(0);
     }
 
+    /// <summary>
+    /// A full dispatch budget is healthy at first and unhealthy after the stall window.
+    /// </summary>
+    [Test]
+    public async Task CapacityWait_PastTheStaleWindow_IsUnhealthy()
+    {
+        var monitor = new TickHealthMonitor();
+        var dispatcher = new BlockingDispatcher();
+        await using var fx = await LoopFixture.StartAsync(Start, monitor, new InMemoryScheduleStore())
+            .ConfigureAwait(false);
+        await fx.RegisterAsync("minute", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher)
+            .ConfigureAwait(false);
+
+        var budget = ScheduleTickLoop.MaxOutstandingDispatches;
+        fx.Time.Advance(TimeSpan.FromMinutes(budget + 2));
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (dispatcher.Entered < budget && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10).ConfigureAwait(false);
+        }
+
+        await Assert.That(dispatcher.Entered).IsEqualTo(budget);
+        var seen = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (DateTime.UtcNow < seen && monitor.IdleWait.Deadline is null)
+        {
+            await Task.Delay(10).ConfigureAwait(false);
+        }
+
+        var health = new SchedulerHealthCheck(monitor, fx.Loop, fx.Time, TimeSpan.FromMinutes(1));
+        var before = await health.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        await Assert.That(before.Status).IsEqualTo(HealthStatus.Healthy);
+
+        fx.Time.Advance(TimeSpan.FromMinutes(4));
+        var after = await health.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        await Assert.That(after.Status).IsEqualTo(HealthStatus.Unhealthy);
+    }
+
+    /// <summary>
+    /// A new registration does not keep a checkpoint hole from the previous job of that name.
+    /// </summary>
+    [Test]
+    public async Task Replacement_CheckpointsAfterTheOldHoleIsGone()
+    {
+        var store = new SignalingStore();
+        await using var fx = await LoopFixture.StartAsync(Start, new TickHealthMonitor(), store)
+            .ConfigureAwait(false);
+        await fx.RegisterAsync("gap", Cadence.Interval(TimeSpan.FromMinutes(1)), new FailOnceDispatcher())
+            .ConfigureAwait(false);
+        fx.Time.Advance(TimeSpan.FromMinutes(1));
+        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        await Assert.That(store.Checkpoints).IsEqualTo(0);
+
+        await fx.Registry.UnregisterAsync("gap").ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        var replacement = new CallCountingDispatcher();
+        await fx.RegisterAsync("gap", Cadence.Interval(TimeSpan.FromMinutes(1)), replacement)
+            .ConfigureAwait(false);
+        fx.Time.Advance(TimeSpan.FromMinutes(1));
+        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+
+        await Assert.That(replacement.Calls).IsGreaterThan(0);
+        await Assert.That(store.Checkpoints).IsGreaterThan(0);
+    }
+
+    /// <summary>
+    /// A trigger retained for one registration does not run on the job that replaces it.
+    /// </summary>
+    [Test]
+    public async Task RetainedTrigger_AfterReplacement_DoesNotFireTheNewJob()
+    {
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var blocker = new HoldDispatcher(release);
+        var replacement = new CallCountingDispatcher();
+        await using var fx = await LoopFixture.StartAsync(Start).ConfigureAwait(false);
+        try
+        {
+            await fx.RegisterAsync("held", Cadence.Interval(TimeSpan.FromMinutes(1)), blocker)
+                .ConfigureAwait(false);
+            var budget = ScheduleTickLoop.MaxOutstandingDispatches;
+            fx.Time.Advance(TimeSpan.FromMinutes(budget + 2));
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (blocker.Entered < budget && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(10).ConfigureAwait(false);
+            }
+
+            await Assert.That(blocker.Entered).IsEqualTo(budget);
+            await fx.Registry.TriggerAsync("held").ConfigureAwait(false);
+            await fx.Registry.UnregisterAsync("held").ConfigureAwait(false);
+            await fx.Registry.RegisterAsync(
+                "held",
+                Cadence.At(Start.AddDays(1)),
+                MissedFirePolicy.SkipMissed,
+                replacement).ConfigureAwait(false);
+            release.TrySetResult();
+            await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+            await Assert.That(replacement.Calls).IsEqualTo(0);
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
+    }
+
     private sealed class Probe : IDisposable
     {
         public void Dispose()
@@ -273,6 +378,36 @@ public sealed class Issue96SchedulerTests
     private sealed class CountingDispatcher : IJobDispatcher
     {
         public ValueTask DispatchAsync(JobFireContext context, CancellationToken ct) => ValueTask.CompletedTask;
+    }
+
+    private sealed class CallCountingDispatcher : IJobDispatcher
+    {
+        private int calls;
+
+        public int Calls => Volatile.Read(ref this.calls);
+
+        public ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
+        {
+            Interlocked.Increment(ref this.calls);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class HoldDispatcher(TaskCompletionSource release) : IJobDispatcher
+    {
+        private int entered;
+
+        public int Entered => Volatile.Read(ref this.entered);
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage(
+            "Usage",
+            "VSTHRD003:Avoid awaiting foreign Tasks",
+            Justification = "The release task is an intentional test gate.")]
+        public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
+        {
+            Interlocked.Increment(ref this.entered);
+            await release.Task.ConfigureAwait(false);
+        }
     }
 
     private sealed class BlockingDispatcher : IJobDispatcher
@@ -474,7 +609,11 @@ public sealed class Issue96SchedulerTests
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            // StopAsync arms the shutdown deadline before its first await. Advance it
+            // so a dispatcher blocked on the dispatch token can leave during dispose.
+            var stop = ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
+            this.Time.Advance(TimeSpan.FromSeconds(30));
+            await stop.ConfigureAwait(false);
             this.Loop.Dispose();
             if (this.Router is PauseAtBudgetRouter pausing)
             {

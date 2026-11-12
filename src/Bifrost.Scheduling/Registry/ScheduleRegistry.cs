@@ -44,12 +44,24 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     private readonly ISchedulerEventSink events;
     private readonly ConcurrentDictionary<string, JobRecord> jobs = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, IJobDispatcher> dispatchers = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Maximum triggers accepted and not yet handed off. Further
+    /// <see cref="TriggerAsync"/> calls wait, so the command channel cannot
+    /// accumulate an unbounded trigger backlog.
+    /// </summary>
+    internal const int MaxQueuedTriggers = 64;
+
     private readonly Channel<RegistryCommand> commands =
         Channel.CreateUnbounded<RegistryCommand>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false,
         });
+
+    private readonly SemaphoreSlim triggerAdmission = new(MaxQueuedTriggers, MaxQueuedTriggers);
+
+    private readonly CancellationTokenSource triggerAdmissionCancelled = new();
 
     // Single-shot dispose guard (0 = not disposed). Interlocked so a concurrent or
     // repeated dispose completes the command writer exactly once: a second
@@ -488,8 +500,31 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         // orphan already-committed state), there is nothing committed here to protect,
         // so a caller cancellation should cleanly abort the trigger via OCE and enqueue
         // nothing — matching the caller-cancel→OCE contract for uncommitted operations.
-        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name), ct).ConfigureAwait(false);
+        // The admission slot stays held until the tick loop hands the trigger off,
+        // drops it, or abandons it at shutdown.
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, this.triggerAdmissionCancelled.Token);
+        var acquired = false;
+        try
+        {
+            await this.triggerAdmission.WaitAsync(linked.Token).ConfigureAwait(false);
+            acquired = true;
+            await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name), linked.Token).ConfigureAwait(false);
+            acquired = false;
+        }
+        finally
+        {
+            if (acquired)
+            {
+                this.triggerAdmission.Release();
+            }
+        }
     }
+
+    /// <summary>
+    /// Returns one trigger admission slot after the tick loop hands the trigger
+    /// off, drops it, or abandons it.
+    /// </summary>
+    internal void ReleaseTriggerAdmission() => this.triggerAdmission.Release();
 
     /// <inheritdoc/>
     public IReadOnlyList<JobDescriptor> GetJobs()
@@ -682,7 +717,10 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         // would throw, so the guard makes double-dispose (sync or async) safe.
         if (Interlocked.Exchange(ref this.disposed, 1) == 0)
         {
+            this.triggerAdmissionCancelled.Cancel();
             this.commands.Writer.Complete();
+            this.triggerAdmission.Dispose();
+            this.triggerAdmissionCancelled.Dispose();
         }
     }
 }

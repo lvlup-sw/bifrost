@@ -111,6 +111,31 @@ public sealed class GracefulShutdownTests
     }
 
     /// <summary>
+    /// A dispatch already handed off keeps running until the shutdown window ends.
+    /// </summary>
+    [Test]
+    public async Task InFlight_IsNotCancelledUntilShutdownTimeout()
+    {
+        var dispatcher = new CancelAwareDispatcher();
+        var fx = await Fixture.StartAsync(
+            new SchedulerOptions { ShutdownTimeout = TimeSpan.FromSeconds(5) }).ConfigureAwait(false);
+        await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher)
+            .ConfigureAwait(false);
+
+        fx.Time.Advance(TimeSpan.FromMinutes(1));
+        await dispatcher.WaitUntilEnteredAsync(TestTimeout).ConfigureAwait(false);
+
+        var stop = ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
+        await Assert.That(stop.IsCompleted).IsFalse();
+        await Assert.That(dispatcher.WasCancelled).IsFalse();
+
+        fx.Time.Advance(TimeSpan.FromSeconds(5));
+        await stop.ConfigureAwait(false);
+        await dispatcher.WaitUntilCancelledAsync(TestTimeout).ConfigureAwait(false);
+        fx.Loop.Dispose();
+    }
+
+    /// <summary>
     /// Verifies no dispatch occurs after <c>StopAsync</c>, even as time advances.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
@@ -249,6 +274,34 @@ public sealed class GracefulShutdownTests
     /// <summary>
     /// A dispatcher that counts fires. Thread-safe: the router dispatches on the pool.
     /// </summary>
+    private sealed class CancelAwareDispatcher : IJobDispatcher
+    {
+        private readonly TaskCompletionSource entered =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private readonly TaskCompletionSource cancelled =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool WasCancelled => this.cancelled.Task.IsCompleted;
+
+        public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
+        {
+            this.entered.TrySetResult();
+            try
+            {
+                await Task.Delay(System.Threading.Timeout.Infinite, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                this.cancelled.TrySetResult();
+            }
+        }
+
+        public Task WaitUntilEnteredAsync(TimeSpan timeout) => this.entered.Task.WaitAsync(timeout);
+
+        public Task WaitUntilCancelledAsync(TimeSpan timeout) => this.cancelled.Task.WaitAsync(timeout);
+    }
+
     private sealed class CountingDispatcher : IJobDispatcher
     {
         private int fireCount;
