@@ -127,12 +127,12 @@ internal sealed class JobBuilder<TWork> : IJobBuilder<TWork>, IJobDefinitionSour
         this.workClass = WorkClass.Default;
 
         // Register the dispatcher at configuration time (F1, Task 50) so the factory
-        // resolves it at fire time without the consumer having to AddSingleton it
-        // manually. TryAddSingleton keeps any registration the consumer supplied —
-        // e.g. a custom factory or a different lifetime. The generic registration is
-        // AOT/trim-safe: no reflection-from-string, the type is statically known.
+        // can resolve it at fire time without the consumer having to register it.
+        // TryAddSingleton keeps a registration the consumer already supplied, including
+        // a scoped or transient lifetime. The factory does not resolve TDispatcher from
+        // the root: each fire resolves it from that fire's scope.
         this.services.TryAddSingleton<TDispatcher>();
-        this.dispatcherFactory = static provider => provider.GetRequiredService<TDispatcher>();
+        this.dispatcherFactory = static provider => new ScopeResolvingJobDispatcher<TDispatcher>(provider);
         return this;
     }
 

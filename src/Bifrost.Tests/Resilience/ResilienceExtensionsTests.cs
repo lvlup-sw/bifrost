@@ -4,7 +4,9 @@
 // </copyright>
 // =============================================================================
 
+using Bifrost;
 using Bifrost.Core;
+using Bifrost.Core.DeadLetter;
 using Bifrost.DependencyInjection;
 using Bifrost.Resilience;
 
@@ -76,9 +78,9 @@ public class ResilienceExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var options = provider.GetService<IOptions<ResiliencySettings>>();
+        var options = provider.GetService<IOptionsMonitor<ResiliencySettings>>();
         await Assert.That(options).IsNotNull();
-        await Assert.That(options!.Value).IsNotNull();
+        await Assert.That(options!.Get(WorkOptions.Name<string>())).IsNotNull();
     }
 
     /// <summary>
@@ -104,9 +106,9 @@ public class ResilienceExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var options = provider.GetRequiredService<IOptions<ResiliencySettings>>();
-        await Assert.That(options.Value.RetryCount).IsEqualTo(5);
-        await Assert.That(options.Value.TimeoutIntervalSeconds).IsEqualTo(30);
+        var options = provider.GetRequiredService<IOptionsMonitor<ResiliencySettings>>().Get(WorkOptions.Name<string>());
+        await Assert.That(options.RetryCount).IsEqualTo(5);
+        await Assert.That(options.TimeoutIntervalSeconds).IsEqualTo(30);
     }
 
     /// <summary>
@@ -178,10 +180,64 @@ public class ResilienceExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var options = provider.GetRequiredService<IOptions<ResiliencySettings>>();
-        await Assert.That(options.Value.RetryCount).IsEqualTo(3);
-        await Assert.That(options.Value.UseExponentialBackoff).IsTrue();
-        await Assert.That(options.Value.TimeoutIntervalSeconds).IsEqualTo(5);
-        await Assert.That(options.Value.CircuitBreakerCount).IsEqualTo(3);
+        var options = provider.GetRequiredService<IOptionsMonitor<ResiliencySettings>>().Get(WorkOptions.Name<string>());
+        await Assert.That(options.RetryCount).IsEqualTo(3);
+        await Assert.That(options.UseExponentialBackoff).IsTrue();
+        await Assert.That(options.TimeoutIntervalSeconds).IsEqualTo(5);
+        await Assert.That(options.CircuitBreakerCount).IsEqualTo(3);
+    }
+
+    /// <summary>
+    /// Two work types keep their own retry counts. A later pipeline must not replace an earlier one.
+    /// </summary>
+    [Test]
+    public async Task WithResilience_DifferentWorkTypes_KeepIndependentRetryCounts()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<IWorkHandler<LeftWork>, NoopWorkHandler<LeftWork>>();
+        services.AddSingleton<IWorkHandler<RightWork>, NoopWorkHandler<RightWork>>();
+        services.AddSingleton<ILogger<WorkOrchestrator<LeftWork>>>(NullLogger<WorkOrchestrator<LeftWork>>.Instance);
+        services.AddSingleton<ILogger<WorkOrchestrator<RightWork>>>(NullLogger<WorkOrchestrator<RightWork>>.Instance);
+
+        services.AddWorkOrchestrator<LeftWork>(options => options.Capacity = 4)
+            .WithResilience(settings => settings.RetryCount = 0)
+            .WithDeadLetterQueue(options => options.MaxRetries = 0)
+            .Build();
+        services.AddWorkOrchestrator<RightWork>(options =>
+            {
+                options.Capacity = 9;
+                options.DispatchStrategy = DispatchStrategy.PriorityExact;
+                options.FullMode = QueueFullMode.Reject;
+            })
+            .WithResilience(settings => settings.RetryCount = 5)
+            .WithDeadLetterQueue(options => options.MaxRetries = 2)
+            .Build();
+
+        await using var provider = services.BuildServiceProvider();
+        _ = provider.GetRequiredService<IWorkOrchestrator<LeftWork>>();
+        _ = provider.GetRequiredService<IWorkOrchestrator<RightWork>>();
+
+        var resilience = provider.GetRequiredService<IOptionsMonitor<ResiliencySettings>>();
+        var orchestrators = provider.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>();
+        var deadLetters = provider.GetRequiredService<IOptionsMonitor<DeadLetterQueueOptions>>();
+
+        await Assert.That(resilience.Get(WorkOptions.Name<LeftWork>()).RetryCount).IsEqualTo(0);
+        await Assert.That(resilience.Get(WorkOptions.Name<RightWork>()).RetryCount).IsEqualTo(5);
+        await Assert.That(orchestrators.Get(WorkOptions.Name<LeftWork>()).Capacity).IsEqualTo(4);
+        await Assert.That(orchestrators.Get(WorkOptions.Name<LeftWork>()).DispatchStrategy).IsEqualTo(DispatchStrategy.Fifo);
+        await Assert.That(orchestrators.Get(WorkOptions.Name<RightWork>()).Capacity).IsEqualTo(9);
+        await Assert.That(orchestrators.Get(WorkOptions.Name<RightWork>()).DispatchStrategy).IsEqualTo(DispatchStrategy.PriorityExact);
+        await Assert.That(deadLetters.Get(WorkOptions.Name<LeftWork>()).MaxRetries).IsEqualTo(0);
+        await Assert.That(deadLetters.Get(WorkOptions.Name<RightWork>()).MaxRetries).IsEqualTo(2);
+    }
+
+    private sealed class LeftWork;
+
+    private sealed class RightWork;
+
+    private sealed class NoopWorkHandler<TWork> : IWorkHandler<TWork>
+    {
+        public ValueTask HandleAsync(TWork work, CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 }

@@ -315,4 +315,21 @@ public class DeadLetterNotifierTests
             await gate.CancelAsync().ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// Verifies dispose stops deliveries that have not started.
+    /// </summary>
+    [Test]
+    public async Task Notify_AfterDispose_DoesNotInvokeCallback()
+    {
+        var notifier = CreateNotifier();
+        var called = 0;
+        notifier.Subscribe(_ => Interlocked.Increment(ref called));
+        notifier.Dispose();
+
+        notifier.Notify(new WorkDeadLetteredEvent<string>("work", null, 1, DateTimeOffset.UtcNow));
+        await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+
+        await Assert.That(Volatile.Read(ref called)).IsEqualTo(0);
+    }
 }

@@ -114,9 +114,21 @@ public sealed class SchedulerHealthCheck : IHealthCheck
 
         var now = this.timeProvider.GetUtcNow();
         var lastTick = this.monitor.LastTickAt;
-        if (lastTick is not null)
+        var staleAfter = this.expectedInterval * StaleTickIntervalMultiplier;
+        var idle = this.monitor.IdleWait;
+        if (idle.IsWaiting)
         {
-            var staleAfter = this.expectedInterval * StaleTickIntervalMultiplier;
+            // A parked loop is alive. It is stale only when a wake deadline has passed
+            // and the loop still has not ticked.
+            if (idle.Deadline is { } deadline && now - deadline > staleAfter)
+            {
+                return Task.FromResult(HealthCheckResult.Unhealthy(
+                    $"Scheduler wake is overdue: the parked wait ended at {deadline:O}, exceeding " +
+                    $"{StaleTickIntervalMultiplier}x the expected interval ({this.expectedInterval})."));
+            }
+        }
+        else if (lastTick is not null)
+        {
             var sinceLastTick = now - lastTick.Value;
             if (sinceLastTick > staleAfter)
             {

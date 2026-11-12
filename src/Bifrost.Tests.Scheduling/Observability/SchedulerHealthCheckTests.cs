@@ -71,6 +71,44 @@ public sealed class SchedulerHealthCheckTests
     }
 
     /// <summary>
+    /// An idle park is not a stalled tick, even after several expected intervals.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task IdleWait_AfterSeveralIntervals_StaysHealthy()
+    {
+        var time = new FakeTimeProvider(Start);
+        var monitor = new TickHealthMonitor();
+        monitor.RecordTick(time.GetUtcNow());
+        monitor.RecordIdleWait(deadline: null);
+        time.Advance(ExpectedInterval * 10);
+
+        var result = await NewCheck(monitor, faulted: false, time)
+            .CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+
+        await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
+    }
+
+    /// <summary>
+    /// A parked wait that misses its deadline by more than the stall window is unhealthy.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task IdleWaitPastDeadline_IsUnhealthy()
+    {
+        var time = new FakeTimeProvider(Start);
+        var monitor = new TickHealthMonitor();
+        monitor.RecordTick(time.GetUtcNow());
+        monitor.RecordIdleWait(Start + ExpectedInterval);
+        time.Advance((ExpectedInterval * 4) + TimeSpan.FromTicks(1));
+
+        var result = await NewCheck(monitor, faulted: false, time)
+            .CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+
+        await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
+    }
+
+    /// <summary>
     /// Verifies the check is unhealthy when the dispatch-failure rate over the rolling
     /// window of the last 100 fires exceeds 50%.
     /// </summary>

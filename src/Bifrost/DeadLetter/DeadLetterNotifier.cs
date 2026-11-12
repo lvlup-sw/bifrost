@@ -13,12 +13,13 @@ namespace Bifrost.DeadLetter;
 /// <summary>
 /// Multi-subscriber notifier for dead letter events. Subscribers are invoked
 /// fire-and-forget on the thread pool with per-subscriber error isolation.
-/// Callbacks can overlap and must return promptly. Notifications are best-effort,
-/// are not drained at shutdown, and drop once <see cref="MaxOutstandingCallbacks"/>
-/// deliveries are still running. They are not replayed.
+/// Callbacks can overlap and must return promptly. Notifications are best-effort
+/// and are not replayed. At most <see cref="MaxOutstandingCallbacks"/> deliveries
+/// run at once; further notifications are dropped. Disposing the notifier stops
+/// new deliveries and skips callbacks that have not started.
 /// </summary>
 /// <typeparam name="TWork">The type of work item.</typeparam>
-internal sealed class DeadLetterNotifier<TWork>
+internal sealed class DeadLetterNotifier<TWork> : IDisposable
 {
     internal const int MaxOutstandingCallbacks = 32;
 
@@ -26,6 +27,7 @@ internal sealed class DeadLetterNotifier<TWork>
     private readonly SemaphoreSlim _outstanding = new(MaxOutstandingCallbacks, MaxOutstandingCallbacks);
     private readonly object _lock = new();
     private readonly ILogger<DeadLetterNotifier<TWork>> _logger;
+    private int _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DeadLetterNotifier{TWork}"/> class.
@@ -37,6 +39,14 @@ internal sealed class DeadLetterNotifier<TWork>
     }
 
     /// <summary>
+    /// Stops new notifications. Callbacks that have not started are skipped.
+    /// </summary>
+    public void Dispose()
+    {
+        Interlocked.Exchange(ref _disposed, 1);
+    }
+
+    /// <summary>
     /// Notifies all subscribers that a work item was dead-lettered.
     /// Subscribers are invoked fire-and-forget; exceptions in individual
     /// subscribers do not propagate to the caller or affect other subscribers.
@@ -44,6 +54,11 @@ internal sealed class DeadLetterNotifier<TWork>
     /// <param name="evt">The dead-lettered event.</param>
     public void Notify(WorkDeadLetteredEvent<TWork> evt)
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
         List<Func<WorkDeadLetteredEvent<TWork>, Task>> snapshot;
         lock (_lock)
         {
@@ -117,7 +132,10 @@ internal sealed class DeadLetterNotifier<TWork>
     {
         try
         {
-            await NotifySafe(callback, evt).ConfigureAwait(false);
+            if (Volatile.Read(ref _disposed) == 0)
+            {
+                await NotifySafe(callback, evt).ConfigureAwait(false);
+            }
         }
         finally
         {

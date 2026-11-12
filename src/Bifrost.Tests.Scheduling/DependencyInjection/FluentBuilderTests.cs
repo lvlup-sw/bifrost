@@ -266,7 +266,13 @@ public sealed class FluentBuilderTests
         var provider = services.BuildServiceProvider();
 
         var dispatcher = definition.DispatcherFactory(provider);
-        await Assert.That(dispatcher).IsTypeOf<CustomDispatcher>();
+        var resolved = provider.GetRequiredService<CustomDispatcher>();
+        await Assert.That(resolved.Fires).IsEqualTo(0);
+        await using var scope = provider.CreateAsyncScope();
+        await dispatcher.DispatchAsync(
+            new JobFireContext("custom-job", DateTimeOffset.UnixEpoch, null, scope.ServiceProvider),
+            CancellationToken.None).ConfigureAwait(false);
+        await Assert.That(resolved.Fires).IsEqualTo(1);
     }
 
     /// <summary>
@@ -294,7 +300,13 @@ public sealed class FluentBuilderTests
         var provider = services.BuildServiceProvider();
 
         var dispatcher = definition.DispatcherFactory(provider);
-        await Assert.That(dispatcher).IsTypeOf<CustomDispatcher>();
+        var resolved = provider.GetRequiredService<CustomDispatcher>();
+        await Assert.That(resolved.Fires).IsEqualTo(0);
+        await using var scope = provider.CreateAsyncScope();
+        await dispatcher.DispatchAsync(
+            new JobFireContext("custom-job", DateTimeOffset.UnixEpoch, null, scope.ServiceProvider),
+            CancellationToken.None).ConfigureAwait(false);
+        await Assert.That(resolved.Fires).IsEqualTo(1);
     }
 
     /// <summary>
@@ -343,8 +355,13 @@ public sealed class FluentBuilderTests
 
     private sealed class CustomDispatcher : IJobDispatcher
     {
+        public int Fires { get; private set; }
+
         public ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
-            => ValueTask.CompletedTask;
+        {
+            this.Fires++;
+            return ValueTask.CompletedTask;
+        }
     }
 
     /// <summary>

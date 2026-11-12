@@ -34,6 +34,9 @@ internal sealed class TickHealthMonitor : ITickHealthMonitor
 
     private long lastTickTicks = long.MinValue;
     private bool lastTickSet;
+    private bool idleWaiting;
+    private long idleDeadlineTicks = long.MinValue;
+    private bool idleDeadlineSet;
     private int count;
     private int head;
     private int failureCount;
@@ -77,12 +80,48 @@ internal sealed class TickHealthMonitor : ITickHealthMonitor
     }
 
     /// <inheritdoc/>
+    public IdleWaitObservation IdleWait
+    {
+        get
+        {
+            lock (this.gate)
+            {
+                return new IdleWaitObservation(
+                    this.idleWaiting,
+                    this.idleDeadlineSet
+                        ? new DateTimeOffset(this.idleDeadlineTicks, TimeSpan.Zero)
+                        : null);
+            }
+        }
+    }
+
+    /// <inheritdoc/>
     public void RecordTick(DateTimeOffset at)
     {
         lock (this.gate)
         {
             this.lastTickTicks = at.UtcTicks;
             this.lastTickSet = true;
+            this.idleWaiting = false;
+            this.idleDeadlineSet = false;
+        }
+    }
+
+    /// <inheritdoc/>
+    public void RecordIdleWait(DateTimeOffset? deadline)
+    {
+        lock (this.gate)
+        {
+            this.idleWaiting = true;
+            if (deadline is { } wakeBy)
+            {
+                this.idleDeadlineTicks = wakeBy.UtcTicks;
+                this.idleDeadlineSet = true;
+            }
+            else
+            {
+                this.idleDeadlineSet = false;
+            }
         }
     }
 

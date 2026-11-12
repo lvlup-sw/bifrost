@@ -407,6 +407,42 @@ internal sealed class SubQueue<TElement, TPriority>
     }
 
     /// <summary>
+    /// Reads a stable seqlock version and emptiness flag. Used to confirm that a scan's
+    /// empty observations share one instant: the version is unchanged across two reads
+    /// and the flag is empty.
+    /// </summary>
+    /// <param name="version">The even seqlock version when the read validates.</param>
+    /// <param name="empty">Whether the sub-queue published itself as empty.</param>
+    /// <returns><see langword="true"/> when a stable observation was taken.</returns>
+    internal bool TryReadStableObservation(out uint version, out bool empty)
+    {
+        SpinWait spinner = default;
+
+        for (int attempt = 0; attempt < ReadRetryLimit; attempt++)
+        {
+            uint before = Volatile.Read(ref _header.TopVersion);
+            if ((before & 1u) == 0)
+            {
+                int emptyFlag = _header.EmptyFlag;
+                Volatile.ReadBarrier();
+                uint after = Volatile.Read(ref _header.TopVersion);
+                if (before == after)
+                {
+                    version = before;
+                    empty = emptyFlag != 0;
+                    return true;
+                }
+            }
+
+            spinner.SpinOnce();
+        }
+
+        version = 0;
+        empty = false;
+        return false;
+    }
+
+    /// <summary>
     /// TEST-ONLY: forces the seqlock version odd, simulating a writer that never completes, so
     /// tests can pin the bounded-retry "unknown" behaviour of <see cref="TryReadTop"/>.
     /// </summary>

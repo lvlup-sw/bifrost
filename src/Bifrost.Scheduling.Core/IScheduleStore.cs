@@ -41,8 +41,9 @@ public interface IScheduleStore
 
     /// <summary>
     /// Records that a job fired, updating its last-fired and next-fire instants.
-    /// Called after the scheduler hands the fire off to the dispatcher; the
-    /// store decides whether to batch this update or write it through.
+    /// Called after the dispatcher acknowledges the fire. A crash before this
+    /// update leaves the occurrence retryable. The store decides whether to
+    /// batch this update or write it through.
     /// </summary>
     /// <param name="jobName">The name of the job that fired.</param>
     /// <param name="firedAt">The instant the job fired.</param>

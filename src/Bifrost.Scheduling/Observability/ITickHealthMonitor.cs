@@ -48,6 +48,20 @@ internal interface ITickHealthMonitor
     void RecordTick(DateTimeOffset at);
 
     /// <summary>
+    /// Gets the loop's deliberate wait, if it is parked until a wake rather than stalled
+    /// inside a tick. <see cref="IdleWaitObservation.Deadline"/> is <see langword="null"/>
+    /// when the heap is empty and the loop is waiting for a command.
+    /// </summary>
+    IdleWaitObservation IdleWait { get; }
+
+    /// <summary>
+    /// Records that the loop is parked until <paramref name="deadline"/>, or with no
+    /// deadline when the heap is empty. The next <see cref="RecordTick"/> clears it.
+    /// </summary>
+    /// <param name="deadline">The instant the current wait should end, or <see langword="null"/>.</param>
+    void RecordIdleWait(DateTimeOffset? deadline);
+
+    /// <summary>
     /// Records the outcome of a single fire into the rolling window, evicting the
     /// oldest outcome once the window is full.
     /// </summary>
@@ -57,3 +71,10 @@ internal interface ITickHealthMonitor
     /// </param>
     void RecordFireOutcome(bool success);
 }
+
+/// <summary>
+/// A point-in-time view of whether the tick loop is deliberately waiting.
+/// </summary>
+/// <param name="IsWaiting">True when the loop is parked in its wake wait.</param>
+/// <param name="Deadline">When that wait should end, or <see langword="null"/> if it has no timer.</param>
+internal readonly record struct IdleWaitObservation(bool IsWaiting, DateTimeOffset? Deadline);

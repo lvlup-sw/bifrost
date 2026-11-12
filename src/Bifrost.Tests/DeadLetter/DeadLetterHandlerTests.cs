@@ -44,6 +44,16 @@ public class DeadLetterHandlerTests
     }
 
     /// <summary>
+    /// Releases the notifier so its shutdown flag is observed by later tests.
+    /// </summary>
+    [After(Test)]
+    public Task Cleanup()
+    {
+        this._notifier.Dispose();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Verifies that when the inner handler succeeds, work is delegated and returns normally.
     /// </summary>
     [Test]
