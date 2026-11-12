@@ -108,10 +108,12 @@ public sealed class OrchestratorJobDispatcher<TWork> : IJobDispatcher
         // An admission rejection is a failed fire, not an exception: surface it as
         // a JobFireFailedEvent carrying the rejection reason as text, and complete
         // normally so the job's next occurrence is unaffected.
+        var reason = result.Reason?.ToString();
         this.sink.Publish(new JobFireFailedEvent(
             context.JobName,
             context.FireTime,
             Exception: null,
-            Reason: result.Reason?.ToString()));
+            Reason: reason));
+        ScheduledDispatchOutcome.Reject(reason);
     }
 }

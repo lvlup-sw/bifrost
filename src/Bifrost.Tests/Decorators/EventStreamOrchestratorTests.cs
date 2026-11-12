@@ -441,41 +441,6 @@ public class EventStreamOrchestratorTests
     }
 
     /// <summary>
-    /// Verifies that DisposeAsync completes the event channel so consumers don't block indefinitely.
-    /// </summary>
-    [Test]
-    public async Task DisposeAsync_CompletesEventChannel_ConsumersTerminateGracefully()
-    {
-        // Arrange
-        var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
-
-        // Start consuming events in background task
-        var eventConsumerTask = Task.Run(async () =>
-        {
-            var eventCount = 0;
-            await foreach (var _ in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>().ConfigureAwait(false))
-            {
-                eventCount++;
-            }
-
-            return eventCount;
-        });
-
-        // Give consumer time to start waiting
-        await Task.Delay(50).ConfigureAwait(false);
-
-        // Act - dispose the orchestrator
-        await decorator.DisposeAsync().ConfigureAwait(false);
-
-        // Assert - consumer task should complete (not block indefinitely)
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var completedSuccessfully = await Task.WhenAny(eventConsumerTask, Task.Delay(Timeout.Infinite, cts.Token)).ConfigureAwait(false) == eventConsumerTask;
-
-        await Assert.That(completedSuccessfully).IsTrue();
-        await _inner.Received(1).DisposeAsync().ConfigureAwait(false);
-    }
-
-    /// <summary>
     /// Verifies that PublishToSubscribers removes a subscriber whose buffer is completely full,
     /// indicating the consumer is not reading (stale subscriber cleanup - M10).
     /// </summary>

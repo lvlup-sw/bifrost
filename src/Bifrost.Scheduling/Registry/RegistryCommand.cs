@@ -4,6 +4,8 @@
 // </copyright>
 // =============================================================================
 
+using Bifrost.Scheduling.Core;
+
 namespace Bifrost.Scheduling.Registry;
 
 /// <summary>
@@ -36,4 +38,16 @@ internal enum RegistryCommandKind
 /// </summary>
 /// <param name="Kind">The lifecycle action that produced this command.</param>
 /// <param name="JobName">The name of the job the action applies to.</param>
-internal readonly record struct RegistryCommand(RegistryCommandKind Kind, string JobName);
+/// <param name="RegistrationId">
+/// The registration that accepted a trigger. Other commands leave this at zero.
+/// The tick loop drops the trigger when a later registration owns the name.
+/// </param>
+internal readonly record struct RegistryCommand(
+    RegistryCommandKind Kind,
+    string JobName,
+    long RegistrationId = 0);
+
+/// <summary>The dispatcher bound to a registration, or why the lookup missed.</summary>
+/// <param name="Dispatcher">The dispatcher for the requested registration.</param>
+/// <param name="Replaced">True when a different registration now owns the name.</param>
+internal readonly record struct DispatcherResolution(IJobDispatcher? Dispatcher, bool Replaced);

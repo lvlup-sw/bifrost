@@ -182,11 +182,25 @@ public class ApiRemediationTests
         foreach (var stripe in stripes) stripe.SyncLock.Enter();
         try
         {
-            producer = Task.Run(() => queue.Enqueue(new WorkEnvelope<string>("accepted", WorkClass.Interactive, 0)));
+            // Dedicated threads: a saturated pool can delay Task.Run past the spin
+            // window, and the admission handshake never starts.
+            producer = Task.Factory.StartNew(
+                () => queue.Enqueue(new WorkEnvelope<string>("accepted", WorkClass.Interactive, 0)),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
             entered = SpinWait.SpinUntil(() => (int)admission.GetValue(queue)! == 1, TimeSpan.FromSeconds(5));
-            closing = Task.Run(queue.Complete);
+            closing = Task.Factory.StartNew(
+                queue.Complete,
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
             closed = SpinWait.SpinUntil(() => (int)admission.GetValue(queue)! < 0, TimeSpan.FromSeconds(5));
-            repeated = Task.Run(queue.Complete);
+            repeated = Task.Factory.StartNew(
+                queue.Complete,
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
             waited = !closing.IsCompleted;
         }
         finally

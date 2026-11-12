@@ -163,6 +163,21 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     // Retirement can consume an item permit without taking the item. Restore a wake.
     internal void WakeConsumer() => _signal.Release();
 
+    internal void ConsumeMatchedWake()
+    {
+        // The completion gate also covers Complete's permit release. A drain that
+        // loses the check-then-wait race would otherwise take the completion wake
+        // and leave a parked consumer blocked after the queue is empty.
+        lock (_completionGate)
+        {
+            if (_completed) return;
+            _signal.Wait(0);
+        }
+    }
+
+    /// <summary>Gets the number of wake permits still available. Test inspection only.</summary>
+    internal int PendingWakeCountForTest => _signal.CurrentCount;
+
     /// <inheritdoc/>
     /// <remarks>
     /// The MultiQueue sums lock-striped per-sub-queue counters without locking, so the

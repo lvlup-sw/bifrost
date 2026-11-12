@@ -44,7 +44,7 @@ public sealed class SystematicRegistryRestartTests
         Exception? fault = null;
         try
         {
-            dispatch.Invoke(loop, ["job", SystematicRegistryTests.Epoch.AddMinutes(1), SystematicRegistryTests.Epoch.AddMinutes(2)]);
+            dispatch.Invoke(loop, ["job", SystematicRegistryTests.Epoch.AddMinutes(1), SystematicRegistryTests.Epoch.AddMinutes(2), registry.RegistrationId("job")]);
         }
         catch (System.Reflection.TargetInvocationException exception)
         {
@@ -99,17 +99,20 @@ public sealed class SystematicRegistryRestartTests
         {
             first.Clock.Advance(TimeSpan.FromMinutes(1));
             await first.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(10));
-            await Assert.That(store.CheckpointAttempts).IsEqualTo(1);
-            await Assert.That(store.CheckpointEffects).IsEqualTo(checkpointFault == 1 ? 0 : 1);
+            // A dispatcher that throws has not acknowledged the fire, so the
+            // occurrence stays uncheckpointed and the restart replays it.
+            await Assert.That(store.CheckpointAttempts).IsEqualTo(dispatchFails ? 0 : 1);
+            await Assert.That(store.CheckpointEffects).IsEqualTo(dispatchFails || checkpointFault == 1 ? 0 : 1);
             await Assert.That(attempts.Count).IsEqualTo(1);
         }
 
         var crashImage = store.Clone();
-        await Assert.That(crashImage.Record!.LastFiredAt).IsEqualTo(checkpointFault == 1 ? epoch : epoch.AddMinutes(1));
+        var unclaimed = dispatchFails || checkpointFault == 1;
+        await Assert.That(crashImage.Record!.LastFiredAt).IsEqualTo(unclaimed ? epoch : epoch.AddMinutes(1));
         var second = await Process.StartAsync(crashImage, epoch.AddMinutes(1), attempts, false);
         await using (second)
         {
-            var expectedAttempts = checkpointFault == 1 ? 2 : 1;
+            var expectedAttempts = unclaimed ? 2 : 1;
             await Assert.That(attempts.Count).IsEqualTo(expectedAttempts);
             await Assert.That(attempts.Distinct().Count()).IsEqualTo(1);
             second.Clock.Advance(TimeSpan.FromMinutes(1));

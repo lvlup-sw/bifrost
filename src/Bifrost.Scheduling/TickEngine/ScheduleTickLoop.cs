@@ -56,6 +56,29 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     private const string NoDispatcherFailureType = "NoDispatcher";
 
+    /// <summary>
+    /// Maximum due occurrences dispatched in one tick. The loop then drains commands
+    /// and observes cancellation before continuing a backlog, so a tiny interval and a
+    /// large clock jump cannot run away before pause or stop.
+    /// </summary>
+    internal const int LiveCatchUpDispatchBudget = 64;
+
+    /// <summary>
+    /// Maximum dispatches handed to the router and not yet finished. Further due
+    /// occurrences stay on the heap until a slot, a command, or shutdown wakes the loop.
+    /// Triggers wait in <see cref="ScheduleRegistry.MaxQueuedTriggers"/> and startup
+    /// catch-up keeps one cursor per job, so neither path grows without a bound.
+    /// </summary>
+    internal const int MaxOutstandingDispatches = 64;
+
+    /// <summary>
+    /// Longest delay passed to <see cref="Task.Delay(TimeSpan, TimeProvider, CancellationToken)"/>.
+    /// A longer span throws and would fault the shared loop.
+    /// </summary>
+    internal static readonly TimeSpan MaxWakeDelay = TimeSpan.FromMilliseconds(int.MaxValue - 1);
+
+    private const string AdmissionRejectedFailureType = "AdmissionRejected";
+
     private readonly ScheduleRegistry registry;
     private readonly IScheduleStore store;
     private readonly TimeProvider timeProvider;
@@ -101,6 +124,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private TaskCompletionSource dispatchesDrained =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    // Completed on every in-flight dispatch finish, including finishes that leave
+    // other dispatches running. The tick loop waits on it when due work remains and
+    // the outstanding budget is full, so the wait wakes for one free slot.
+    private TaskCompletionSource slotReleased =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     // Restart timestamps within the sliding fault-recovery window (DR-10). Touched
     // only on the tick thread inside HandleTickLoopFault, so it needs no lock.
     private readonly List<DateTimeOffset> restartTimes = [];
@@ -112,6 +141,26 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
     private long generationCounter;
     private int inFlightDispatches;
+
+    // Triggers that could not take an in-flight slot. The tick thread owns this queue.
+    // Due heap entries stay on the heap. Startup catch-up uses catchUps, one cursor
+    // per job, instead of one entry per missed occurrence.
+    private readonly Queue<RetainedDispatch> retainedDispatches = new();
+    private readonly Dictionary<string, CatchUpCursor> catchUps = new(StringComparer.Ordinal);
+    private readonly Queue<string> catchUpOrder = new();
+
+    // Per-job acknowledgement order. A later success must not checkpoint past an
+    // earlier fire that was rejected, threw, or never started. The epoch isolates a
+    // new registration from a hole left by an unregistered job of the same name.
+    private readonly object ackGate = new();
+    private readonly Dictionary<string, List<PendingFire>> pendingFires = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> jobEpoch = new(StringComparer.Ordinal);
+
+    // Cancelled when the shutdown drain window ends, not when StopAsync begins, so a
+    // dispatcher already handed off can run until SchedulerOptions.ShutdownTimeout.
+    private readonly CancellationTokenSource dispatchLifetime = new();
+    private Task? shutdownDeadline;
+    private CancellationToken loopStoppingToken;
     private int stopState;
     private int faultedState;
 
@@ -269,6 +318,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <inheritdoc/>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        this.loopStoppingToken = stoppingToken;
+
         // DR-6: the loop is unconditionally always-leader — there is no leadership,
         // lease, or coordination path. Opting into multi-instance against the default
         // non-exclusive store therefore produces duplicate fires; warn prominently.
@@ -313,8 +364,15 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             }
         }
 
-        // Unblock any test waiting on idle once the loop exits (faulted or stopped).
-        this.ReleaseIdleBarrier();
+        try
+        {
+            await this.DrainRetainedOnShutdownAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            // Unblock any test waiting on idle once the loop exits (faulted or stopped).
+            this.ReleaseIdleBarrier();
+        }
     }
 
     /// <summary>
@@ -548,6 +606,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </remarks>
     /// <param name="cancellationToken">A token to cancel the stop.</param>
     /// <returns>A task that completes when the loop has stopped.</returns>
+    [SuppressMessage(
+        "Usage",
+        "VSTHRD110:Observe result of async calls",
+        Justification = "Dispatch cancellation runs when the shutdown deadline elapses and must not delay StopAsync after the in-flight drain.")]
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         // Idempotent: a second stop (or a stop of a never-started loop) is a no-op.
@@ -565,6 +627,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // the loop teardown (otherwise the drain wait can park on a timer that is never
         // fired, hanging StopAsync indefinitely under a fake clock).
         var deadline = Task.Delay(this.options.ShutdownTimeout, this.timeProvider, cancellationToken);
+        this.shutdownDeadline = deadline;
+        _ = this.CancelDispatchesAtDeadlineAsync(deadline);
 
         // Signal the loop to stop scheduling and let the base unwind ExecuteAsync. The
         // base call is guarded: it is a no-op when ExecuteAsync never started.
@@ -678,11 +742,32 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         Volatile.Write(ref this.previousNowTicks, now.UtcTicks);
 
         var nextFire = this.PeekNextValidFire();
+        var workRemains = this.HasQueuedWork()
+            || (nextFire is not null && nextFire.Value <= now);
 
-        // A due job (or a past-due one) means do not wait — loop straight back to
-        // dispatch it.
-        if (nextFire is not null && nextFire.Value <= now)
+        // Due work means do not wait — loop straight back to dispatch it. When the
+        // outstanding budget is already full, spinning would not start that work.
+        // Wait for one slot or a command (including shutdown).
+        if (workRemains)
         {
+            if (Volatile.Read(ref this.inFlightDispatches) < MaxOutstandingDispatches)
+            {
+                return;
+            }
+
+            var slot = this.SlotReleasedTask();
+            if (Volatile.Read(ref this.inFlightDispatches) < MaxOutstandingDispatches)
+            {
+                return;
+            }
+
+            var blockedCommand = this.CommandReadyTask(stoppingToken);
+
+            // RecordTick cleared the idle observation. The deadline is this instant, so
+            // the usual stale window applies while no dispatch finishes. An empty heap
+            // still records a null deadline below and stays healthy.
+            this.healthMonitor.RecordIdleWait(now);
+            await Task.WhenAny(slot, blockedCommand).ConfigureAwait(false);
             return;
         }
 
@@ -695,6 +780,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         var drainTask = this.CurrentDrainTask();
         var commandReady = this.CommandReadyTask(stoppingToken);
         Task? delayTask = null;
+        CancellationTokenSource? delayCancellation = null;
         if (nextFire is not null)
         {
             var delay = nextFire.Value - now;
@@ -702,8 +788,22 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             {
                 delay = TimeSpan.Zero;
             }
+            else if (delay > MaxWakeDelay)
+            {
+                // Task.Delay rejects a span above int.MaxValue milliseconds and that
+                // exception faults the shared loop. Wake at the limit and re-arm.
+                delay = MaxWakeDelay;
+            }
 
-            delayTask = Task.Delay(delay, this.timeProvider, stoppingToken);
+            // Cancel this timer when the wait ends so a command or drain does not
+            // leave a superseded delay alive until its original deadline.
+            delayCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            delayTask = Task.Delay(delay, this.timeProvider, delayCancellation.Token);
+            this.healthMonitor.RecordIdleWait(now + delay);
+        }
+        else
+        {
+            this.healthMonitor.RecordIdleWait(deadline: null);
         }
 
         // Fully quiescent: nothing due and no dispatch in flight. Release the idle
@@ -729,6 +829,20 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         catch (OperationCanceledException)
         {
             // Shutdown requested.
+        }
+        finally
+        {
+            if (delayCancellation is not null)
+            {
+                try
+                {
+                    await delayCancellation.CancelAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    delayCancellation.Dispose();
+                }
+            }
         }
     }
 
@@ -782,12 +896,16 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 break;
 
             case RegistryCommandKind.Unregister:
+                this.Disarm(command.JobName);
+                this.BumpEpoch(command.JobName);
+                break;
+
             case RegistryCommandKind.Pause:
                 this.Disarm(command.JobName);
                 break;
 
             case RegistryCommandKind.Trigger:
-                this.FireImmediately(command.JobName);
+                this.FireImmediately(command.JobName, command.RegistrationId);
                 break;
 
             default:
@@ -854,24 +972,109 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private void Disarm(string jobName) => this.scheduled.Remove(jobName);
 
     /// <summary>
+    /// Starts a new registration epoch and drops acknowledgement state for the old one.
+    /// </summary>
+    /// <param name="jobName">The job that was unregistered.</param>
+    private void BumpEpoch(string jobName)
+    {
+        lock (this.ackGate)
+        {
+            this.jobEpoch[jobName] = this.jobEpoch.GetValueOrDefault(jobName) + 1;
+            this.pendingFires.Remove(jobName);
+        }
+
+        this.catchUps.Remove(jobName);
+    }
+
+    /// <summary>The registration epoch for <paramref name="jobName"/>.</summary>
+    /// <param name="jobName">The job name.</param>
+    /// <returns>The epoch. Zero when the job has never been unregistered.</returns>
+    private long CurrentEpoch(string jobName)
+    {
+        lock (this.ackGate)
+        {
+            return this.jobEpoch.GetValueOrDefault(jobName);
+        }
+    }
+
+    /// <summary>
+    /// Cancels dispatches that are still running when the shutdown deadline elapses.
+    /// </summary>
+    /// <param name="deadline">The pre-armed shutdown deadline.</param>
+    /// <returns>A task that completes after the deadline.</returns>
+    [SuppressMessage(
+        "Usage",
+        "VSTHRD003:Avoid awaiting foreign Tasks",
+        Justification = "The deadline is the shutdown timer this method exists to observe.")]
+    private async Task CancelDispatchesAtDeadlineAsync(Task deadline)
+    {
+        try
+        {
+            await deadline.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The stop itself was cancelled.
+        }
+
+        try
+        {
+            await this.dispatchLifetime.CancelAsync().ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Stop finished and the loop was disposed.
+        }
+    }
+
+    /// <summary>
     /// Fires a job out of band in response to a trigger, regardless of its schedule.
     /// The job's normal cadence is left untouched: the trigger is an extra fire, not a
     /// reschedule.
     /// </summary>
     /// <param name="jobName">The job to fire immediately.</param>
-    private void FireImmediately(string jobName)
+    /// <param name="registrationId">The registration that accepted the trigger.</param>
+    private void FireImmediately(string jobName, long registrationId)
     {
+        var resolution = this.registry.ResolveDispatcher(jobName, registrationId);
+        if (resolution.Replaced)
+        {
+            this.registry.ReleaseTriggerAdmission();
+            return;
+        }
+
         var record = this.registry.TryGetRecord(jobName);
         if (record is null)
         {
+            this.registry.ReleaseTriggerAdmission();
             return;
         }
 
         var now = this.timeProvider.GetUtcNow();
         var nextNext = record.NextFireAt
             ?? record.Cadence.ComputeNextFire(record.LastFiredAt, now);
+        var fire = new RetainedDispatch(
+            jobName,
+            now,
+            nextNext,
+            this.CurrentEpoch(jobName),
+            registrationId,
+            IsTrigger: true);
+        if (this.HasQueuedWork()
+            || Volatile.Read(ref this.inFlightDispatches) >= MaxOutstandingDispatches)
+        {
+            this.retainedDispatches.Enqueue(fire);
+            return;
+        }
 
-        this.Dispatch(jobName, now, nextNext);
+        try
+        {
+            this.Dispatch(fire.JobName, fire.Occurrence, fire.NextFireAt, fire.RegistrationId);
+        }
+        finally
+        {
+            this.registry.ReleaseTriggerAdmission();
+        }
     }
 
     /// <summary>
@@ -884,14 +1087,31 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private void DispatchDueJobs(CancellationToken stoppingToken)
     {
         var now = this.timeProvider.GetUtcNow();
-
-        while (this.heap.TryPeek(out _, out var occurrence) && occurrence <= now)
+        var dispatched = 0;
+        if (!this.DrainRetained(stoppingToken, ref dispatched))
         {
+            return;
+        }
+
+        while (!stoppingToken.IsCancellationRequested
+            && dispatched < LiveCatchUpDispatchBudget
+            && this.heap.TryPeek(out _, out var occurrence)
+            && occurrence <= now)
+        {
+            // Leave the occurrence queued. The caller waits for a free slot instead of
+            // opening another admission and scope.
+            if (Volatile.Read(ref this.inFlightDispatches) >= MaxOutstandingDispatches)
+            {
+                return;
+            }
+
             this.heap.TryDequeue(out var handle, out _);
+            dispatched++;
 
             // Lazy deletion: skip an entry whose job is no longer armed at this
-            // generation (paused, removed, or already rescheduled).
-            if (handle is null || !this.IsCurrent(handle))
+            // generation (paused, removed, or already rescheduled). A different
+            // registration of the same name is stale too: its own arm owns the schedule.
+            if (handle is null || !this.IsCurrent(handle) || this.BelongsToReplacement(handle))
             {
                 continue;
             }
@@ -932,8 +1152,234 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 this.Enqueue(handle.JobName, handle.Cadence, handle.MissedFirePolicy, nextNext.Value);
             }
 
-            this.Dispatch(handle.JobName, scheduledOccurrence, nextNext);
+            this.Dispatch(handle.JobName, scheduledOccurrence, nextNext, handle.RegistrationId);
         }
+    }
+
+    /// <summary>
+    /// Sends retained triggers and startup catch-up while slots and the catch-up
+    /// budget remain.
+    /// </summary>
+    /// <param name="stoppingToken">The loop's stopping token.</param>
+    /// <param name="dispatched">The number of fires already sent in this batch.</param>
+    /// <returns><see langword="false"/> when the caller must stop the batch.</returns>
+    private bool DrainRetained(CancellationToken stoppingToken, ref int dispatched)
+    {
+        while (!stoppingToken.IsCancellationRequested
+            && dispatched < LiveCatchUpDispatchBudget
+            && this.HasQueuedWork())
+        {
+            if (Volatile.Read(ref this.inFlightDispatches) >= MaxOutstandingDispatches)
+            {
+                return false;
+            }
+
+            if (this.DispatchOrDropOne())
+            {
+                dispatched++;
+            }
+        }
+
+        return !stoppingToken.IsCancellationRequested;
+    }
+
+    /// <summary>
+    /// Dispatches queued triggers and startup catch-up while the shutdown window
+    /// remains, then reports any trigger that was accepted and not sent.
+    /// </summary>
+    /// <returns>A task that completes when the shutdown drain finishes.</returns>
+    private async Task DrainRetainedOnShutdownAsync()
+    {
+        var deadline = this.shutdownDeadline;
+        while (this.HasQueuedWork())
+        {
+            if (deadline is { IsCompleted: true })
+            {
+                break;
+            }
+
+            if (Volatile.Read(ref this.inFlightDispatches) >= MaxOutstandingDispatches)
+            {
+                if (deadline is null)
+                {
+                    break;
+                }
+
+                var slot = this.SlotReleasedTask();
+                var completed = await Task.WhenAny(slot, deadline).ConfigureAwait(false);
+                if (ReferenceEquals(completed, deadline) || deadline.IsCompleted)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            this.DispatchOrDropOne();
+        }
+
+        this.AbandonRetainedTriggers();
+    }
+
+    /// <summary>True when a trigger or a startup cursor is still queued.</summary>
+    /// <returns><see langword="true"/> when queued work remains.</returns>
+    private bool HasQueuedWork()
+        => this.catchUpOrder.Count > 0 || this.retainedDispatches.Count > 0;
+
+    /// <summary>
+    /// Hands off one queued fire, or drops one whose registration is no longer live.
+    /// </summary>
+    /// <returns><see langword="true"/> when a fire was handed to the router.</returns>
+    private bool DispatchOrDropOne()
+    {
+        if (this.TryTakeCatchUp(out var name, out var occurrence, out var next, out var registrationId))
+        {
+            this.Dispatch(name, occurrence, next, registrationId);
+            return true;
+        }
+
+        if (this.retainedDispatches.Count == 0)
+        {
+            return false;
+        }
+
+        var fire = this.retainedDispatches.Dequeue();
+        if (!this.IsLiveRetained(fire))
+        {
+            this.ReleaseTrigger(fire);
+            return false;
+        }
+
+        try
+        {
+            this.Dispatch(fire.JobName, fire.Occurrence, fire.NextFireAt, fire.RegistrationId);
+        }
+        finally
+        {
+            this.ReleaseTrigger(fire);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Takes the next startup occurrence that still belongs to a running registration.
+    /// </summary>
+    /// <param name="name">The job name.</param>
+    /// <param name="occurrence">The occurrence to dispatch.</param>
+    /// <param name="next">The following occurrence.</param>
+    /// <param name="registrationId">The registration that queued the catch-up.</param>
+    /// <returns><see langword="true"/> when an occurrence was taken.</returns>
+    private bool TryTakeCatchUp(
+        out string name,
+        out DateTimeOffset occurrence,
+        out DateTimeOffset? next,
+        out long registrationId)
+    {
+        name = string.Empty;
+        occurrence = default;
+        next = null;
+        registrationId = 0;
+        while (this.catchUpOrder.Count > 0)
+        {
+            var job = this.catchUpOrder.Peek();
+            if (!this.catchUps.TryGetValue(job, out var cursor))
+            {
+                this.catchUpOrder.Dequeue();
+                continue;
+            }
+
+            var record = this.registry.TryGetRecord(job);
+            var liveId = this.registry.RegistrationId(job);
+            var replaced = liveId != 0 && liveId != cursor.RegistrationId;
+            if (cursor.Epoch != this.CurrentEpoch(job) || replaced || record is not { State: JobState.Running })
+            {
+                this.catchUps.Remove(job);
+                this.catchUpOrder.Dequeue();
+                continue;
+            }
+
+            name = job;
+            occurrence = cursor.Occurrence;
+            registrationId = cursor.RegistrationId;
+            next = cursor.Cadence.ComputeNextFire(cursor.Occurrence, cursor.Occurrence);
+            var remaining = cursor.Remaining - 1;
+            if (remaining <= 0 || next is null)
+            {
+                this.catchUps.Remove(job);
+                this.catchUpOrder.Dequeue();
+            }
+            else
+            {
+                this.catchUps[job] = cursor with { Occurrence = next.Value, Remaining = remaining };
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A retained trigger or startup fire still belongs to the registration that queued it.
+    /// </summary>
+    /// <param name="fire">The queued fire.</param>
+    /// <returns><see langword="true"/> when the fire may be dispatched.</returns>
+    private bool IsLiveRetained(RetainedDispatch fire)
+    {
+        if (fire.Epoch != this.CurrentEpoch(fire.JobName))
+        {
+            return false;
+        }
+
+        var liveRegistration = this.registry.RegistrationId(fire.JobName);
+        if (liveRegistration != 0 && liveRegistration != fire.RegistrationId)
+        {
+            return false;
+        }
+
+        var record = this.registry.TryGetRecord(fire.JobName);
+        if (record is null)
+        {
+            return false;
+        }
+
+        return fire.IsTrigger || record.State == JobState.Running;
+    }
+
+    /// <summary>Returns a trigger admission slot when <paramref name="fire"/> is a trigger.</summary>
+    /// <param name="fire">The fire that held the slot.</param>
+    private void ReleaseTrigger(RetainedDispatch fire)
+    {
+        if (fire.IsTrigger)
+        {
+            this.registry.ReleaseTriggerAdmission();
+        }
+    }
+
+    /// <summary>
+    /// Reports triggers that were accepted and not dispatched before the loop stopped.
+    /// Startup cursors stay in the store and replay on the next start.
+    /// </summary>
+    private void AbandonRetainedTriggers()
+    {
+        while (this.retainedDispatches.Count > 0)
+        {
+            var fire = this.retainedDispatches.Dequeue();
+            if (fire.IsTrigger && this.IsLiveRetained(fire))
+            {
+                this.eventSink.Publish(new JobFireFailedEvent(
+                    fire.JobName,
+                    fire.Occurrence,
+                    Exception: null,
+                    Reason: "The trigger was still queued when the scheduler stopped."));
+            }
+
+            this.ReleaseTrigger(fire);
+        }
+
+        this.catchUps.Clear();
+        this.catchUpOrder.Clear();
     }
 
     /// <summary>
@@ -979,11 +1425,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
     /// <summary>
     /// Performs a single fire: resolves the live dispatcher, publishes
-    /// <see cref="JobFiredEvent"/> — the dispatch-handoff signal — and checkpoints the
-    /// fire best-effort, then opens a per-fire <see cref="IServiceScope"/> (F2/M2) and
-    /// hands the fire to the router. The fire instant is the scheduled occurrence — never
-    /// a wall-clock read — so it is stable across re-evaluation and serves as the
-    /// idempotency key.
+    /// <see cref="JobFiredEvent"/> — the dispatch-handoff signal — then opens a per-fire
+    /// <see cref="IServiceScope"/> (F2/M2) and hands the fire to the router. The durable
+    /// checkpoint runs only after the dispatcher acknowledges the fire, so a crash before
+    /// that acknowledgment leaves the occurrence retryable. The fire instant is the
+    /// scheduled occurrence — never a wall-clock read — so it is stable across
+    /// re-evaluation and serves as the idempotency key.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -1004,10 +1451,20 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="jobName">The job firing.</param>
     /// <param name="scheduledOccurrence">The occurrence's logical instant.</param>
     /// <param name="nextFireAt">The next occurrence, or <see langword="null"/>.</param>
-    private void Dispatch(string jobName, DateTimeOffset scheduledOccurrence, DateTimeOffset? nextFireAt)
+    /// <param name="registrationId">The registration that queued the occurrence.</param>
+    private void Dispatch(
+        string jobName,
+        DateTimeOffset scheduledOccurrence,
+        DateTimeOffset? nextFireAt,
+        long registrationId)
     {
-        var record = this.registry.TryGetRecord(jobName);
-        var dispatcher = this.registry.TryGetDispatcher(jobName);
+        var resolution = this.registry.ResolveDispatcher(jobName, registrationId);
+        if (resolution.Replaced)
+        {
+            return;
+        }
+
+        var dispatcher = resolution.Dispatcher;
         if (dispatcher is null)
         {
             // No live dispatcher (job removed mid-flight): surface as a failed fire
@@ -1025,6 +1482,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             // never runs on this path, so this is the only place the outcome is recorded
             // (no double-recording).
             this.healthMonitor.RecordFireOutcome(success: false);
+            this.BlockLaterCheckpoints(jobName, scheduledOccurrence);
             return;
         }
 
@@ -1072,6 +1530,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             // missing from FailureRate/RecentFireCount. No tracking dispatcher runs on
             // this path, so this is the only recording (no double-recording).
             this.healthMonitor.RecordFireOutcome(success: false);
+            this.BlockLaterCheckpoints(jobName, scheduledOccurrence);
             return;
         }
 
@@ -1092,14 +1551,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // (it does not in practice), the catch undoes the count and disposes the scope
         // so the idle barrier can never strand.
         Interlocked.Increment(ref this.inFlightDispatches);
-        var tracked = new InFlightTrackingDispatcher(this, dispatcher, scope);
+        var expected = this.registry.TryGetRecord(jobName);
+        var pending = this.TrackFire(jobName, scheduledOccurrence, nextFireAt, expected, registrationId);
+        var tracked = new InFlightTrackingDispatcher(this, dispatcher, scope, pending);
         try
         {
-            this.router.Dispatch(tracked, context, CancellationToken.None);
-            if (record is not null)
-            {
-                this.SafeCheckpoint(record, scheduledOccurrence, nextFireAt);
-            }
+            this.router.Dispatch(tracked, context, this.dispatchLifetime.Token);
         }
 #pragma warning disable CA1031 // Undo the in-flight bookkeeping on any handoff fault.
         catch
@@ -1111,8 +1568,160 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             // the loop's fault recovery still sees it. CompleteFromHandoffFault shares the
             // decorator's single-shot guard, so even a non-conforming router that both
             // started the dispatch AND threw cannot double-decrement the count.
+            // A throw is not an acknowledgement: do not checkpoint.
+            tracked.MarkHandoffFaulted();
             tracked.CompleteFromHandoffFault(jobName);
+            this.SettleFire(pending, acknowledged: false);
             throw;
+        }
+
+        // A synchronous router has already run the dispatcher. Checkpoint only after
+        // that call returns, so a throw above cannot claim the occurrence. An
+        // asynchronous router returns first; the wrapper checkpoints when the
+        // dispatcher later acknowledges the fire.
+        if (tracked.TryMarkHandoffReturned())
+        {
+            tracked.Commit();
+        }
+    }
+
+    /// <summary>
+    /// Records a fire that did not start, so a later success cannot checkpoint past it.
+    /// </summary>
+    /// <param name="jobName">The job whose fire did not start.</param>
+    /// <param name="firedAt">The occurrence that stays unacknowledged.</param>
+    private void BlockLaterCheckpoints(string jobName, DateTimeOffset firedAt)
+    {
+        lock (this.ackGate)
+        {
+            var epoch = this.jobEpoch.GetValueOrDefault(jobName);
+            var list = this.FiresFor(jobName);
+            if (list.Count > 0 && list[0].State == PendingFire.Blocked && list[0].Epoch == epoch)
+            {
+                return;
+            }
+
+            var blocked = new PendingFire(jobName, firedAt, null, null, epoch, registrationId: 0)
+            {
+                State = PendingFire.Blocked,
+            };
+            blocked.Settled = true;
+            list.Add(blocked);
+            TrimAfterBlock(list);
+        }
+    }
+
+    /// <summary>
+    /// Remembers a handed-off fire until it is acknowledged or blocked.
+    /// </summary>
+    /// <param name="jobName">The job that fired.</param>
+    /// <param name="firedAt">The occurrence instant.</param>
+    /// <param name="nextFireAt">The next occurrence captured for a contiguous checkpoint.</param>
+    /// <param name="expected">The registry record captured before the dispatcher runs.</param>
+    /// <param name="registrationId">The registration <see cref="Dispatch"/> resolved.</param>
+    /// <returns>The fire the handoff settles.</returns>
+    private PendingFire TrackFire(
+        string jobName,
+        DateTimeOffset firedAt,
+        DateTimeOffset? nextFireAt,
+        JobRecord? expected,
+        long registrationId)
+    {
+        lock (this.ackGate)
+        {
+            var epoch = this.jobEpoch.GetValueOrDefault(jobName);
+            var fire = new PendingFire(jobName, firedAt, nextFireAt, expected, epoch, registrationId);
+            var list = this.FiresFor(jobName);
+            if (list.Count > 0 && list[0].State == PendingFire.Blocked && list[0].Epoch == epoch)
+            {
+                fire.State = PendingFire.Blocked;
+                fire.Settled = true;
+                return fire;
+            }
+
+            list.Add(fire);
+            return fire;
+        }
+    }
+
+    /// <summary>
+    /// Marks a fire acknowledged or blocked, then checkpoints the contiguous
+    /// acknowledged prefix. A block stops every later checkpoint for that job.
+    /// </summary>
+    /// <param name="fire">The fire to settle.</param>
+    /// <param name="acknowledged">Whether the dispatcher accepted the fire.</param>
+    private void SettleFire(PendingFire fire, bool acknowledged)
+    {
+        List<PendingFire> ready;
+        lock (this.ackGate)
+        {
+            if (fire.Settled)
+            {
+                return;
+            }
+
+            fire.Settled = true;
+            fire.State = acknowledged ? PendingFire.Acknowledged : PendingFire.Blocked;
+            if (fire.Epoch != this.jobEpoch.GetValueOrDefault(fire.JobName))
+            {
+                return;
+            }
+
+            var list = this.FiresFor(fire.JobName);
+            ready = DrainAckedPrefix(list);
+            TrimAfterBlock(list);
+        }
+
+        foreach (var item in ready)
+        {
+            if (item.Expected is not null)
+            {
+                this.SafeCheckpoint(item.Expected, item.FiredAt, item.NextFireAt, item.RegistrationId);
+            }
+        }
+    }
+
+    /// <summary>Returns the job's acknowledgement list. The caller holds <see cref="ackGate"/>.</summary>
+    /// <param name="jobName">The job name.</param>
+    /// <returns>The fires for that job, in dispatch order.</returns>
+    private List<PendingFire> FiresFor(string jobName)
+    {
+        if (!this.pendingFires.TryGetValue(jobName, out var list))
+        {
+            list = [];
+            this.pendingFires[jobName] = list;
+        }
+
+        return list;
+    }
+
+    /// <summary>Removes the leading acknowledged fires.</summary>
+    /// <param name="list">The job's fires, in dispatch order.</param>
+    /// <returns>The acknowledged prefix, in order.</returns>
+    private static List<PendingFire> DrainAckedPrefix(List<PendingFire> list)
+    {
+        var ready = new List<PendingFire>();
+        while (list.Count > 0 && list[0].State == PendingFire.Acknowledged)
+        {
+            ready.Add(list[0]);
+            list.RemoveAt(0);
+        }
+
+        return ready;
+    }
+
+    /// <summary>Drops fires that follow a permanent hole.</summary>
+    /// <param name="list">The job's fires, in dispatch order.</param>
+    private static void TrimAfterBlock(List<PendingFire> list)
+    {
+        if (list.Count == 0 || list[0].State != PendingFire.Blocked)
+        {
+            return;
+        }
+
+        if (list.Count > 1)
+        {
+            list.RemoveRange(1, list.Count - 1);
         }
     }
 
@@ -1123,18 +1732,26 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// swallowed. It never faults the loop or stalls it: the checkpoint is observed
     /// asynchronously off the tick thread so a slow store does not block scheduling.
     /// </summary>
+    /// <param name="record">The registry record captured before the dispatcher runs.</param>
+    /// <param name="firedAt">The occurrence the dispatcher acknowledged.</param>
+    /// <param name="nextFireAt">The next occurrence captured with that acknowledgement.</param>
+    /// <param name="registrationId">The registration that acknowledged the fire.</param>
     [SuppressMessage(
         "Usage",
         "VSTHRD110:Observe result of async calls",
         Justification = "The checkpoint is intentionally best-effort and observed via " +
             "the ObserveCheckpointAsync continuation, which swallows failures.")]
-    private void SafeCheckpoint(JobRecord record, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
+    private void SafeCheckpoint(
+        JobRecord record,
+        DateTimeOffset firedAt,
+        DateTimeOffset? nextFireAt,
+        long registrationId)
     {
         var jobName = record.Name;
         ValueTask checkpoint;
         try
         {
-            checkpoint = this.registry.CheckpointAsync(record, firedAt, nextFireAt);
+            checkpoint = this.registry.CheckpointAsync(record, firedAt, nextFireAt, registrationId);
         }
 #pragma warning disable CA1031 // Best-effort: a synchronous store throw must not fault the loop.
         catch (Exception ex)
@@ -1187,7 +1804,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private void Enqueue(string jobName, Cadence cadence, MissedFirePolicy policy, DateTimeOffset occurrence)
     {
         var generation = ++this.generationCounter;
-        var handle = new JobHandle(jobName, cadence, policy, occurrence, generation);
+        var handle = new JobHandle(
+            jobName,
+            cadence,
+            policy,
+            occurrence,
+            generation,
+            this.registry.RegistrationId(jobName));
         this.scheduled[jobName] = new ScheduledJob(generation, occurrence);
         this.heap.Enqueue(handle, occurrence);
     }
@@ -1201,6 +1824,18 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private bool IsCurrent(JobHandle handle)
         => this.scheduled.TryGetValue(handle.JobName, out var live)
             && live.Generation == handle.Generation;
+
+    /// <summary>
+    /// True when a newer registration owns the job name.
+    /// An unregistered name is not a replacement; the missing-dispatcher path reports it.
+    /// </summary>
+    /// <param name="handle">The heap entry being considered.</param>
+    /// <returns><see langword="true"/> when the entry must not run.</returns>
+    private bool BelongsToReplacement(JobHandle handle)
+    {
+        var liveId = this.registry.RegistrationId(handle.JobName);
+        return liveId != 0 && liveId != handle.RegistrationId;
+    }
 
     /// <summary>
     /// Peeks the nearest valid (non-stale) fire instant in the heap, discarding stale
@@ -1308,14 +1943,20 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         this.eventSink.Publish(new JobMissedFireEvent(record.Name, missedCount, record.MissedFirePolicy));
         this.metrics.RecordMissedFires(record.Name, missedCount, record.MissedFirePolicy);
 
-        // Dispatch each catch-up occurrence in order. The next fire after each is
-        // computed strictly from the occurrence (not the wall clock), matching the
-        // running-loop dispatch path.
-        foreach (var occurrence in catchUp)
+        // One cursor per job. DrainRetained walks the occurrences in order, so a
+        // blocked budget cannot retain one entry per missed fire.
+        if (catchUp.Count == 0 || this.catchUps.ContainsKey(record.Name))
         {
-            var nextAfter = record.Cadence.ComputeNextFire(occurrence, occurrence);
-            this.Dispatch(record.Name, occurrence, nextAfter);
+            return;
         }
+
+        this.catchUps[record.Name] = new CatchUpCursor(
+            record.Cadence,
+            catchUp[0],
+            catchUp.Count,
+            this.CurrentEpoch(record.Name),
+            this.registry.RegistrationId(record.Name));
+        this.catchUpOrder.Enqueue(record.Name);
     }
 
     /// <summary>
@@ -1364,7 +2005,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     private void OnDispatchCompleted()
     {
-        if (Interlocked.Decrement(ref this.inFlightDispatches) != 0)
+        var remaining = Interlocked.Decrement(ref this.inFlightDispatches);
+        this.ReleaseDispatchSlot();
+        if (remaining != 0)
         {
             return;
         }
@@ -1373,6 +2016,36 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             var previous = this.dispatchesDrained;
             this.dispatchesDrained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            previous.TrySetResult();
+        }
+    }
+
+    /// <summary>
+    /// Returns the task that completes the next time any in-flight dispatch finishes.
+    /// </summary>
+    /// <returns>The current slot-released task.</returns>
+    [SuppressMessage(
+        "Usage",
+        "VSTHRD003:Avoid awaiting foreign Tasks",
+        Justification = "Returns the intentional cross-thread slot signal the tick loop " +
+            "waits on when the outstanding dispatch budget is full.")]
+    private Task SlotReleasedTask()
+    {
+        lock (this.drainGate)
+        {
+            return this.slotReleased.Task;
+        }
+    }
+
+    /// <summary>
+    /// Completes the current slot-released task and arms a fresh one.
+    /// </summary>
+    private void ReleaseDispatchSlot()
+    {
+        lock (this.drainGate)
+        {
+            var previous = this.slotReleased;
+            this.slotReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             previous.TrySetResult();
         }
     }
@@ -1408,9 +2081,21 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// The per-fire DI scope to dispose after the fire completes, or
     /// <see langword="null"/> when no scope was created.
     /// </param>
-    private sealed class InFlightTrackingDispatcher(ScheduleTickLoop owner, IJobDispatcher inner, IServiceScope? scope)
+    /// <param name="pending">The fire whose acknowledgement can advance the checkpoint.</param>
+    private sealed class InFlightTrackingDispatcher(
+        ScheduleTickLoop owner,
+        IJobDispatcher inner,
+        IServiceScope? scope,
+        PendingFire pending)
         : IJobDispatcher
     {
+        // 0 = the router call is in progress, 1 = the dispatcher finished during that
+        // call, 2 = the router call returned, 3 = the router call threw.
+        private const int InHandoff = 0;
+        private const int CompletedDuringHandoff = 1;
+        private const int HandoffReturned = 2;
+        private const int HandoffFaulted = 3;
+
         // Single-shot completion guard (0 = not completed). Both the pool-thread finally
         // below and the synchronous handoff-fault path in Dispatch funnel through it, so
         // the per-fire scope is disposed and the in-flight count cleared EXACTLY once even
@@ -1419,26 +2104,78 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // and strand the idle/drain barrier. The in-tree router never throws synchronously,
         // so only one path ever runs in practice.
         private int completed;
+        private int phase;
+        private bool rejected;
+        private JobFireContext fire;
+
+        /// <summary>
+        /// Records that the router call threw. A later dispatcher completion must not
+        /// checkpoint, and the caller must not either.
+        /// </summary>
+        public void MarkHandoffFaulted() => Interlocked.Exchange(ref this.phase, HandoffFaulted);
+
+        /// <summary>
+        /// Records that the router call returned. The caller checkpoints only when the
+        /// dispatcher already finished successfully inside that call.
+        /// </summary>
+        /// <returns><see langword="true"/> when the caller must commit the outcome.</returns>
+        public bool TryMarkHandoffReturned()
+            => Interlocked.CompareExchange(ref this.phase, HandoffReturned, InHandoff) == CompletedDuringHandoff;
+
+        /// <summary>
+        /// Checkpoints a successful acknowledgement, or records an admission rejection.
+        /// A throwing dispatcher never reaches this method.
+        /// </summary>
+        public void Commit()
+        {
+            if (this.rejected)
+            {
+                owner.metrics.RecordDispatchFailure(this.fire.JobName, AdmissionRejectedFailureType);
+                owner.healthMonitor.RecordFireOutcome(success: false);
+                owner.SettleFire(pending, acknowledged: false);
+                return;
+            }
+
+            owner.healthMonitor.RecordFireOutcome(success: true);
+            owner.SettleFire(pending, acknowledged: true);
+        }
 
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
             try
             {
-                await inner.DispatchAsync(context, ct).ConfigureAwait(false);
-                owner.healthMonitor.RecordFireOutcome(success: true);
-            }
+                using (ScheduledDispatchOutcome.Begin(out var outcome))
+                {
+                    try
+                    {
+                        using (DispatchAdmission.Enter())
+                        {
+                            await inner.DispatchAsync(context, ct).ConfigureAwait(false);
+                        }
+
+                        // Publish the outcome before the phase swap so the caller that
+                        // observes CompletedDuringHandoff also observes these fields.
+                        this.fire = context;
+                        this.rejected = outcome.Rejected;
+                        var seen = Interlocked.CompareExchange(ref this.phase, CompletedDuringHandoff, InHandoff);
+                        if (seen == HandoffReturned)
+                        {
+                            this.Commit();
+                        }
+                    }
 #pragma warning disable CA1031 // A throwing dispatcher is isolated as a failed-fire event.
-            catch (Exception ex)
+                    catch (Exception ex)
 #pragma warning restore CA1031
-            {
-                // Isolate the dispatcher (DR-4): surface the throw as a failed fire
-                // carrying the exception, published before the in-flight count clears.
-                owner.eventSink.Publish(new JobFireFailedEvent(
-                    context.JobName,
-                    context.FireTime,
-                    ex));
-                owner.metrics.RecordDispatchFailure(context.JobName, ex.GetType().Name);
-                owner.healthMonitor.RecordFireOutcome(success: false);
+                    {
+                        owner.eventSink.Publish(new JobFireFailedEvent(
+                            context.JobName,
+                            context.FireTime,
+                            ex));
+                        owner.metrics.RecordDispatchFailure(context.JobName, ex.GetType().Name);
+                        owner.healthMonitor.RecordFireOutcome(success: false);
+                        owner.SettleFire(pending, acknowledged: false);
+                    }
+                }
             }
             finally
             {
@@ -1522,4 +2259,55 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="Generation">The generation the job was last enqueued under.</param>
     /// <param name="Occurrence">The occurrence the job is currently armed for.</param>
     private readonly record struct ScheduledJob(long Generation, DateTimeOffset Occurrence);
+
+    private readonly record struct RetainedDispatch(
+        string JobName,
+        DateTimeOffset Occurrence,
+        DateTimeOffset? NextFireAt,
+        long Epoch,
+        long RegistrationId,
+        bool IsTrigger);
+
+    /// <summary>The next startup occurrence still owed for one registration.</summary>
+    /// <param name="Cadence">The cadence that produces the following occurrence.</param>
+    /// <param name="Occurrence">The next occurrence to dispatch.</param>
+    /// <param name="Remaining">How many occurrences are still owed, including <paramref name="Occurrence"/>.</param>
+    /// <param name="Epoch">The registration epoch that queued the catch-up.</param>
+    /// <param name="RegistrationId">The registration that queued the catch-up.</param>
+    private readonly record struct CatchUpCursor(
+        Cadence Cadence,
+        DateTimeOffset Occurrence,
+        int Remaining,
+        long Epoch,
+        long RegistrationId);
+
+    /// <summary>One handed-off fire, in dispatch order for its job.</summary>
+    private sealed class PendingFire(
+        string jobName,
+        DateTimeOffset firedAt,
+        DateTimeOffset? nextFireAt,
+        JobRecord? expected,
+        long epoch,
+        long registrationId)
+    {
+        public const byte InFlight = 0;
+        public const byte Acknowledged = 1;
+        public const byte Blocked = 2;
+
+        public string JobName { get; } = jobName;
+
+        public DateTimeOffset FiredAt { get; } = firedAt;
+
+        public DateTimeOffset? NextFireAt { get; } = nextFireAt;
+
+        public JobRecord? Expected { get; } = expected;
+
+        public long Epoch { get; } = epoch;
+
+        public long RegistrationId { get; } = registrationId;
+
+        public byte State { get; set; } = InFlight;
+
+        public bool Settled { get; set; }
+    }
 }

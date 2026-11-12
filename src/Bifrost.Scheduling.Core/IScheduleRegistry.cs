@@ -101,9 +101,18 @@ public interface IScheduleRegistry
     /// <summary>
     /// Fires a job immediately, out of band from its cadence.
     /// </summary>
+    /// <remarks>
+    /// A caller outside a dispatch waits until a trigger slot is free.
+    /// A call made from a running dispatch does not wait. When every slot is held,
+    /// that call throws <see cref="InvalidOperationException"/> so the dispatch can finish.
+    /// </remarks>
     /// <param name="name">The name of the job to trigger.</param>
-    /// <param name="ct">A token to cancel the operation.</param>
-    /// <returns>A task that completes when the trigger has been dispatched.</returns>
+    /// <param name="ct">A token to cancel the wait for a trigger slot.</param>
+    /// <returns>A task that completes when the trigger has been accepted.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The call was made from a running dispatch and every trigger slot was already held,
+    /// or the job is registered and its dispatcher is not bound yet.
+    /// </exception>
     ValueTask TriggerAsync(string name, CancellationToken ct = default);
 
     /// <summary>

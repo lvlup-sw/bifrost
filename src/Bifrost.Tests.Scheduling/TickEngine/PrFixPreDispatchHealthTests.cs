@@ -112,6 +112,8 @@ public sealed class PrFixPreDispatchHealthTests
 
         public DateTimeOffset? LastTickAt { get; private set; }
 
+        public IdleWaitObservation IdleWait { get; private set; }
+
         public double FailureRate
         {
             get
@@ -123,7 +125,14 @@ public sealed class PrFixPreDispatchHealthTests
 
         public int RecentFireCount => this.SuccessCount + this.FailureCount;
 
-        public void RecordTick(DateTimeOffset at) => this.LastTickAt = at;
+        public void RecordTick(DateTimeOffset at)
+        {
+            this.LastTickAt = at;
+            this.IdleWait = default;
+        }
+
+        public void RecordIdleWait(DateTimeOffset? deadline)
+            => this.IdleWait = new IdleWaitObservation(true, deadline);
 
         public void RecordFireOutcome(bool success)
         {

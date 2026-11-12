@@ -11,6 +11,7 @@ using System.Threading.Channels;
 
 using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.Core.Events;
+using Bifrost.Scheduling.Dispatch;
 using Bifrost.Scheduling.Observability;
 
 namespace Bifrost.Scheduling.Registry;
@@ -44,12 +45,27 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     private readonly ISchedulerEventSink events;
     private readonly ConcurrentDictionary<string, JobRecord> jobs = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, IJobDispatcher> dispatchers = new(StringComparer.Ordinal);
+    private readonly object registrationGate = new();
+    private readonly Dictionary<string, long> registrationIds = new(StringComparer.Ordinal);
+    private long nextRegistrationId;
+
+    /// <summary>
+    /// Maximum triggers accepted and not yet handed off. Further
+    /// <see cref="TriggerAsync"/> calls wait, so the command channel cannot
+    /// accumulate an unbounded trigger backlog.
+    /// </summary>
+    internal const int MaxQueuedTriggers = 64;
+
     private readonly Channel<RegistryCommand> commands =
         Channel.CreateUnbounded<RegistryCommand>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false,
         });
+
+    private readonly SemaphoreSlim triggerAdmission = new(MaxQueuedTriggers, MaxQueuedTriggers);
+
+    private readonly CancellationTokenSource triggerAdmissionCancelled = new();
 
     // Single-shot dispose guard (0 = not disposed). Interlocked so a concurrent or
     // repeated dispose completes the command writer exactly once: a second
@@ -129,6 +145,70 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         ArgumentNullException.ThrowIfNull(name);
 
         return this.dispatchers.TryGetValue(name, out var dispatcher) ? dispatcher : null;
+    }
+
+    /// <summary>
+    /// Binds <paramref name="dispatcher"/> to a new registration of <paramref name="name"/>.
+    /// </summary>
+    /// <param name="name">The job name.</param>
+    /// <param name="dispatcher">The dispatcher for this registration.</param>
+    /// <returns>The registration id.</returns>
+    internal long BindDispatcher(string name, IJobDispatcher dispatcher)
+    {
+        lock (this.registrationGate)
+        {
+            var id = ++this.nextRegistrationId;
+            this.registrationIds[name] = id;
+            this.dispatchers[name] = dispatcher;
+            return id;
+        }
+    }
+
+    /// <summary>
+    /// Drops the dispatcher and registration id for <paramref name="name"/>.
+    /// </summary>
+    /// <param name="name">The job name.</param>
+    internal void UnbindDispatcher(string name)
+    {
+        lock (this.registrationGate)
+        {
+            this.registrationIds.Remove(name);
+            this.dispatchers.TryRemove(name, out _);
+        }
+    }
+
+    /// <summary>The registration id currently bound to <paramref name="name"/>, or zero.</summary>
+    /// <param name="name">The job name.</param>
+    /// <returns>The live registration id.</returns>
+    internal long RegistrationId(string name)
+    {
+        lock (this.registrationGate)
+        {
+            return this.registrationIds.GetValueOrDefault(name);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the dispatcher for one registration.
+    /// A newer registration of the same name is reported as replaced.
+    /// </summary>
+    /// <param name="name">The job name.</param>
+    /// <param name="registrationId">The registration that queued the fire.</param>
+    /// <returns>The bound dispatcher, or a miss.</returns>
+    internal DispatcherResolution ResolveDispatcher(string name, long registrationId)
+    {
+        lock (this.registrationGate)
+        {
+            var current = this.registrationIds.GetValueOrDefault(name);
+            this.dispatchers.TryGetValue(name, out var dispatcher);
+            if (registrationId != 0 && current == registrationId && dispatcher is not null)
+            {
+                return new DispatcherResolution(dispatcher, Replaced: false);
+            }
+
+            var replaced = dispatcher is not null && current != registrationId;
+            return new DispatcherResolution(null, replaced);
+        }
     }
 
     /// <summary>
@@ -235,9 +315,18 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     public ValueTask UpdateAsync(string name, Cadence cadence, MissedFirePolicy missedFirePolicy, CancellationToken ct = default)
         => this.MutateAsync(name, () => this.UpdateCoreAsync(name, cadence, missedFirePolicy, ct), ct);
 
-    internal async ValueTask CheckpointAsync(JobRecord expected, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
+    internal async ValueTask CheckpointAsync(
+        JobRecord expected,
+        DateTimeOffset firedAt,
+        DateTimeOffset? nextFireAt,
+        long registrationId)
     {
         using var lease = await this.mutationGates.EnterAsync(expected.Name).ConfigureAwait(false);
+        if (this.RegistrationId(expected.Name) != registrationId)
+        {
+            return;
+        }
+
         if (this.jobs.TryGetValue(expected.Name, out var current)
             && ReferenceEquals(this.CheckpointOrigin(current), this.CheckpointOrigin(expected)))
         {
@@ -348,7 +437,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             throw;
         }
 
-        this.dispatchers[name] = dispatcher;
+        this.BindDispatcher(name, dispatcher);
         this.metrics.RecordRegistered();
         this.events.Publish(new JobRegisteredEvent(name));
         await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), CancellationToken.None).ConfigureAwait(false);
@@ -367,7 +456,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await this.store.DeleteAsync(name, ct).ConfigureAwait(false);
 
         this.jobs.TryRemove(name, out _);
-        this.dispatchers.TryRemove(name, out _);
+        this.UnbindDispatcher(name);
         this.metrics.RecordUnregistered();
         this.events.Publish(new JobUnregisteredEvent(name));
 
@@ -488,8 +577,51 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         // orphan already-committed state), there is nothing committed here to protect,
         // so a caller cancellation should cleanly abort the trigger via OCE and enqueue
         // nothing — matching the caller-cancel→OCE contract for uncommitted operations.
-        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name), ct).ConfigureAwait(false);
+        // The admission slot stays held until the tick loop hands the trigger off,
+        // drops it, or abandons it at shutdown. A running dispatch must not wait:
+        // the slot it needs is released only after that dispatch finishes.
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, this.triggerAdmissionCancelled.Token);
+        var acquired = false;
+        try
+        {
+            if (DispatchAdmission.IsReentrant)
+            {
+                if (!await this.triggerAdmission.WaitAsync(TimeSpan.Zero, linked.Token).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException(
+                        "TriggerAsync cannot wait for an admission slot while a dispatch is running.");
+                }
+            }
+            else
+            {
+                await this.triggerAdmission.WaitAsync(linked.Token).ConfigureAwait(false);
+            }
+
+            acquired = true;
+            var registrationId = this.RegistrationId(name);
+            if (registrationId == 0)
+            {
+                throw new InvalidOperationException(
+                    "TriggerAsync cannot run until the job dispatcher is bound.");
+            }
+
+            await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name, registrationId), linked.Token).ConfigureAwait(false);
+            acquired = false;
+        }
+        finally
+        {
+            if (acquired)
+            {
+                this.triggerAdmission.Release();
+            }
+        }
     }
+
+    /// <summary>
+    /// Returns one trigger admission slot after the tick loop hands the trigger
+    /// off, drops it, or abandons it.
+    /// </summary>
+    internal void ReleaseTriggerAdmission() => this.triggerAdmission.Release();
 
     /// <inheritdoc/>
     public IReadOnlyList<JobDescriptor> GetJobs()
@@ -682,6 +814,9 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         // would throw, so the guard makes double-dispose (sync or async) safe.
         if (Interlocked.Exchange(ref this.disposed, 1) == 0)
         {
+            // Leave the semaphore and the cancellation source usable. The tick loop
+            // can still release a slot for a command it drains after the writer completes.
+            this.triggerAdmissionCancelled.Cancel();
             this.commands.Writer.Complete();
         }
     }

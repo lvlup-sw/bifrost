@@ -118,6 +118,21 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
     // Retirement can consume an item permit without taking the item. Restore a wake.
     internal void WakeConsumer() => _signal.Release();
 
+    internal void ConsumeMatchedWake()
+    {
+        // Same handshake as the relaxed binding: completion publishes its flag and
+        // releases waiter permits under this gate, so the matched-wake take must
+        // use the gate too.
+        lock (_admissionGate)
+        {
+            if (_completed) return;
+            _signal.Wait(0);
+        }
+    }
+
+    /// <summary>Gets the number of wake permits still available. Test inspection only.</summary>
+    internal int PendingWakeCountForTest => _signal.CurrentCount;
+
     /// <inheritdoc/>
     /// <remarks>
     /// The locking structure reads the heap count under its global lock, so the value

@@ -4,6 +4,7 @@
 // </copyright>
 // =============================================================================
 
+using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
@@ -76,6 +77,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
     /// <summary>TEST-ONLY: see <see cref="_debugScanEntryCount"/>.</summary>
     internal long DebugScanEntryCountForTest => Volatile.Read(ref _debugScanEntryCount);
+
+    /// <summary>
+    /// TEST-ONLY: invoked with the stripe index before the verification scan observes it.
+    /// Production leaves this null. A test uses it to move an item across stripes
+    /// between observations.
+    /// </summary>
+    internal Action<int>? DebugBeforeVerificationIndex { get; set; }
 
     /// <summary>
     /// TEST-ONLY: drives the post-sampling dequeue path in isolation — bitmask routing first, then
@@ -304,7 +312,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
         SubQueue<TElement, TPriority>[] queues = _queues;
         SpinWait spinner = default;
+        uint[]? rentedVersions = null;
+        Span<uint> versions = queues.Length <= 256
+            ? stackalloc uint[queues.Length]
+            : (rentedVersions = ArrayPool<uint>.Shared.Rent(queues.Length)).AsSpan(0, queues.Length);
 
+        try
+        {
         while (true)
         {
             int emptyObserved = 0;
@@ -312,6 +326,8 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
             for (int index = 0; index < queues.Length; index++)
             {
+                this.DebugBeforeVerificationIndex?.Invoke(index);
+
                 // Cheap route: a stable seqlock read that says "empty" is this sub-queue's
                 // emptiness observation for the pass, with no lock traffic.
                 if (queues[index].TryReadTop(out _, out bool empty) && empty)
@@ -341,7 +357,7 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 break;
             }
 
-            if (!passVoided)
+            if (!passVoided && TryValidateEmptySnapshot(queues, versions))
             {
                 Debug.Assert(emptyObserved == queues.Length, "A non-voided pass must have observed every sub-queue empty.");
                 _debugLastFalseScanEmptyObservations = emptyObserved;
@@ -350,8 +366,49 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 return false;
             }
 
+            // The pass was void, or an item moved behind the scan. Retry.
             spinner.SpinOnce();
         }
+        }
+        finally
+        {
+            if (rentedVersions is not null)
+            {
+                ArrayPool<uint>.Shared.Return(rentedVersions);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns true only when every stripe is empty at one common instant: two seqlock
+    /// reads observe the same even version and an empty flag. A move from an unscanned
+    /// stripe into an already-scanned stripe changes a version and must not count as empty.
+    /// </summary>
+    private static bool TryValidateEmptySnapshot(
+        SubQueue<TElement, TPriority>[] queues,
+        Span<uint> versions)
+    {
+        for (int index = 0; index < queues.Length; index++)
+        {
+            if (!queues[index].TryReadStableObservation(out uint version, out bool empty) || !empty)
+            {
+                return false;
+            }
+
+            versions[index] = version;
+        }
+
+        for (int index = 0; index < queues.Length; index++)
+        {
+            if (!queues[index].TryReadStableObservation(out uint version, out bool empty)
+                || !empty
+                || version != versions[index])
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

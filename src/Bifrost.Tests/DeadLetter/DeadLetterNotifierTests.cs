@@ -315,4 +315,47 @@ public class DeadLetterNotifierTests
             await gate.CancelAsync().ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// Verifies dispose stops deliveries that have not started.
+    /// </summary>
+    [Test]
+    public async Task Notify_AfterDispose_DoesNotInvokeCallback()
+    {
+        var notifier = CreateNotifier();
+        var called = 0;
+        notifier.Subscribe(_ => Interlocked.Increment(ref called));
+        notifier.Dispose();
+
+        notifier.Notify(new WorkDeadLetteredEvent<string>("work", null, 1, DateTimeOffset.UtcNow));
+        await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+
+        await Assert.That(Volatile.Read(ref called)).IsEqualTo(0);
+    }
+
+    /// <summary>
+    /// A delivery that has passed its start gate cannot begin after dispose finishes.
+    /// </summary>
+    [Test]
+    public async Task DeliveryPausedBeforeCallback_AfterDispose_DoesNotInvokeCallback()
+    {
+        var notifier = CreateNotifier();
+        var called = 0;
+        notifier.Subscribe(_ => Interlocked.Increment(ref called));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        notifier.BeforeDeliveryForTest = () =>
+        {
+            entered.TrySetResult();
+            release.Task.Wait(TimeSpan.FromSeconds(5));
+        };
+
+        notifier.Notify(new WorkDeadLetteredEvent<string>("work", null, 1, DateTimeOffset.UtcNow));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        notifier.Dispose();
+        release.TrySetResult();
+        await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+
+        await Assert.That(Volatile.Read(ref called)).IsEqualTo(0);
+    }
 }

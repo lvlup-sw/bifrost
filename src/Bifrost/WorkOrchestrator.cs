@@ -341,12 +341,35 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public Task RequestScaleDownAsync(int count, CancellationToken cancellationToken = default) => Task.CompletedTask;
     internal bool TryReadEnvelope(out WorkEnvelope<TWork> envelope) => _queue.TryDequeue(out envelope);
 
+    private void ConsumeMatchedWake()
+    {
+        switch (_queue)
+        {
+            case LockingPriorityWorkQueue<TWork> exact:
+                exact.ConsumeMatchedWake();
+                break;
+            case ConcurrentPriorityWorkQueue<TWork> relaxed:
+                relaxed.ConsumeMatchedWake();
+                break;
+        }
+    }
+
     private async Task ConsumeQueueAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct, CancellationToken dequeueToken)
     {
         while (!dequeueToken.IsCancellationRequested && await _queue.WaitToDequeueAsync(dequeueToken).ConfigureAwait(false))
         {
-            while (!dequeueToken.IsCancellationRequested && _queue.TryDequeue(out var envelope))
+            if (!_queue.TryDequeue(out var envelope))
+                continue;
+
+            await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope).ConfigureAwait(false);
+            while (!dequeueToken.IsCancellationRequested && _queue.TryDequeue(out envelope))
+            {
+                // The wait above consumed one permit. Each further item was funded by its
+                // own enqueue, so take that permit too. Otherwise a drain leaves a surplus
+                // that later wakes spin on an empty queue.
+                ConsumeMatchedWake();
                 await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope).ConfigureAwait(false);
+            }
         }
     }
 }

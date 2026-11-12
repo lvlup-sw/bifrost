@@ -4,6 +4,7 @@
 // </copyright>
 // =============================================================================
 
+using Bifrost.Core;
 using Bifrost.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -57,8 +58,9 @@ public static class ResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        // Register resiliency options
-        builder.Services.AddOptions<ResiliencySettings>()
+        // Named by work type so one pipeline's retry settings cannot replace another's.
+        var optionsName = WorkOptions.Name<TWork>();
+        builder.Services.AddOptions<ResiliencySettings>(optionsName)
             .Configure(configure ?? (_ => { }));
 
         // Add the resilience decorator
@@ -66,7 +68,7 @@ public static class ResilienceExtensions
             ResilienceDecoratorOrder,
             (sp, inner) => new ResilientOrchestrator<TWork>(
                 inner,
-                sp.GetRequiredService<IOptions<ResiliencySettings>>(),
+                Options.Create(sp.GetRequiredService<IOptionsMonitor<ResiliencySettings>>().Get(optionsName)),
                 sp.GetRequiredService<ILogger<ResilientOrchestrator<TWork>>>())));
 
         return builder;
