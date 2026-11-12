@@ -189,6 +189,64 @@ public sealed class SchedulerHealthCheckTests
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
 
+    /// <summary>
+    /// Verifies a newly started scheduler waiting for its first tick within the
+    /// staleness window is reported healthy.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task WaitingForFirstTick_WithinWindow_IsHealthy()
+    {
+        var time = new FakeTimeProvider(Start);
+        var monitor = new TickHealthMonitor(time);
+        var check = NewCheck(monitor, faulted: false, time);
+
+        time.Advance(TimeSpan.FromTicks(ExpectedInterval.Ticks * 3));
+
+        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+
+        await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
+    }
+
+    /// <summary>
+    /// Verifies a scheduler that never records its first tick (for example, stalled in
+    /// startup seeding) becomes unhealthy once the staleness window elapses.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task WaitingForFirstTick_ExceedsWindow_IsUnhealthy()
+    {
+        var time = new FakeTimeProvider(Start);
+        var monitor = new TickHealthMonitor(time);
+        var check = NewCheck(monitor, faulted: false, time);
+
+        time.Advance(TimeSpan.FromTicks((ExpectedInterval.Ticks * 3) + 1));
+
+        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+
+        await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
+    }
+
+    /// <summary>
+    /// Verifies that recording loop start marks an unstarted monitor as waiting for
+    /// its first tick, and exceeding the window without ticking reports unhealthy.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task RecordLoopStarted_ThenNoTickPastWindow_IsUnhealthy()
+    {
+        var time = new FakeTimeProvider(Start);
+        var monitor = new TickHealthMonitor();
+        monitor.RecordLoopStarted(time.GetUtcNow());
+        var check = NewCheck(monitor, faulted: false, time);
+
+        time.Advance(TimeSpan.FromTicks((ExpectedInterval.Ticks * 3) + 1));
+
+        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+
+        await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
+    }
+
     private static SchedulerHealthCheck NewCheck(
         ITickHealthMonitor monitor,
         bool faulted,

@@ -110,6 +110,8 @@ public sealed class PrFixPreDispatchHealthTests
 
         public int FailureCount => Volatile.Read(ref this.failureCount);
 
+        public TickLivenessState LivenessState { get; private set; } = TickLivenessState.Unstarted;
+
         public DateTimeOffset? LastTickAt { get; private set; }
 
         public IdleWaitObservation IdleWait { get; private set; }
@@ -125,14 +127,28 @@ public sealed class PrFixPreDispatchHealthTests
 
         public int RecentFireCount => this.SuccessCount + this.FailureCount;
 
+        public void RecordLoopStarted(DateTimeOffset at)
+        {
+            if (this.LivenessState.Kind == TickLivenessKind.Unstarted)
+            {
+                this.LivenessState = TickLivenessState.WaitingForFirstTick(at);
+            }
+        }
+
         public void RecordTick(DateTimeOffset at)
         {
             this.LastTickAt = at;
             this.IdleWait = default;
+            this.LivenessState = TickLivenessState.Active(at);
         }
 
         public void RecordIdleWait(DateTimeOffset? deadline)
-            => this.IdleWait = new IdleWaitObservation(true, deadline);
+        {
+            this.IdleWait = new IdleWaitObservation(true, deadline);
+            this.LivenessState = deadline is { } wakeBy
+                ? TickLivenessState.IdleUntil(wakeBy)
+                : TickLivenessState.IdleEmpty;
+        }
 
         public void RecordFireOutcome(bool success)
         {

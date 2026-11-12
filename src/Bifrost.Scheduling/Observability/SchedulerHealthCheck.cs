@@ -113,29 +113,54 @@ public sealed class SchedulerHealthCheck : IHealthCheck
         }
 
         var now = this.timeProvider.GetUtcNow();
-        var lastTick = this.monitor.LastTickAt;
+        var liveness = this.monitor.LivenessState;
         var staleAfter = this.expectedInterval * StaleTickIntervalMultiplier;
-        var idle = this.monitor.IdleWait;
-        if (idle.IsWaiting)
+
+        switch (liveness.Kind)
         {
-            // A parked loop is alive. It is stale only when a wake deadline has passed
-            // and the loop still has not ticked.
-            if (idle.Deadline is { } deadline && now - deadline > staleAfter)
+            case TickLivenessKind.WaitingForFirstTick:
             {
-                return Task.FromResult(HealthCheckResult.Unhealthy(
-                    $"Scheduler wake is overdue: the parked wait ended at {deadline:O}, exceeding " +
-                    $"{StaleTickIntervalMultiplier}x the expected interval ({this.expectedInterval})."));
+                var waitingDuration = now - liveness.Timestamp!.Value;
+                if (waitingDuration > staleAfter)
+                {
+                    return Task.FromResult(HealthCheckResult.Unhealthy(
+                        $"Scheduler has not recorded its first tick after {waitingDuration}, exceeding " +
+                        $"{StaleTickIntervalMultiplier}x the expected interval ({this.expectedInterval})."));
+                }
+
+                break;
             }
-        }
-        else if (lastTick is not null)
-        {
-            var sinceLastTick = now - lastTick.Value;
-            if (sinceLastTick > staleAfter)
+
+            case TickLivenessKind.IdleUntil:
             {
-                return Task.FromResult(HealthCheckResult.Unhealthy(
-                    $"Scheduler tick is stale: last tick was {sinceLastTick} ago, exceeding " +
-                    $"{StaleTickIntervalMultiplier}x the expected interval ({this.expectedInterval})."));
+                var deadline = liveness.Timestamp!.Value;
+                if (now - deadline > staleAfter)
+                {
+                    return Task.FromResult(HealthCheckResult.Unhealthy(
+                        $"Scheduler wake is overdue: the parked wait ended at {deadline:O}, exceeding " +
+                        $"{StaleTickIntervalMultiplier}x the expected interval ({this.expectedInterval})."));
+                }
+
+                break;
             }
+
+            case TickLivenessKind.Active:
+            {
+                var sinceLastTick = now - liveness.Timestamp!.Value;
+                if (sinceLastTick > staleAfter)
+                {
+                    return Task.FromResult(HealthCheckResult.Unhealthy(
+                        $"Scheduler tick is stale: last tick was {sinceLastTick} ago, exceeding " +
+                        $"{StaleTickIntervalMultiplier}x the expected interval ({this.expectedInterval})."));
+                }
+
+                break;
+            }
+
+            case TickLivenessKind.IdleEmpty:
+            case TickLivenessKind.Unstarted:
+            default:
+                break;
         }
 
         var failureRate = this.monitor.FailureRate;
@@ -146,6 +171,7 @@ public sealed class SchedulerHealthCheck : IHealthCheck
                 $"the {this.failureRateThreshold:P0} threshold."));
         }
 
+        var lastTick = this.monitor.LastTickAt;
         return Task.FromResult(HealthCheckResult.Healthy(
             $"Scheduler healthy: dispatch-failure rate {failureRate:P1}, last tick at " +
             $"{(lastTick is null ? "never" : lastTick.Value.ToString("O"))}."));
