@@ -1328,7 +1328,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private void ArmFromRecord(JobRecord record, DateTimeOffset now)
     {
         var nextFire = record.Cadence.ComputeNextFire(record.LastFiredAt, now);
-        if (nextFire is null)
+        // Past occurrences were already handled by the missed-fire policy. Re-arming
+        // one here bypasses SkipMissed or duplicates a fire before its checkpoint lands.
+        if (nextFire is null || nextFire <= now)
         {
             this.scheduled.Remove(record.Name);
             return;
