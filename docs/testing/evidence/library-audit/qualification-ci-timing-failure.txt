@@ -1,0 +1,17 @@
+2026-11-12T04:01:30.3363362Z   total: 153
+2026-11-12T04:01:30.3363486Z   failed: 0
+2026-11-12T04:01:30.3363622Z   succeeded: 153
+2026-11-12T04:01:35.9820117Z   total: 387
+2026-11-12T04:01:35.9820240Z   failed: 0
+2026-11-12T04:01:35.9820374Z   succeeded: 387
+2026-11-12T04:01:44.5570015Z failed EnqueueAsync_ValidWork_WritesToChannel (1s 003ms)
+2026-11-12T04:01:44.5574760Z   TUnit.Engine.Exceptions.TestFailedException: TimeoutException: The operation has timed out.
+2026-11-12T04:01:44.5594511Z     at Bifrost.Tests.WorkOrchestratorTests.EnqueueAsync_ValidWork_WritesToChannel() in /_/src/Bifrost.Tests/WorkOrchestratorTests.cs:189
+2026-11-12T04:01:44.5599751Z     at Bifrost.Tests.WorkOrchestratorTests.EnqueueAsync_ValidWork_WritesToChannel() in /_/src/Bifrost.Tests/WorkOrchestratorTests.cs:192
+2026-11-12T04:01:44.5600618Z failed StopAsync_CompletesGracefully (1s 001ms)
+2026-11-12T04:01:44.5601012Z   TUnit.Engine.Exceptions.TestFailedException: TimeoutException: The operation has timed out.
+2026-11-12T04:01:44.5601530Z     at Bifrost.Tests.WorkOrchestratorTests.StopAsync_CompletesGracefully() in /_/src/Bifrost.Tests/WorkOrchestratorTests.cs:453
+2026-11-12T04:01:44.5601983Z [+812/x2/?0] Bifrost.Tests.dll (net10.0|x64) - 27 tests running (6s)
+2026-11-12T04:03:11.8763245Z   total: 867
+2026-11-12T04:03:11.8763444Z   failed: 2
+2026-11-12T04:03:11.8763660Z   succeeded: 865

@@ -2,10 +2,10 @@
 
 Reviewed on 2026-11-11 (America/Los_Angeles). Baseline: PR #88 at
 `70dfa245ce2d774831add100cab6f79b5260f458`. Initial validated code and tests:
-`18a0fc6b1367c63daea91cd479d517b2b530e596`. Final candidate with coverage-fixture
-isolation: `a7d59e00fff32cb6c49c87bf800e9b6219de86b9`. Later qualification commits
-contain documentation and evidence only; production behavior is unchanged between
-these two snapshots. The five new layers build on #84 → #87 → #88.
+`18a0fc6b1367c63daea91cd479d517b2b530e596`. Candidate with coverage-fixture
+isolation: `a7d59e00fff32cb6c49c87bf800e9b6219de86b9`. Production behavior is unchanged between these two snapshots. The final
+test-fixture candidate is `1864801d8a2bf70c21a28e9555d0e5adc76b04f5`; later commits
+contain documentation and evidence only. The five new layers build on #84 → #87 → #88.
 
 This pass covers the library's ten investigation areas below. It adds 52 test
 cases, including controls and a child-process entry point. Across staged
@@ -163,3 +163,12 @@ Remote CI was restarted on the corrected heads. The separate
 reported `startup_failure` without starting jobs or returning check annotations.
 That workflow configuration problem is outside this library defect change and
 is not represented as a passing check. No workflow or permissions were altered.
+
+The four implementation PRs subsequently passed remote Build & Test and coverage
+gates. Qualification CI exposed two pre-existing one-second processing deadlines
+in `WorkOrchestratorTests` under coverage. These two timing probes now run outside
+unrelated parallel fixtures without changing their deadlines. The teardown probe
+also uses `await using`, ensuring disposal after a failed assertion. The final
+test-fixture candidate passed all 867 main tests with four-processor coverage again.
+The failing CI excerpt and successful final run are retained. Scheduling and
+concurrency production/tests are unchanged by these fixture-only corrections.
