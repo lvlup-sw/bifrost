@@ -34,7 +34,7 @@ public sealed class SystematicRegistryCheckpointRaceTests
         });
         await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, dispatcher);
         using var loop = CreateLoop(registry, store);
-        Fire(loop);
+        Fire(registry, loop);
         await Assert.That(store.Record!.NextFireAt).IsEqualTo(SystematicRegistryTests.Epoch.AddMinutes(9));
         await Assert.That(store.Record.LastFiredAt).IsNull();
     }
@@ -48,7 +48,7 @@ public sealed class SystematicRegistryCheckpointRaceTests
         using var registry = new ScheduleRegistry(store, new FakeTimeProvider(SystematicRegistryTests.Epoch));
         await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, new SystematicRegistryTests.NoopDispatcher());
         using var loop = CreateLoop(registry, store);
-        Fire(loop);
+        Fire(registry, loop);
         await store.Arrived.Task.WaitAsync(TimeSpan.FromSeconds(10));
         var replace = Replace();
         store.Release.TrySetResult();
@@ -113,8 +113,8 @@ public sealed class SystematicRegistryCheckpointRaceTests
     private static ScheduleTickLoop CreateLoop(ScheduleRegistry registry, IScheduleStore store)
         => new(registry, store, new FakeTimeProvider(SystematicRegistryTests.Epoch), new InlineRouter(), new SystematicRegistryRestartTests.Sink(), NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions());
 
-    private static void Fire(ScheduleTickLoop loop, int minute = 1)
-        => typeof(ScheduleTickLoop).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(loop, ["job", SystematicRegistryTests.Epoch.AddMinutes(minute), SystematicRegistryTests.Epoch.AddMinutes(minute + 1)]);
+    private static void Fire(ScheduleRegistry registry, ScheduleTickLoop loop, int minute = 1)
+        => typeof(ScheduleTickLoop).GetMethod("Dispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(loop, ["job", SystematicRegistryTests.Epoch.AddMinutes(minute), SystematicRegistryTests.Epoch.AddMinutes(minute + 1), registry.RegistrationId("job")]);
 
     private sealed class CallbackDispatcher(Func<ValueTask> action) : IJobDispatcher
     {

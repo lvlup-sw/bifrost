@@ -17,8 +17,9 @@ namespace Bifrost.Scheduling.TickEngine;
 /// <para>
 /// The live <see cref="IJobDispatcher"/> is intentionally <em>not</em> captured on
 /// the handle: the loop resolves it from the registry at the moment of dispatch
-/// (<see cref="ScheduleTickLoop"/>), so a job whose dispatcher is re-registered is
-/// always dispatched through its current dispatcher rather than a stale one.
+/// (<see cref="ScheduleTickLoop"/>). <see cref="RegistrationId"/> keeps that lookup
+/// on the registration that enqueued the occurrence, so a replacement of the same
+/// name does not run for an occurrence the previous registration queued.
 /// </para>
 /// <para>
 /// <see cref="Generation"/> supports lazy deletion from the
@@ -34,4 +35,5 @@ internal sealed record JobHandle(
     Cadence Cadence,
     MissedFirePolicy MissedFirePolicy,
     DateTimeOffset ScheduledOccurrence,
-    long Generation);
+    long Generation,
+    long RegistrationId);

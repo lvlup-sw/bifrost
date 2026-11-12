@@ -905,7 +905,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 break;
 
             case RegistryCommandKind.Trigger:
-                this.FireImmediately(command.JobName);
+                this.FireImmediately(command.JobName, command.RegistrationId);
                 break;
 
             default:
@@ -1033,8 +1033,16 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// reschedule.
     /// </summary>
     /// <param name="jobName">The job to fire immediately.</param>
-    private void FireImmediately(string jobName)
+    /// <param name="registrationId">The registration that accepted the trigger.</param>
+    private void FireImmediately(string jobName, long registrationId)
     {
+        var resolution = this.registry.ResolveDispatcher(jobName, registrationId);
+        if (resolution.Replaced)
+        {
+            this.registry.ReleaseTriggerAdmission();
+            return;
+        }
+
         var record = this.registry.TryGetRecord(jobName);
         if (record is null)
         {
@@ -1045,7 +1053,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         var now = this.timeProvider.GetUtcNow();
         var nextNext = record.NextFireAt
             ?? record.Cadence.ComputeNextFire(record.LastFiredAt, now);
-        var fire = new RetainedDispatch(jobName, now, nextNext, this.CurrentEpoch(jobName), IsTrigger: true);
+        var fire = new RetainedDispatch(
+            jobName,
+            now,
+            nextNext,
+            this.CurrentEpoch(jobName),
+            registrationId,
+            IsTrigger: true);
         if (this.HasQueuedWork()
             || Volatile.Read(ref this.inFlightDispatches) >= MaxOutstandingDispatches)
         {
@@ -1055,7 +1069,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
         try
         {
-            this.Dispatch(fire.JobName, fire.Occurrence, fire.NextFireAt);
+            this.Dispatch(fire.JobName, fire.Occurrence, fire.NextFireAt, fire.RegistrationId);
         }
         finally
         {
@@ -1095,8 +1109,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             dispatched++;
 
             // Lazy deletion: skip an entry whose job is no longer armed at this
-            // generation (paused, removed, or already rescheduled).
-            if (handle is null || !this.IsCurrent(handle))
+            // generation (paused, removed, or already rescheduled). A different
+            // registration of the same name is stale too: its own arm owns the schedule.
+            if (handle is null || !this.IsCurrent(handle) || this.BelongsToReplacement(handle))
             {
                 continue;
             }
@@ -1137,7 +1152,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 this.Enqueue(handle.JobName, handle.Cadence, handle.MissedFirePolicy, nextNext.Value);
             }
 
-            this.Dispatch(handle.JobName, scheduledOccurrence, nextNext);
+            this.Dispatch(handle.JobName, scheduledOccurrence, nextNext, handle.RegistrationId);
         }
     }
 
@@ -1217,9 +1232,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <returns><see langword="true"/> when a fire was handed to the router.</returns>
     private bool DispatchOrDropOne()
     {
-        if (this.TryTakeCatchUp(out var name, out var occurrence, out var next))
+        if (this.TryTakeCatchUp(out var name, out var occurrence, out var next, out var registrationId))
         {
-            this.Dispatch(name, occurrence, next);
+            this.Dispatch(name, occurrence, next, registrationId);
             return true;
         }
 
@@ -1237,7 +1252,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
         try
         {
-            this.Dispatch(fire.JobName, fire.Occurrence, fire.NextFireAt);
+            this.Dispatch(fire.JobName, fire.Occurrence, fire.NextFireAt, fire.RegistrationId);
         }
         finally
         {
@@ -1253,12 +1268,18 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="name">The job name.</param>
     /// <param name="occurrence">The occurrence to dispatch.</param>
     /// <param name="next">The following occurrence.</param>
+    /// <param name="registrationId">The registration that queued the catch-up.</param>
     /// <returns><see langword="true"/> when an occurrence was taken.</returns>
-    private bool TryTakeCatchUp(out string name, out DateTimeOffset occurrence, out DateTimeOffset? next)
+    private bool TryTakeCatchUp(
+        out string name,
+        out DateTimeOffset occurrence,
+        out DateTimeOffset? next,
+        out long registrationId)
     {
         name = string.Empty;
         occurrence = default;
         next = null;
+        registrationId = 0;
         while (this.catchUpOrder.Count > 0)
         {
             var job = this.catchUpOrder.Peek();
@@ -1269,7 +1290,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             }
 
             var record = this.registry.TryGetRecord(job);
-            if (cursor.Epoch != this.CurrentEpoch(job) || record is not { State: JobState.Running })
+            var liveId = this.registry.RegistrationId(job);
+            var replaced = liveId != 0 && liveId != cursor.RegistrationId;
+            if (cursor.Epoch != this.CurrentEpoch(job) || replaced || record is not { State: JobState.Running })
             {
                 this.catchUps.Remove(job);
                 this.catchUpOrder.Dequeue();
@@ -1278,6 +1301,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
             name = job;
             occurrence = cursor.Occurrence;
+            registrationId = cursor.RegistrationId;
             next = cursor.Cadence.ComputeNextFire(cursor.Occurrence, cursor.Occurrence);
             var remaining = cursor.Remaining - 1;
             if (remaining <= 0 || next is null)
@@ -1304,6 +1328,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private bool IsLiveRetained(RetainedDispatch fire)
     {
         if (fire.Epoch != this.CurrentEpoch(fire.JobName))
+        {
+            return false;
+        }
+
+        var liveRegistration = this.registry.RegistrationId(fire.JobName);
+        if (liveRegistration != 0 && liveRegistration != fire.RegistrationId)
         {
             return false;
         }
@@ -1421,9 +1451,20 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="jobName">The job firing.</param>
     /// <param name="scheduledOccurrence">The occurrence's logical instant.</param>
     /// <param name="nextFireAt">The next occurrence, or <see langword="null"/>.</param>
-    private void Dispatch(string jobName, DateTimeOffset scheduledOccurrence, DateTimeOffset? nextFireAt)
+    /// <param name="registrationId">The registration that queued the occurrence.</param>
+    private void Dispatch(
+        string jobName,
+        DateTimeOffset scheduledOccurrence,
+        DateTimeOffset? nextFireAt,
+        long registrationId)
     {
-        var dispatcher = this.registry.TryGetDispatcher(jobName);
+        var resolution = this.registry.ResolveDispatcher(jobName, registrationId);
+        if (resolution.Replaced)
+        {
+            return;
+        }
+
+        var dispatcher = resolution.Dispatcher;
         if (dispatcher is null)
         {
             // No live dispatcher (job removed mid-flight): surface as a failed fire
@@ -1753,7 +1794,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private void Enqueue(string jobName, Cadence cadence, MissedFirePolicy policy, DateTimeOffset occurrence)
     {
         var generation = ++this.generationCounter;
-        var handle = new JobHandle(jobName, cadence, policy, occurrence, generation);
+        var handle = new JobHandle(
+            jobName,
+            cadence,
+            policy,
+            occurrence,
+            generation,
+            this.registry.RegistrationId(jobName));
         this.scheduled[jobName] = new ScheduledJob(generation, occurrence);
         this.heap.Enqueue(handle, occurrence);
     }
@@ -1767,6 +1814,18 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private bool IsCurrent(JobHandle handle)
         => this.scheduled.TryGetValue(handle.JobName, out var live)
             && live.Generation == handle.Generation;
+
+    /// <summary>
+    /// True when a newer registration owns the job name.
+    /// An unregistered name is not a replacement; the missing-dispatcher path reports it.
+    /// </summary>
+    /// <param name="handle">The heap entry being considered.</param>
+    /// <returns><see langword="true"/> when the entry must not run.</returns>
+    private bool BelongsToReplacement(JobHandle handle)
+    {
+        var liveId = this.registry.RegistrationId(handle.JobName);
+        return liveId != 0 && liveId != handle.RegistrationId;
+    }
 
     /// <summary>
     /// Peeks the nearest valid (non-stale) fire instant in the heap, discarding stale
@@ -1885,7 +1944,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             record.Cadence,
             catchUp[0],
             catchUp.Count,
-            this.CurrentEpoch(record.Name));
+            this.CurrentEpoch(record.Name),
+            this.registry.RegistrationId(record.Name));
         this.catchUpOrder.Enqueue(record.Name);
     }
 
@@ -2195,6 +2255,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         DateTimeOffset Occurrence,
         DateTimeOffset? NextFireAt,
         long Epoch,
+        long RegistrationId,
         bool IsTrigger);
 
     /// <summary>The next startup occurrence still owed for one registration.</summary>
@@ -2202,7 +2263,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="Occurrence">The next occurrence to dispatch.</param>
     /// <param name="Remaining">How many occurrences are still owed, including <paramref name="Occurrence"/>.</param>
     /// <param name="Epoch">The registration epoch that queued the catch-up.</param>
-    private readonly record struct CatchUpCursor(Cadence Cadence, DateTimeOffset Occurrence, int Remaining, long Epoch);
+    /// <param name="RegistrationId">The registration that queued the catch-up.</param>
+    private readonly record struct CatchUpCursor(
+        Cadence Cadence,
+        DateTimeOffset Occurrence,
+        int Remaining,
+        long Epoch,
+        long RegistrationId);
 
     /// <summary>One handed-off fire, in dispatch order for its job.</summary>
     private sealed class PendingFire(

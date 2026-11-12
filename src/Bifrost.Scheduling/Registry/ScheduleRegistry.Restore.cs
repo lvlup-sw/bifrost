@@ -27,7 +27,7 @@ public sealed partial class ScheduleRegistry
             throw new DuplicateJobNameException(record.Name);
         }
 
-        this.dispatchers[record.Name] = dispatcher;
+        this.BindDispatcher(record.Name, dispatcher);
         this.metrics.RecordRegistered();
         this.events.Publish(new JobRegisteredEvent(record.Name));
         // The tick loop seeds restored records itself. A Register wake would re-arm

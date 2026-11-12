@@ -45,6 +45,9 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     private readonly ISchedulerEventSink events;
     private readonly ConcurrentDictionary<string, JobRecord> jobs = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, IJobDispatcher> dispatchers = new(StringComparer.Ordinal);
+    private readonly object registrationGate = new();
+    private readonly Dictionary<string, long> registrationIds = new(StringComparer.Ordinal);
+    private long nextRegistrationId;
 
     /// <summary>
     /// Maximum triggers accepted and not yet handed off. Further
@@ -142,6 +145,70 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         ArgumentNullException.ThrowIfNull(name);
 
         return this.dispatchers.TryGetValue(name, out var dispatcher) ? dispatcher : null;
+    }
+
+    /// <summary>
+    /// Binds <paramref name="dispatcher"/> to a new registration of <paramref name="name"/>.
+    /// </summary>
+    /// <param name="name">The job name.</param>
+    /// <param name="dispatcher">The dispatcher for this registration.</param>
+    /// <returns>The registration id.</returns>
+    internal long BindDispatcher(string name, IJobDispatcher dispatcher)
+    {
+        lock (this.registrationGate)
+        {
+            var id = ++this.nextRegistrationId;
+            this.registrationIds[name] = id;
+            this.dispatchers[name] = dispatcher;
+            return id;
+        }
+    }
+
+    /// <summary>
+    /// Drops the dispatcher and registration id for <paramref name="name"/>.
+    /// </summary>
+    /// <param name="name">The job name.</param>
+    internal void UnbindDispatcher(string name)
+    {
+        lock (this.registrationGate)
+        {
+            this.registrationIds.Remove(name);
+            this.dispatchers.TryRemove(name, out _);
+        }
+    }
+
+    /// <summary>The registration id currently bound to <paramref name="name"/>, or zero.</summary>
+    /// <param name="name">The job name.</param>
+    /// <returns>The live registration id.</returns>
+    internal long RegistrationId(string name)
+    {
+        lock (this.registrationGate)
+        {
+            return this.registrationIds.GetValueOrDefault(name);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the dispatcher for one registration.
+    /// A newer registration of the same name is reported as replaced.
+    /// </summary>
+    /// <param name="name">The job name.</param>
+    /// <param name="registrationId">The registration that queued the fire.</param>
+    /// <returns>The bound dispatcher, or a miss.</returns>
+    internal DispatcherResolution ResolveDispatcher(string name, long registrationId)
+    {
+        lock (this.registrationGate)
+        {
+            var current = this.registrationIds.GetValueOrDefault(name);
+            this.dispatchers.TryGetValue(name, out var dispatcher);
+            if (registrationId != 0 && current == registrationId && dispatcher is not null)
+            {
+                return new DispatcherResolution(dispatcher, Replaced: false);
+            }
+
+            var replaced = dispatcher is not null && current != registrationId;
+            return new DispatcherResolution(null, replaced);
+        }
     }
 
     /// <summary>
@@ -361,7 +428,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             throw;
         }
 
-        this.dispatchers[name] = dispatcher;
+        this.BindDispatcher(name, dispatcher);
         this.metrics.RecordRegistered();
         this.events.Publish(new JobRegisteredEvent(name));
         await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), CancellationToken.None).ConfigureAwait(false);
@@ -380,7 +447,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await this.store.DeleteAsync(name, ct).ConfigureAwait(false);
 
         this.jobs.TryRemove(name, out _);
-        this.dispatchers.TryRemove(name, out _);
+        this.UnbindDispatcher(name);
         this.metrics.RecordUnregistered();
         this.events.Publish(new JobUnregisteredEvent(name));
 
@@ -522,7 +589,8 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             }
 
             acquired = true;
-            await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name), linked.Token).ConfigureAwait(false);
+            var registrationId = this.RegistrationId(name);
+            await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name, registrationId), linked.Token).ConfigureAwait(false);
             acquired = false;
         }
         finally

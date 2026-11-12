@@ -44,7 +44,7 @@ public sealed class SystematicRegistryRestartTests
         Exception? fault = null;
         try
         {
-            dispatch.Invoke(loop, ["job", SystematicRegistryTests.Epoch.AddMinutes(1), SystematicRegistryTests.Epoch.AddMinutes(2)]);
+            dispatch.Invoke(loop, ["job", SystematicRegistryTests.Epoch.AddMinutes(1), SystematicRegistryTests.Epoch.AddMinutes(2), registry.RegistrationId("job")]);
         }
         catch (System.Reflection.TargetInvocationException exception)
         {
