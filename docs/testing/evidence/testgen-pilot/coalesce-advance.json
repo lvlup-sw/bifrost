@@ -1,0 +1,82 @@
+{
+  "ok": true,
+  "contractVersion": 1,
+  "generatorVersion": "tunit/1",
+  "patch": "diff --git a/src/Bifrost.Tests.Scheduling/TestgenCoalesceAdvance.cs b/src/Bifrost.Tests.Scheduling/TestgenCoalesceAdvance.cs\nnew file mode 100644\n--- /dev/null\n+++ b/src/Bifrost.Tests.Scheduling/TestgenCoalesceAdvance.cs\n@@ -0,0 +1,84 @@\n+using System;\n+using System.Threading.Tasks;\n+using TUnit.Assertions;\n+using TUnit.Assertions.Extensions;\n+using TUnit.Core;\n+\n+namespace @Bifrost.@Tests.@Scheduling;\n+\n+/// <summary>Checks the reviewed property over the supplied case domain.</summary>\n+public sealed class @TestgenCoalesceAdvance\n+{\n+    /// <summary>Checks the property for fixture case 1.</summary>\n+    /// <returns>The assertion task.</returns>\n+    [Test]\n+    public Task Case_1() => Check(new long[] { 639299087400000000L, 639299088000000000L, 600000000L });\n+\n+    /// <summary>Checks the property for fixture case 2.</summary>\n+    /// <returns>The assertion task.</returns>\n+    [Test]\n+    public Task Case_2() => Check(new long[] { 639299028600000000L, 639299088000000000L, 600000000L });\n+\n+    /// <summary>Checks the property for fixture case 3.</summary>\n+    /// <returns>The assertion task.</returns>\n+    [Test]\n+    public Task Case_3() => Check(new long[] { 639299028000000000L, 639299088000000000L, 600000000L });\n+\n+    /// <summary>Checks the property for fixture case 4.</summary>\n+    /// <returns>The assertion task.</returns>\n+    [Test]\n+    public Task Case_4() => Check(new long[] { 639299027400000000L, 639299088000000000L, 600000000L });\n+\n+    /// <summary>Checks the property for fixture case 5.</summary>\n+    /// <returns>The assertion task.</returns>\n+    [Test]\n+    public Task Case_5() => Check(new long[] { 639299026800000000L, 639299088000000000L, 600000000L });\n+\n+    /// <summary>Checks the property for fixture case 6.</summary>\n+    /// <returns>The assertion task.</returns>\n+    [Test]\n+    public Task Case_6() => Check(new long[] { 639298998000000000L, 639299088000000000L, 600000000L });\n+\n+    /// <summary>Checks the property for fixture case 7.</summary>\n+    /// <returns>The assertion task.</returns>\n+    [Test]\n+    public Task Case_7() => Check(new long[] { 639298788000000000L, 639299088000000000L, 600000000L });\n+\n+    /// <summary>Checks the property for fixture case 8.</summary>\n+    /// <returns>The assertion task.</returns>\n+    [Test]\n+    public Task Case_8() => Check(new long[] { 0L, 1L, 1L });\n+\n+    /// <summary>Checks the property for fixture case 9.</summary>\n+    /// <returns>The assertion task.</returns>\n+    [Test]\n+    public Task Case_9() => Check(new long[] { 0L, 304L, 3L });\n+\n+    /// <summary>Checks the property for fixture case 10.</summary>\n+    /// <returns>The assertion task.</returns>\n+    [Test]\n+    public Task Case_10() => Check(new long[] { 639299027400000000L, 639299088599999999L, 600000000L });\n+\n+    private static async Task Check(long[] source)\n+    {\n+        if (!global::@Bifrost.@Tests.@Scheduling.@CoalesceBinding.@IsValid(source))\n+        {\n+            throw new InvalidOperationException(\"TestGen invalid case: source is outside the declared domain.\");\n+        }\n+\n+        long[]? follow = global::@Bifrost.@Tests.@Scheduling.@CoalesceBinding.@Advance((long[])source.Clone());\n+        if (follow is null || follow.Length != source.Length || !global::@Bifrost.@Tests.@Scheduling.@CoalesceBinding.@IsValid(follow))\n+        {\n+            throw new InvalidOperationException(\"TestGen invalid case: follow-up is outside the declared domain.\");\n+        }\n+\n+        if (source.AsSpan().SequenceEqual(follow))\n+        {\n+            throw new InvalidOperationException(\"TestGen invalid case: transformation produced an identical input.\");\n+        }\n+\n+        long sourceResult = global::@Bifrost.@Tests.@Scheduling.@CoalesceBinding.@Observe(source);\n+        long followResult = global::@Bifrost.@Tests.@Scheduling.@CoalesceBinding.@Observe(follow);\n+        await Assert.That(global::@Bifrost.@Tests.@Scheduling.@CoalesceBinding.@Advances(source, follow, sourceResult, followResult)).IsTrue();\n+    }\n+}\n",
+  "fixture": {
+    "version": 1,
+    "cases": [
+      [
+        "639299087400000000",
+        "639299088000000000",
+        "600000000"
+      ],
+      [
+        "639299028600000000",
+        "639299088000000000",
+        "600000000"
+      ],
+      [
+        "639299028000000000",
+        "639299088000000000",
+        "600000000"
+      ],
+      [
+        "639299027400000000",
+        "639299088000000000",
+        "600000000"
+      ],
+      [
+        "639299026800000000",
+        "639299088000000000",
+        "600000000"
+      ],
+      [
+        "639298998000000000",
+        "639299088000000000",
+        "600000000"
+      ],
+      [
+        "639298788000000000",
+        "639299088000000000",
+        "600000000"
+      ],
+      [
+        "0",
+        "1",
+        "1"
+      ],
+      [
+        "0",
+        "304",
+        "3"
+      ],
+      [
+        "639299027400000000",
+        "639299088599999999",
+        "600000000"
+      ]
+    ]
+  },
+  "propertyRefs": [
+    "coalesce/advance-one-interval"
+  ],
+  "assumptions": [
+    "Positive interval with zero jitter. Last fire and now are UTC ticks.",
+    "At least one occurrence is due. Now plus one interval is representable."
+  ],
+  "unresolvedObligations": [
+    "Compile and execute emitted cases in the target project with the reviewed bindings.",
+    "Check that the native test runner discovers every case and that negative controls fail at the intended assertion."
+  ],
+  "validation": {
+    "executable": "dotnet",
+    "args": [
+      "run",
+      "--project",
+      "src/Bifrost.Tests.Scheduling/Bifrost.Tests.Scheduling.csproj",
+      "-c",
+      "Release"
+    ]
+  }
+}

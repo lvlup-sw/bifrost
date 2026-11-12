@@ -1,0 +1,25 @@
+{
+  "controlId": "priority-intermediate-mul-overflow-64bit",
+  "baselineCommit": "3e4044bf96bdb4ae11048384bb97bbcdf0dcfb4d",
+  "targetFile": "src/Bifrost/Queues/PriorityKey.cs",
+  "description": "Replaces Int128 widening in PriorityKey.ToTimestampTicks with a whole-second range pre-check (window.Ticks / TimeSpan.TicksPerSecond > long.MaxValue / frequency) followed by unchecked 64-bit multiplication (unchecked(window.Ticks * frequency) / TimeSpan.TicksPerSecond). Unrepresentable windows still throw ArgumentOutOfRangeException, and sub-minute windows at <= 1 GHz pass unchanged, but valid windows where window.Ticks * timestampFrequency exceeds long.MaxValue (e.g. >= 923 seconds on a 1 GHz monotonic clock) wrap signed 64-bit multiplication and reverse boost polarity.",
+  "violatedClause": "Converting each configured TimeSpan window to timestamp-frequency units truncates fractional units toward zero once using exact integer arithmetic, without floating-point rounding or intermediate 64-bit multiplication overflow when window.Ticks * timestampFrequency exceeds long.MaxValue.",
+  "witnessInput": [
+    "1000000000000",
+    "10000000000",
+    "0",
+    "1000000000",
+    "0"
+  ],
+  "expectedKey": "0",
+  "faultyKey": "1844674407370",
+  "survivesExistingPrioritySuites": true,
+  "existingPrioritySuiteTestCounts": {
+    "PriorityKeyTests": 12,
+    "PriorityArithmeticBoundaryTests": 5,
+    "PriorityScalingInvariantTests": 3,
+    "total": 20,
+    "passed": 20,
+    "failed": 0
+  }
+}

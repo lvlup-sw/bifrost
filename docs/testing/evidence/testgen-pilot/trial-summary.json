@@ -1,0 +1,92 @@
+[
+  {
+    "arm": "ordinary",
+    "attempted": 0,
+    "baseline": {
+      "valid-pass": 0,
+      "invalid": 0,
+      "build-failure": 0,
+      "false-failure": 0,
+      "timeout": 0,
+      "infrastructure-error": 0
+    },
+    "controls": {
+      "priority-intermediate-mul-overflow-64bit": {
+        "assertion-kill": 0,
+        "survived": 0,
+        "build-failure": 0,
+        "timeout": 0,
+        "infrastructure-error": 0,
+        "unrun": 0
+      }
+    },
+    "retainedTests": 0,
+    "observations": []
+  },
+  {
+    "arm": "skill",
+    "attempted": 1,
+    "baseline": {
+      "valid-pass": 1,
+      "invalid": 0,
+      "build-failure": 0,
+      "false-failure": 0,
+      "timeout": 0,
+      "infrastructure-error": 0
+    },
+    "controls": {
+      "priority-intermediate-mul-overflow-64bit": {
+        "assertion-kill": 1,
+        "survived": 0,
+        "build-failure": 0,
+        "timeout": 0,
+        "infrastructure-error": 0,
+        "unrun": 0
+      }
+    },
+    "retainedTests": 0,
+    "observations": [
+      {
+        "id": "bifrost-p1-truncation-saturation-skill-1",
+        "generationSeconds": 379.937,
+        "executionSeconds": 14.968,
+        "reviewSeconds": 432.235,
+        "shrinkingSeconds": 0,
+        "replay": "passed"
+      }
+    ]
+  },
+  {
+    "arm": "tools",
+    "attempted": 1,
+    "baseline": {
+      "valid-pass": 1,
+      "invalid": 0,
+      "build-failure": 0,
+      "false-failure": 0,
+      "timeout": 0,
+      "infrastructure-error": 0
+    },
+    "controls": {
+      "priority-intermediate-mul-overflow-64bit": {
+        "assertion-kill": 1,
+        "survived": 0,
+        "build-failure": 0,
+        "timeout": 0,
+        "infrastructure-error": 0,
+        "unrun": 0
+      }
+    },
+    "retainedTests": 113,
+    "observations": [
+      {
+        "id": "bifrost-p1-truncation-saturation-tools-1",
+        "generationSeconds": 426.144,
+        "executionSeconds": 13.639,
+        "reviewSeconds": 93.977,
+        "shrinkingSeconds": 0,
+        "replay": "passed"
+      }
+    ]
+  }
+]
