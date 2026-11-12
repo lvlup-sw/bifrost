@@ -110,7 +110,8 @@ public interface IScheduleRegistry
     /// <param name="ct">A token to cancel the wait for a trigger slot.</param>
     /// <returns>A task that completes when the trigger has been accepted.</returns>
     /// <exception cref="InvalidOperationException">
-    /// The call was made from a running dispatch and every trigger slot was already held.
+    /// The call was made from a running dispatch and every trigger slot was already held,
+    /// or the job is registered and its dispatcher is not bound yet.
     /// </exception>
     ValueTask TriggerAsync(string name, CancellationToken ct = default);
 

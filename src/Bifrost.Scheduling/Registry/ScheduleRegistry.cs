@@ -315,9 +315,18 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     public ValueTask UpdateAsync(string name, Cadence cadence, MissedFirePolicy missedFirePolicy, CancellationToken ct = default)
         => this.MutateAsync(name, () => this.UpdateCoreAsync(name, cadence, missedFirePolicy, ct), ct);
 
-    internal async ValueTask CheckpointAsync(JobRecord expected, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
+    internal async ValueTask CheckpointAsync(
+        JobRecord expected,
+        DateTimeOffset firedAt,
+        DateTimeOffset? nextFireAt,
+        long registrationId)
     {
         using var lease = await this.mutationGates.EnterAsync(expected.Name).ConfigureAwait(false);
+        if (this.RegistrationId(expected.Name) != registrationId)
+        {
+            return;
+        }
+
         if (this.jobs.TryGetValue(expected.Name, out var current)
             && ReferenceEquals(this.CheckpointOrigin(current), this.CheckpointOrigin(expected)))
         {
@@ -590,6 +599,12 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
             acquired = true;
             var registrationId = this.RegistrationId(name);
+            if (registrationId == 0)
+            {
+                throw new InvalidOperationException(
+                    "TriggerAsync cannot run until the job dispatcher is bound.");
+            }
+
             await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name, registrationId), linked.Token).ConfigureAwait(false);
             acquired = false;
         }

@@ -1552,7 +1552,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // so the idle barrier can never strand.
         Interlocked.Increment(ref this.inFlightDispatches);
         var expected = this.registry.TryGetRecord(jobName);
-        var pending = this.TrackFire(jobName, scheduledOccurrence, nextFireAt, expected);
+        var pending = this.TrackFire(jobName, scheduledOccurrence, nextFireAt, expected, registrationId);
         var tracked = new InFlightTrackingDispatcher(this, dispatcher, scope, pending);
         try
         {
@@ -1601,7 +1601,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 return;
             }
 
-            var blocked = new PendingFire(jobName, firedAt, null, null, epoch) { State = PendingFire.Blocked };
+            var blocked = new PendingFire(jobName, firedAt, null, null, epoch, registrationId: 0)
+            {
+                State = PendingFire.Blocked,
+            };
             blocked.Settled = true;
             list.Add(blocked);
             TrimAfterBlock(list);
@@ -1615,17 +1618,19 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="firedAt">The occurrence instant.</param>
     /// <param name="nextFireAt">The next occurrence captured for a contiguous checkpoint.</param>
     /// <param name="expected">The registry record captured before the dispatcher runs.</param>
+    /// <param name="registrationId">The registration <see cref="Dispatch"/> resolved.</param>
     /// <returns>The fire the handoff settles.</returns>
     private PendingFire TrackFire(
         string jobName,
         DateTimeOffset firedAt,
         DateTimeOffset? nextFireAt,
-        JobRecord? expected)
+        JobRecord? expected,
+        long registrationId)
     {
         lock (this.ackGate)
         {
             var epoch = this.jobEpoch.GetValueOrDefault(jobName);
-            var fire = new PendingFire(jobName, firedAt, nextFireAt, expected, epoch);
+            var fire = new PendingFire(jobName, firedAt, nextFireAt, expected, epoch, registrationId);
             var list = this.FiresFor(jobName);
             if (list.Count > 0 && list[0].State == PendingFire.Blocked && list[0].Epoch == epoch)
             {
@@ -1671,7 +1676,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             if (item.Expected is not null)
             {
-                this.SafeCheckpoint(item.Expected, item.FiredAt, item.NextFireAt);
+                this.SafeCheckpoint(item.Expected, item.FiredAt, item.NextFireAt, item.RegistrationId);
             }
         }
     }
@@ -1730,18 +1735,23 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="record">The registry record captured before the dispatcher runs.</param>
     /// <param name="firedAt">The occurrence the dispatcher acknowledged.</param>
     /// <param name="nextFireAt">The next occurrence captured with that acknowledgement.</param>
+    /// <param name="registrationId">The registration that acknowledged the fire.</param>
     [SuppressMessage(
         "Usage",
         "VSTHRD110:Observe result of async calls",
         Justification = "The checkpoint is intentionally best-effort and observed via " +
             "the ObserveCheckpointAsync continuation, which swallows failures.")]
-    private void SafeCheckpoint(JobRecord record, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
+    private void SafeCheckpoint(
+        JobRecord record,
+        DateTimeOffset firedAt,
+        DateTimeOffset? nextFireAt,
+        long registrationId)
     {
         var jobName = record.Name;
         ValueTask checkpoint;
         try
         {
-            checkpoint = this.registry.CheckpointAsync(record, firedAt, nextFireAt);
+            checkpoint = this.registry.CheckpointAsync(record, firedAt, nextFireAt, registrationId);
         }
 #pragma warning disable CA1031 // Best-effort: a synchronous store throw must not fault the loop.
         catch (Exception ex)
@@ -2277,7 +2287,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         DateTimeOffset firedAt,
         DateTimeOffset? nextFireAt,
         JobRecord? expected,
-        long epoch)
+        long epoch,
+        long registrationId)
     {
         public const byte InFlight = 0;
         public const byte Acknowledged = 1;
@@ -2292,6 +2303,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         public JobRecord? Expected { get; } = expected;
 
         public long Epoch { get; } = epoch;
+
+        public long RegistrationId { get; } = registrationId;
 
         public byte State { get; set; } = InFlight;
 
