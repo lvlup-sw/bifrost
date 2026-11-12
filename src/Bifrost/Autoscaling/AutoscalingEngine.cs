@@ -42,7 +42,11 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     private readonly IAutoscalingCoordinator _coordinator;
     private readonly ILogger<AutoscalingEngine> _logger;
     private readonly Lock _scalingLock = new();
-    private readonly Timer _evaluationTimer;
+    private readonly Lock _lifecycleLock = new();
+    private TaskCompletionSource? _callbacksDrained;
+    private int _activeCallbacks;
+    private readonly ITimer _evaluationTimer;
+    private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<int, Task> _pendingScalingTasks = new();
     private int _pendingTaskId;
     private DateTimeOffset _lastScalingTime = DateTimeOffset.MinValue;
@@ -60,7 +64,18 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
         IOptions<AutoscalingOptions> options,
         IAutoscalingCoordinator coordinator,
         ILogger<AutoscalingEngine> logger)
+        : this(options, coordinator, logger, TimeProvider.System)
     {
+    }
+
+    internal AutoscalingEngine(
+        IOptions<AutoscalingOptions> options,
+        IAutoscalingCoordinator coordinator,
+        ILogger<AutoscalingEngine> logger,
+        TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        _timeProvider = timeProvider;
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(coordinator);
         ArgumentNullException.ThrowIfNull(logger);
@@ -84,7 +99,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
         }
 
         // Create timer but don't start it yet
-        _evaluationTimer = new Timer(
+        _evaluationTimer = _timeProvider.CreateTimer(
             EvaluateScalingCallback,
             state: null,
             dueTime: Timeout.InfiniteTimeSpan,
@@ -131,13 +146,25 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     /// <inheritdoc/>
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
-        if (_isRunning)
+        lock (_lifecycleLock)
         {
-            return Task.CompletedTask;
-        }
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_isRunning)
+            {
+                return Task.CompletedTask;
+            }
 
-        _evaluationTimer.Change(TimeSpan.Zero, _options.CheckInterval);
-        _isRunning = true;
+            _isRunning = true;
+            try
+            {
+                _evaluationTimer.Change(TimeSpan.Zero, _options.CheckInterval);
+            }
+            catch
+            {
+                _isRunning = false;
+                throw;
+            }
+        }
 
         _logger.LogInformation(
             "Autoscaling engine started with CheckInterval={CheckInterval}, EffectiveMinWorkers={EffectiveMinWorkers}",
@@ -150,13 +177,20 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     /// <inheritdoc/>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        if (!_isRunning)
+        Task callbacks;
+        lock (_lifecycleLock)
         {
-            return;
+            if (_isRunning)
+            {
+                _evaluationTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                _isRunning = false;
+            }
+
+            callbacks = _callbacksDrained?.Task ?? Task.CompletedTask;
         }
 
-        _evaluationTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-        _isRunning = false;
+        // A blocked scaling callback must not outlive the host shutdown timeout.
+        await callbacks.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         // Drain pending scaling tasks
         await Task.WhenAll(_pendingScalingTasks.Values).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
@@ -189,7 +223,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
         lock (_scalingLock)
         {
             // Check cooldown period
-            var now = DateTimeOffset.UtcNow;
+            var now = _timeProvider.GetUtcNow();
             var timeSinceLastScaling = now - _lastScalingTime;
 
             if (timeSinceLastScaling < _options.CooldownPeriod)
@@ -265,22 +299,52 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (_disposed)
+        lock (_lifecycleLock)
         {
-            return;
-        }
+            if (_disposed)
+            {
+                return;
+            }
 
-        _evaluationTimer.Dispose();
-        _disposed = true;
+            _disposed = true;
+            _isRunning = false;
+            _evaluationTimer.Dispose();
+        }
     }
 
     private void EvaluateScalingCallback(object? state)
     {
-        if (!_isRunning)
+        lock (_lifecycleLock)
         {
-            return;
+            if (!_isRunning)
+            {
+                return;
+            }
+
+            if (_activeCallbacks++ == 0)
+            {
+                _callbacksDrained = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
         }
 
+        try
+        {
+            EvaluateScalingCallbackCore();
+        }
+        finally
+        {
+            lock (_lifecycleLock)
+            {
+                if (--_activeCallbacks == 0)
+                {
+                    _callbacksDrained!.TrySetResult();
+                }
+            }
+        }
+    }
+
+    private void EvaluateScalingCallbackCore()
+    {
         try
         {
             var decision = EvaluateScaling();

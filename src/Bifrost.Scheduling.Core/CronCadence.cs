@@ -59,6 +59,9 @@ public sealed record CronCadence : Cadence
     /// </summary>
     public TimeZoneInfo? TimeZone { get; }
 
+    internal DateTimeOffset? ComputePreviousFire(DateTimeOffset now)
+        => this.parsed.GetPreviousOccurrence(now, this.TimeZone ?? TimeZoneInfo.Utc, inclusive: true);
+
     /// <inheritdoc/>
     /// <remarks>
     /// Delegates to Cronos <c>GetNextOccurrence</c>, which never returns an occurrence

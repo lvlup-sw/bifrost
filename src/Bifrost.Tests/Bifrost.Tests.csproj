@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="../Bifrost.Testing.Systematic/*.cs" Link="Systematic/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="TUnit" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="Microsoft.Extensions.Options" />
@@ -29,6 +33,11 @@
     <ProjectReference Include="..\Bifrost.OpenTelemetry\Bifrost.OpenTelemetry.csproj" />
     <ProjectReference Include="..\Bifrost.Resilience\Bifrost.Resilience.csproj" />
     <ProjectReference Include="..\Bifrost\Bifrost.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Systematic/synthetic-fifo-counterexample.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Systematic/lifecycle-counterexample.json" TargetPath="lifecycle-counterexample.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

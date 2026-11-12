@@ -1,0 +1,25 @@
+{
+  "SchemaVersion": 1,
+  "SourceSha": "0fc121384950d964722a8de36d72a26679a428d3",
+  "SourceDirty": true,
+  "Runtime": ".NET 10.0.11; SDK 10.0.303",
+  "Build": "Debug; net10.0; test-only synthetic LIFO mutant",
+  "Invariant": "synthetic-fifo-order",
+  "OracleRelation": "dequeue must return the earliest pending synthetic identifier",
+  "Source": {
+    "Configuration": { "capacity": 2 },
+    "Commands": [
+      { "Kind": "enqueue", "Id": "synthetic-0", "Value": 1 },
+      { "Kind": "enqueue", "Id": "synthetic-1", "Value": 2 },
+      { "Kind": "dequeue", "Id": "synthetic-result", "Value": 0 }
+    ],
+    "Parameters": null
+  },
+  "Followup": null,
+  "LogicalClockTicks": 0,
+  "FaultPosition": 2,
+  "ActorOrder": ["single-thread:enqueue:synthetic-0", "single-thread:enqueue:synthetic-1", "single-thread:dequeue:synthetic-result"],
+  "UncontrolledScheduleLimitation": null,
+  "Observation": { "FailureClass": "synthetic-fifo-order", "Expected": "synthetic-0", "Actual": "synthetic-1" },
+  "ReplayCommand": "dotnet run --project src/Bifrost.Tests -- --treenode-filter '/*/*/HistoryToolsTests/SavedSyntheticCounterexample_ReplaysExecutionAndOracle'"
+}

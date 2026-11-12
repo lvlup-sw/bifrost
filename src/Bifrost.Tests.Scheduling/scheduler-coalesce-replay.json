@@ -1,0 +1,36 @@
+{
+  "SchemaVersion": 1,
+  "SourceSha": "0fc121384950d964722a8de36d72a26679a428d3",
+  "SourceDirty": true,
+  "Runtime": ".NET 10.0.11",
+  "Build": "Debug/net10.0",
+  "Invariant": "S2",
+  "OracleRelation": "latest missed = last \u002B floor((now-last)/interval)*interval",
+  "Source": {
+    "Configuration": {
+      "intervalTicks": 1,
+      "lastTicks": 0
+    },
+    "Commands": [
+      {
+        "Kind": "coalesce",
+        "Id": "interval",
+        "Value": 101
+      }
+    ],
+    "Parameters": null
+  },
+  "Followup": null,
+  "LogicalClockTicks": 101,
+  "FaultPosition": null,
+  "ActorOrder": [
+    "scheduler"
+  ],
+  "UncontrolledScheduleLimitation": null,
+  "Observation": {
+    "FailureClass": "S2.latest-missed",
+    "Expected": "101",
+    "Actual": "100"
+  },
+  "ReplayCommand": "dotnet run --project src/Bifrost.Tests.Scheduling -- --treenode-filter \u0027/*/*/SchedulerReplayTests/SavedProductionCounterexample\u0027"
+}

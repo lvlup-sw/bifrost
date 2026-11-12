@@ -248,39 +248,21 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     }
 
     /// <summary>
-    /// Returns the current barrier wake task, completed when a new barrier request is
-    /// registered so the parked loop re-evaluates its quiescence.
-    /// </summary>
-    /// <returns>The current barrier wake task.</returns>
-    [SuppressMessage(
-        "Usage",
-        "VSTHRD003:Avoid awaiting foreign Tasks",
-        Justification = "Returns the intentional cross-thread barrier wake signal for " +
-            "the tick loop's wait to observe; it is completed when WaitForIdleAsync " +
-            "registers a request.")]
-    private Task CurrentBarrierWakeTask()
-    {
-        lock (this.barrierGate)
-        {
-            return this.barrierWake.Task;
-        }
-    }
-
-    /// <summary>
     /// Completes and clears every pending quiescence-barrier request. Called by the
     /// tick thread only at a fully-quiescent park — all commands drained, all due jobs
     /// dispatched, no dispatch in flight — so a completed request is a true idle signal.
     /// </summary>
-    private void ReleaseIdleBarrier()
+    private void ReleaseIdleBarrier(int count = int.MaxValue)
     {
         lock (this.barrierGate)
         {
-            foreach (var request in this.pendingBarriers)
+            count = Math.Min(count, this.pendingBarriers.Count);
+            for (var index = 0; index < count; index++)
             {
-                request.TrySetResult();
+                this.pendingBarriers[index].TrySetResult();
             }
 
-            this.pendingBarriers.Clear();
+            this.pendingBarriers.RemoveRange(0, count);
         }
     }
 
@@ -647,13 +629,21 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <returns>A task that completes when the tick has been processed.</returns>
     private async Task RunTickAsync(CancellationToken stoppingToken)
     {
+        int barrierCount;
+        Task barrierWakeTask;
+        lock (this.barrierGate)
+        {
+            barrierCount = this.pendingBarriers.Count;
+            barrierWakeTask = this.barrierWake.Task;
+        }
+
         // Record liveness each iteration so the health check can detect a stalled
         // loop (DR-8). The instant is read from the injected clock (DR-7).
         this.healthMonitor.RecordTick(this.timeProvider.GetUtcNow());
 
         this.DrainCommands();
         this.DispatchDueJobs(stoppingToken);
-        await this.WaitForNextWakeAsync(stoppingToken).ConfigureAwait(false);
+        await this.WaitForNextWakeAsync(stoppingToken, barrierCount, barrierWakeTask).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -664,7 +654,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// nothing due and no dispatch in flight — it releases the idle barrier so a
     /// waiting test observes the settled state.
     /// </summary>
-    /// <param name="stoppingToken">The loop's stopping token.</param>
     /// <returns>A task that completes when the loop should re-evaluate.</returns>
     [SuppressMessage(
         "Usage",
@@ -672,7 +661,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         Justification = "The drain signal is an intentional cross-thread primitive " +
             "completed when the last pool-thread dispatch finishes; awaiting it wakes " +
             "the loop to re-evaluate idle.")]
-    private async Task WaitForNextWakeAsync(CancellationToken stoppingToken)
+    private async Task WaitForNextWakeAsync(CancellationToken stoppingToken, int barrierCount, Task barrierWakeTask)
     {
         var now = this.timeProvider.GetUtcNow();
 
@@ -705,7 +694,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // clock, so the advance reliably wakes the loop (no missed wakeup).
         var drainTask = this.CurrentDrainTask();
         var commandReady = this.CommandReadyTask(stoppingToken);
-        var barrierWakeTask = this.CurrentBarrierWakeTask();
         Task? delayTask = null;
         if (nextFire is not null)
         {
@@ -724,7 +712,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // is not yet idle; the barrier is released at the next park after it drains.
         if (Volatile.Read(ref this.inFlightDispatches) == 0)
         {
-            this.ReleaseIdleBarrier();
+            this.ReleaseIdleBarrier(barrierCount);
         }
 
         try
@@ -1018,6 +1006,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="nextFireAt">The next occurrence, or <see langword="null"/>.</param>
     private void Dispatch(string jobName, DateTimeOffset scheduledOccurrence, DateTimeOffset? nextFireAt)
     {
+        var record = this.registry.TryGetRecord(jobName);
         var dispatcher = this.registry.TryGetDispatcher(jobName);
         if (dispatcher is null)
         {
@@ -1053,10 +1042,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // zero. Time flows through the injected TimeProvider (DR-7).
         var dispatchedAt = this.timeProvider.GetUtcNow();
         this.metrics.RecordFired(jobName, dispatchedAt - scheduledOccurrence);
-
-        // Best-effort checkpoint: the fire already happened, so a checkpoint failure
-        // must not undo it, fault the loop, or stall it.
-        this.SafeCheckpoint(jobName, scheduledOccurrence, nextFireAt);
 
         // Open a per-fire DI scope (F2/M2), now that the handoff signal has been
         // published. When no root provider was supplied the scope is null and the fire
@@ -1111,6 +1096,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         try
         {
             this.router.Dispatch(tracked, context, CancellationToken.None);
+            if (record is not null)
+            {
+                this.SafeCheckpoint(record, scheduledOccurrence, nextFireAt);
+            }
         }
 #pragma warning disable CA1031 // Undo the in-flight bookkeeping on any handoff fault.
         catch
@@ -1134,20 +1123,18 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// swallowed. It never faults the loop or stalls it: the checkpoint is observed
     /// asynchronously off the tick thread so a slow store does not block scheduling.
     /// </summary>
-    /// <param name="jobName">The job that fired.</param>
-    /// <param name="firedAt">The fire instant.</param>
-    /// <param name="nextFireAt">The next occurrence, or <see langword="null"/>.</param>
     [SuppressMessage(
         "Usage",
         "VSTHRD110:Observe result of async calls",
         Justification = "The checkpoint is intentionally best-effort and observed via " +
             "the ObserveCheckpointAsync continuation, which swallows failures.")]
-    private void SafeCheckpoint(string jobName, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
+    private void SafeCheckpoint(JobRecord record, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
     {
+        var jobName = record.Name;
         ValueTask checkpoint;
         try
         {
-            checkpoint = this.store.RecordFiredAsync(jobName, firedAt, nextFireAt, CancellationToken.None);
+            checkpoint = this.registry.CheckpointAsync(record, firedAt, nextFireAt);
         }
 #pragma warning disable CA1031 // Best-effort: a synchronous store throw must not fault the loop.
         catch (Exception ex)

@@ -5,6 +5,7 @@
 // =============================================================================
 
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
@@ -34,6 +35,9 @@ namespace Bifrost.Scheduling.Registry;
 /// </remarks>
 public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposable, IDisposable
 {
+    private readonly JobMutationGates mutationGates = new();
+    private readonly ConditionalWeakTable<JobRecord, JobRecord> checkpointOrigins = new();
+    private readonly ConditionalWeakTable<JobRecord, CheckpointProgress> checkpointProgress = new();
     private readonly IScheduleStore store;
     private readonly TimeProvider timeProvider;
     private readonly SchedulerMetrics metrics;
@@ -208,7 +212,68 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     }
 
     /// <inheritdoc/>
-    public async ValueTask RegisterAsync(
+    public ValueTask RegisterAsync(string name, Cadence cadence, MissedFirePolicy missedFirePolicy, IJobDispatcher dispatcher, CancellationToken ct = default)
+        => this.MutateAsync(name, () => this.RegisterCoreAsync(name, cadence, missedFirePolicy, dispatcher, ct), ct);
+
+    /// <inheritdoc/>
+    public async ValueTask<bool> UnregisterAsync(string name, CancellationToken ct = default)
+    {
+        this.ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(name);
+        using var lease = await this.mutationGates.EnterAsync(name, ct).ConfigureAwait(false);
+        return await this.UnregisterCoreAsync(name, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public ValueTask PauseAsync(string name, CancellationToken ct = default)
+        => this.MutateAsync(name, () => this.PauseCoreAsync(name, ct), ct);
+
+    /// <inheritdoc/>
+    public ValueTask ResumeAsync(string name, CancellationToken ct = default)
+        => this.MutateAsync(name, () => this.ResumeCoreAsync(name, ct), ct);
+
+    /// <inheritdoc/>
+    public ValueTask UpdateAsync(string name, Cadence cadence, MissedFirePolicy missedFirePolicy, CancellationToken ct = default)
+        => this.MutateAsync(name, () => this.UpdateCoreAsync(name, cadence, missedFirePolicy, ct), ct);
+
+    internal async ValueTask CheckpointAsync(JobRecord expected, DateTimeOffset firedAt, DateTimeOffset? nextFireAt)
+    {
+        using var lease = await this.mutationGates.EnterAsync(expected.Name).ConfigureAwait(false);
+        if (this.jobs.TryGetValue(expected.Name, out var current)
+            && ReferenceEquals(this.CheckpointOrigin(current), this.CheckpointOrigin(expected)))
+        {
+            var progress = this.checkpointProgress.GetValue(this.CheckpointOrigin(current), static _ => new CheckpointProgress());
+            if ((current.LastFiredAt is { } recorded && firedAt <= recorded)
+                || (progress.HighestAttempt is { } attempted && firedAt < attempted))
+            {
+                return;
+            }
+
+            progress.HighestAttempt = firedAt;
+            await this.store.RecordFiredAsync(expected.Name, firedAt, nextFireAt, CancellationToken.None).ConfigureAwait(false);
+            var updated = current with { LastFiredAt = firedAt, NextFireAt = nextFireAt };
+            this.checkpointOrigins.Add(updated, this.CheckpointOrigin(current));
+            this.jobs.TryUpdate(expected.Name, updated, current);
+        }
+    }
+
+    private sealed class CheckpointProgress
+    {
+        internal DateTimeOffset? HighestAttempt { get; set; }
+    }
+
+    private JobRecord CheckpointOrigin(JobRecord record)
+        => this.checkpointOrigins.TryGetValue(record, out var origin) ? origin : record;
+
+    private async ValueTask MutateAsync(string name, Func<ValueTask> action, CancellationToken ct)
+    {
+        this.ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(name);
+        using var lease = await this.mutationGates.EnterAsync(name, ct).ConfigureAwait(false);
+        await action().ConfigureAwait(false);
+    }
+
+    private async ValueTask RegisterCoreAsync(
         string name,
         Cadence cadence,
         MissedFirePolicy missedFirePolicy,
@@ -288,8 +353,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), CancellationToken.None).ConfigureAwait(false);
     }
 
-    /// <inheritdoc/>
-    public async ValueTask<bool> UnregisterAsync(string name, CancellationToken ct = default)
+    private async ValueTask<bool> UnregisterCoreAsync(string name, CancellationToken ct = default)
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
@@ -313,8 +377,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         return true;
     }
 
-    /// <inheritdoc/>
-    public async ValueTask PauseAsync(string name, CancellationToken ct = default)
+    private async ValueTask PauseCoreAsync(string name, CancellationToken ct = default)
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
@@ -333,8 +396,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await this.TransitionAsync(record, JobState.Paused, RegistryCommandKind.Pause, ct).ConfigureAwait(false);
     }
 
-    /// <inheritdoc/>
-    public async ValueTask ResumeAsync(string name, CancellationToken ct = default)
+    private async ValueTask ResumeCoreAsync(string name, CancellationToken ct = default)
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
@@ -353,8 +415,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await this.TransitionAsync(record, JobState.Running, RegistryCommandKind.Resume, ct).ConfigureAwait(false);
     }
 
-    /// <inheritdoc/>
-    public async ValueTask UpdateAsync(
+    private async ValueTask UpdateCoreAsync(
         string name,
         Cadence cadence,
         MissedFirePolicy missedFirePolicy,

@@ -14,4 +14,8 @@
     <AdditionalFiles Include="BannedSymbols.txt" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bifrost.Scheduling" />
+  </ItemGroup>
+
 </Project>

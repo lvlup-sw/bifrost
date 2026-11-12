@@ -42,6 +42,21 @@ public sealed class MissedFireStartupTests
     // (F2/M2) — exercises the per-fire scope lifecycle in this fixture's tick loop.
     private static readonly ServiceProvider Services = new ServiceCollection().BuildServiceProvider();
 
+    #pragma warning disable CS1591, SA1600
+    [Test]
+    public async Task Coalesce_FiveHundredPastIntervals_DispatchesLatestOccurrence()
+    {
+        var dispatcher = new CountingDispatcher();
+        await using var fx = await Fixture.StartWithSeededJobAsync(
+            "report", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce,
+            Start.AddMinutes(-500), dispatcher).ConfigureAwait(false);
+
+        await Assert.That(dispatcher.Occurrences.ToArray()).HasCount(1);
+        await Assert.That(dispatcher.Occurrences.Single()).IsEqualTo(Start);
+    }
+
+    #pragma warning restore CS1591, SA1600
+
     private static TimeSpan TestTimeout => TimeSpan.FromSeconds(10);
 
     /// <summary>
@@ -255,10 +270,13 @@ public sealed class MissedFireStartupTests
     {
         private int fireCount;
 
+        public System.Collections.Concurrent.ConcurrentQueue<DateTimeOffset> Occurrences { get; } = new();
+
         public int FireCount => Volatile.Read(ref this.fireCount);
 
         public ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
+            this.Occurrences.Enqueue(context.FireTime);
             Interlocked.Increment(ref this.fireCount);
             return ValueTask.CompletedTask;
         }
