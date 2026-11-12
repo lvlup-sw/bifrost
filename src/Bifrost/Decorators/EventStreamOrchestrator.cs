@@ -96,14 +96,22 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     /// <inheritdoc/>
     public async Task DrainAsync(CancellationToken ct = default)
     {
-        _draining = true;
+        lock (_subscriptionGate)
+        {
+            _draining = true;
+        }
 
         await _inner.DrainAsync(ct).ConfigureAwait(false);
 
-        // Complete all subscriber channels so consumers terminate gracefully
-        foreach (var subscriber in _eventSubscribers.Values)
+        // Complete and clear all subscriber channels atomically with respect to GetEventStreamAsync.
+        lock (_subscriptionGate)
         {
-            subscriber.Writer.TryComplete();
+            foreach (var subscriber in _eventSubscribers.Values)
+            {
+                subscriber.Writer.TryComplete();
+            }
+
+            _eventSubscribers.Clear();
         }
     }
 
@@ -148,18 +156,19 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
                 SingleWriter = false,
             });
 
-        // Registration and disposal must be atomic: a channel added after disposal's
-        // snapshot would otherwise never be completed. Publishing takes no new lock.
+        // Registration, drain, and disposal must be atomic: a channel added after
+        // drain or disposal's snapshot would otherwise never be completed.
         lock (_subscriptionGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            _eventSubscribers.TryAdd(subscriberId, subscriberChannel);
-        }
-
-        // If drain has started, ensure late subscribers terminate immediately
-        if (_draining)
-        {
-            subscriberChannel.Writer.TryComplete();
+            if (_draining)
+            {
+                subscriberChannel.Writer.TryComplete();
+            }
+            else
+            {
+                _eventSubscribers.TryAdd(subscriberId, subscriberChannel);
+            }
         }
 
         return ReadWithCleanup<TEvent>(subscriberId, subscriberChannel.Reader, correlationId, cancellationToken);
