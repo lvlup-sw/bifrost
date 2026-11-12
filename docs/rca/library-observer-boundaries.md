@@ -27,9 +27,10 @@ observation cannot suppress processing or rejection routing.
 
 Successful worker observations remain synchronous and allocate no new per-item
 objects. Subscriber dispatch adds a task per callback on the failure path only;
-no-subscriber notification returns before allocating a snapshot. Slow callbacks
-can still exhaust shared thread-pool resources. Notifications remain best-effort,
-concurrent, unbounded, and not drained at shutdown. Reliable delivery belongs to
+no-subscriber notification returns before allocating a snapshot. At most 32
+callbacks run at once. Further notifications are dropped, so a slow subscriber
+cannot exhaust the thread pool. Notifications remain best-effort, concurrent,
+and not drained at shutdown. Reliable delivery belongs to
 an appropriate `IDeadLetterQueue` implementation, not these callbacks.
 
 Existing event buffer eviction is intentional and covered by its own tests; this

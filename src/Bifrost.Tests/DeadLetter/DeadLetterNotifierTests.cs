@@ -278,4 +278,41 @@ public class DeadLetterNotifierTests
         var observed = await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(observed).IsEqualTo(evt);
     }
+
+    /// <summary>
+    /// Verifies that a subscriber which does not return cannot schedule an unbounded number of callbacks.
+    /// </summary>
+    [Test]
+    public async Task Notify_WhenOutstandingCallbacksAreSaturated_DropsFurtherDelivery()
+    {
+        var notifier = CreateNotifier();
+        var entered = 0;
+        var limit = DeadLetterNotifier<string>.MaxOutstandingCallbacks;
+        var saturated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var overflowed = 0;
+        using var gate = new CancellationTokenSource();
+        notifier.SubscribeAsync(async _ =>
+        {
+            var count = Interlocked.Increment(ref entered);
+            if (count == limit) saturated.TrySetResult();
+            if (count > limit) Interlocked.Exchange(ref overflowed, 1);
+            await Task.Delay(Timeout.InfiniteTimeSpan, gate.Token).ConfigureAwait(false);
+        });
+
+        var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
+        try
+        {
+            for (var i = 0; i < limit; i++) notifier.Notify(evt);
+            await saturated.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+            notifier.Notify(evt);
+            await Task.Delay(TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
+            await Assert.That(Volatile.Read(ref overflowed)).IsEqualTo(0);
+            await Assert.That(Volatile.Read(ref entered)).IsEqualTo(limit);
+        }
+        finally
+        {
+            await gate.CancelAsync().ConfigureAwait(false);
+        }
+    }
 }

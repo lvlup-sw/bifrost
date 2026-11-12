@@ -14,12 +14,16 @@ namespace Bifrost.DeadLetter;
 /// Multi-subscriber notifier for dead letter events. Subscribers are invoked
 /// fire-and-forget on the thread pool with per-subscriber error isolation.
 /// Callbacks can overlap and must return promptly. Notifications are best-effort,
-/// are not drained at shutdown, and do not provide bounded delivery or replay.
+/// are not drained at shutdown, and drop once <see cref="MaxOutstandingCallbacks"/>
+/// deliveries are still running. They are not replayed.
 /// </summary>
 /// <typeparam name="TWork">The type of work item.</typeparam>
 internal sealed class DeadLetterNotifier<TWork>
 {
+    internal const int MaxOutstandingCallbacks = 32;
+
     private readonly List<Func<WorkDeadLetteredEvent<TWork>, Task>> _callbacks = [];
+    private readonly SemaphoreSlim _outstanding = new(MaxOutstandingCallbacks, MaxOutstandingCallbacks);
     private readonly object _lock = new();
     private readonly ILogger<DeadLetterNotifier<TWork>> _logger;
 
@@ -49,9 +53,18 @@ internal sealed class DeadLetterNotifier<TWork>
 
         foreach (var callback in snapshot)
         {
+            // A slow subscriber must not schedule unbounded thread-pool work.
+            if (!_outstanding.Wait(0))
+            {
+                _logger.LogWarning(
+                    "Dropped a dead letter notification because {Limit} callbacks are still outstanding",
+                    MaxOutstandingCallbacks);
+                continue;
+            }
+
             // Fire-and-forget to avoid blocking the handler loop.
             // Errors are logged but don't affect the main processing path.
-            _ = Task.Run(() => NotifySafe(callback, evt));
+            _ = Task.Run(() => DeliverBoundedAsync(callback, evt));
         }
     }
 
@@ -96,6 +109,20 @@ internal sealed class DeadLetterNotifier<TWork>
         }
 
         return new Subscription(this, callback);
+    }
+
+    private async Task DeliverBoundedAsync(
+        Func<WorkDeadLetteredEvent<TWork>, Task> callback,
+        WorkDeadLetteredEvent<TWork> evt)
+    {
+        try
+        {
+            await NotifySafe(callback, evt).ConfigureAwait(false);
+        }
+        finally
+        {
+            _outstanding.Release();
+        }
     }
 
     private async Task NotifySafe(
