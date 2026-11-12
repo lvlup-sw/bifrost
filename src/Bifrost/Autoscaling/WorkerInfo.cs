@@ -22,8 +22,13 @@ namespace Bifrost.Autoscaling;
 /// </remarks>
 public sealed class WorkerInfo
 {
+    private readonly Lock _stopGate = new();
+    private readonly CancellationTokenSource _stopSource = new();
+    private bool _stopSourceDisposed;
     private int _stopRequested; // 1 = stop requested, 0 = running (int for Interlocked)
     private volatile int _isIdle; // 1 = idle, 0 = busy (int for Interlocked)
+
+    internal CancellationToken RetirementToken => _stopSource.Token;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorkerInfo"/> class.
@@ -115,14 +120,26 @@ public sealed class WorkerInfo
     /// Requests the worker to stop gracefully.
     /// </summary>
     /// <remarks>
-    /// This is a soft stop signal that sets <see cref="StopRequested"/> to true. The worker
-    /// should complete its current work item before checking this flag and exiting gracefully.
-    /// This method is thread-safe via <see cref="Interlocked.Exchange(ref int, int)"/>
-    /// to ensure atomic state transitions, matching the pattern used by
-    /// <see cref="MarkBusy"/> and <see cref="MarkIdle"/>.
+    /// Sets the stop flag and wakes a parked consumer without canceling its current handler.
+    /// The stop gate serializes signaling with worker cleanup. Only the first request counts.
     /// </remarks>
-    internal void RequestStop()
+    internal bool RequestStop()
     {
-        Interlocked.Exchange(ref _stopRequested, 1);
+        lock (_stopGate)
+        {
+            if (_stopSourceDisposed || Interlocked.Exchange(ref _stopRequested, 1) != 0) return false;
+            _stopSource.Cancel();
+            return true;
+        }
+    }
+
+    internal void DisposeStopSource()
+    {
+        lock (_stopGate)
+        {
+            if (_stopSourceDisposed) return;
+            _stopSourceDisposed = true;
+            _stopSource.Dispose();
+        }
     }
 }

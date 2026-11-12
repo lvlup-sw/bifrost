@@ -131,10 +131,15 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
             }
 
             // Get a worker function from the inner orchestrator, which captures the real channel reader
-            var workerFunc = _inner.CreateWorkerFunction(StateCallback);
+            Task WorkerFunction(string id, CancellationToken token)
+            {
+                var worker = _registry.GetWorkerInfo(id)
+                    ?? throw new InvalidOperationException("Worker must be registered before it starts.");
+                return _inner.CreateWorkerFunction(StateCallback, worker.RetirementToken)(id, token);
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
-            await _registry.CreateWorkerAsync(workerId, workerFunc, _inner.GetShutdownToken()).ConfigureAwait(false);
+            await _registry.CreateWorkerAsync(workerId, WorkerFunction, _inner.GetShutdownToken()).ConfigureAwait(false);
         }
     }
 
@@ -147,7 +152,8 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <remarks>
     /// Only removes idle workers to avoid interrupting in-progress work.
     /// The actual number of workers removed may be less than requested if
-    /// fewer idle workers are available.
+    /// fewer idle workers are available. One consumer stays while admitted
+    /// work is still queued.
     /// </remarks>
     public Task RequestScaleDownAsync(int count, CancellationToken cancellationToken = default)
     {
@@ -159,6 +165,10 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
         // Only scale down idle workers
         var idleCount = _registry.IdleWorkerCount;
         var toStop = Math.Min(count, idleCount);
+        if (_inner.PendingCount > 0)
+        {
+            toStop = Math.Min(toStop, Math.Max(0, _inner.ActiveWorkers - 1));
+        }
 
         _registry.RequestMultipleWorkerStop(toStop);
         return Task.CompletedTask;
@@ -171,6 +181,10 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <inheritdoc/>
     public Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback)
         => _inner.CreateWorkerFunction(stateCallback);
+
+    /// <inheritdoc/>
+    public Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback, CancellationToken retirementToken)
+        => _inner.CreateWorkerFunction(stateCallback, retirementToken);
 
     /// <inheritdoc/>
     public CancellationToken GetShutdownToken()

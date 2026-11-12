@@ -115,16 +115,35 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
                 }
             }
 
-            var workerFunc = _orchestrator.CreateWorkerFunction(StateCallback);
-            await _registry.CreateWorkerAsync(workerId, workerFunc, cancellationToken).ConfigureAwait(false);
+            Task WorkerFunction(string id, CancellationToken token)
+            {
+                var worker = _registry.GetWorkerInfo(id)
+                    ?? throw new InvalidOperationException("Worker must be registered before it starts.");
+                return _orchestrator.CreateWorkerFunction(StateCallback, worker.RetirementToken)(id, token);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await _registry.CreateWorkerAsync(workerId, WorkerFunction, _orchestrator.GetShutdownToken()).ConfigureAwait(false);
         }
     }
 
     /// <inheritdoc/>
     public Task RequestScaleDownAsync(int count, CancellationToken cancellationToken = default)
     {
-        _registry.RequestMultipleWorkerStop(count);
+        _registry.RequestMultipleWorkerStop(WorkersToStop(count));
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Leaves one consumer running while admitted work is still queued. The engine minimum does
+    /// not apply to this direct scale-down path.
+    /// </summary>
+    private int WorkersToStop(int count)
+    {
+        if (count <= 0 || _orchestrator.PendingCount <= 0)
+            return count;
+
+        return Math.Min(count, Math.Max(0, _orchestrator.ActiveWorkers - 1));
     }
 
     /// <inheritdoc/>

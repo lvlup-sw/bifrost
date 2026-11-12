@@ -24,6 +24,7 @@
 // resolves cleanly.
 // =============================================================================
 
+using Bifrost.Autoscaling;
 using Bifrost.Core;
 using Bifrost.DependencyInjection;
 using Bifrost.Scheduling.Core;
@@ -56,6 +57,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddWorkOrchestrator<SmokeWork>()
                 .WithHandler<SmokeWork, SmokeWorkHandler>()
                 .UsePriorityDispatch(DispatchStrategy.PriorityExact)
+                .WithAutoscaling()
                 .Build();
 
         // Register a custom dispatcher for mode 4 (resolved by generic DI, not
@@ -213,6 +215,20 @@ if (!orchestratorFired || !inlineFired)
 }
 
 Console.WriteLine("Orchestrator and inline dispatch paths both executed under NativeAOT.");
+// Exercise the retirement overload through the DI decorator chain under NativeAOT.
+var scaling = host.Services.GetRequiredKeyedService<IAutoscalingCoordinator>(typeof(SmokeWork));
+var workers = host.Services.GetRequiredKeyedService<IWorkerRegistry>(typeof(SmokeWork));
+using (var retirementDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+{
+    await scaling.RequestScaleUpAsync(1, retirementDeadline.Token).ConfigureAwait(false);
+    await scaling.RequestScaleDownAsync(1, retirementDeadline.Token).ConfigureAwait(false);
+    while (workers.ActiveWorkerCount != 0)
+    {
+        await Task.Delay(1, retirementDeadline.Token).ConfigureAwait(false);
+    }
+}
+
+Console.WriteLine("Verified dynamic worker retirement under NativeAOT.");
 Console.WriteLine("Bifrost.Scheduling AOT smoke — PASS.");
 
 await host.StopAsync().ConfigureAwait(false);

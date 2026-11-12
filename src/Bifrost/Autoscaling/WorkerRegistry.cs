@@ -77,6 +77,7 @@ public sealed class WorkerRegistry : IWorkerRegistry
 
         if (!_workers.TryAdd(workerId, workerInfo))
         {
+            workerInfo.DisposeStopSource();
             throw new InvalidOperationException($"Worker with ID '{workerId}' already exists.");
         }
 
@@ -93,6 +94,7 @@ public sealed class WorkerRegistry : IWorkerRegistry
                 }
                 finally
                 {
+                    workerInfo.DisposeStopSource();
                     _workers.TryRemove(workerId, out _);
                 }
             },
@@ -145,8 +147,7 @@ public sealed class WorkerRegistry : IWorkerRegistry
         var stoppedCount = 0;
         foreach (var worker in sorted)
         {
-            worker.RequestStop();
-            stoppedCount++;
+            if (worker.RequestStop()) stoppedCount++;
         }
 
         return stoppedCount;

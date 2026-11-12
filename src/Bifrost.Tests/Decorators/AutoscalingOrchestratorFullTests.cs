@@ -106,24 +106,27 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task RequestScaleUpAsync_UsesInnerOrchestratorWorkerFunction()
     {
-        // Arrange
         var workerInfo = new WorkerInfo("test-worker");
         Func<string, CancellationToken, Task> workerFunc = (_, _) => Task.CompletedTask;
-        _inner.CreateWorkerFunction(Arg.Any<Action<bool>?>()).Returns(workerFunc);
+        _inner.CreateWorkerFunction(Arg.Any<Action<bool>?>(), workerInfo.RetirementToken).Returns(workerFunc);
+        _registry.GetWorkerInfo(Arg.Any<string>()).Returns(workerInfo);
         _registry.CreateWorkerAsync(
                 Arg.Any<string>(),
                 Arg.Any<Func<string, CancellationToken, Task>>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(workerInfo));
-
+            .Returns(async call =>
+            {
+                await call.Arg<Func<string, CancellationToken, Task>>()(
+                    call.Arg<string>(), call.Arg<CancellationToken>()).ConfigureAwait(false);
+                return workerInfo;
+            });
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         await orchestrator.RequestScaleUpAsync(2).ConfigureAwait(false);
 
-        // Assert - CreateWorkerFunction should be called for each worker
-        _inner.Received(2).CreateWorkerFunction(Arg.Any<Action<bool>?>());
+        _inner.Received(2).CreateWorkerFunction(Arg.Any<Action<bool>?>(), workerInfo.RetirementToken);
+        workerInfo.DisposeStopSource();
     }
 
     /// <summary>

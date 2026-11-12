@@ -49,6 +49,15 @@ public interface IWorkOrchestrator<TWork> : IWorkWriter<TWork>, IAsyncDisposable
     /// <returns>The worker loop.</returns>
     Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback);
 
+    /// <summary>Creates a worker that retires after its current item when retirement is requested.</summary>
+    /// <param name="stateCallback">Called with true while busy and false after handling.</param>
+    /// <param name="retirementToken">Cancels queue waits and further reads, but not the current handler.</param>
+    /// <returns>The worker loop. Its invocation token still cancels both waits and handlers.</returns>
+    /// <remarks>A dequeue concurrent with retirement may finish as the current item.
+    /// Custom implementations must override this overload to support graceful autoscaling.</remarks>
+    Func<string, CancellationToken, Task> CreateWorkerFunction(Action<bool>? stateCallback, CancellationToken retirementToken)
+        => throw new NotSupportedException("This orchestrator does not support graceful worker retirement.");
+
     /// <summary>Requests additional workers when autoscaling is enabled.</summary>
     /// <param name="count">Number to add.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
