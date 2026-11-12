@@ -55,7 +55,7 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
     public override DateTimeOffset? ComputeNextFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)
     {
         var baseFire = ComputeBaseFire(lastFiredAt, now);
-        return ApplyJitter(baseFire, now);
+        return baseFire is { } next ? ApplyJitter(next, now) : null;
     }
 
     /// <summary>
@@ -89,26 +89,23 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
     /// </summary>
     /// <param name="lastFiredAt">The last fire instant, or <see langword="null"/>.</param>
     /// <param name="now">The current instant (DR-7).</param>
-    /// <returns>The next aligned occurrence, strictly greater than <c>now</c>.</returns>
-    private DateTimeOffset ComputeBaseFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)
+    /// <returns>The next aligned occurrence, or null when the representable date range is exhausted.</returns>
+    private DateTimeOffset? ComputeBaseFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)
     {
-        if (lastFiredAt is null)
+        var anchor = lastFiredAt ?? now;
+        var steps = anchor > now ? 1 : ((now - anchor).Ticks / this.interval.Ticks) + 1;
+        // Check division before multiplication: both the local date and UTC date must
+        // remain representable. Exhaustion is normal, just as for one-shot/cron cadences.
+        if (steps > RemainingTicks(anchor) / this.interval.Ticks)
         {
-            return now + this.interval;
+            return null;
         }
 
-        var candidate = lastFiredAt.Value + this.interval;
-        if (candidate > now)
-        {
-            return candidate;
-        }
-
-        // One or more intervals were missed: jump to the next aligned occurrence
-        // strictly after now in a single arithmetic step (no per-interval loop).
-        var elapsed = now - lastFiredAt.Value;
-        var steps = (elapsed.Ticks / this.interval.Ticks) + 1;
-        return lastFiredAt.Value + TimeSpan.FromTicks(this.interval.Ticks * steps);
+        return anchor.AddTicks(this.interval.Ticks * steps);
     }
+
+    private static long RemainingTicks(DateTimeOffset instant)
+        => Math.Min(DateTimeOffset.MaxValue.Ticks - instant.Ticks, DateTimeOffset.MaxValue.UtcTicks - instant.UtcTicks);
 
     /// <summary>
     /// Applies the configured <see cref="Jitter"/> to a base fire instant. When
@@ -131,7 +128,12 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
         // randomness uses the shared RNG; tests assert only the deterministic bounds.
         var fraction = (Random.Shared.NextDouble() * 2.0) - 1.0;
         var offsetTicks = (long)(this.interval.Ticks * this.jitter * fraction);
-        var jittered = baseFire + TimeSpan.FromTicks(offsetTicks);
+        if (offsetTicks > RemainingTicks(baseFire) || offsetTicks < -Math.Min(baseFire.Ticks, baseFire.UtcTicks))
+        {
+            return baseFire;
+        }
+
+        var jittered = baseFire.AddTicks(offsetTicks);
 
         // A downward draw can land the jittered instant at or before now (notably when
         // baseFire is close to now or Jitter is near 1), which would fire immediately
