@@ -50,16 +50,16 @@ public sealed class MatchedWakeCompletionTests
         Action complete,
         Func<CancellationToken, ValueTask<bool>> wait)
     {
-        using var entered = new ManualResetEventSlim(false);
-        using var release = new ManualResetEventSlim(false);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         install(() =>
         {
-            entered.Set();
-            release.Wait(TimeSpan.FromSeconds(5));
+            entered.TrySetResult();
+            release.Task.Wait(TimeSpan.FromSeconds(5));
         });
 
         var consume = Task.Run(consumeMatchedWake);
-        await Assert.That(entered.Wait(TimeSpan.FromSeconds(5))).IsTrue();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
         var parked = wait(CancellationToken.None).AsTask();
         await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
@@ -67,7 +67,7 @@ public sealed class MatchedWakeCompletionTests
         await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
         await Assert.That(completing.IsCompleted).IsFalse();
 
-        release.Set();
+        release.TrySetResult();
         await consume.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await completing.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         var dequeued = await parked.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);

@@ -342,18 +342,18 @@ public class DeadLetterNotifierTests
         var notifier = CreateNotifier();
         var called = 0;
         notifier.Subscribe(_ => Interlocked.Increment(ref called));
-        using var entered = new ManualResetEventSlim(false);
-        using var release = new ManualResetEventSlim(false);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         notifier.BeforeDeliveryForTest = () =>
         {
-            entered.Set();
-            release.Wait(TimeSpan.FromSeconds(5));
+            entered.TrySetResult();
+            release.Task.Wait(TimeSpan.FromSeconds(5));
         };
 
         notifier.Notify(new WorkDeadLetteredEvent<string>("work", null, 1, DateTimeOffset.UtcNow));
-        await Assert.That(entered.Wait(TimeSpan.FromSeconds(5))).IsTrue();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         notifier.Dispose();
-        release.Set();
+        release.TrySetResult();
         await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
         await Assert.That(Volatile.Read(ref called)).IsEqualTo(0);
