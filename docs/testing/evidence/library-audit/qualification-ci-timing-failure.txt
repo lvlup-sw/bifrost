@@ -1,3 +1,11 @@
+Provenance
+- Failed run: https://github.com/lvlup-sw/bifrost/actions/runs/43151881801
+- Failed job: Build & Test (130962842915), 2026-11-12T04:00:13Z
+- Failed commit: a7d59e00fff32cb6c49c87bf800e9b6219de86b9
+- The recorded stack traces match that commit. WorkOrchestratorTests.cs:189 is the enqueue wait and :192 is its assertion. This commit does not contain 1864801 ("test: Isolate wall-clock probes from parallel fixture load"), so the failure predates that timing-test change.
+- Superseding pass: https://github.com/lvlup-sw/bifrost/actions/runs/43153578879
+- Passing commit: 4b6843f0ca55e6db94e9bb5b67dccab49bf429e2, which contains 1864801. Build & Test succeeded. That run supersedes this failure record.
+
 2026-11-12T04:01:30.3363362Z   total: 153
 2026-11-12T04:01:30.3363486Z   failed: 0
 2026-11-12T04:01:30.3363622Z   succeeded: 153
