@@ -1,0 +1,78 @@
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.11 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+[+352/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 36 tests running (3s)
+
+[+821/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 17 tests running (6s)
+
+[+833/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 15 tests running (9s)
+
+[+836/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 12 tests running (12s)
+
+[+836/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 12 tests running (15s)
+
+[+836/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 12 tests running (18s)
+
+[+836/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 12 tests running (21s)
+
+[+836/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 12 tests running (24s)
+
+[+836/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 12 tests running (27s)
+
+[+836/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 12 tests running (30s)
+
+[+836/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 12 tests running (33s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (36s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (39s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (42s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (45s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (48s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (51s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (54s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (57s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (1m 00s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (1m 03s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (1m 06s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (1m 09s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (1m 12s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (1m 15s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (1m 18s)
+
+[+837/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 11 tests running (1m 21s)
+
+[+839/x0/?0] Bifrost.Tests.dll (net10.0|x64) - 9 tests running (1m 24s)
+
+
+  In process file artifacts produced:
+    - /tmp/bifrost-observer-constrained-green/3932b682-f75b-4737-9d92-173ccf2b86e7.coverage
+
+Test run summary: Passed! - /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/bin/Release/net10.0/Bifrost.Tests.dll (net10.0|x64)
+  total: 854
+  failed: 0
+  succeeded: 854
+  skipped: 0
+  duration: 1m 26s 435ms

@@ -1,9 +1,11 @@
 # Library defect investigation
 
 Reviewed on 2026-11-11 (America/Los_Angeles). Baseline: PR #88 at
-`70dfa245ce2d774831add100cab6f79b5260f458`. Candidate code and tests:
-`18a0fc6b1367c63daea91cd479d517b2b530e596`; subsequent qualification commits
-contain documentation and evidence only. The five new layers build on #84 → #87 → #88.
+`70dfa245ce2d774831add100cab6f79b5260f458`. Initial validated code and tests:
+`18a0fc6b1367c63daea91cd479d517b2b530e596`. Final candidate with coverage-fixture
+isolation: `a7d59e00fff32cb6c49c87bf800e9b6219de86b9`. Later qualification commits
+contain documentation and evidence only; production behavior is unchanged between
+these two snapshots. The five new layers build on #84 → #87 → #88.
 
 This pass covers the library's ten investigation areas below. It adds 52 test
 cases, including controls and a child-process entry point. Across staged
@@ -62,7 +64,9 @@ The 1,415 full-suite cases include the invariant cases; do not add the two count
 The concurrency suite was run before the final observer fast-path and preview
 changes; neither changed the concurrency assembly. Main and scheduling were rerun
 after those changes. New tests then received a test-only commit with no source edits.
-The invariant lane ran against that clean commit.
+The invariant lane ran against that clean commit. After the fixture correction
+below, all 867 main tests also passed with four-processor coverage, and all 136
+invariant cases passed again against the clean final candidate.
 
 Process cuts and observed total attempts: before dispatch 1; after dispatch 2;
 before checkpoint effect 2; after checkpoint effect/before acknowledgment 1.
@@ -141,3 +145,21 @@ bounds. No finite suite establishes that latent defects are absent.
 No issue was closed manually, and no package was published. Consumer-only exclusions
 are not counted as unresolved library work. The older dependency-review ledger
 remains a historical record of #87/#88; this document adds the current findings.
+
+## CI fixture correction
+
+The first remote runs passed scheduling and concurrency but failed the new blocking
+subscriber probe before its callback entered. A local full-suite run with
+`DOTNET_PROCESSOR_COUNT=4 taskset -c 0-3 dotnet run --project src/Bifrost.Tests
+-c Release --no-restore -- --treenode-filter '/*/*/*/*[Category!=Stress]' --coverage`
+reproduced both callback variants timing out. Isolating this deliberately blocking
+test with `NotInParallel` and awaiting callback cleanup preserved its assertion and
+deadlines. The observer layer then passed all 854 tests under the same conditions.
+The final stack passed all 867 with coverage, followed by the 136-case invariant lane.
+Both failed and successful constrained-run logs are retained.
+
+Remote CI was restarted on the corrected heads. The separate
+[Project Automation run](https://github.com/lvlup-sw/bifrost/actions/runs/43145370406)
+reported `startup_failure` without starting jobs or returning check annotations.
+That workflow configuration problem is outside this library defect change and
+is not represented as a passing check. No workflow or permissions were altered.
