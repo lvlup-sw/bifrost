@@ -72,6 +72,7 @@ public sealed class WorkerRegistry : IWorkerRegistry
     {
         ArgumentNullException.ThrowIfNull(workerId);
         ArgumentNullException.ThrowIfNull(workerFunction);
+        ct.ThrowIfCancellationRequested();
 
         var workerInfo = new WorkerInfo(workerId);
 
@@ -148,6 +149,41 @@ public sealed class WorkerRegistry : IWorkerRegistry
         foreach (var worker in sorted)
         {
             if (worker.RequestStop()) stoppedCount++;
+        }
+
+        return stoppedCount;
+    }
+
+    /// <summary>
+    /// Atomically requests up to <paramref name="count"/> currently-idle workers to
+    /// stop (newest first), skipping any worker that transitions to busy concurrently.
+    /// </summary>
+    /// <param name="count">The maximum number of idle workers to stop.</param>
+    /// <returns>The actual number of idle workers claimed for stop.</returns>
+    internal int RequestIdleWorkersStop(int count)
+    {
+        if (count <= 0)
+        {
+            return 0;
+        }
+
+        var candidates = _workers.Values
+            .Where(w => w.IsIdle && !w.StopRequested)
+            .OrderByDescending(w => w.CreatedAt)
+            .ToList();
+
+        var stoppedCount = 0;
+        foreach (var worker in candidates)
+        {
+            if (stoppedCount >= count)
+            {
+                break;
+            }
+
+            if (worker.TryRequestStopIfIdle())
+            {
+                stoppedCount++;
+            }
         }
 
         return stoppedCount;
