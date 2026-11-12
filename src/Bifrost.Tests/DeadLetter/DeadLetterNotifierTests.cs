@@ -32,8 +32,8 @@ public class DeadLetterNotifierTests
     {
         // Arrange
         var notifier = CreateNotifier();
-        WorkDeadLetteredEvent<string>? received = null;
-        notifier.Subscribe(evt => received = evt);
+        var received = new TaskCompletionSource<WorkDeadLetteredEvent<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        notifier.Subscribe(evt => received.TrySetResult(evt));
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
@@ -41,7 +41,7 @@ public class DeadLetterNotifierTests
         notifier.Notify(evt);
 
         // Assert
-        await Assert.That(received).IsEqualTo(evt);
+        await Assert.That(await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false)).IsEqualTo(evt);
     }
 
     /// <summary>
@@ -87,12 +87,18 @@ public class DeadLetterNotifierTests
         // Arrange
         var notifier = CreateNotifier();
         var callCount = 0;
-        var subscription = notifier.Subscribe(_ => callCount++);
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var subscription = notifier.Subscribe(_ =>
+        {
+            Interlocked.Increment(ref callCount);
+            done.TrySetResult();
+        });
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
         // Act
         notifier.Notify(evt);
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         subscription.Dispose();
         notifier.Notify(evt);
 
@@ -129,12 +135,18 @@ public class DeadLetterNotifierTests
         // Act
         firstSubscription.Dispose();
         var secondCallCount = 0;
-        var secondSubscription = notifier.Subscribe(_ => secondCallCount++);
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondSubscription = notifier.Subscribe(_ =>
+        {
+            Interlocked.Increment(ref secondCallCount);
+            done.TrySetResult();
+        });
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
         notifier.Notify(evt);
 
         // Assert
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(secondCallCount).IsEqualTo(1);
     }
 
@@ -265,5 +277,42 @@ public class DeadLetterNotifierTests
         // delay (the fixed Task.Delay was the source of CI flakiness under load).
         var observed = await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(observed).IsEqualTo(evt);
+    }
+
+    /// <summary>
+    /// Verifies that a subscriber which does not return cannot schedule an unbounded number of callbacks.
+    /// </summary>
+    [Test]
+    public async Task Notify_WhenOutstandingCallbacksAreSaturated_DropsFurtherDelivery()
+    {
+        var notifier = CreateNotifier();
+        var entered = 0;
+        var limit = DeadLetterNotifier<string>.MaxOutstandingCallbacks;
+        var saturated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var overflowed = 0;
+        using var gate = new CancellationTokenSource();
+        notifier.SubscribeAsync(async _ =>
+        {
+            var count = Interlocked.Increment(ref entered);
+            if (count == limit) saturated.TrySetResult();
+            if (count > limit) Interlocked.Exchange(ref overflowed, 1);
+            await Task.Delay(Timeout.InfiniteTimeSpan, gate.Token).ConfigureAwait(false);
+        });
+
+        var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
+        try
+        {
+            for (var i = 0; i < limit; i++) notifier.Notify(evt);
+            await saturated.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+            notifier.Notify(evt);
+            await Task.Delay(TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
+            await Assert.That(Volatile.Read(ref overflowed)).IsEqualTo(0);
+            await Assert.That(Volatile.Read(ref entered)).IsEqualTo(limit);
+        }
+        finally
+        {
+            await gate.CancelAsync().ConfigureAwait(false);
+        }
     }
 }
