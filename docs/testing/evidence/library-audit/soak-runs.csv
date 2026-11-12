@@ -1,0 +1,11 @@
+# Bifrost CPQ consumer-shaped soak (DR-8) — generated 2026-11-12 02:48:14Z
+# ProcessorCount: 32
+# OS: Fedora Linux 45 (KDE Plasma Desktop Edition)
+# CPU arch: X64
+# Runtime: .NET 10.0.11
+# GC mode: Workstation, Concurrent: Interactive
+Binding,Workers,Seconds,Capacity,Residual,MeanOccupancyPct,MaxOccupancyPct,InBandPct,AllocBytesPerMinMean,AllocBytesPerMinMin,AllocBytesPerMinMax,Gen0,Gen1,Gen2,MaxBatchWaitSeconds,BoostWindowSeconds,DepthAdjustedBoundSeconds,StarvationBoundHeld
+LockingPriority,2,60,128,115,44.42,96.09,14.29,3344784,3070066,3658871,0,0,0,1.99,30,30.8,true
+LockingPriority,8,60,128,4,43.31,97.66,15.13,13587696,12454172,17217336,0,0,0,0.97,30,30.2,true
+MultiQueuePriority,2,60,128,10,44.42,94.53,10.08,3347549,3138487,3634720,0,0,0,5.58,30,30.8,true
+MultiQueuePriority,8,60,128,3,42.28,98.44,10.92,13687062,12962376,15862341,0,0,0,1.85,30,30.2,true

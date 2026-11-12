@@ -172,6 +172,7 @@ public class WorkOrchestratorTests
     /// asserts the handler received the work item.
     /// </remarks>
     [Test]
+    [NotInParallel] // This wall-clock probe must not compete with unrelated blocking fixtures.
     public async Task EnqueueAsync_ValidWork_WritesToChannel()
     {
         // Arrange
@@ -437,10 +438,11 @@ public class WorkOrchestratorTests
     /// asserts StopAsync completes before timeout indicating graceful shutdown.
     /// </remarks>
     [Test]
+    [NotInParallel] // This wall-clock probe must not compete with unrelated blocking fixtures.
     public async Task StopAsync_CompletesGracefully()
     {
         // Arrange
-        var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
+        await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var processed = new TaskCompletionSource();
         _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
@@ -458,9 +460,6 @@ public class WorkOrchestratorTests
 
         // Assert - StopAsync should complete before the delay
         await Assert.That(ReferenceEquals(completed, stopTask)).IsTrue();
-
-        // Cleanup
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>

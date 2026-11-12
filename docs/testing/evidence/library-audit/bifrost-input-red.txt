@@ -1,0 +1,40 @@
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.11 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+failed EitherDrainTokenCancels(False) (13ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to throw OperationCanceledException
+  but no exception was thrown
+
+  at Assert.That(async () => await reader.MoveNextAsync().ConfigureAwait(false)).Throws<OperationCanceledException>()
+failed NegativeHttpRetriesAreRejected (21ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to throw ArgumentOutOfRangeException
+  but no exception was thrown
+
+  at Assert.That(() => BifrostHttpResilienceExtensions.ConfigurePipeline(
+              new ResiliencePipelineBuilder<HttpResponseMessage>(), new BifrostHttpResiliencePolicy { MaxRetries = -1 })).Throws<ArgumentOutOfRangeException>()
+failed RejectionPreservesCorrelation(True) (46ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equal to "request-42"
+  but found ""
+
+  at Assert.That(reader.Current.CorrelationId).IsEqualTo("request-42")
+failed RejectionPreservesCorrelation(False) (46ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equal to "request-42"
+  but found ""
+
+  at Assert.That(reader.Current.CorrelationId).IsEqualTo("request-42")
+
+Test run summary: Failed! - /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/bin/Release/net10.0/Bifrost.Tests.dll (net10.0|x64)
+  total: 5
+  failed: 4
+  succeeded: 1
+  skipped: 0
+  duration: 537ms

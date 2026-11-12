@@ -1,0 +1,51 @@
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.11 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+failed JitterNearCalendarEndRemainsRepresentable (4ms)
+  TUnit.Engine.Exceptions.TestFailedException: ArgumentOutOfRangeException: The added or subtracted value results in an un-representable DateTime. (Parameter 't')
+    at System.DateTime.ThrowDateArithmetic(Int32 param)
+    at System.DateTime.op_Addition(DateTime d, TimeSpan t)
+    at System.DateTimeOffset.op_Addition(DateTimeOffset dateTimeOffset, TimeSpan timeSpan)
+    at Bifrost.Scheduling.Core.IntervalCadence.ApplyJitter(DateTimeOffset baseFire, DateTimeOffset now) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling.Core/IntervalCadence.cs:134
+    at Bifrost.Scheduling.Core.IntervalCadence.ComputeNextFire(Nullable`1 lastFiredAt, DateTimeOffset now) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling.Core/IntervalCadence.cs:58
+    at Bifrost.Tests.Scheduling.IntervalDateBoundaryTests.JitterNearCalendarEndRemainsRepresentable() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/IntervalDateBoundaryTests.cs:40
+failed ExhaustedDateRangeReturnsNull(False) (4ms)
+  TUnit.Engine.Exceptions.TestFailedException: ArgumentOutOfRangeException: The added or subtracted value results in an un-representable DateTime. (Parameter 't')
+    at System.DateTime.ThrowDateArithmetic(Int32 param)
+    at System.DateTime.op_Addition(DateTime d, TimeSpan t)
+    at System.DateTimeOffset.op_Addition(DateTimeOffset dateTimeOffset, TimeSpan timeSpan)
+    at Bifrost.Scheduling.Core.IntervalCadence.ComputeBaseFire(Nullable`1 lastFiredAt, DateTimeOffset now) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling.Core/IntervalCadence.cs:97
+    at Bifrost.Scheduling.Core.IntervalCadence.ComputeNextFire(Nullable`1 lastFiredAt, DateTimeOffset now) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling.Core/IntervalCadence.cs:57
+    at Bifrost.Tests.Scheduling.IntervalDateBoundaryTests.ExhaustedDateRangeReturnsNull(Boolean hasLast) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/IntervalDateBoundaryTests.cs:21
+failed ExhaustedDateRangeReturnsNull(True) (4ms)
+  TUnit.Engine.Exceptions.TestFailedException: ArgumentOutOfRangeException: The added or subtracted value results in an un-representable DateTime. (Parameter 't')
+    at System.DateTime.ThrowDateArithmetic(Int32 param)
+    at System.DateTime.op_Addition(DateTime d, TimeSpan t)
+    at System.DateTimeOffset.op_Addition(DateTimeOffset dateTimeOffset, TimeSpan timeSpan)
+    at Bifrost.Scheduling.Core.IntervalCadence.ComputeBaseFire(Nullable`1 lastFiredAt, DateTimeOffset now) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling.Core/IntervalCadence.cs:110
+    at Bifrost.Scheduling.Core.IntervalCadence.ComputeNextFire(Nullable`1 lastFiredAt, DateTimeOffset now) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling.Core/IntervalCadence.cs:57
+    at Bifrost.Tests.Scheduling.IntervalDateBoundaryTests.ExhaustedDateRangeReturnsNull(Boolean hasLast) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/IntervalDateBoundaryTests.cs:21
+failed OversizedIntervalIsExhausted (4ms)
+  TUnit.Engine.Exceptions.TestFailedException: ArgumentOutOfRangeException: The added or subtracted value results in an un-representable DateTime. (Parameter 't')
+    at System.DateTime.ThrowDateArithmetic(Int32 param)
+    at System.DateTime.op_Addition(DateTime d, TimeSpan t)
+    at System.DateTimeOffset.op_Addition(DateTimeOffset dateTimeOffset, TimeSpan timeSpan)
+    at Bifrost.Scheduling.Core.IntervalCadence.ComputeBaseFire(Nullable`1 lastFiredAt, DateTimeOffset now) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling.Core/IntervalCadence.cs:97
+    at Bifrost.Scheduling.Core.IntervalCadence.ComputeNextFire(Nullable`1 lastFiredAt, DateTimeOffset now) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling.Core/IntervalCadence.cs:57
+    at Bifrost.Tests.Scheduling.IntervalDateBoundaryTests.OversizedIntervalIsExhausted() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/IntervalDateBoundaryTests.cs:29
+
+Test run summary: Failed! - /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/bin/Release/net10.0/Bifrost.Tests.Scheduling.dll (net10.0|x64)
+  total: 4
+  failed: 4
+  succeeded: 0
+  skipped: 0
+  duration: 283ms
