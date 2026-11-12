@@ -137,6 +137,7 @@
       "domainAndOracle": "Tick-exact arithmetic. Null/earlier/equal/future last-fire states, tiny intervals, and representable boundaries.",
       "tests": [
         "src/Bifrost.Tests.Scheduling/IntervalInvariantTests.cs",
+        "src/Bifrost.Tests.Scheduling/IntervalDateBoundaryTests.cs",
         "src/Bifrost.Tests.Scheduling/TickEngine/MissedFireStartupTests.cs",
         "src/Bifrost.Tests.Scheduling/IntervalMutationAdequacyTests.cs",
         "src/Bifrost.Tests.Scheduling/CronCoalesceTests.cs"
@@ -151,6 +152,7 @@
       "domainAndOracle": "Backlogs K\u22121/K/K+1 and much larger. Independent due sequence and phase-extension relation.",
       "tests": [
         "src/Bifrost.Tests.Scheduling/IntervalInvariantTests.cs",
+        "src/Bifrost.Tests.Scheduling/IntervalDateBoundaryTests.cs",
         "src/Bifrost.Tests.Scheduling/TickEngine/MissedFireStartupTests.cs",
         "src/Bifrost.Tests.Scheduling/CronCoalesceTests.cs"
       ],

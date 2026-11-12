@@ -123,6 +123,10 @@ public sealed class IntervalInvariantTests
         await Assert.That(result.Single().UtcTicks).IsEqualTo(Epoch.UtcTicks);
         var extreme = MissedFirePolicyApplier.ComputeMissedFires(new IntervalCadence(TimeSpan.FromTicks(1)), DateTimeOffset.MinValue, DateTimeOffset.MaxValue, MissedFirePolicy.Coalesce);
         await Assert.That(extreme.Single()).IsEqualTo(DateTimeOffset.MaxValue);
+        var positiveOffsetNearEnd = new DateTimeOffset(9999, 12, 31, 20, 0, 0, TimeSpan.FromHours(14));
+        var utcNearEnd = new DateTimeOffset(9999, 12, 31, 23, 0, 0, TimeSpan.Zero);
+        var capped = MissedFirePolicyApplier.ComputeMissedFires(new IntervalCadence(TimeSpan.FromHours(1)), positiveOffsetNearEnd, utcNearEnd, MissedFirePolicy.Coalesce);
+        await Assert.That(capped.Single()).IsEqualTo(new DateTimeOffset(9999, 12, 31, 23, 0, 0, TimeSpan.FromHours(14)));
     }
 
     [Test]

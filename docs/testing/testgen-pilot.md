@@ -68,5 +68,6 @@ Emitted `Case_1` through `Case_113` methods replayed on the first run and assert
 - **Keep native TUnit tests as the default elsewhere**: Use handwritten tests for exception contracts, composite inputs, concurrency, lifecycle, persistence, and `generate_metamorphic_tests` on new invariants.
 
 Retained files are `src/Bifrost.Tests/Queues/PriorityKeyBinding.cs`, `src/Bifrost.Tests/Queues/PriorityVirtualTimePropertyTests.cs`, and [priority-property.json](evidence/testgen-pilot/priority-property.json).
+Domain scoping also exposed a positive-offset calendar-end overflow in `MissedFirePolicyApplier.Coalesce`, which now caps step counts at the remaining local and UTC range (`IntervalDateBoundaryTests`).
 [Exarchos #2192](https://github.com/lvlup-sw/exarchos/issues/2192) tracks qualification on a second application, CLI packaging, and schema fixes.
 [Bifrost #85](https://github.com/lvlup-sw/bifrost/issues/85) tracks the remaining durability, overload, and release-risk evidence.
