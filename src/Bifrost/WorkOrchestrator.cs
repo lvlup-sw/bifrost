@@ -229,9 +229,11 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         try
         {
             await ConsumeQueueAsync(id, callback, linked.Token, dequeueToken).ConfigureAwait(false);
+            await DrainRetainedWorkAsync(id, callback, linked.Token, retirementToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (dequeueToken.IsCancellationRequested)
         {
+            await DrainRetainedWorkAsync(id, callback, linked.Token, retirementToken).ConfigureAwait(false);
         }
         catch (Exception error)
         {
@@ -259,6 +261,54 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         }
     }
 
+    /// <summary>
+    /// Dequeues items already admitted when retirement has cancelled this worker and it is the
+    /// only consumer left. A stop request must not let <see cref="DrainAsync"/> succeed while
+    /// those items are still queued. Future arrivals wait for another consumer.
+    /// </summary>
+    private async Task DrainRetainedWorkAsync(string id, Action<bool>? callback, CancellationToken handlerToken,
+        CancellationToken retirementToken)
+    {
+        while (true)
+        {
+            lock (_lifecycleGate)
+            {
+                if (!retirementToken.IsCancellationRequested || _activeWorkers != 1 || _queue.Count == 0)
+                    return;
+            }
+
+            // Do not wait. A missing permit belongs to the wake hand-off in the caller, and a
+            // blocking wait here would stall that hand-off on the same worker.
+            if (!_queue.TryDequeue(out var envelope))
+                return;
+
+            await ProcessEnvelopeAsync(id, callback, handlerToken, envelope).ConfigureAwait(false);
+        }
+    }
+
+    private async Task ProcessEnvelopeAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct,
+        WorkEnvelope<TWork> envelope)
+    {
+        QueueWaitObserved?.Invoke(envelope.Class, _timeProvider.GetElapsedTime(envelope.EnqueuedAtTicks));
+        stateCallback?.Invoke(true);
+        try
+        {
+            await _handler.HandleAsync(envelope.Work, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Worker {WorkerId} failed to process work item: {WorkItem}", workerId, envelope.Work);
+        }
+        finally
+        {
+            stateCallback?.Invoke(false);
+        }
+    }
+
     /// <inheritdoc/>
     public Task RequestScaleUpAsync(int count, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
@@ -271,28 +321,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         while (!dequeueToken.IsCancellationRequested && await _queue.WaitToDequeueAsync(dequeueToken).ConfigureAwait(false))
         {
             while (!dequeueToken.IsCancellationRequested && _queue.TryDequeue(out var envelope))
-            {
-                var observer = QueueWaitObserved;
-                observer?.Invoke(envelope.Class, _timeProvider.GetElapsedTime(envelope.EnqueuedAtTicks));
-
-                stateCallback?.Invoke(true); // Mark busy
-                try
-                {
-                    await _handler.HandleAsync(envelope.Work, ct).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Worker {WorkerId} failed to process work item: {WorkItem}", workerId, envelope.Work);
-                }
-                finally
-                {
-                    stateCallback?.Invoke(false); // Mark idle
-                }
-            }
+                await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope).ConfigureAwait(false);
         }
     }
 }

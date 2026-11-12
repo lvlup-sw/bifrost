@@ -32,6 +32,13 @@ the retiring worker hands a wake to another consumer. FIFO waits do not consume
 an item permit. A controlled acquire/read-boundary test checks progress without
 another enqueue or queue completion.
 
+Scale-down keeps one consumer while admitted work is still queued. Direct
+coordinator and decorator requests do not use the engine's minimum-worker guard,
+so they apply this reserve themselves. If retirement was already signaled, the
+last consumer dequeues the items still buffered and then exits. It does not wait
+for later arrivals, and it does not report the queue complete while those items
+remain.
+
 Signal cleanup is serialized with stop requests, and concurrent batch-stop requests
 count each selected worker once. The coordinator now uses the request token only
 to cancel worker creation and uses the shutdown token for worker lifetime.

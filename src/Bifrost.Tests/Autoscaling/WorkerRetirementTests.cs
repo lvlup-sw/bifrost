@@ -221,6 +221,58 @@ internal class WorkerRetirementTests
         Require(orchestrator.PendingCount == 0, "survivor handled the retained envelope");
     }
 
+    [Test]
+    [Arguments(DispatchStrategy.Fifo)]
+    [Arguments(DispatchStrategy.PriorityExact)]
+    [Arguments(DispatchStrategy.PriorityRelaxed)]
+    public async Task LastConsumerFinishesAdmittedWorkAfterRetirement(DispatchStrategy strategy)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var retirement = new CancellationTokenSource();
+        var entered = Signal();
+        var release = Signal();
+        var finished = Signal();
+        await using var orchestrator = new WorkOrchestrator<int>(new GatedHandler(entered, release, finished),
+            Options.Create(new WorkOrchestratorOptions
+            {
+                WorkerCount = 0, Capacity = 4, DispatchStrategy = strategy, FullMode = QueueFullMode.Reject,
+            }), NullLogger<WorkOrchestrator<int>>.Instance);
+        var worker = orchestrator.CreateWorkerFunction(null, retirement.Token)("only", CancellationToken.None);
+        try
+        {
+            Require(orchestrator.TryEnqueue(1), "current item admitted");
+            await entered.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
+            Require(orchestrator.TryEnqueue(2), "queued item remains admitted");
+            await retirement.CancelAsync().ConfigureAwait(false);
+            release.TrySetResult();
+            await finished.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
+            await orchestrator.DrainAsync(deadline.Token).ConfigureAwait(false);
+            await worker.ConfigureAwait(false);
+            Require(orchestrator.PendingCount == 0, "retirement drained the queued item");
+        }
+        finally
+        {
+            release.TrySetResult();
+            await orchestrator.AbortAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
+    private sealed class GatedHandler(TaskCompletionSource entered, TaskCompletionSource release, TaskCompletionSource finished)
+        : IWorkHandler<int>
+    {
+        public async ValueTask HandleAsync(int work, CancellationToken ct)
+        {
+            if (work == 1)
+            {
+                entered.TrySetResult();
+                await release.Task.WaitAsync(ct).ConfigureAwait(false);
+                return;
+            }
+
+            finished.TrySetResult();
+        }
+    }
+
     private sealed class SignalingHandler(TaskCompletionSource handled) : IWorkHandler<int>
     {
         public ValueTask HandleAsync(int work, CancellationToken ct)
