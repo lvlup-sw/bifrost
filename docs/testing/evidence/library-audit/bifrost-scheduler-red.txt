@@ -1,0 +1,35 @@
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.11 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+failed RelativeOneShotUsesOneClockSample(False) (40ms)
+  TUnit.Engine.Exceptions.TestFailedException: ArgumentOutOfRangeException: A one-shot cadence with FireAt '2000-01-01T00:00:00.0000000+00:00' is in the past (now: '2000-01-01T00:00:02.0000000+00:00'). Register a future instant to avoid a silent immediate fire or a missed-fire-policy decision at registration. (Parameter 'cadence')
+    at Bifrost.Scheduling.Registry.ScheduleRegistry.RegisterCoreAsync(String name, Cadence cadence, MissedFirePolicy missedFirePolicy, IJobDispatcher dispatcher, CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling/Registry/ScheduleRegistry.cs:307
+    at Bifrost.Scheduling.Registry.ScheduleRegistry.MutateAsync(String name, Func`1 action, CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling/Registry/ScheduleRegistry.cs:273
+    at Bifrost.Tests.Scheduling.Registry.SchedulerBoundaryTests.RelativeOneShotUsesOneClockSample(Boolean update) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/Registry/SchedulerBoundaryTests.cs:62
+failed TrailingNewlineIsRejectedBeforePersistence (40ms)
+  TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to throw ArgumentException
+  but no exception was thrown
+  
+  at Assert.That(async () => await registry.RegisterAsync("job\n", new IntervalCadence(TimeSpan.FromMinutes(1)),
+              MissedFirePolicy.Coalesce, Substitute.For<IJobDispatcher>()).ConfigureAwait(false)).Throws<ArgumentException>()
+failed RelativeOneShotUsesOneClockSample(True) (41ms)
+  TUnit.Engine.Exceptions.TestFailedException: ArgumentOutOfRangeException: A one-shot cadence with FireAt '2000-01-01T00:00:01.0000000+00:00' is in the past (now: '2000-01-01T00:00:03.0000000+00:00'). Updating to a past instant would cause a silent immediate fire or a missed-fire-policy decision. (Parameter 'cadence')
+    at Bifrost.Scheduling.Registry.ScheduleRegistry.UpdateCoreAsync(String name, Cadence cadence, MissedFirePolicy missedFirePolicy, CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling/Registry/ScheduleRegistry.cs:442
+    at Bifrost.Scheduling.Registry.ScheduleRegistry.MutateAsync(String name, Func`1 action, CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling/Registry/ScheduleRegistry.cs:273
+    at Bifrost.Tests.Scheduling.Registry.SchedulerBoundaryTests.RelativeOneShotUsesOneClockSample(Boolean update) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/Registry/SchedulerBoundaryTests.cs:58
+
+Test run summary: Failed! - /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/bin/Release/net10.0/Bifrost.Tests.Scheduling.dll (net10.0|x64)
+  total: 6
+  failed: 3
+  succeeded: 3
+  skipped: 0
+  duration: 304ms

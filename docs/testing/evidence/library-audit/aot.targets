@@ -1,0 +1,5 @@
+<Project>
+  <ItemGroup>
+    <KnownILCompilerPack Update="Microsoft.DotNet.ILCompiler" ILCompilerPackVersion="10.0.15" />
+  </ItemGroup>
+</Project>

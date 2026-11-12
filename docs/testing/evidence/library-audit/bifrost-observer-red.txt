@@ -1,0 +1,92 @@
+
+████████╗██╗   ██╗███╗   ██╗██╗████████╗
+╚══██╔══╝██║   ██║████╗  ██║██║╚══██╔══╝
+   ██║   ██║   ██║██╔██╗ ██║██║   ██║
+   ██║   ██║   ██║██║╚██╗██║██║   ██║
+   ██║   ╚██████╔╝██║ ╚████║██║   ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝
+
+   TUnit v1.2.11.0 | 64-bit | Fedora Linux 45 (KDE Plasma Desktop Edition) | linux-x64 | .NET 10.0.11 | Microsoft Testing Platform v2.0.2
+
+   Engine Mode: SourceGenerated
+
+failed ThrowingRejectionObserverDoesNotSuppressRouting(False) (47ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: observer
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.<>c.<ThrowingRejectionObserverDoesNotSuppressRouting>b__3_0(WorkClass _, RejectionReason _) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:145
+    at Bifrost.Decorators.RejectionRoutingOrchestrator`1.Enqueue(TWork work, WorkEnqueueOptions options) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/Decorators/RejectionRoutingOrchestrator.cs:243
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.ThrowingRejectionObserverDoesNotSuppressRouting(Boolean asynchronous) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:146
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.ThrowingRejectionObserverDoesNotSuppressRouting(Boolean asynchronous) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:148
+failed ThrowingWorkerObserverDoesNotLoseWork(Fifo, False) (42ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: observer
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.<>c.<ThrowingWorkerObserverDoesNotLoseWork>b__2_0(WorkClass _, TimeSpan _) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:124
+    at Bifrost.WorkOrchestrator`1.ConsumeQueueAsync(String workerId, Action`1 stateCallback, CancellationToken ct, CancellationToken dequeueToken)
+    at Bifrost.WorkOrchestrator`1.RunRegisteredWorkerAsync(String id, Action`1 callback, CancellationToken token, CancellationToken retirementToken) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:231
+    at Bifrost.WorkOrchestrator`1.AbortAsync(CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:168
+    at Bifrost.WorkOrchestrator`1.DisposeCoreAsync() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:191
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.ThrowingWorkerObserverDoesNotLoseWork(DispatchStrategy strategy, Boolean stateObserver) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:131
+failed ThrowingWorkerObserverDoesNotLoseWork(PriorityExact, True) (42ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: observer
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.<>c.<ThrowingWorkerObserverDoesNotLoseWork>b__2_1(Boolean _) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:127
+    at Bifrost.WorkOrchestrator`1.ConsumeQueueAsync(String workerId, Action`1 stateCallback, CancellationToken ct, CancellationToken dequeueToken) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:278
+    at Bifrost.WorkOrchestrator`1.RunRegisteredWorkerAsync(String id, Action`1 callback, CancellationToken token, CancellationToken retirementToken) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:231
+    at Bifrost.WorkOrchestrator`1.AbortAsync(CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:168
+    at Bifrost.WorkOrchestrator`1.DisposeCoreAsync() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:191
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.ThrowingWorkerObserverDoesNotLoseWork(DispatchStrategy strategy, Boolean stateObserver) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:131
+failed ThrowingWorkerObserverDoesNotLoseWork(PriorityRelaxed, False) (44ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: observer
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.<>c.<ThrowingWorkerObserverDoesNotLoseWork>b__2_0(WorkClass _, TimeSpan _) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:124
+    at Bifrost.WorkOrchestrator`1.ConsumeQueueAsync(String workerId, Action`1 stateCallback, CancellationToken ct, CancellationToken dequeueToken)
+    at Bifrost.WorkOrchestrator`1.RunRegisteredWorkerAsync(String id, Action`1 callback, CancellationToken token, CancellationToken retirementToken) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:231
+    at Bifrost.WorkOrchestrator`1.AbortAsync(CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:168
+    at Bifrost.WorkOrchestrator`1.DisposeCoreAsync() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:191
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.ThrowingWorkerObserverDoesNotLoseWork(DispatchStrategy strategy, Boolean stateObserver) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:131
+failed ThrowingWorkerObserverDoesNotLoseWork(Fifo, True) (42ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: observer
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.<>c.<ThrowingWorkerObserverDoesNotLoseWork>b__2_1(Boolean _) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:127
+    at Bifrost.WorkOrchestrator`1.ConsumeQueueAsync(String workerId, Action`1 stateCallback, CancellationToken ct, CancellationToken dequeueToken) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:278
+    at Bifrost.WorkOrchestrator`1.RunRegisteredWorkerAsync(String id, Action`1 callback, CancellationToken token, CancellationToken retirementToken) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:231
+    at Bifrost.WorkOrchestrator`1.AbortAsync(CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:168
+    at Bifrost.WorkOrchestrator`1.DisposeCoreAsync() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:191
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.ThrowingWorkerObserverDoesNotLoseWork(DispatchStrategy strategy, Boolean stateObserver) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:131
+failed ThrowingRejectionObserverDoesNotSuppressRouting(True) (48ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: observer
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.<>c.<ThrowingRejectionObserverDoesNotSuppressRouting>b__3_0(WorkClass _, RejectionReason _) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:145
+    at Bifrost.Decorators.RejectionRoutingOrchestrator`1.EnqueueAsync(TWork work, WorkEnqueueOptions options, CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/Decorators/RejectionRoutingOrchestrator.cs:260
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.ThrowingRejectionObserverDoesNotSuppressRouting(Boolean asynchronous) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:146
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.ThrowingRejectionObserverDoesNotSuppressRouting(Boolean asynchronous) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:148
+failed ThrowingWorkerObserverDoesNotLoseWork(PriorityRelaxed, True) (43ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: observer
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.<>c.<ThrowingWorkerObserverDoesNotLoseWork>b__2_1(Boolean _) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:127
+    at Bifrost.WorkOrchestrator`1.ConsumeQueueAsync(String workerId, Action`1 stateCallback, CancellationToken ct, CancellationToken dequeueToken) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:278
+    at Bifrost.WorkOrchestrator`1.RunRegisteredWorkerAsync(String id, Action`1 callback, CancellationToken token, CancellationToken retirementToken) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:231
+    at Bifrost.WorkOrchestrator`1.AbortAsync(CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:168
+    at Bifrost.WorkOrchestrator`1.DisposeCoreAsync() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:191
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.ThrowingWorkerObserverDoesNotLoseWork(DispatchStrategy strategy, Boolean stateObserver) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:131
+failed ThrowingWorkerObserverDoesNotLoseWork(PriorityExact, False) (42ms)
+  TUnit.Engine.Exceptions.TestFailedException: InvalidOperationException: observer
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.<>c.<ThrowingWorkerObserverDoesNotLoseWork>b__2_0(WorkClass _, TimeSpan _) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:124
+    at Bifrost.WorkOrchestrator`1.ConsumeQueueAsync(String workerId, Action`1 stateCallback, CancellationToken ct, CancellationToken dequeueToken)
+    at Bifrost.WorkOrchestrator`1.RunRegisteredWorkerAsync(String id, Action`1 callback, CancellationToken token, CancellationToken retirementToken) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:231
+    at Bifrost.WorkOrchestrator`1.AbortAsync(CancellationToken ct) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:168
+    at Bifrost.WorkOrchestrator`1.DisposeCoreAsync() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/WorkOrchestrator.cs:191
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.ThrowingWorkerObserverDoesNotLoseWork(DispatchStrategy strategy, Boolean stateObserver) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:131
+failed BlockingSubscriberDoesNotBlockPublisherOrOtherSubscribers(True) (2s 006ms)
+  TUnit.Engine.Exceptions.TestFailedException: TimeoutException: The operation has timed out.
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.BlockingSubscriberDoesNotBlockPublisherOrOtherSubscribers(Boolean asyncCallback) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:46
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.BlockingSubscriberDoesNotBlockPublisherOrOtherSubscribers(Boolean asyncCallback) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:51
+failed BlockingSubscriberDoesNotBlockPublisherOrOtherSubscribers(False) (2s 006ms)
+  TUnit.Engine.Exceptions.TestFailedException: TimeoutException: The operation has timed out.
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.BlockingSubscriberDoesNotBlockPublisherOrOtherSubscribers(Boolean asyncCallback) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:46
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.BlockingSubscriberDoesNotBlockPublisherOrOtherSubscribers(Boolean asyncCallback) in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:51
+failed SubscriptionRacingDisposalAlwaysTerminates (2s 053ms)
+  TUnit.Engine.Exceptions.TestFailedException: TimeoutException: The operation has timed out.
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.SubscriptionRacingDisposalAlwaysTerminates() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:92
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.SubscriptionRacingDisposalAlwaysTerminates() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:103
+    at Bifrost.Tests.Decorators.ObserverBoundaryTests.SubscriptionRacingDisposalAlwaysTerminates() in /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/Decorators/ObserverBoundaryTests.cs:103
+
+Test run summary: Failed! - /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/bin/Release/net10.0/Bifrost.Tests.dll (net10.0|x64)
+  total: 11
+  failed: 11
+  succeeded: 0
+  skipped: 0
+  duration: 2s 560ms

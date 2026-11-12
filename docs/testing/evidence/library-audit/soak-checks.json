@@ -1,0 +1,38 @@
+[
+  {
+    "binding": "LockingPriority",
+    "workers": 2,
+    "Offered": 12699,
+    "Rejected": 3324,
+    "Dispatched": 9260,
+    "residual": 115,
+    "capacityConservationProgress": "pass"
+  },
+  {
+    "binding": "LockingPriority",
+    "workers": 8,
+    "Offered": 45165,
+    "Rejected": 8283,
+    "Dispatched": 36878,
+    "residual": 4,
+    "capacityConservationProgress": "pass"
+  },
+  {
+    "binding": "MultiQueuePriority",
+    "workers": 2,
+    "Offered": 12410,
+    "Rejected": 3151,
+    "Dispatched": 9249,
+    "residual": 10,
+    "capacityConservationProgress": "pass"
+  },
+  {
+    "binding": "MultiQueuePriority",
+    "workers": 8,
+    "Offered": 45001,
+    "Rejected": 8107,
+    "Dispatched": 36891,
+    "residual": 3,
+    "capacityConservationProgress": "pass"
+  }
+]

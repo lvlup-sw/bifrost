@@ -1,0 +1,30 @@
+  Determining projects to restore...
+  Restored /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/Bifrost.csproj (in 163 ms).
+  Restored /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling.Core/Bifrost.Scheduling.Core.csproj (in 163 ms).
+  Restored /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Core/Bifrost.Core.csproj (in 163 ms).
+  Restored /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Concurrency/Bifrost.Concurrency.csproj (in 163 ms).
+  Restored /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling/Bifrost.Scheduling.csproj (in 163 ms).
+  1 of 6 projects are up-to-date for restore.
+  Bifrost.Scheduling.Core -> /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling.Core/bin/Release/net10.0/Bifrost.Scheduling.Core.dll
+  Bifrost.Core -> /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Core/bin/Release/net10.0/Bifrost.Core.dll
+  Bifrost.Concurrency -> /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Concurrency/bin/Release/net10.0/Bifrost.Concurrency.dll
+  Bifrost -> /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost/bin/Release/net10.0/Bifrost.dll
+  Bifrost.Scheduling -> /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Scheduling/bin/Release/net10.0/Bifrost.Scheduling.dll
+  Bifrost.Scheduling.AotSmoke -> /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/samples/Bifrost.Scheduling.AotSmoke/bin/Release/net10.0/linux-x64/Bifrost.Scheduling.AotSmoke.dll
+  Generating native code
+  Bifrost.Scheduling.AotSmoke -> /tmp/bifrost-library-aot-scheduling/
+Bifrost.Scheduling AOT smoke — starting.
+Registered runtime job 'smoke-runtime'.
+Registry contains 4 job(s):
+  smoke-custom: state=Running, nextFire=2026-11-13 02:46:57Z
+  smoke-inline: state=Running, nextFire=2026-11-12 02:46:57Z
+  smoke-orchestrator: state=Running, nextFire=2026-11-12 02:46:57Z
+  smoke-runtime: state=Running, nextFire=2026-11-13 02:46:57Z
+All four dispatch modes registered and resolved cleanly.
+[inline] smoke-inline fired at 2026-11-12 02:46:57Z
+[orchestrator] smoke-orchestrator handled
+Verified fire: 'smoke-orchestrator (mode 1 — orchestrator dispatch)' executed.
+Verified fire: 'smoke-inline (mode 2 — inline dispatch)' executed.
+Orchestrator and inline dispatch paths both executed under NativeAOT.
+Verified dynamic worker retirement under NativeAOT.
+Bifrost.Scheduling AOT smoke — PASS.
