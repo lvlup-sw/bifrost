@@ -112,7 +112,7 @@ jobs:
     steps:
       - name: Add to project
         id: add
-        uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
+        uses: actions/add-to-project@f2c1f1fa649a891be84948ea89b5dfba1526ef05 # v2.0.1
         with:
           project-url: https://github.com/orgs/lvlup-sw/projects/${{ env.PROJECT_NUMBER }}
           github-token: ${{ secrets.PROJECT_TOKEN }}
@@ -296,7 +296,7 @@ jobs:
 
       - name: Generate changelog
         id: changelog
-        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
         with:
           config: .github/cliff.toml
           args: --latest --strip header
