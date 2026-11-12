@@ -357,6 +357,7 @@ public class AutoscalingEngineTests
     /// </remarks>
     [Test]
     [Repeat(10)] // Run multiple times to increase chance of catching race condition
+    [NotInParallel(nameof(EvaluateScaling_ConcurrentCalls_OnlyOneBypassesCooldown))]
     public async Task EvaluateScaling_ConcurrentCalls_OnlyOneBypassesCooldown()
     {
         // Arrange
@@ -369,20 +370,24 @@ public class AutoscalingEngineTests
             ScaleUpStep = 1,
             CooldownPeriod = TimeSpan.FromSeconds(30), // Long cooldown to ensure test validity
         });
-        var engine = new AutoscalingEngine(options);
+        using var engine = new AutoscalingEngine(options);
 
         const int concurrentCallers = 50;
-        var barrier = new Barrier(concurrentCallers);
+        using var barrier = new Barrier(concurrentCallers);
         var decisions = new ScalingDecision[concurrentCallers];
 
-        // Act - Launch many concurrent evaluations
+        // Act - Use dedicated threads so synchronous Barrier waits cannot starve the shared ThreadPool on 4-vCPU runners
         var tasks = Enumerable.Range(0, concurrentCallers)
-            .Select(i => Task.Run(() =>
-            {
-                // Synchronize all threads to start at the same time
-                barrier.SignalAndWait();
-                decisions[i] = engine.EvaluateScaling(currentWorkers: 2, utilization: 0.9, maxBacklog: 100);
-            }))
+            .Select(i => Task.Factory.StartNew(
+                () =>
+                {
+                    // Synchronize all threads to start at the same time
+                    barrier.SignalAndWait();
+                    decisions[i] = engine.EvaluateScaling(currentWorkers: 2, utilization: 0.9, maxBacklog: 100);
+                },
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default))
             .ToArray();
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
