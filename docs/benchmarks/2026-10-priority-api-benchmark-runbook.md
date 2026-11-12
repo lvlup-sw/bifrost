@@ -4,6 +4,8 @@ This runbook covers PR #69 and its benchmark/evidence layer, PR #70. It explains
 
 The complete toolkit is merged into `main` and included in `v0.6.0`. PR #69 contains the existing BenchmarkDotNet and server-throughput harnesses. PR #70 adds the source-direct validation/profiling tools and this guide. Record the actual commit SHA when running; branch names can move.
 
+The [completed October Xeon campaign](data/azure-d64sv6-2026-10-28/README.md) includes four server sweeps, repeated ShortRun jobs, and balanced implementation-control comparisons on the matching 8573C host.
+
 ## Automated preparation
 
 From a checkout with the .NET 10 SDK, run:
@@ -15,7 +17,7 @@ bash scripts/benchmarks/prepare-cpq.sh /tmp/bifrost-cpq-ready
 source /tmp/bifrost-cpq-ready/ready.env
 ```
 
-The output directory must be new. The [preparation script](../../scripts/benchmarks/prepare-cpq.sh) captures the commit, tracked patch, added inputs, runtime, topology, affinity, CPU policy and resolved packages. It builds the solution, runs regular and stress tests, builds original/current validation and stripe executables, compares all 72 trace hashes and 160 rank/delay records, and executes the four-population BenchmarkDotNet Dry smoke. Failures retain their logs and stop preparation. `ready.env` is written only after all checks pass and supplies the shell variables used below.
+The output directory must be new and outside the repository, so its input archive cannot include its own output. The [preparation script](../../scripts/benchmarks/prepare-cpq.sh) captures the commit, tracked patch, added inputs, runtime, topology, affinity, CPU policy and resolved packages. It builds the solution, runs regular and stress tests, builds original/current validation and stripe executables, compares all 72 trace hashes and 160 rank/delay records, and executes the four-population BenchmarkDotNet Dry smoke. Failures retain their logs and stop preparation. `ready.env` is written only after all checks pass and supplies the shell variables used below.
 
 This prepares the host and binaries; it does not collect publishable performance results or create cloud resources. Dry timings are execution checks only. Review the captured host details against section 2, record VM size/region manually when applicable, and use an idle host for the timed campaign. Rerun preparation on the actual measurement host; binaries and readiness from a workstation do not validate the Xeon setup.
 
