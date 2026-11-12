@@ -14,28 +14,36 @@ internal class HostedTeardownRegressionTests
     public async Task StopOverlappingDisposeAndRepeatedTeardownRemainSafe(DispatchStrategy strategy)
     {
         var handler = new BlockingHandler();
-        await using var orchestrator = new WorkOrchestrator<int>(handler,
+        var orchestrator = new WorkOrchestrator<int>(handler,
             Options.Create(new WorkOrchestratorOptions
             {
                 Capacity = 4, WorkerCount = 1, DispatchStrategy = strategy, FullMode = QueueFullMode.Reject,
             }), NullLogger<WorkOrchestrator<int>>.Instance);
-        var service = new WorkOrchestratorHostedService<int>(orchestrator,
-            NullLogger<WorkOrchestratorHostedService<int>>.Instance);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await service.StartAsync(deadline.Token).ConfigureAwait(false);
-        await Assert.That(orchestrator.TryEnqueue(1)).IsTrue();
-        await handler.Entered.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
-        var stopping = service.StopAsync(deadline.Token);
-        await Assert.That(stopping.IsCompleted).IsFalse();
-        var disposal = orchestrator.DisposeAsync().AsTask();
-        await Task.WhenAll(stopping, disposal).WaitAsync(deadline.Token).ConfigureAwait(false);
+        try
+        {
+            var service = new WorkOrchestratorHostedService<int>(orchestrator,
+                NullLogger<WorkOrchestratorHostedService<int>>.Instance);
+            await service.StartAsync(deadline.Token).ConfigureAwait(false);
+            await Assert.That(orchestrator.TryEnqueue(1)).IsTrue();
+            await handler.Entered.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
+            var stopping = service.StopAsync(deadline.Token);
+            await Assert.That(stopping.IsCompleted).IsFalse();
+            var disposal = orchestrator.DisposeAsync().AsTask();
+            await Task.WhenAll(stopping, disposal).WaitAsync(deadline.Token).ConfigureAwait(false);
 
-        // A faulting host can reach Stop after another path has disposed the orchestrator.
-        await Task.WhenAll(service.StopAsync(deadline.Token), orchestrator.AbortAsync(deadline.Token),
-            orchestrator.DisposeAsync().AsTask()).WaitAsync(deadline.Token).ConfigureAwait(false);
-        await Assert.That(orchestrator.GetShutdownToken().IsCancellationRequested).IsTrue();
-        await Assert.That(orchestrator.Completion.IsCompletedSuccessfully).IsTrue();
-        await Assert.That(orchestrator.ActiveWorkers).IsEqualTo(0);
+            // A faulting host can reach Stop after another path has disposed the orchestrator.
+            await Task.WhenAll(service.StopAsync(deadline.Token), orchestrator.AbortAsync(deadline.Token),
+                orchestrator.DisposeAsync().AsTask()).WaitAsync(deadline.Token).ConfigureAwait(false);
+            await Assert.That(orchestrator.GetShutdownToken().IsCancellationRequested).IsTrue();
+            await Assert.That(orchestrator.Completion.IsCompletedSuccessfully).IsTrue();
+            await Assert.That(orchestrator.ActiveWorkers).IsEqualTo(0);
+        }
+        finally
+        {
+            // DisposeAsync is cached. A failed assertion must not await that same task with no bound.
+            await orchestrator.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        }
     }
 
     private sealed class BlockingHandler : IWorkHandler<int>
