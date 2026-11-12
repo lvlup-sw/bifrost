@@ -186,17 +186,16 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
         var result = new List<DateTimeOffset>(count);
         var cadence = record.Cadence;
-        // Seed: use the job's current last-fire as the starting point, then advance
-        // through future occurrences by treating each computed instant as "lastFiredAt"
-        // for the next iteration. "now" is pinned to the current instant from the
-        // injected TimeProvider so the preview is consistent with the tick loop.
+        // Preserve the occurrence already scheduled by registration or the tick loop.
         DateTimeOffset? lastFiredAt = record.LastFiredAt;
         var now = this.timeProvider.GetUtcNow();
 
         for (int i = 0; i < count; i++)
         {
-            var next = cadence.ComputeNextFire(lastFiredAt, now);
-            if (next is null)
+            var next = i == 0 && record.NextFireAt > now
+                ? record.NextFireAt
+                : cadence.ComputeNextFire(lastFiredAt, now);
+            if (next is null || next <= now)
             {
                 break;
             }

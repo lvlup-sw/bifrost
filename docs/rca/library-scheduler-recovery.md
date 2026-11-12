@@ -47,3 +47,12 @@ its single-record file before rename. It uses controlled synchronous dispatch to
 pin effects, not production router scheduling. This is process-death coverage,
 not database, multi-writer, power-loss, or exactly-once qualification. The shipped
 store is in-memory; actual consumer durable adapters still require qualification.
+
+## Preview changed the scheduled instant
+
+Two additional tests failed: an interval due at minute 10 moved to minute 11
+when previewed at minute 1, and an expired one-shot appeared as a future fire.
+The preview recomputed the first interval from the inspection time and accepted
+non-future results. It now preserves a future `NextFireAt` and stops when a
+cadence cannot advance. Later jittered occurrences remain projections, not
+committed dispatch times.
