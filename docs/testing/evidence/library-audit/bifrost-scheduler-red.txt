@@ -18,7 +18,7 @@ failed RelativeOneShotUsesOneClockSample(False) (40ms)
 failed TrailingNewlineIsRejectedBeforePersistence (40ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to throw ArgumentException
   but no exception was thrown
-  
+
   at Assert.That(async () => await registry.RegisterAsync("job\n", new IntervalCadence(TimeSpan.FromMinutes(1)),
               MissedFirePolicy.Coalesce, Substitute.For<IJobDispatcher>()).ConfigureAwait(false)).Throws<ArgumentException>()
 failed RelativeOneShotUsesOneClockSample(True) (41ms)

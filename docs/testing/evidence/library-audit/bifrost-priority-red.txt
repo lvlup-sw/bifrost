@@ -13,12 +13,12 @@
 failed FractionalWindowsMatchIntegerOracle(1000000000) (9ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be within 0 of 15700
   but found 15699, which differs by 1
-  
+
   at Assert.That(boosts.InteractiveBoostTicks).IsEqualTo(expected)
 failed UnrepresentableBoostIsRejected (9ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to throw ArgumentOutOfRangeException
   but no exception was thrown
-  
+
   at Assert.That(() => PriorityKey.Precompute(new PriorityDispatchOptions
           {
               InteractiveBoostWindow = TimeSpan.MaxValue,
@@ -26,12 +26,12 @@ failed UnrepresentableBoostIsRejected (9ms)
 failed FractionalWindowsMatchIntegerOracle(10000000) (9ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be within 0 of 21
   but found 20, which differs by 1
-  
+
   at Assert.That(boosts.InteractiveBoostTicks).IsEqualTo(expected)
 failed ExtremeKeysSaturateWithoutReversingUrgency (9ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be within 0 of -9223372036854775808
   but found 9223372036854775799, which differs by 9
-  
+
   at Assert.That(PriorityKey.Compute(in interactive, in boosts)).IsEqualTo(long.MinValue)
 
 Test run summary: Failed! - /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests/bin/Release/net10.0/Bifrost.Tests.dll (net10.0|x64)

@@ -13,22 +13,22 @@
 failed StartupReconcilesPastOneShot(FireAllMissed, 1, True) (56ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be 1
   but found 2
-  
+
   at Assert.That(count).IsEqualTo(expected)
 failed StartupReconcilesPastOneShot(Coalesce, 1, True) (56ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be 1
   but found 2
-  
+
   at Assert.That(count).IsEqualTo(expected)
 failed StartupReconcilesPastOneShot(SkipMissed, 0, True) (56ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be 0
   but found 1
-  
+
   at Assert.That(count).IsEqualTo(expected)
 failed StartupReconcilesPastOneShot(SkipMissed, 0, False) (56ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be 0
   but found 1
-  
+
   at Assert.That(count).IsEqualTo(expected)
 
 Test run summary: Failed! - /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/bin/Release/net10.0/Bifrost.Tests.Scheduling.dll (net10.0|x64)

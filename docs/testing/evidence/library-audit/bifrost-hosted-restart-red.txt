@@ -13,27 +13,27 @@
 failed StartupPreservesSavedRecord(Completed) (45ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equal to JobRecord { Name = job, Cadence = IntervalCadence { Interval = 00:01:00, Jitter = 0 }, MissedFirePolicy = FireAllMissed, State = Completed, LastFiredAt = 01/01/2026 00:00:00 +00:00, NextFireAt = 01/01/2026 00:01:00 +00:00, DispatchKind = inline, DispatcherTypeName = , Metadata = System.Collections.Generic.Dictionary`2[System.String,System.String] }
   but found JobRecord { Name = job, Cadence = IntervalCadence { Interval = 01:00:00, Jitter = 0 }, MissedFirePolicy = Coalesce, State = Running, LastFiredAt = , NextFireAt = 01/01/2026 01:03:00 +00:00, DispatchKind = custom, DispatcherTypeName = Bifrost.Scheduling.Dispatch.InlineJobDispatcher, Metadata = System.Collections.Generic.Dictionary`2[System.String,System.String] }
-  
+
   at Assert.That(persisted).IsEqualTo(record)
 failed StartupPreservesSavedRecord(Faulted) (45ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equal to JobRecord { Name = job, Cadence = IntervalCadence { Interval = 00:01:00, Jitter = 0 }, MissedFirePolicy = FireAllMissed, State = Faulted, LastFiredAt = 01/01/2026 00:00:00 +00:00, NextFireAt = 01/01/2026 00:01:00 +00:00, DispatchKind = inline, DispatcherTypeName = , Metadata = System.Collections.Generic.Dictionary`2[System.String,System.String] }
   but found JobRecord { Name = job, Cadence = IntervalCadence { Interval = 01:00:00, Jitter = 0 }, MissedFirePolicy = Coalesce, State = Running, LastFiredAt = , NextFireAt = 01/01/2026 01:03:00 +00:00, DispatchKind = custom, DispatcherTypeName = Bifrost.Scheduling.Dispatch.InlineJobDispatcher, Metadata = System.Collections.Generic.Dictionary`2[System.String,System.String] }
-  
+
   at Assert.That(persisted).IsEqualTo(record)
 failed StartupPreservesSavedRecord(Paused) (45ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equal to JobRecord { Name = job, Cadence = IntervalCadence { Interval = 00:01:00, Jitter = 0 }, MissedFirePolicy = FireAllMissed, State = Paused, LastFiredAt = 01/01/2026 00:00:00 +00:00, NextFireAt = 01/01/2026 00:01:00 +00:00, DispatchKind = inline, DispatcherTypeName = , Metadata = System.Collections.Generic.Dictionary`2[System.String,System.String] }
   but found JobRecord { Name = job, Cadence = IntervalCadence { Interval = 01:00:00, Jitter = 0 }, MissedFirePolicy = Coalesce, State = Running, LastFiredAt = , NextFireAt = 01/01/2026 01:03:00 +00:00, DispatchKind = custom, DispatcherTypeName = Bifrost.Scheduling.Dispatch.InlineJobDispatcher, Metadata = System.Collections.Generic.Dictionary`2[System.String,System.String] }
-  
+
   at Assert.That(persisted).IsEqualTo(record)
 failed StartupRecoversMissedOccurrenceIdentities (45ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equivalent to [01/01/2026 00:01:00 +00:00, 01/01/2026 00:02:00 +00:00, 01/01/2026 00:03:00 +00:00]
   but collection has 0 items but expected 3
-  
+
   at Assert.That(fires.Order().ToArray()).IsEquivalentTo(new[] { Epoch.AddMinutes(1), Epoch.AddMinutes(2), Epoch.AddMinutes(3) })
 failed StartupPreservesSavedRecord(Running) (45ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be equal to JobRecord { Name = job, Cadence = IntervalCadence { Interval = 00:01:00, Jitter = 0 }, MissedFirePolicy = FireAllMissed, State = Running, LastFiredAt = 01/01/2026 00:00:00 +00:00, NextFireAt = 01/01/2026 00:01:00 +00:00, DispatchKind = inline, DispatcherTypeName = , Metadata = System.Collections.Generic.Dictionary`2[System.String,System.String] }
   but found JobRecord { Name = job, Cadence = IntervalCadence { Interval = 01:00:00, Jitter = 0 }, MissedFirePolicy = Coalesce, State = Running, LastFiredAt = , NextFireAt = 01/01/2026 01:03:00 +00:00, DispatchKind = custom, DispatcherTypeName = Bifrost.Scheduling.Dispatch.InlineJobDispatcher, Metadata = System.Collections.Generic.Dictionary`2[System.String,System.String] }
-  
+
   at Assert.That(persisted).IsEqualTo(record)
 
 Test run summary: Failed! - /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/bin/Release/net10.0/Bifrost.Tests.Scheduling.dll (net10.0|x64)

@@ -13,12 +13,12 @@
 failed PreviewExcludesPastOneShot (50ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be empty
   but collection contains items: [01/01/2000 00:01:00 +00:00]
-  
+
   at Assert.That(new ScheduleInspector(registry).GetNextOccurrences("job", 2)).IsEmpty()
 failed PreviewRetainsScheduledFirstOccurrence (50ms)
   TUnit.Engine.Exceptions.TestFailedException: AssertionException: Expected to be within 00:00:00 of 01/01/2000 00:10:00 +00:00
   but found 01/01/2000 00:11:00 +00:00, which differs by 00:01:00
-  
+
   at Assert.That(preview[0]).IsEqualTo(epoch.AddMinutes(10))
 
 Test run summary: Failed! - /home/reedsalus/.codex/worktrees/readme-benchmark-prep/bifrost/src/Bifrost.Tests.Scheduling/bin/Release/net10.0/Bifrost.Tests.Scheduling.dll (net10.0|x64)

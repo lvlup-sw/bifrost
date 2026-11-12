@@ -6,8 +6,8 @@ BenchmarkDotNet v0.14.0, Fedora Linux 45 (KDE Plasma Desktop Edition)
   [Host]     : .NET 10.0.11 (10.0.1126.37416), X64 RyuJIT AVX2
   Job-CHPZQK : .NET 10.0.11 (10.0.1126.37416), X64 RyuJIT AVX2
 
-InvocationCount=1  IterationCount=10  LaunchCount=2  
-UnrollFactor=1  WarmupCount=5  
+InvocationCount=1  IterationCount=10  LaunchCount=2
+UnrollFactor=1  WarmupCount=5
 
 ```
 | Method     | WorkerCount | Mean      | Error    | StdDev    | Gen0      | Allocated   |
