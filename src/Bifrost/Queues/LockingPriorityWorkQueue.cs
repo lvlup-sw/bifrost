@@ -118,18 +118,6 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
     // Retirement can consume an item permit without taking the item. Restore a wake.
     internal void WakeConsumer() => _signal.Release();
 
-    /// <summary>
-    /// Takes one enqueue permit that a drain already matched to an item, when that
-    /// permit has been released. Does nothing after completion, so a shutdown wake
-    /// for a parked waiter is left in place.
-    /// </summary>
-    internal Action? BeforeMatchedWakeForTest { get; set; }
-
-    /// <summary>
-    /// Runs at the start of <see cref="Complete"/>, before it takes the admission gate.
-    /// </summary>
-    internal Action? BeforeCompletionLockForTest { get; set; }
-
     internal void ConsumeMatchedWake()
     {
         // Same handshake as the relaxed binding: completion publishes its flag and
@@ -137,8 +125,6 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
         // use the gate too.
         lock (_admissionGate)
         {
-            if (_completed) return;
-            BeforeMatchedWakeForTest?.Invoke();
             if (_completed) return;
             _signal.Wait(0);
         }
@@ -279,7 +265,6 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
     /// </summary>
     public void Complete()
     {
-        BeforeCompletionLockForTest?.Invoke();
         lock (_admissionGate)
         {
             if (_completed) return;
