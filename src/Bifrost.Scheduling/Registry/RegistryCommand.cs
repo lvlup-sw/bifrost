@@ -39,8 +39,7 @@ internal enum RegistryCommandKind
 /// <param name="Kind">The lifecycle action that produced this command.</param>
 /// <param name="JobName">The name of the job the action applies to.</param>
 /// <param name="RegistrationId">
-/// The registration that accepted a trigger. Other commands leave this at zero.
-/// The tick loop drops the trigger when a later registration owns the name.
+/// The strictly positive registration identity that produced this command.
 /// </param>
 internal readonly record struct RegistryCommand(
     RegistryCommandKind Kind,

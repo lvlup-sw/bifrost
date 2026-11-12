@@ -46,6 +46,9 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     private readonly ConcurrentDictionary<string, JobRecord> jobs = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, IJobDispatcher> dispatchers = new(StringComparer.Ordinal);
     private readonly object registrationGate = new();
+    private readonly object lifecycleGate = new();
+    private readonly TaskCompletionSource disposedTcs =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Dictionary<string, long> registrationIds = new(StringComparer.Ordinal);
     private long nextRegistrationId;
 
@@ -115,6 +118,12 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     /// registration, removal, pause, resume, and trigger actions as they happen.
     /// </summary>
     internal ChannelReader<RegistryCommand> Commands => this.commands.Reader;
+
+    /// <summary>
+    /// Gets a task that completes when the registry is disposed, even if unread
+    /// commands remain in <see cref="Commands"/>.
+    /// </summary>
+    internal Task DisposedTask => this.disposedTcs.Task;
 
     /// <summary>
     /// Returns the current persisted <see cref="JobRecord"/> for a job, or
@@ -197,11 +206,14 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     /// <returns>The bound dispatcher, or a miss.</returns>
     internal DispatcherResolution ResolveDispatcher(string name, long registrationId)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(registrationId, 0);
+        ArgumentNullException.ThrowIfNull(name);
+
         lock (this.registrationGate)
         {
             var current = this.registrationIds.GetValueOrDefault(name);
             this.dispatchers.TryGetValue(name, out var dispatcher);
-            if (registrationId != 0 && current == registrationId && dispatcher is not null)
+            if (current == registrationId && dispatcher is not null)
             {
                 return new DispatcherResolution(dispatcher, Replaced: false);
             }
@@ -221,23 +233,33 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     internal IReadOnlyList<JobRecord> SnapshotRecords() => [.. this.jobs.Values];
 
     /// <summary>
-    /// Marks a job as <see cref="JobState.Faulted"/> in-process, called by the tick
-    /// loop when a per-job <c>ComputeNextFire</c> throws (DR-10, Task 48). The
-    /// in-memory state is updated synchronously on the tick thread; the store write
-    /// is intentionally skipped here — the store is a best-effort checkpoint and
-    /// the fault is visible in-process immediately. Silently ignores unknown jobs.
+    /// Marks a job as <see cref="JobState.Faulted"/> in-process only when its live
+    /// registration identity matches <paramref name="registrationId"/> (DR-10, Task 48).
+    /// Rejects non-positive sentinel IDs.
     /// </summary>
+    /// <param name="registrationId">The strictly positive registration identity.</param>
     /// <param name="name">The job name to mark faulted.</param>
-    internal void MarkJobFaulted(string name)
+    /// <returns>
+    /// <see langword="true"/> when the matching registration was marked faulted;
+    /// <see langword="false"/> when absent, replaced, or already faulted.
+    /// </returns>
+    internal bool TryMarkJobFaulted(long registrationId, string name)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(registrationId, 0);
         ArgumentNullException.ThrowIfNull(name);
 
-        if (!this.jobs.TryGetValue(name, out var record))
+        lock (this.lifecycleGate)
         {
-            return;
-        }
+            if (this.RegistrationId(name) != registrationId
+                || !this.jobs.TryGetValue(name, out var record)
+                || record.State == JobState.Faulted)
+            {
+                return false;
+            }
 
-        this.jobs[name] = record with { State = JobState.Faulted };
+            this.jobs[name] = record with { State = JobState.Faulted };
+            return true;
+        }
     }
 
     /// <summary>
@@ -429,18 +451,24 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         try
         {
             await this.store.SaveAsync(record, ct).ConfigureAwait(false);
+            lock (this.lifecycleGate)
+            {
+                this.ThrowIfDisposed();
+
+                var registrationId = this.BindDispatcher(name, dispatcher);
+                this.commands.Writer.TryWrite(
+                    new RegistryCommand(RegistryCommandKind.Register, name, registrationId));
+            }
         }
         catch
         {
-            // Compensate: the slot we claimed must not outlive a failed persist.
+            // Compensate: the slot we claimed must not outlive a failed persist or post-dispose abort.
             this.jobs.TryRemove(name, out _);
             throw;
         }
 
-        this.BindDispatcher(name, dispatcher);
         this.metrics.RecordRegistered();
         this.events.Publish(new JobRegisteredEvent(name));
-        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), CancellationToken.None).ConfigureAwait(false);
     }
 
     private async ValueTask<bool> UnregisterCoreAsync(string name, CancellationToken ct = default)
@@ -455,15 +483,23 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
         await this.store.DeleteAsync(name, ct).ConfigureAwait(false);
 
-        this.jobs.TryRemove(name, out _);
-        this.UnbindDispatcher(name);
+        lock (this.lifecycleGate)
+        {
+            this.ThrowIfDisposed();
+
+            var registrationId = this.RegistrationId(name);
+            this.jobs.TryRemove(name, out _);
+            this.UnbindDispatcher(name);
+
+            // Post-commit wake is written unconditionally inside lifecycleGate: once
+            // durable + in-memory state is committed, a caller cancellation must NOT
+            // drop the tick-loop wake (DR-1).
+            this.commands.Writer.TryWrite(
+                new RegistryCommand(RegistryCommandKind.Unregister, name, registrationId));
+        }
+
         this.metrics.RecordUnregistered();
         this.events.Publish(new JobUnregisteredEvent(name));
-
-        // Post-commit wake uses CancellationToken.None: once durable + in-memory state
-        // is committed, a caller cancellation must NOT drop the tick-loop wake, or the
-        // loop would keep firing a job the registry has already removed (DR-1).
-        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Unregister, name), CancellationToken.None).ConfigureAwait(false);
         return true;
     }
 
@@ -551,13 +587,29 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
         await this.store.SaveAsync(updated, ct).ConfigureAwait(false);
 
-        this.jobs[name] = updated;
-        // Post a Register command so the tick loop re-arms the job from the updated
-        // record immediately, computing the new NextFireAt without any immediate fire
-        // side effect. The Register command calls Arm which reads the updated registry.
-        // CancellationToken.None: the durable + in-memory update is already committed, so
-        // a caller cancellation must not drop the re-arm wake (DR-1).
-        await this.PostAsync(new RegistryCommand(RegistryCommandKind.Register, name), CancellationToken.None).ConfigureAwait(false);
+        lock (this.lifecycleGate)
+        {
+            this.ThrowIfDisposed();
+
+            // Re-read the latest in-memory record under the gate to preserve any
+            // concurrent LastFiredAt checkpoint while SaveAsync was awaiting.
+            var latest = this.jobs.GetValueOrDefault(name, updated);
+            var committed = latest with
+            {
+                Cadence = cadence,
+                MissedFirePolicy = missedFirePolicy,
+                NextFireAt = nextFireAt,
+            };
+            if (this.checkpointOrigins.TryGetValue(latest, out var origin))
+            {
+                this.checkpointOrigins.Add(committed, origin);
+            }
+
+            this.jobs[name] = committed;
+            var registrationId = this.RegistrationId(name);
+            this.commands.Writer.TryWrite(
+                new RegistryCommand(RegistryCommandKind.Register, name, registrationId));
+        }
     }
 
     /// <inheritdoc/>
@@ -598,15 +650,27 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             }
 
             acquired = true;
-            var registrationId = this.RegistrationId(name);
-            if (registrationId == 0)
+            lock (this.lifecycleGate)
             {
-                throw new InvalidOperationException(
-                    "TriggerAsync cannot run until the job dispatcher is bound.");
-            }
+                this.ThrowIfDisposed();
+                linked.Token.ThrowIfCancellationRequested();
 
-            await this.PostAsync(new RegistryCommand(RegistryCommandKind.Trigger, name, registrationId), linked.Token).ConfigureAwait(false);
-            acquired = false;
+                if (!this.jobs.ContainsKey(name))
+                {
+                    throw new JobNotFoundException(name);
+                }
+
+                var registrationId = this.RegistrationId(name);
+                if (registrationId == 0)
+                {
+                    throw new InvalidOperationException(
+                        "TriggerAsync cannot run until the job dispatcher is bound.");
+                }
+
+                this.commands.Writer.TryWrite(
+                    new RegistryCommand(RegistryCommandKind.Trigger, name, registrationId));
+                acquired = false;
+            }
         }
         finally
         {
@@ -691,13 +755,24 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
         await this.store.SaveAsync(updated, ct).ConfigureAwait(false);
 
-        this.jobs[updated.Name] = updated;
-        this.PublishTransition(kind, updated.Name);
+        lock (this.lifecycleGate)
+        {
+            this.ThrowIfDisposed();
 
-        // Post-commit wake uses CancellationToken.None (covers Pause and Resume): the
-        // durable + in-memory transition is already committed, so a caller cancellation
-        // must not drop the wake that tells the tick loop to honour the new state (DR-1).
-        await this.PostAsync(new RegistryCommand(kind, updated.Name), CancellationToken.None).ConfigureAwait(false);
+            var latest = this.jobs.GetValueOrDefault(updated.Name, updated);
+            var committed = latest with { State = state };
+            if (this.checkpointOrigins.TryGetValue(latest, out var origin))
+            {
+                this.checkpointOrigins.Add(committed, origin);
+            }
+
+            this.jobs[updated.Name] = committed;
+            var registrationId = this.RegistrationId(updated.Name);
+            this.commands.Writer.TryWrite(
+                new RegistryCommand(kind, updated.Name, registrationId));
+        }
+
+        this.PublishTransition(kind, updated.Name);
     }
 
     /// <summary>
@@ -753,15 +828,12 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     [GeneratedRegex(@"\A[a-z0-9][a-z0-9-_.]{0,127}\z", RegexOptions.CultureInvariant)]
     private static partial Regex JobNameRegex();
 
-    private async ValueTask PostAsync(RegistryCommand command, CancellationToken ct)
-        => await this.commands.Writer.WriteAsync(command, ct).ConfigureAwait(false);
-
     /// <summary>
     /// Throws <see cref="ObjectDisposedException"/> when the registry has been disposed.
     /// Called at the start of every public mutating / command-posting method — before any
     /// durable or in-memory mutation — so a disposed registry rejects the call cleanly
     /// rather than committing the change and only failing later at the closed-channel
-    /// <see cref="PostAsync"/>, which would leave the caller seeing a committed change
+    /// write, which would leave the caller seeing a committed change
     /// reported as failed. Read-only query accessors do not call this: a snapshot of a
     /// disposed registry is harmless.
     /// </summary>
@@ -810,14 +882,18 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     /// </summary>
     public void Dispose()
     {
-        // Idempotent: only the first caller completes the writer; a second Complete()
-        // would throw, so the guard makes double-dispose (sync or async) safe.
-        if (Interlocked.Exchange(ref this.disposed, 1) == 0)
+        lock (this.lifecycleGate)
         {
-            // Leave the semaphore and the cancellation source usable. The tick loop
-            // can still release a slot for a command it drains after the writer completes.
-            this.triggerAdmissionCancelled.Cancel();
-            this.commands.Writer.Complete();
+            // Idempotent: only the first caller completes the writer; a second Complete()
+            // would throw, so the guard makes double-dispose (sync or async) safe.
+            if (Interlocked.Exchange(ref this.disposed, 1) == 0)
+            {
+                // Leave the semaphore and the cancellation source usable. The tick loop
+                // can still release a slot for a command it drains after the writer completes.
+                this.triggerAdmissionCancelled.Cancel();
+                this.commands.Writer.Complete();
+                this.disposedTcs.TrySetResult();
+            }
         }
     }
 }

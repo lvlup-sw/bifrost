@@ -305,6 +305,11 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     {
         lock (this.barrierGate)
         {
+            if (this.registry.Commands.TryPeek(out _))
+            {
+                return;
+            }
+
             count = Math.Min(count, this.pendingBarriers.Count);
             for (var index = 0; index < count; index++)
             {
@@ -312,6 +317,19 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             }
 
             this.pendingBarriers.RemoveRange(0, count);
+        }
+    }
+
+    private void ReleaseIdleBarrierOnExit()
+    {
+        lock (this.barrierGate)
+        {
+            foreach (var request in this.pendingBarriers)
+            {
+                request.TrySetResult();
+            }
+
+            this.pendingBarriers.Clear();
         }
     }
 
@@ -371,7 +389,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         finally
         {
             // Unblock any test waiting on idle once the loop exits (faulted or stopped).
-            this.ReleaseIdleBarrier();
+            this.ReleaseIdleBarrierOnExit();
         }
     }
 
@@ -471,40 +489,29 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     [SuppressMessage(
         "Usage",
         "VSTHRD003:Avoid awaiting foreign Tasks",
-        Justification = "The command-readiness wait is the loop's own cached single-reader " +
-            "channel wait; racing the backoff against it is the intended dispose-wake.")]
+        Justification = "DisposedTask is the registry's explicit disposal signal, used " +
+            "here so disposing the registry mid-backoff wakes the loop without allowing " +
+            "ordinary commands to bypass RestartBackoff.")]
     private async Task AwaitRestartBackoffAsync(CancellationToken stoppingToken)
     {
         var backoff = this.options.RestartBackoff;
 
-        // restartTimes holds the faults inside the current sliding window (just updated by
-        // HandleTickLoopFault). Count == 1 means this is the first fault in the window — a
-        // one-off blip — so recover immediately; back off only from the second consecutive
-        // fault onward, which is the crash loop this delay exists to tame. ShouldStop also
-        // skips the backoff when the registry's command channel has already completed (the
-        // registry was disposed), so a dispose-as-stop never parks on a full backoff.
         if (backoff <= TimeSpan.Zero
             || this.IsFaulted
             || this.restartTimes.Count <= 1
-            || this.ShouldStop(stoppingToken))
+            || this.ShouldStop(stoppingToken)
+            || this.registry.DisposedTask.IsCompleted)
         {
             return;
         }
 
         try
         {
-            // Race the backoff against the command channel so a dispose mid-backoff wakes
-            // the loop instead of leaving it parked for the full RestartBackoff. The
-            // registry completes its command-channel writer on dispose, which completes
-            // CommandReadyTask (WaitToReadAsync returns false); a real command arriving also
-            // completes it. Either way we return so the fault-recovery loop re-checks
-            // ShouldStop and exits cleanly on completion (or re-enters and drains the
-            // command). CommandReadyTask is the existing cached single-reader wait, reused
-            // here on the same tick thread — the only reader — so a single outstanding
-            // waiter remains correct.
+            // Race the backoff ONLY against registry disposal (not CommandReadyTask),
+            // so ordinary commands (Register, Trigger, Update, etc.) cannot wake the
+            // loop early and bypass RestartBackoff during a crash loop.
             var delay = Task.Delay(backoff, this.timeProvider, stoppingToken);
-            var commandReady = this.CommandReadyTask(stoppingToken);
-            var winner = await Task.WhenAny(delay, commandReady).ConfigureAwait(false);
+            var winner = await Task.WhenAny(delay, this.registry.DisposedTask).ConfigureAwait(false);
             if (winner == delay)
             {
                 // Observe the delay's completion/cancellation (no-op when it ran to term).
@@ -656,7 +663,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             "completed when the last pool-thread dispatch finishes.")]
     private async Task WaitForInFlightToDrainAsync(Task deadline)
     {
-        while (Volatile.Read(ref this.inFlightDispatches) > 0)
+        while (Volatile.Read(ref this.inFlightDispatches) > 0 && !deadline.IsCompleted)
         {
             var drain = this.CurrentDrainTask();
 
@@ -671,7 +678,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             try
             {
                 var completed = await Task.WhenAny(drain, deadline).ConfigureAwait(false);
-                if (completed == deadline)
+                if (completed == deadline || deadline.IsCompleted)
                 {
                     // Timed out: abandon the still-running dispatches.
                     return;
@@ -892,16 +899,19 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             case RegistryCommandKind.Register:
             case RegistryCommandKind.Resume:
-                this.Arm(command.JobName);
+                this.Arm(command.JobName, command.RegistrationId);
                 break;
 
             case RegistryCommandKind.Unregister:
-                this.Disarm(command.JobName);
-                this.BumpEpoch(command.JobName);
+                if (this.Disarm(command.JobName, command.RegistrationId))
+                {
+                    this.BumpEpoch(command.JobName);
+                }
+
                 break;
 
             case RegistryCommandKind.Pause:
-                this.Disarm(command.JobName);
+                this.Disarm(command.JobName, command.RegistrationId);
                 break;
 
             case RegistryCommandKind.Trigger:
@@ -928,13 +938,23 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// startup-from-store recovery only, not live resume).
     /// </remarks>
     /// <param name="jobName">The job to arm.</param>
-    private void Arm(string jobName)
+    /// <param name="expectedRegistrationId">
+    /// Optional registration identity carried by the command; zero matches the
+    /// startup seeding path where no command was issued.
+    /// </param>
+    private void Arm(string jobName, long expectedRegistrationId = 0)
     {
+        var liveRegistrationId = this.registry.RegistrationId(jobName);
+        if (expectedRegistrationId != 0 && liveRegistrationId != expectedRegistrationId)
+        {
+            return;
+        }
+
         var record = this.registry.TryGetRecord(jobName);
         if (record is null || record.State != JobState.Running)
         {
             // Job removed or not currently running: ensure it is not armed.
-            this.scheduled.Remove(jobName);
+            this.Disarm(jobName, expectedRegistrationId);
             return;
         }
 
@@ -944,32 +964,50 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         // stale (in the past or absent) compute the next natural occurrence from now.
         // This ensures a resume after a long pause arms at the next future occurrence
         // rather than treating the intervening period as missed fires (DR-10).
-        DateTimeOffset? nextFire;
         if (record.NextFireAt is not null && record.NextFireAt.Value > now)
         {
-            nextFire = record.NextFireAt.Value;
-        }
-        else
-        {
-            nextFire = record.Cadence.ComputeNextFire(record.LastFiredAt, now);
-        }
-
-        if (nextFire is null)
-        {
-            // No further occurrence (for example an already-fired one-shot).
-            this.scheduled.Remove(jobName);
+            this.Enqueue(jobName, record.Cadence, record.MissedFirePolicy, record.NextFireAt.Value);
             return;
         }
 
-        this.Enqueue(jobName, record.Cadence, record.MissedFirePolicy, nextFire.Value);
+        var effectiveRegistrationId = expectedRegistrationId != 0 ? expectedRegistrationId : liveRegistrationId;
+        var outcome = this.SafeComputeNextFire(
+            jobName,
+            effectiveRegistrationId,
+            record.Cadence,
+            record.LastFiredAt,
+            now,
+            now);
+
+        if (outcome.Kind != NextFireKind.Scheduled)
+        {
+            this.Disarm(jobName, effectiveRegistrationId);
+            return;
+        }
+
+        this.Enqueue(jobName, record.Cadence, record.MissedFirePolicy, outcome.NextFireAt!.Value);
     }
 
     /// <summary>
-    /// Disarms a job: drops its live scheduling state so any heap entries for it are
-    /// treated as stale and discarded on pop.
+    /// Disarms a job only when the armed entry belongs to
+    /// <paramref name="expectedRegistrationId"/> (or zero when disarming unconditionally).
     /// </summary>
     /// <param name="jobName">The job to disarm.</param>
-    private void Disarm(string jobName) => this.scheduled.Remove(jobName);
+    /// <param name="expectedRegistrationId">The registration identity to match, or zero.</param>
+    /// <returns><see langword="true"/> if the registration matched or was unscheduled.</returns>
+    private bool Disarm(string jobName, long expectedRegistrationId = 0)
+    {
+        if (expectedRegistrationId != 0
+            && this.scheduled.TryGetValue(jobName, out var live)
+            && live.RegistrationId != 0
+            && live.RegistrationId != expectedRegistrationId)
+        {
+            return false;
+        }
+
+        this.scheduled.Remove(jobName);
+        return true;
+    }
 
     /// <summary>
     /// Starts a new registration epoch and drops acknowledgement state for the old one.
@@ -1036,6 +1074,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="registrationId">The registration that accepted the trigger.</param>
     private void FireImmediately(string jobName, long registrationId)
     {
+        if (registrationId <= 0)
+        {
+            this.registry.ReleaseTriggerAdmission();
+            return;
+        }
+
         var resolution = this.registry.ResolveDispatcher(jobName, registrationId);
         if (resolution.Replaced)
         {
@@ -1044,15 +1088,36 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         }
 
         var record = this.registry.TryGetRecord(jobName);
-        if (record is null)
+        if (record is null || record.State != JobState.Running)
         {
             this.registry.ReleaseTriggerAdmission();
             return;
         }
 
         var now = this.timeProvider.GetUtcNow();
-        var nextNext = record.NextFireAt
-            ?? record.Cadence.ComputeNextFire(record.LastFiredAt, now);
+        DateTimeOffset? nextNext;
+        if (record.NextFireAt is not null)
+        {
+            nextNext = record.NextFireAt;
+        }
+        else
+        {
+            var outcome = this.SafeComputeNextFire(
+                jobName,
+                registrationId,
+                record.Cadence,
+                record.LastFiredAt,
+                now,
+                now);
+            if (outcome.Kind == NextFireKind.Faulted)
+            {
+                this.registry.ReleaseTriggerAdmission();
+                return;
+            }
+
+            nextNext = outcome.NextFireAt;
+        }
+
         var fire = new RetainedDispatch(
             jobName,
             now,
@@ -1119,40 +1184,33 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             var scheduledOccurrence = handle.ScheduledOccurrence;
 
             // Compute the next occurrence strictly after this one by anchoring the
-            // clock at the occurrence itself, not the wall clock. This makes a single
-            // large clock advance that spans several occurrences fire each of them in
-            // turn (the re-enqueued occurrence is re-examined by this same loop), and
-            // sets up the strict-occurrence next-fire computation a later group relies
-            // on rather than skipping the backlog as a now-anchored interval would.
-            // SafeComputeNextFire wraps the call: a throwing cadence marks the job
-            // Faulted and publishes a JobFireFailedEvent, isolating the fault so other
-            // jobs continue to fire (DR-10, Task 48, Hangfire#529/#530/#537).
-            var nextNext = this.SafeComputeNextFire(handle, scheduledOccurrence);
+            // clock at the occurrence itself, not the wall clock. SafeComputeNextFire
+            // returns a discriminated outcome so Faulted vs Exhausted needs no racy
+            // secondary name lookup.
+            var outcome = this.SafeComputeNextFire(
+                handle.JobName,
+                handle.RegistrationId,
+                handle.Cadence,
+                scheduledOccurrence,
+                scheduledOccurrence,
+                scheduledOccurrence);
 
-            // A null result from SafeComputeNextFire either means the cadence is
-            // exhausted (normal) or it threw (faulted): in both cases the job is
-            // dropped from the live schedule. The job was already marked Faulted
-            // and its failed-fire event was published by SafeComputeNextFire.
-            if (nextNext is null)
+            switch (outcome.Kind)
             {
-                // One-shot, exhausted cadence, or faulted cadence: drop live state.
-                this.scheduled.Remove(handle.JobName);
-
-                // If the cadence faulted (marked via registry), do not dispatch the
-                // (now un-schedulable) fire occurrence: the JobFireFailedEvent from
-                // SafeComputeNextFire already reported the failure.
-                var record = this.registry.TryGetRecord(handle.JobName);
-                if (record?.State == JobState.Faulted)
-                {
+                case NextFireKind.Faulted:
+                    this.Disarm(handle.JobName, handle.RegistrationId);
                     continue;
-                }
-            }
-            else
-            {
-                this.Enqueue(handle.JobName, handle.Cadence, handle.MissedFirePolicy, nextNext.Value);
-            }
 
-            this.Dispatch(handle.JobName, scheduledOccurrence, nextNext, handle.RegistrationId);
+                case NextFireKind.Exhausted:
+                    this.Disarm(handle.JobName, handle.RegistrationId);
+                    this.Dispatch(handle.JobName, scheduledOccurrence, nextFireAt: null, handle.RegistrationId);
+                    break;
+
+                case NextFireKind.Scheduled:
+                    this.Enqueue(handle.JobName, handle.Cadence, handle.MissedFirePolicy, outcome.NextFireAt!.Value);
+                    this.Dispatch(handle.JobName, scheduledOccurrence, outcome.NextFireAt, handle.RegistrationId);
+                    break;
+            }
         }
     }
 
@@ -1382,43 +1440,72 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         this.catchUpOrder.Clear();
     }
 
+    private enum NextFireKind
+    {
+        Scheduled,
+        Exhausted,
+        Faulted,
+    }
+
+    private readonly record struct NextFireOutcome(NextFireKind Kind, DateTimeOffset? NextFireAt)
+    {
+        public static NextFireOutcome Scheduled(DateTimeOffset nextFireAt)
+            => new(NextFireKind.Scheduled, nextFireAt);
+
+        public static NextFireOutcome Exhausted()
+            => new(NextFireKind.Exhausted, null);
+
+        public static NextFireOutcome Faulted()
+            => new(NextFireKind.Faulted, null);
+    }
+
     /// <summary>
     /// Computes the next occurrence for a job whose cadence may throw, isolating any
-    /// fault as a <see cref="Core.Events.JobFireFailedEvent"/> and marking the job
-    /// <see cref="JobState.Faulted"/> so it does not block the loop from processing
-    /// other jobs (DR-10, Task 48, Hangfire#529/#530/#537).
+    /// fault as a <see cref="Core.Events.JobFireFailedEvent"/> and marking the matching
+    /// registration <see cref="JobState.Faulted"/> so it does not block other jobs
+    /// (DR-10, Task 48, Hangfire#529/#530/#537).
     /// </summary>
-    /// <remarks>
-    /// A faulted job is removed from the live schedule by the caller
-    /// (<see cref="DispatchDueJobs"/>); no further occurrences are enqueued for it.
-    /// </remarks>
-    /// <param name="handle">The heap handle for the job being evaluated.</param>
-    /// <param name="scheduledOccurrence">The occurrence that just fired (the anchor for the next-fire computation).</param>
+    /// <param name="jobName">The job name.</param>
+    /// <param name="registrationId">The registration identity owning the cadence.</param>
+    /// <param name="cadence">The cadence to evaluate.</param>
+    /// <param name="lastFiredAt">The anchor last-fired instant.</param>
+    /// <param name="now">The anchor current instant.</param>
+    /// <param name="eventFireTime">The fire instant reported if the cadence throws.</param>
     /// <returns>
-    /// The next scheduled occurrence, or <see langword="null"/> when the cadence is
-    /// exhausted or threw (the job is faulted in the latter case).
+    /// A discriminated <see cref="NextFireOutcome"/> distinguishing scheduled, exhausted,
+    /// and faulted results.
     /// </returns>
 #pragma warning disable CA1031 // A throwing cadence must be isolated, not allowed to crash the loop.
-    private DateTimeOffset? SafeComputeNextFire(JobHandle handle, DateTimeOffset scheduledOccurrence)
+    private NextFireOutcome SafeComputeNextFire(
+        string jobName,
+        long registrationId,
+        Cadence cadence,
+        DateTimeOffset? lastFiredAt,
+        DateTimeOffset now,
+        DateTimeOffset eventFireTime)
     {
         try
         {
-            return handle.Cadence.ComputeNextFire(scheduledOccurrence, scheduledOccurrence);
+            var next = cadence.ComputeNextFire(lastFiredAt, now);
+            return next is not null
+                ? NextFireOutcome.Scheduled(next.Value)
+                : NextFireOutcome.Exhausted();
         }
         catch (Exception ex)
         {
-            // The cadence's ComputeNextFire threw: isolate the fault. Mark the job
-            // Faulted in the registry so it is not re-armed, and publish a
-            // JobFireFailedEvent so observers can detect the per-job failure without
-            // it being confused with a dispatched-but-throwing fire.
-            this.registry.MarkJobFaulted(handle.JobName);
-            this.eventSink.Publish(new Core.Events.JobFireFailedEvent(
-                handle.JobName,
-                scheduledOccurrence,
-                ex,
-                Reason: "Cadence.ComputeNextFire threw; job marked Faulted."));
-            this.LogCadenceComputeNextFireFailed(handle.JobName, ex);
-            return null;
+            // The cadence's ComputeNextFire threw: isolate the fault only for the
+            // matching registration identity so an older handle cannot fault a replacement.
+            if (registrationId > 0 && this.registry.TryMarkJobFaulted(registrationId, jobName))
+            {
+                this.eventSink.Publish(new Core.Events.JobFireFailedEvent(
+                    jobName,
+                    eventFireTime,
+                    ex,
+                    Reason: "Cadence.ComputeNextFire threw; job marked Faulted."));
+                this.LogCadenceComputeNextFireFailed(jobName, ex);
+            }
+
+            return NextFireOutcome.Faulted();
         }
     }
 #pragma warning restore CA1031
@@ -1804,14 +1891,15 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private void Enqueue(string jobName, Cadence cadence, MissedFirePolicy policy, DateTimeOffset occurrence)
     {
         var generation = ++this.generationCounter;
+        var registrationId = this.registry.RegistrationId(jobName);
         var handle = new JobHandle(
             jobName,
             cadence,
             policy,
             occurrence,
             generation,
-            this.registry.RegistrationId(jobName));
-        this.scheduled[jobName] = new ScheduledJob(generation, occurrence);
+            registrationId);
+        this.scheduled[jobName] = new ScheduledJob(generation, registrationId, occurrence);
         this.heap.Enqueue(handle, occurrence);
     }
 
@@ -2257,8 +2345,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// a heap entry whose generation no longer matches is stale.
     /// </summary>
     /// <param name="Generation">The generation the job was last enqueued under.</param>
+    /// <param name="RegistrationId">The registration identity the job is armed for.</param>
     /// <param name="Occurrence">The occurrence the job is currently armed for.</param>
-    private readonly record struct ScheduledJob(long Generation, DateTimeOffset Occurrence);
+    private readonly record struct ScheduledJob(long Generation, long RegistrationId, DateTimeOffset Occurrence);
 
     private readonly record struct RetainedDispatch(
         string JobName,

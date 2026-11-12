@@ -119,7 +119,7 @@ public sealed class SystematicRegistryRaceTests
         {
             await registration.WaitAsync(TimeSpan.FromSeconds(10));
         }
-        catch (System.Threading.Channels.ChannelClosedException)
+        catch (ObjectDisposedException)
         {
         }
 
