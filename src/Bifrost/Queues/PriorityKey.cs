@@ -34,16 +34,14 @@ namespace Bifrost.Queues;
 /// <b>Units.</b> <see cref="WorkEnvelope{TWork}.EnqueuedAtTicks"/> is in
 /// <see cref="TimeProvider.TimestampFrequency"/> units — not necessarily
 /// <see cref="TimeSpan"/> ticks — so boost windows must be converted at that same
-/// frequency. <see cref="Precompute"/> performs the floating-point conversion exactly
+/// frequency. <see cref="Precompute"/> performs an exact integer-unit conversion exactly
 /// once per options + frequency pair; <see cref="Compute{TWork}"/> is pure
 /// <see cref="long"/> arithmetic on the hot path.
 /// </para>
 /// <para>
-/// <b>Overflow.</b> <c>timestamp − boost</c> cannot meaningfully overflow within a
-/// process lifetime at realistic frequencies: even at 1 GHz, <see cref="long"/> spans
-/// roughly 292 years of uptime, and boost windows are seconds to minutes. Keys may be
-/// negative early in process life (boost larger than the young timestamp) — keys are
-/// ordinal only, and negative values order correctly.
+/// <b>Overflow.</b> Unrepresentable boost windows are rejected during conversion.
+/// Keys saturate at the signed timestamp limits rather than wrapping and reversing
+/// urgency. Saturated keys can tie. Ordinary negative keys remain valid and ordered.
 /// </para>
 /// </remarks>
 public static class PriorityKey
@@ -71,9 +69,9 @@ public static class PriorityKey
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timestampFrequency);
 
         var interactiveBoostTicks =
-            (long)(options.InteractiveBoostWindow.TotalSeconds * timestampFrequency);
+            ToTimestampTicks(options.InteractiveBoostWindow, timestampFrequency);
         var batchPenaltyTicks =
-            (long)(options.BatchPenaltyWindow.TotalSeconds * timestampFrequency);
+            ToTimestampTicks(options.BatchPenaltyWindow, timestampFrequency);
 
         // Boost(Batch) = −BatchPenaltyWindow: subtracting a negative boost ADDS the
         // penalty, deferring batch work in virtual time.
@@ -95,7 +93,24 @@ public static class PriorityKey
     /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static long Compute<TWork>(in WorkEnvelope<TWork> envelope, in Boosts boosts)
-        => envelope.EnqueuedAtTicks - boosts.BoostTicksFor(envelope.Class);
+    {
+        var timestamp = envelope.EnqueuedAtTicks;
+        var boost = boosts.BoostTicksFor(envelope.Class);
+        var result = unchecked(timestamp - boost);
+        // A signed subtraction overflows only when its operands have opposite signs
+        // and the result changes the timestamp's sign. Clamp instead of reversing urgency.
+        return ((timestamp ^ boost) & (timestamp ^ result)) < 0
+            ? timestamp < 0 ? long.MinValue : long.MaxValue
+            : result;
+    }
+
+    private static long ToTimestampTicks(TimeSpan window, long frequency)
+    {
+        var ticks = (Int128)window.Ticks * frequency / TimeSpan.TicksPerSecond;
+        if (ticks > long.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(window), "Priority window exceeds the timestamp range.");
+        return (long)ticks;
+    }
 
     /// <summary>
     /// Per-class boost values precomputed in timestamp-frequency units. Obtain via
