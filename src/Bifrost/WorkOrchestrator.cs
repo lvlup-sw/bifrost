@@ -289,16 +289,9 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     private async Task ProcessEnvelopeAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct,
         WorkEnvelope<TWork> envelope)
     {
-        try
-        {
-            QueueWaitObserved?.Invoke(envelope.Class, _timeProvider.GetElapsedTime(envelope.EnqueuedAtTicks));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Queue-wait observer failed for worker {WorkerId}", workerId);
-        }
-
-        NotifyWorkerState(stateCallback, true, workerId);
+        var observer = QueueWaitObserved;
+        if (observer is not null) NotifyQueueWait(observer, in envelope, workerId);
+        if (stateCallback is not null) NotifyWorkerState(stateCallback, true, workerId);
         try
         {
             await _handler.HandleAsync(envelope.Work, ct).ConfigureAwait(false);
@@ -313,15 +306,27 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         }
         finally
         {
-            NotifyWorkerState(stateCallback, false, workerId);
+            if (stateCallback is not null) NotifyWorkerState(stateCallback, false, workerId);
         }
     }
 
-    private void NotifyWorkerState(Action<bool>? callback, bool busy, string workerId)
+    private void NotifyQueueWait(Action<WorkClass, TimeSpan> observer, in WorkEnvelope<TWork> envelope, string workerId)
     {
         try
         {
-            callback?.Invoke(busy);
+            observer(envelope.Class, _timeProvider.GetElapsedTime(envelope.EnqueuedAtTicks));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Queue-wait observer failed for worker {WorkerId}", workerId);
+        }
+    }
+
+    private void NotifyWorkerState(Action<bool> callback, bool busy, string workerId)
+    {
+        try
+        {
+            callback(busy);
         }
         catch (Exception ex)
         {
