@@ -38,7 +38,8 @@
       "propertyAndBoundary": "Recovery from comparer failures preserves coherent contents, counts, and future operations as the contract requires.",
       "domainAndOracle": "Exceptions at each reachable comparison across heap/buffer shapes. Before/after snapshots and a recovery suffix.",
       "tests": [
-        "src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs"
+        "src/Bifrost.Tests.Concurrency/GeneratedQueueInvariantTests.cs",
+        "src/Bifrost.Tests.Concurrency/ComparerClearRefillRegressionTests.cs"
       ],
       "limitations": [
         "Finite generated corpus; replay adapter covers selected semantic histories, not every internal comparison or routing schedule."
@@ -97,7 +98,8 @@
       "tests": [
         "src/Bifrost.Tests/Systematic/LifecycleInvariantTests.cs",
         "src/Bifrost.Tests/Systematic/LifecycleIdentityTests.cs",
-        "src/Bifrost.Tests/Systematic/LifecycleOutcomeInvariantTests.cs"
+        "src/Bifrost.Tests/Systematic/LifecycleOutcomeInvariantTests.cs",
+        "src/Bifrost.Tests/Hosting/HostedTeardownRegressionTests.cs"
       ],
       "limitations": [
         "Finite configured histories; real timeout clocks and native interleavings are not fully controlled."
