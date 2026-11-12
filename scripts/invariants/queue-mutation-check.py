@@ -26,9 +26,14 @@ for family, file, before, after, test in cases:
     try:
         path.write_text(original.replace(before, after))
         command = ['dotnet', 'run', '--project', project, '--', '--treenode-filter', f'/*/*/GeneratedQueueInvariantTests/{test}', '--output', 'Detailed', '--no-ansi']
-        run = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=120)
+        log_path = output_dir / f'queue-mutation-{family}.log'
+        try:
+            run = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=120)
+        except subprocess.TimeoutExpired as expired:
+            log_path.write_text((expired.stdout or '') + (expired.stderr or ''))
+            raise
         output = run.stdout + run.stderr
-        (output_dir / f'queue-mutation-{family}.log').write_text(output)
+        log_path.write_text(output)
         killed = run.returncode != 0 and 'failed: 1' in output and 'error CS' not in output and 'error SA' not in output
         results.append(dict(family=family, mutation=f'{file}: {before} -> {after}', exit=run.returncode, killed=killed, elapsedSeconds=round(time.monotonic()-started, 3)))
         print(json.dumps(results[-1]), flush=True)

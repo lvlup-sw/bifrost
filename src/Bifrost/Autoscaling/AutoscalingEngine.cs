@@ -189,7 +189,8 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
             callbacks = _callbacksDrained?.Task ?? Task.CompletedTask;
         }
 
-        await callbacks.ConfigureAwait(false);
+        // A blocked scaling callback must not outlive the host shutdown timeout.
+        await callbacks.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         // Drain pending scaling tasks
         await Task.WhenAll(_pendingScalingTasks.Values).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
