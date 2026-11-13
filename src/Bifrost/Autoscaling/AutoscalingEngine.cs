@@ -49,7 +49,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<int, Task> _pendingScalingTasks = new();
     private int _pendingTaskId;
-    private DateTimeOffset _lastScalingTime = DateTimeOffset.MinValue;
+    private DateTimeOffset? _lastScalingTime;
     private volatile bool _isRunning;
     private bool _disposed;
 
@@ -224,9 +224,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
         {
             // Check cooldown period
             var now = _timeProvider.GetUtcNow();
-            var timeSinceLastScaling = now - _lastScalingTime;
-
-            if (timeSinceLastScaling < _options.CooldownPeriod)
+            if (_lastScalingTime is { } lastScaling && (now - lastScaling) < _options.CooldownPeriod)
             {
                 return new ScalingDecision(
                     ScalingAction.None,
@@ -308,6 +306,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
 
             _disposed = true;
             _isRunning = false;
+            _evaluationTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
             _evaluationTimer.Dispose();
         }
     }
@@ -353,7 +352,9 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
             // Raise the event
             OnScalingDecisionMade(new ScalingDecisionEventArgs(decision, correlationId));
 
-            // Execute the scaling action if needed
+            // Execute the scaling action if needed before releasing _activeCallbacks so
+            // StopAsync's callbacks-drain barrier guarantees _pendingScalingTasks is
+            // already populated before StopAsync reads _pendingScalingTasks.Values.
             if (decision.Action != ScalingAction.None)
             {
                 var task = ExecuteScalingDecisionAsync(decision);

@@ -162,7 +162,19 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
             return Task.CompletedTask;
         }
 
-        // Only scale down idle workers
+        if (_registry is WorkerRegistry concrete)
+        {
+            var limit = count;
+            if (_inner.PendingCount > 0)
+            {
+                limit = Math.Min(limit, Math.Max(0, _inner.ActiveWorkers - 1));
+            }
+
+            concrete.RequestIdleWorkersStop(limit);
+            return Task.CompletedTask;
+        }
+
+        // Only scale down idle workers (fallback for mock IWorkerRegistry)
         var idleCount = _registry.IdleWorkerCount;
         var toStop = Math.Min(count, idleCount);
         if (_inner.PendingCount > 0)
