@@ -63,6 +63,9 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
     private readonly DeadLetterNotifier<TWork>? _notifier;
     private readonly ILogger<RejectionRoutingOrchestrator<TWork>> _logger;
     private readonly Action<IOrchestratorEvent>? _eventPublishCallback;
+    private readonly Lock _routesGate = new();
+    private int _inFlightRoutes;
+    private TaskCompletionSource? _routesDrained;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RejectionRoutingOrchestrator{TWork}"/> class.
@@ -151,16 +154,22 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         => _inner.AbortAsync(ct);
 
     /// <inheritdoc/>
-    public Task DrainAsync(CancellationToken ct = default)
-        => _inner.DrainAsync(ct);
+    public async Task DrainAsync(CancellationToken ct = default)
+    {
+        await _inner.DrainAsync(ct).ConfigureAwait(false);
+        await WaitForPendingRoutesAsync(ct).ConfigureAwait(false);
+    }
 
     /// <inheritdoc/>
     public CancellationToken GetShutdownToken()
         => _inner.GetShutdownToken();
 
     /// <inheritdoc/>
-    public ValueTask DisposeAsync()
-        => _inner.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await _inner.DisposeAsync().ConfigureAwait(false);
+        await WaitForPendingRoutesAsync(CancellationToken.None).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Looks up the cached rejection marker for the given reason.
@@ -227,6 +236,34 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         {
             _logger.LogWarning(ex, "Failed to dead-letter rejected work item of type {WorkType}", typeof(TWork).Name);
         }
+        finally
+        {
+            lock (_routesGate)
+            {
+                _inFlightRoutes--;
+                if (_inFlightRoutes == 0 && _routesDrained is not null)
+                {
+                    _routesDrained.TrySetResult();
+                    _routesDrained = null;
+                }
+            }
+        }
+    }
+
+    private Task WaitForPendingRoutesAsync(CancellationToken ct)
+    {
+        TaskCompletionSource? drain;
+        lock (_routesGate)
+        {
+            if (_inFlightRoutes == 0)
+            {
+                return Task.CompletedTask;
+            }
+
+            drain = _routesDrained ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        return drain.Task.WaitAsync(ct);
     }
 
     /// <inheritdoc/>
@@ -243,7 +280,14 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         {
             ObserveRejection(options.Class ?? WorkClass.Default, reason);
             if (reason != RejectionReason.Shutdown && _dlq is not null)
+            {
+                lock (_routesGate)
+                {
+                    _inFlightRoutes++;
+                }
+
                 _ = AwaitRouteAsync(RouteToDeadLetterAsync(work, reason, options.CorrelationId));
+            }
         }
 
         return result;
