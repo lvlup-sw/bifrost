@@ -17,10 +17,11 @@ using TUnit.Core;
 
 namespace @Bifrost.@Tests.@Systematic.@Testgen;
 
-/// <summary>Compares native operation histories with the reviewed model.</summary>
+/// <summary>Checks the reviewed obligation over supplied fixtures.</summary>
 public sealed class @WorkerRegistryGeneratedTests
 {
-    /// <summary>Checks the reviewed model for history 1.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_1()
     {
@@ -28,7 +29,8 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_1").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 2.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_2()
     {
@@ -36,7 +38,8 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_2").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 3.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_3()
     {
@@ -44,7 +47,8 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_3").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 4.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_4()
     {
@@ -52,7 +56,8 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_4").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 5.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_5()
     {
@@ -60,7 +65,8 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_5").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 6.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_6()
     {
@@ -68,7 +74,8 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_6").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 7.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_7()
     {
@@ -76,7 +83,8 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_7").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 8.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_8()
     {
@@ -84,7 +92,8 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_8").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 9.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_9()
     {
@@ -92,7 +101,8 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_9").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 10.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_10()
     {
@@ -100,7 +110,8 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_10").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 11.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_11()
     {
@@ -108,13 +119,15 @@ public sealed class @WorkerRegistryGeneratedTests
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_11").ConfigureAwait(false);
     }
 
-    /// <summary>Checks the reviewed model for history 12.</summary>
+    /// <summary>Checks the reviewed obligation for this fixture.</summary>
+    /// <returns>The native assertion task.</returns>
     [Test]
     public async Task Case_12()
     {
         using var scenario = JsonDocument.Parse("{\"mode\":\"enabled\",\"steps\":[{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"b\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"idle\",\"args\":\"b\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"idle\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"create\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"finish\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"create\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"create\",\"args\":\"c\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"finish\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"b\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"b\"},{\"operation\":\"idle\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"c\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"b\"},{\"operation\":\"finish\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"finish\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"b\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"a\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"busy\",\"args\":\"c\"},{\"operation\":\"finish\",\"args\":\"a\"},{\"operation\":\"create\",\"args\":\"a\"},{\"operation\":\"busy\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"a\"},{\"operation\":\"idle\",\"args\":\"c\"},{\"operation\":\"stop\",\"args\":\"c\"},{\"operation\":\"create\",\"args\":\"b\"},{\"operation\":\"create\",\"args\":\"b\"}],\"requiredSteps\":24}");
         await TestgenRuntime.RunCase(scenario.RootElement, "Case_12").ConfigureAwait(false);
     }
+
 
     private static class TestgenRuntime
     {
@@ -338,4 +351,5 @@ public sealed class @WorkerRegistryGeneratedTests
         await Assert.That(original.Status).IsEqualTo("pass");
     }
     }
+
 }
