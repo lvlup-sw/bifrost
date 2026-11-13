@@ -1,0 +1,78 @@
+{
+  "contractVersion": 2,
+  "domain": {
+    "kind": "record",
+    "fields": {
+      "last": {
+        "kind": "integer",
+        "min": "0",
+        "max": "100000"
+      },
+      "now": {
+        "kind": "integer",
+        "min": "300000",
+        "max": "6400000"
+      },
+      "interval": {
+        "kind": "integer",
+        "min": "100000",
+        "max": "200000"
+      }
+    }
+  },
+  "cases": [
+    {
+      "last": "0",
+      "now": "600000",
+      "interval": "100000"
+    },
+    {
+      "last": "0",
+      "now": "300000",
+      "interval": "200000"
+    },
+    {
+      "last": "100",
+      "now": "300100",
+      "interval": "100000"
+    },
+    {
+      "last": "99999",
+      "now": "399999",
+      "interval": "150000"
+    },
+    {
+      "last": "7",
+      "now": "700007",
+      "interval": "100000"
+    },
+    {
+      "last": "12345",
+      "now": "312345",
+      "interval": "123456"
+    }
+  ],
+  "framework": "tunit",
+  "frameworkVersion": "1.2.11",
+  "reduction": {
+    "maxAttempts": 96
+  },
+  "propertyRef": "coalesce/exact-enumeration",
+  "assumptions": [
+    "Zero jitter only; occurrences align to whole intervals from lastFiredAt.",
+    "Due count is bounded at 64 so the independent enumerator terminates in bounded steps; it never calls the production selector.",
+    "Structural ranges guarantee at least one and at most 64 due occurrences for every generated combination (now_min-last_max >= interval_max; now_max/interval_min <= 64)."
+  ],
+  "generation": {
+    "seed": 111004,
+    "count": 26,
+    "maxAttempts": 256
+  },
+  "target": {
+    "project": "src/Bifrost.Tests.Scheduling/Bifrost.Tests.Scheduling.csproj",
+    "path": "src/Bifrost.Tests.Scheduling/Testgen/Campaign/CoalesceDifferentialTests.cs",
+    "namespace": "Bifrost.Tests.Scheduling.Testgen.Campaign",
+    "className": "CoalesceDifferentialTests",
+    "binding": "Bifrost.Tests.Scheduling.Testgen.Campaign.CoalesceDifferentialBinding"
+  }
+}

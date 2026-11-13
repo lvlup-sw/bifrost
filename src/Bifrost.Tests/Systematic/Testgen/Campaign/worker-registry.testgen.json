@@ -1,0 +1,39 @@
+{
+  "contractVersion": 2,
+  "propertyRef": "worker-registry/sequential-snapshot",
+  "assumptions": [
+    "One controller applies operations sequentially; worker delegates finish only after explicit release.",
+    "Stop-requested workers are not idle; snapshot partitions are total=active, idle (not stopped), busy (not stopped), stopping.",
+    "Five-second cleanup deadlines are environmental failure bounds, not latency guarantees."
+  ],
+  "operations": [
+    { "name": "create", "domain": { "kind": "enum", "values": ["a", "b", "c"] } },
+    { "name": "idle", "domain": { "kind": "enum", "values": ["a", "b", "c"] } },
+    { "name": "busy", "domain": { "kind": "enum", "values": ["a", "b", "c"] } },
+    { "name": "stop", "domain": { "kind": "enum", "values": ["a", "b", "c"] } },
+    { "name": "finish", "domain": { "kind": "enum", "values": ["a", "b", "c"] } }
+  ],
+  "histories": [
+    [
+      { "operation": "create", "args": "a" },
+      { "operation": "busy", "args": "a" },
+      { "operation": "idle", "args": "a" },
+      { "operation": "stop", "args": "a" },
+      { "operation": "finish", "args": "a" },
+      { "operation": "create", "args": "a" },
+      { "operation": "stop", "args": "a" },
+      { "operation": "finish", "args": "a" }
+    ]
+  ],
+  "generation": { "seed": 111005, "count": 12, "maxSteps": 24, "maxAttempts": 192 },
+  "reduction": { "maxAttempts": 96 },
+  "framework": "tunit",
+  "frameworkVersion": "1.2.11",
+  "target": {
+    "project": "src/Bifrost.Tests/Bifrost.Tests.csproj",
+    "path": "src/Bifrost.Tests/Systematic/Testgen/Campaign/WorkerRegistryCampaignTests.cs",
+    "namespace": "Bifrost.Tests.Systematic.Testgen.Campaign",
+    "className": "WorkerRegistryCampaignTests",
+    "binding": "Bifrost.Tests.Systematic.Testgen.Campaign.WorkerRegistryCampaignBinding"
+  }
+}
