@@ -240,7 +240,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         this.logger = logger;
         this.options = options;
         this.metrics = metrics ?? new SchedulerMetrics();
-        this.healthMonitor = healthMonitor ?? new TickHealthMonitor();
+        this.healthMonitor = healthMonitor ?? new TickHealthMonitor(timeProvider);
 
         // Resolve the scope factory once from the root provider so every fire can open a
         // cheap per-fire scope without re-resolving. Falls back to null when no provider
@@ -345,6 +345,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             this.LogMultiInstanceWarning();
         }
+
+        // Arm the waiting-for-first-tick liveness deadline before SeedAsync awaits the store.
+        this.healthMonitor.RecordLoopStarted(this.timeProvider.GetUtcNow());
 
         await this.SeedAsync(stoppingToken).ConfigureAwait(false);
 

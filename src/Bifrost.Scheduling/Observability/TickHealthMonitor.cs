@@ -7,17 +7,11 @@
 namespace Bifrost.Scheduling.Observability;
 
 /// <summary>
-/// The default <see cref="ITickHealthMonitor"/> (DR-8): records the last-tick instant
-/// and a fixed-size rolling window of the most recent fire outcomes. The tick loop
-/// updates it; the <see cref="SchedulerHealthCheck"/> reads it.
+/// The default <see cref="ITickHealthMonitor"/> (DR-8): records the loop's
+/// discriminated <see cref="TickLivenessState"/> and a fixed-size rolling window of
+/// the most recent fire outcomes. The tick loop updates it; the
+/// <see cref="SchedulerHealthCheck"/> reads it.
 /// </summary>
-/// <remarks>
-/// The rolling window is a fixed-capacity ring buffer of the last
-/// <see cref="WindowSize"/> outcomes, so the failure rate reflects only recent fires
-/// and an old burst of failures rolls out once enough later fires arrive. All state
-/// is guarded by a single lock; updates and reads are cheap and infrequent relative
-/// to the cost of a fire, so contention is a non-issue.
-/// </remarks>
 internal sealed class TickHealthMonitor : ITickHealthMonitor
 {
     /// <summary>
@@ -32,14 +26,38 @@ internal sealed class TickHealthMonitor : ITickHealthMonitor
     // is computed without scanning.
     private readonly bool[] window = new bool[WindowSize];
 
-    private long lastTickTicks = long.MinValue;
-    private bool lastTickSet;
-    private bool idleWaiting;
-    private long idleDeadlineTicks = long.MinValue;
-    private bool idleDeadlineSet;
+    private TickLivenessState livenessState;
+    private DateTimeOffset? lastTickAt;
     private int count;
     private int head;
     private int failureCount;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TickHealthMonitor"/> class.
+    /// </summary>
+    /// <param name="timeProvider">
+    /// Optional clock; when supplied, observation begins immediately in
+    /// <see cref="TickLivenessKind.WaitingForFirstTick"/> so a loop that stalls before
+    /// its first tick is detected.
+    /// </param>
+    public TickHealthMonitor(TimeProvider? timeProvider = null)
+    {
+        this.livenessState = timeProvider is not null
+            ? TickLivenessState.WaitingForFirstTick(timeProvider.GetUtcNow())
+            : TickLivenessState.Unstarted;
+    }
+
+    /// <inheritdoc/>
+    public TickLivenessState LivenessState
+    {
+        get
+        {
+            lock (this.gate)
+            {
+                return this.livenessState;
+            }
+        }
+    }
 
     /// <inheritdoc/>
     public DateTimeOffset? LastTickAt
@@ -48,9 +66,7 @@ internal sealed class TickHealthMonitor : ITickHealthMonitor
         {
             lock (this.gate)
             {
-                return this.lastTickSet
-                    ? new DateTimeOffset(this.lastTickTicks, TimeSpan.Zero)
-                    : null;
+                return this.lastTickAt;
             }
         }
     }
@@ -86,11 +102,24 @@ internal sealed class TickHealthMonitor : ITickHealthMonitor
         {
             lock (this.gate)
             {
-                return new IdleWaitObservation(
-                    this.idleWaiting,
-                    this.idleDeadlineSet
-                        ? new DateTimeOffset(this.idleDeadlineTicks, TimeSpan.Zero)
-                        : null);
+                return this.livenessState.Kind switch
+                {
+                    TickLivenessKind.IdleEmpty => new IdleWaitObservation(IsWaiting: true, Deadline: null),
+                    TickLivenessKind.IdleUntil => new IdleWaitObservation(IsWaiting: true, this.livenessState.Timestamp),
+                    _ => new IdleWaitObservation(IsWaiting: false, Deadline: null),
+                };
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    public void RecordLoopStarted(DateTimeOffset at)
+    {
+        lock (this.gate)
+        {
+            if (this.livenessState.Kind == TickLivenessKind.Unstarted)
+            {
+                this.livenessState = TickLivenessState.WaitingForFirstTick(at);
             }
         }
     }
@@ -100,10 +129,8 @@ internal sealed class TickHealthMonitor : ITickHealthMonitor
     {
         lock (this.gate)
         {
-            this.lastTickTicks = at.UtcTicks;
-            this.lastTickSet = true;
-            this.idleWaiting = false;
-            this.idleDeadlineSet = false;
+            this.lastTickAt = at;
+            this.livenessState = TickLivenessState.Active(at);
         }
     }
 
@@ -112,16 +139,9 @@ internal sealed class TickHealthMonitor : ITickHealthMonitor
     {
         lock (this.gate)
         {
-            this.idleWaiting = true;
-            if (deadline is { } wakeBy)
-            {
-                this.idleDeadlineTicks = wakeBy.UtcTicks;
-                this.idleDeadlineSet = true;
-            }
-            else
-            {
-                this.idleDeadlineSet = false;
-            }
+            this.livenessState = deadline is { } wakeBy
+                ? TickLivenessState.IdleUntil(wakeBy)
+                : TickLivenessState.IdleEmpty;
         }
     }
 

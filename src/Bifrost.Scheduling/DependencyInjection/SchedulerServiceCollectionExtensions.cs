@@ -111,7 +111,7 @@ public static class SchedulerServiceCollectionExtensions
         services.TryAddSingleton<ISchedulerEventSink>(
             static sp => sp.GetRequiredService<SchedulerEventStream>());
         services.TryAddSingleton<SchedulerMetrics>();
-        services.TryAddSingleton<TickHealthMonitor>();
+        services.TryAddSingleton(static sp => new TickHealthMonitor(sp.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<ITickHealthMonitor>(
             static sp => sp.GetRequiredService<TickHealthMonitor>());
 

@@ -7,10 +7,10 @@
 namespace Bifrost.Scheduling.Observability;
 
 /// <summary>
-/// Tracks the liveness signals the scheduler health check reads (DR-8): the instant
-/// of the most recent tick, and a rolling window of the most recent fire outcomes
-/// (success or failure). The tick loop updates the monitor as it runs; the
-/// <see cref="SchedulerHealthCheck"/> reads it to decide health.
+/// Tracks the liveness signals the scheduler health check reads (DR-8): the
+/// discriminated <see cref="LivenessState"/> and a rolling window of the most recent
+/// fire outcomes (success or failure). The tick loop updates the monitor as it runs;
+/// the <see cref="SchedulerHealthCheck"/> reads it to decide health.
 /// </summary>
 /// <remarks>
 /// Implementations must be safe to read and update concurrently: the tick loop
@@ -20,9 +20,13 @@ namespace Bifrost.Scheduling.Observability;
 internal interface ITickHealthMonitor
 {
     /// <summary>
+    /// Gets the discriminated liveness state of the tick loop.
+    /// </summary>
+    TickLivenessState LivenessState { get; }
+
+    /// <summary>
     /// Gets the instant of the most recent tick, or <see langword="null"/> when the
-    /// loop has not yet ticked. The health check treats a stale value — older than its
-    /// staleness threshold — as a stalled loop.
+    /// loop has not yet ticked.
     /// </summary>
     DateTimeOffset? LastTickAt { get; }
 
@@ -41,8 +45,15 @@ internal interface ITickHealthMonitor
     int RecentFireCount { get; }
 
     /// <summary>
+    /// Records that the tick loop has started executing at <paramref name="at"/>,
+    /// arming the waiting-for-first-tick deadline if not already active.
+    /// </summary>
+    /// <param name="at">The start instant (read from the injected clock — DR-7).</param>
+    void RecordLoopStarted(DateTimeOffset at);
+
+    /// <summary>
     /// Records that the loop ticked at the given instant, updating
-    /// <see cref="LastTickAt"/>.
+    /// <see cref="LastTickAt"/> and <see cref="LivenessState"/>.
     /// </summary>
     /// <param name="at">The tick instant (read from the injected clock — DR-7).</param>
     void RecordTick(DateTimeOffset at);
