@@ -1,0 +1,36 @@
+{
+  "contractVersion": 2,
+  "propertyRef": "fifo/sequential-conservation",
+  "assumptions": [
+    "Sequential calls only; queue capacity is at least the sequence length so every enqueue is accepted.",
+    "The queue is completed before draining; residual items remain dequeueable and the drained order is the accepted FIFO order.",
+    "Empty, duplicate, and Unicode (including supplementary-plane) values are in domain."
+  ],
+  "domain": {
+    "kind": "array",
+    "element": { "kind": "string", "alphabet": "abéあ😀", "minLength": 0, "maxLength": 8 },
+    "minLength": 0,
+    "maxLength": 12
+  },
+  "cases": [
+    [],
+    [""],
+    ["a"],
+    ["a", "a"],
+    ["a", "b", "a"],
+    ["é", "あ", "😀"],
+    ["😀", "😀", "é", ""],
+    ["b", "a", "b", "a", "é"]
+  ],
+  "generation": { "seed": 111001, "count": 24, "maxAttempts": 256 },
+  "reduction": { "maxAttempts": 96 },
+  "framework": "tunit",
+  "frameworkVersion": "1.2.11",
+  "target": {
+    "project": "src/Bifrost.Tests/Bifrost.Tests.csproj",
+    "path": "src/Bifrost.Tests/Systematic/Testgen/Campaign/FifoPropertyTests.cs",
+    "namespace": "Bifrost.Tests.Systematic.Testgen.Campaign",
+    "className": "FifoPropertyTests",
+    "binding": "Bifrost.Tests.Systematic.Testgen.Campaign.FifoBinding"
+  }
+}

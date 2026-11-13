@@ -1,0 +1,78 @@
+{
+  "contractVersion": 2,
+  "domain": {
+    "kind": "record",
+    "fields": {
+      "steps": {
+        "kind": "integer",
+        "min": "1",
+        "max": "32"
+      },
+      "remainder": {
+        "kind": "integer",
+        "min": "0",
+        "max": "99999"
+      },
+      "shift": {
+        "kind": "integer",
+        "min": "0",
+        "max": "10"
+      }
+    }
+  },
+  "cases": [
+    {
+      "steps": "1",
+      "remainder": "0",
+      "shift": "0"
+    },
+    {
+      "steps": "1",
+      "remainder": "99999",
+      "shift": "10"
+    },
+    {
+      "steps": "32",
+      "remainder": "0",
+      "shift": "10"
+    },
+    {
+      "steps": "32",
+      "remainder": "50000",
+      "shift": "0"
+    },
+    {
+      "steps": "5",
+      "remainder": "12345",
+      "shift": "3"
+    },
+    {
+      "steps": "17",
+      "remainder": "99999",
+      "shift": "5"
+    }
+  ],
+  "framework": "tunit",
+  "frameworkVersion": "1.2.11",
+  "reduction": {
+    "maxAttempts": 96
+  },
+  "propertyRef": "coalesce/translate-by-interval",
+  "assumptions": [
+    "Zero jitter only; occurrences align to whole intervals from lastFiredAt.",
+    "At least one occurrence is due and translating both timestamps by one interval stays representable.",
+    "Encoded domain {steps,remainder,shift} decodes to interval=100000, last=1000000+shift*interval, now=last+steps*interval+remainder; every combination has 1-32 due occurrences and transforms stay in domain."
+  ],
+  "generation": {
+    "seed": 111002,
+    "count": 26,
+    "maxAttempts": 256
+  },
+  "target": {
+    "project": "src/Bifrost.Tests.Scheduling/Bifrost.Tests.Scheduling.csproj",
+    "path": "src/Bifrost.Tests.Scheduling/Testgen/Campaign/CoalesceTranslateTests.cs",
+    "namespace": "Bifrost.Tests.Scheduling.Testgen.Campaign",
+    "className": "CoalesceTranslateTests",
+    "binding": "Bifrost.Tests.Scheduling.Testgen.Campaign.CoalesceTranslateBinding"
+  }
+}

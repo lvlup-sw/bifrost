@@ -1,0 +1,13 @@
+diff --git a/src/Bifrost/Autoscaling/WorkerRegistry.cs b/src/Bifrost/Autoscaling/WorkerRegistry.cs
+index 3f9f190..f6a8b54 100644
+--- a/src/Bifrost/Autoscaling/WorkerRegistry.cs
++++ b/src/Bifrost/Autoscaling/WorkerRegistry.cs
+@@ -50,7 +50,7 @@ public sealed class WorkerRegistry : IWorkerRegistry
+     public int ActiveWorkerCount => _workers.Count;
+ 
+     /// <inheritdoc/>
+-    public int IdleWorkerCount => _workers.Values.Count(w => w.IsIdle && !w.StopRequested);
++    public int IdleWorkerCount => _workers.Values.Count(w => w.IsIdle);
+ 
+     /// <inheritdoc/>
+     public IReadOnlyCollection<WorkerInfo> GetAllWorkers()

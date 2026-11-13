@@ -1,0 +1,22 @@
+diff --git a/src/Bifrost/Queues/FifoChannelWorkQueue.cs b/src/Bifrost/Queues/FifoChannelWorkQueue.cs
+index b11b60b..53a6823 100644
+--- a/src/Bifrost/Queues/FifoChannelWorkQueue.cs
++++ b/src/Bifrost/Queues/FifoChannelWorkQueue.cs
+@@ -93,7 +93,16 @@ internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
+         => _channel.Reader.WaitToReadAsync(cancellationToken);
+ 
+     /// <inheritdoc/>
+-    public bool TryDequeue([MaybeNullWhen(false)] out T item) => _channel.Reader.TryRead(out item);
++    public bool TryDequeue([MaybeNullWhen(false)] out T item)
++    {
++        if (!_channel.Reader.TryRead(out item))
++        {
++            return false;
++        }
++
++        _ = _channel.Reader.TryRead(out _);
++        return true;
++    }
+ 
+     /// <summary>
+     /// Asynchronously enqueues an item, waiting for space when the queue is at capacity
