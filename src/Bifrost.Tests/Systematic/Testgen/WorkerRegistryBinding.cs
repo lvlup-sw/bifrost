@@ -57,7 +57,7 @@ internal static class WorkerRegistryBinding
             case "create":
                 var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 system.Releases.Add(id, release);
-                await system.Registry.CreateWorkerAsync(id, (_, _) => release.Task.WaitAsync(TimeSpan.FromSeconds(30)), CancellationToken.None).ConfigureAwait(false);
+                await system.Registry.CreateWorkerAsync(id, (_, _) => release.Task.WaitAsync(CancellationToken.None), CancellationToken.None).ConfigureAwait(false);
                 break;
             case "idle": system.Registry.GetWorkerInfo(id)!.MarkIdle(); break;
             case "busy": system.Registry.GetWorkerInfo(id)!.MarkBusy(); break;
