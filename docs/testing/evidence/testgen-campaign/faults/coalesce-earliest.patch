@@ -1,0 +1,13 @@
+diff --git a/src/Bifrost.Scheduling/Internal/MissedFirePolicyApplier.cs b/src/Bifrost.Scheduling/Internal/MissedFirePolicyApplier.cs
+index de5c08f..0b432c4 100644
+--- a/src/Bifrost.Scheduling/Internal/MissedFirePolicyApplier.cs
++++ b/src/Bifrost.Scheduling/Internal/MissedFirePolicyApplier.cs
+@@ -85,7 +85,7 @@ internal static class MissedFirePolicyApplier
+             var count = Math.Min(
+                 (now - last).Ticks / interval.Interval.Ticks,
+                 remaining / interval.Interval.Ticks);
+-            return count == 0 ? [] : [last.AddTicks(count * interval.Interval.Ticks)];
++            return count == 0 ? [] : [last.AddTicks(interval.Interval.Ticks)];
+         }
+ 
+         if (cadence is CronCadence cron)
