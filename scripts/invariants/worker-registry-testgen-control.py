@@ -8,8 +8,10 @@ parser = argparse.ArgumentParser(description='Detect and replay a controlled Wor
 parser.add_argument('--testgen', required=True, help='testgen executable or bundled testgen-cli.js path')
 parser.add_argument('--output', type=Path, required=True, help='Directory for raw evidence outside the repository')
 args = parser.parse_args()
+args.output = args.output.resolve()
 args.output.mkdir(parents=True, exist_ok=True)
-testgen = ['node', str(Path(args.testgen).resolve())] if args.testgen.endswith('.js') else [args.testgen]
+executable = str(Path(args.testgen).resolve()) if '/' in args.testgen or '\\' in args.testgen or args.testgen.endswith('.js') else args.testgen
+testgen = ['node', executable] if args.testgen.endswith('.js') else [executable]
 root = Path(__file__).resolve().parents[2]
 source=root/'src/Bifrost/Autoscaling/WorkerRegistry.cs'
 generated=root/'src/Bifrost.Tests/Systematic/Testgen/WorkerRegistryGeneratedTests.cs'

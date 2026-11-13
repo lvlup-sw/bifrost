@@ -2,7 +2,7 @@
 
 `Systematic/Testgen/worker-registry.json` defines a sequential WorkerRegistry campaign. Its independent dictionary model tracks creation, idle/busy transitions, stop requests, completion, and reuse of a worker ID. The binding compares each worker's state and the registry's snapshot counts after every operation. Worker delegates finish only when the binding releases them.
 
-The maintained suite has 12 histories: one explicit lifecycle and seeded candidate histories with up to 24 executed steps. Each generated history allows 192 candidate attempts. Disabled operations are rejected by the model. Cleanup has a five-second environmental deadline. The 30-second worker guard prevents a leaked fixture task from running indefinitely.
+The maintained suite has 12 histories: one explicit lifecycle and seeded candidate histories with up to 24 executed steps. Each generated history allows 192 candidate attempts. Disabled operations are rejected by the model. Cleanup has a five-second environmental deadline. Worker lifetime ends only on explicit release; the native test process owns the overall timeout.
 
 Use a testgen package advertising version 2 stateful support:
 
