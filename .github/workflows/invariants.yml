@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      BIFROST_INVARIANT_SEED_MULTIPLIER: ${{ github.event_name == 'pull_request' && '1' || '4' }}
+      BIFROST_INVARIANT_SEED_MULTIPLIER: '4'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -25,7 +25,6 @@ jobs:
       - name: Run invariant suites
         run: python3 scripts/run-invariant-tests.py
       - name: Check selected production mutations
-        if: github.event_name != 'pull_request'
         env:
           BIFROST_INVARIANT_SEED_MULTIPLIER: '1'
         run: |
