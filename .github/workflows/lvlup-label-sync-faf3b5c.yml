@@ -61,7 +61,7 @@ jobs:
             }
 
             // Get existing labels
-            const { data: existingLabels } = await github.rest.issues.listLabelsForRepo({
+            const existingLabels = await github.paginate(github.rest.issues.listLabelsForRepo, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               per_page: 100

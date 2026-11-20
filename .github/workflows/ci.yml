@@ -4,11 +4,12 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - 'docs/**'
-      - '!docs/testing/**'
+    paths:
+      - '**'
+      - '!README.md'
+      - '!CHANGELOG.md'
+      - '!docs/**'
+      - 'docs/testing/**'
   workflow_dispatch:
 
 env:

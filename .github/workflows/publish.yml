@@ -46,6 +46,7 @@ jobs:
           else
             echo "stable=true" >> "$GITHUB_OUTPUT"
           fi
+          printf 'MinVerVersionOverride=%s\n' "$version" >> "$GITHUB_ENV"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
@@ -78,26 +79,11 @@ jobs:
           BIFROST_INVARIANT_SEED_MULTIPLIER=4 python3 scripts/run-invariant-tests.py --skip-build
           python3 scripts/invariants/queue-mutation-check.py
           python3 scripts/invariants/lifecycle-mutations.py
-      - name: Soak changes that affect the CPQ release workload
+      - name: Soak the stable release
         if: steps.release-kind.outputs.stable == 'true'
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        shell: bash
         run: |
-          set -euo pipefail
-          previous=''
-          while IFS= read -r tag; do
-            if [[ "$tag" != "$RELEASE_TAG" && "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-              previous="$tag"
-              break
-            fi
-          done < <(git tag --merged HEAD --sort=-version:refname)
-          if [[ -n "$previous" ]] && git diff --quiet "$previous" HEAD -- src/ global.json; then
-            echo "No code, dependencies, or benchmark inputs changed since $previous."
-          else
-            dotnet run --project src/Bifrost.Benchmarks -c Release --no-build --no-restore -- \
-              soak --seconds 600 --out soak-results
-          fi
+          dotnet run --project src/Bifrost.Benchmarks -c Release --no-build --no-restore -- \
+            soak --seconds 600 --out soak-results
 
       - name: Certify scheduling NativeAOT
         if: steps.release-kind.outputs.stable == 'true'
