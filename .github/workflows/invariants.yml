@@ -1,13 +1,6 @@
 name: Invariant checks
 
 on:
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'scripts/run-invariant-tests.py'
-      - 'scripts/invariants/**'
-      - 'docs/testing/**'
-      - '.github/workflows/invariants.yml'
   workflow_dispatch:
   schedule:
     - cron: '43 4 * * *'
@@ -17,7 +10,7 @@ permissions:
 
 jobs:
   invariants:
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       BIFROST_INVARIANT_SEED_MULTIPLIER: ${{ github.event_name == 'pull_request' && '1' || '4' }}

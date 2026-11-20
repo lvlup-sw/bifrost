@@ -2,11 +2,9 @@
 #
 # Features:
 # - Auto-triage: Labels new issues based on content
-# - Auto-assign: Assigns PR author as assignee
-# - Project sync: Adds issues/PRs to org project board
+# - Project sync: Adds issues to the org project board
 # - Label sync: Syncs labels when labels.yml changes
 # - Stale management: Marks and closes inactive issues
-# - Renovate auto-merge: Auto-merges Renovate PRs
 # - Release automation: Creates releases from tags
 
 name: Project Automation
@@ -14,8 +12,6 @@ name: Project Automation
 on:
   issues:
     types: [opened, labeled, unlabeled, closed, reopened]
-  pull_request:
-    types: [opened, ready_for_review, closed]
   push:
     branches: [main]
     paths:
@@ -34,7 +30,7 @@ jobs:
   # ============================================================
   label-sync:
     if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
-    uses: lvlup-sw/.github/.github/workflows/label-sync.yml@v1.12
+    uses: ./.github/workflows/lvlup-label-sync-faf3b5c.yml
     permissions:
       contents: read
       issues: write
@@ -83,29 +79,8 @@ jobs:
               labels: labels
             });
 
-  # ============================================================
-  # AUTO-ASSIGN: Assign PR author as assignee
-  # ============================================================
-  auto-assign-author:
-    if: github.event_name == 'pull_request' && github.event.action == 'opened' && github.event.pull_request.user.type != 'Bot'
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    steps:
-      - name: Assign PR author
-        run: gh pr edit "$PR_URL" --add-assignee "$AUTHOR"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          AUTHOR: ${{ github.event.pull_request.user.login }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # ============================================================
-  # PROJECT SYNC: Add issues/PRs to project board
-  # ============================================================
   project-sync:
-    if: |
-      (github.event_name == 'issues' && github.event.action == 'opened') ||
-      (github.event_name == 'pull_request' && github.event.action == 'opened')
+    if: github.event_name == 'issues' && github.event.action == 'opened'
     runs-on: ubuntu-latest
     outputs:
       item_id: ${{ steps.add.outputs.itemId }}
@@ -134,7 +109,7 @@ jobs:
           github-token: ${{ secrets.PROJECT_TOKEN }}
           script: |
             const itemId = process.env.ITEM_ID;
-            const content = context.payload.issue || context.payload.pull_request;
+            const content = context.payload.issue;
             const labels = content.labels?.map(l => l.name) || [];
             const body = (content.body || '').toLowerCase();
 
@@ -263,27 +238,6 @@ jobs:
           days-before-close: 14
           operations-per-run: 30
 
-  # ============================================================
-  # PR AUTOMATION: Auto-merge Renovate PRs
-  # ============================================================
-  auto-merge-renovate:
-    if: |
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.user.login == 'renovate[bot]'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Enable auto-merge for Renovate PRs
-        run: gh pr merge --auto --squash "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # ============================================================
-  # RELEASE AUTOMATION: Generate changelog and release
-  # ============================================================
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest

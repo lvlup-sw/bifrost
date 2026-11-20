@@ -13,7 +13,8 @@ env:
 jobs:
   publish:
     name: Build and Publish
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
     environment: nuget-publish
     permissions:
       id-token: write
@@ -23,6 +24,29 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Classify the exact release tag
+        id: release-kind
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          core='(0|[1-9][0-9]*)'
+          tag_expression="^${core}\.${core}\.${core}(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
+          [[ "$RELEASE_TAG" == v* && "$version" =~ $tag_expression ]]
+          [[ "$(git rev-parse 'HEAD^{commit}')" == "$(git rev-parse "$GITHUB_SHA^{commit}")" ]]
+          if [[ "$version" == *-* ]]; then
+            IFS='.' read -ra identifiers <<<"${version#*-}"
+            for identifier in "${identifiers[@]}"; do
+              if [[ "$identifier" =~ ^0[0-9]+$ ]]; then exit 1; fi
+            done
+            echo "stable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "stable=true" >> "$GITHUB_OUTPUT"
+          fi
+          printf 'MinVerVersionOverride=%s\n' "$version" >> "$GITHUB_ENV"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
@@ -39,8 +63,50 @@ jobs:
       - name: Run tests
         run: |
           for proj in src/Bifrost.Tests/*.csproj; do
-            dotnet run --project "$proj" --configuration Release
+            dotnet run --project "$proj" --configuration Release --no-build --no-restore
           done
+
+      - name: Certify stable release
+        if: steps.release-kind.outputs.stable == 'true'
+        run: |
+          set -euo pipefail
+          for project in Bifrost.Tests.Scheduling Bifrost.Tests.Concurrency; do
+            dotnet run --project "src/$project" -c Release --no-build --no-restore -- \
+              --treenode-filter '/*/*/*/*[Category!=Stress]' --minimum-expected-tests 1
+          done
+          dotnet run --project src/Bifrost.Tests.Concurrency -c Release --no-build --no-restore -- \
+            --treenode-filter '/*/*/*/*[Category=Stress]' --minimum-expected-tests 1
+          BIFROST_INVARIANT_SEED_MULTIPLIER=4 python3 scripts/run-invariant-tests.py --skip-build
+          python3 scripts/invariants/queue-mutation-check.py
+          python3 scripts/invariants/lifecycle-mutations.py
+      - name: Soak the stable release
+        if: steps.release-kind.outputs.stable == 'true'
+        run: |
+          dotnet run --project src/Bifrost.Benchmarks -c Release --no-build --no-restore -- \
+            soak --seconds 600 --out soak-results
+
+      - name: Certify scheduling NativeAOT
+        if: steps.release-kind.outputs.stable == 'true'
+        uses: ./.github/actions/aot-smoke-faf3b5c
+        with:
+          project-path: samples/Bifrost.Scheduling.AotSmoke/Bifrost.Scheduling.AotSmoke.csproj
+
+      - name: Certify concurrency NativeAOT
+        if: steps.release-kind.outputs.stable == 'true'
+        uses: ./.github/actions/aot-smoke-faf3b5c
+        with:
+          project-path: samples/Bifrost.Concurrency.AotSmoke/Bifrost.Concurrency.AotSmoke.csproj
+          output-dir: ./aot-publish-concurrency
+
+      - name: Retain stable-release test evidence
+        if: steps.release-kind.outputs.stable == 'true' && !cancelled()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: stable-proof-${{ github.sha }}
+          path: |
+            artifacts/invariants/
+            soak-results/
+          retention-days: 30
 
       - name: Build package artifact
         # Rebuild with BifrostTestHooks=false immediately before packing, so the BIFROST_TEST_HOOKS
