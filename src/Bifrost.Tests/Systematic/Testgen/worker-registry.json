@@ -1,0 +1,119 @@
+{
+  "contractVersion": 2,
+  "framework": "tunit",
+  "frameworkVersion": "1.2.11",
+  "propertyRef": "WorkerRegistry/sequential-lifecycle-and-snapshot",
+  "assumptions": [
+    "One controller applies operations sequentially; worker delegates finish only after explicit release.",
+    "Five-second cleanup deadlines are environmental failure bounds, not latency guarantees."
+  ],
+  "target": {
+    "project": "src/Bifrost.Tests/Bifrost.Tests.csproj",
+    "path": "src/Bifrost.Tests/Systematic/Testgen/WorkerRegistryGeneratedTests.cs",
+    "namespace": "Bifrost.Tests.Systematic.Testgen",
+    "className": "WorkerRegistryGeneratedTests",
+    "binding": "Bifrost.Tests.Systematic.Testgen.WorkerRegistryBinding"
+  },
+  "operations": [
+    {
+      "name": "create",
+      "domain": {
+        "kind": "enum",
+        "values": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "name": "idle",
+      "domain": {
+        "kind": "enum",
+        "values": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "name": "busy",
+      "domain": {
+        "kind": "enum",
+        "values": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "name": "stop",
+      "domain": {
+        "kind": "enum",
+        "values": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "name": "finish",
+      "domain": {
+        "kind": "enum",
+        "values": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    }
+  ],
+  "histories": [
+    [
+      {
+        "operation": "create",
+        "args": "a"
+      },
+      {
+        "operation": "busy",
+        "args": "a"
+      },
+      {
+        "operation": "idle",
+        "args": "a"
+      },
+      {
+        "operation": "stop",
+        "args": "a"
+      },
+      {
+        "operation": "finish",
+        "args": "a"
+      },
+      {
+        "operation": "create",
+        "args": "a"
+      },
+      {
+        "operation": "stop",
+        "args": "a"
+      },
+      {
+        "operation": "finish",
+        "args": "a"
+      }
+    ]
+  ],
+  "generation": {
+    "seed": 2192,
+    "count": 12,
+    "maxSteps": 24,
+    "maxAttempts": 192
+  },
+  "reduction": {
+    "maxAttempts": 96
+  }
+}
