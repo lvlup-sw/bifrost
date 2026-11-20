@@ -34,7 +34,7 @@ jobs:
   # ============================================================
   label-sync:
     if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
-    uses: lvlup-sw/.github/.github/workflows/label-sync.yml@v1.12
+    uses: lvlup-sw/bifrost/.github/workflows/lvlup-label-sync-faf3b5c.yml@26f366bb545b08f32fded5a8618a7f6270258607
     permissions:
       contents: read
       issues: write

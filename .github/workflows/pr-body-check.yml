@@ -23,4 +23,4 @@ jobs:
     timeout-minutes: 5
     steps:
       # v1.11 is the release that ships actions/pr-body. The floating v1 tag does not.
-      - uses: lvlup-sw/.github/actions/pr-body@v1.11
+      - uses: lvlup-sw/bifrost/.github/actions/pr-body-b35d6be@384bb8c3821c9e6bef871129a7c35c7954e4d105

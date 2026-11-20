@@ -34,7 +34,7 @@ jobs:
           filter: blob:none
       - name: Plan lanes
         id: plan
-        uses: lvlup-sw/.github/actions/ci-lanes@v1
+        uses: lvlup-sw/bifrost/.github/actions/ci-lanes-faf3b5c@384bb8c3821c9e6bef871129a7c35c7954e4d105
 
   lanes-check:
     name: CI Lanes Check
@@ -43,7 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check lane contract
-        uses: lvlup-sw/.github/actions/ci-lanes@v1
+        uses: lvlup-sw/bifrost/.github/actions/ci-lanes-faf3b5c@384bb8c3821c9e6bef871129a7c35c7954e4d105
         with:
           mode: check
 
@@ -64,7 +64,7 @@ jobs:
       # excludes the [Category=Stress] proofs, which run in the gated
       # stress-tests job — they starve/flake under --coverage on a 4-vcpu runner.
       - name: Build & test
-        uses: lvlup-sw/.github/actions/dotnet-build-test@v1
+        uses: lvlup-sw/bifrost/.github/actions/dotnet-build-test-faf3b5c@384bb8c3821c9e6bef871129a7c35c7954e4d105
         with:
           solution-path: ${{ env.SOLUTION_PATH }}
           test-project-patterns: src/Bifrost.Tests*/*.csproj
@@ -84,7 +84,7 @@ jobs:
       # Non-blocking (matches the pre-migration behavior).
       - name: Benchmark smoke
         continue-on-error: true
-        uses: lvlup-sw/.github/actions/benchmark-smoke@v1
+        uses: lvlup-sw/bifrost/.github/actions/benchmark-smoke-faf3b5c@384bb8c3821c9e6bef871129a7c35c7954e4d105
         with:
           benchmark-project: src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj
           filter: '*'
@@ -92,7 +92,7 @@ jobs:
       # AOT smoke (DR-13): publish + run the scheduling sample as a NativeAOT
       # native binary. A non-zero exit fails the build (the intended gate).
       - name: AOT smoke (scheduling)
-        uses: lvlup-sw/.github/actions/aot-smoke@v1
+        uses: lvlup-sw/bifrost/.github/actions/aot-smoke-faf3b5c@384bb8c3821c9e6bef871129a7c35c7954e4d105
         with:
           project-path: samples/Bifrost.Scheduling.AotSmoke/Bifrost.Scheduling.AotSmoke.csproj
 
@@ -100,7 +100,7 @@ jobs:
       # path (ESA 2021 §4 buffers) must be NativeAOT-clean. Distinct output-dir
       # so it doesn't clobber the scheduling publish above.
       - name: AOT smoke (concurrency)
-        uses: lvlup-sw/.github/actions/aot-smoke@v1
+        uses: lvlup-sw/bifrost/.github/actions/aot-smoke-faf3b5c@384bb8c3821c9e6bef871129a7c35c7954e4d105
         with:
           project-path: samples/Bifrost.Concurrency.AotSmoke/Bifrost.Concurrency.AotSmoke.csproj
           output-dir: ./aot-publish-concurrency
@@ -153,7 +153,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: lvlup-sw/.github/.github/workflows/coverage-gate.yml@v1
+    uses: lvlup-sw/bifrost/.github/workflows/lvlup-coverage-gate-faf3b5c.yml@26f366bb545b08f32fded5a8618a7f6270258607
     with:
       enabled: ${{ needs.plan.result != 'success' || fromJSON(needs.plan.outputs.lanes).build_test != 'false' }}
       coverage-threshold: 80
@@ -166,7 +166,7 @@ jobs:
     name: Update Coverage Baseline
     needs: build-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    uses: lvlup-sw/.github/.github/workflows/update-baseline.yml@v1
+    uses: lvlup-sw/bifrost/.github/workflows/lvlup-update-baseline-faf3b5c.yml@26f366bb545b08f32fded5a8618a7f6270258607
     with:
       runner: blacksmith-4vcpu-ubuntu-2204
       dotnet-version: '10.0.x'
