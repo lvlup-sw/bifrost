@@ -22,6 +22,57 @@
 // bounded timeout and FAILs if either does not execute. This catches a trimmer
 // or AOT regression that breaks the fire path even when registration still
 // resolves cleanly.
+//
+// The smoke runs these steps:
+//
+//   1. Build the host with all four dispatch modes exercised at DI-config
+//      time.
+//      - Mode 1 (orchestrator): the standard Bifrost DI builder registers
+//        IWorkOrchestrator<SmokeWork>. This is the most generics-heavy,
+//        highest-AOT-risk dispatcher. DispatchTo<IWorkOrchestrator<TWork>>
+//        resolves the orchestrator at config time through a fully closed
+//        generic GetRequiredService<IWorkOrchestrator<SmokeWork>>() call, so
+//        OrchestratorJobDispatcher<T> + generic DI run without any runtime
+//        type lookup or Activator.CreateInstance. The job fires every ~300 ms,
+//        so it actually executes during this run (the tick loop is live after
+//        StartAsync). This proves that the orchestrator dispatch path runs
+//        end-to-end under NativeAOT, not only that it registered.
+//      - Mode 2 (inline): a delegate runs on the scheduler pool thread, with
+//        no orchestrator and no reflective activation. It also fires every
+//        ~300 ms, so the smoke can assert that the inline fire path executes
+//        under NativeAOT.
+//      - Mode 4 (custom dispatcher): PrintingDispatcher is registered in DI
+//        and resolved at config time through DispatchVia<PrintingDispatcher>()
+//        → GetRequiredService<PrintingDispatcher>(). It is resolved by generic
+//        DI, not by type name, with no Activator.CreateInstance. This is the
+//        key AOT-safety proof.
+//
+//   2. Register a job at runtime (after DI is built), mode 3 (in-memory
+//      store). Starting the host starts SchedulerJobRegistrationService and
+//      ScheduleTickLoop. The runtime job goes through IScheduleRegistry with a
+//      separate PrintingDispatcher instance for isolation, and the in-memory
+//      store persists it.
+//
+//   3. Inspect the registry. This proves that IBifrostScheduleInspector
+//      resolves cleanly.
+//
+//   4. Verify that all four dispatch modes registered successfully.
+//
+//   5. Prove that an actual dispatch EXECUTES under NativeAOT (not only
+//      registers). The orchestrator and inline jobs fire every ~300 ms, and
+//      the tick loop is running, so both must fire. The smoke awaits both
+//      signals with a bounded real-wall-clock timeout. Task.WaitAsync bounds
+//      the await on the externally completed signal task and throws
+//      TimeoutException if the job never fires. It is AOT-safe (no
+//      reflection) and the analyzer-clean idiom to bound a wait on a Task
+//      that completes outside the flow of this method. If either job does not
+//      fire, the fire path is broken under AOT/trim even though registration
+//      resolved. The smoke then stops the host, so the process terminates
+//      deterministically, and FAILs non-zero.
+//
+//   6. Exercise the retirement overload through the DI decorator chain under
+//      NativeAOT: scale up by one worker, scale down by one, and wait until
+//      no worker is active.
 // =============================================================================
 
 using Bifrost.Autoscaling;
@@ -36,10 +87,6 @@ using Microsoft.Extensions.Logging;
 
 Console.WriteLine("Bifrost.Scheduling AOT smoke — starting.");
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. Build the host with all four dispatch modes exercised at DI-config time.
-// ─────────────────────────────────────────────────────────────────────────────
-
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureLogging(logging =>
     {
@@ -49,39 +96,21 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .ConfigureServices(services =>
     {
-        // Mode 1 (orchestrator) — register IWorkOrchestrator<SmokeWork> via the
-        // standard Bifrost DI builder. This is the most generics-heavy / highest
-        // AOT-risk dispatcher: GetRequiredService<IWorkOrchestrator<TWork>>() at
-        // config time resolves a fully open generic through closed-generic DI
-        // without any runtime type lookup or Activator.CreateInstance.
         services.AddWorkOrchestrator<SmokeWork>()
                 .WithHandler<SmokeWork, SmokeWorkHandler>()
                 .UsePriorityDispatch(DispatchStrategy.PriorityExact)
                 .WithAutoscaling()
                 .Build();
 
-        // Register a custom dispatcher for mode 4 (resolved by generic DI, not
-        // by type name — this is the key AOT-safety proof).
         services.AddSingleton<PrintingDispatcher>();
 
         services.AddScheduler(b =>
         {
-            // Mode 1 — orchestrator dispatch: DispatchTo<IWorkOrchestrator<TWork>>
-            // resolves the orchestrator from DI at config time via a fully closed
-            // generic GetRequiredService<IWorkOrchestrator<SmokeWork>>() call.
-            // This exercises the highest-AOT-risk code path (OrchestratorJobDispatcher<T>
-            // + generic DI) without any reflection-based type lookup.
-            // Fires ~300 ms out so it actually executes during this run (the tick
-            // loop is live after StartAsync). Proves the orchestrator dispatch path
-            // runs end-to-end under NativeAOT, not just that it registered.
             b.AddJob<SmokeWork>("smoke-orchestrator")
              .Every(TimeSpan.FromMilliseconds(300))
              .DispatchTo<IWorkOrchestrator<SmokeWork>>(
                  static _ => new SmokeWork("smoke-orchestrator"));
 
-            // Mode 2 — inline dispatch: a delegate runs on the scheduler pool thread.
-            // No orchestrator, no reflective activation. Also fires ~300 ms out so
-            // we can assert the inline fire path executes under NativeAOT.
             b.AddInlineJob("smoke-inline")
              .Every(TimeSpan.FromMilliseconds(300))
              .Run(static (ctx, ct) =>
@@ -91,9 +120,6 @@ var host = Host.CreateDefaultBuilder(args)
                  return ValueTask.CompletedTask;
              });
 
-            // Mode 4 — custom dispatcher resolved from DI at config time via
-            // DispatchVia<PrintingDispatcher>() → GetRequiredService<PrintingDispatcher>().
-            // No type-name lookup, no Activator.CreateInstance.
             b.AddJob<object>("smoke-custom")
              .Every(TimeSpan.FromHours(24))
              .DispatchVia<PrintingDispatcher>();
@@ -101,15 +127,8 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .Build();
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. Register a job at runtime (after DI is built) — mode 3 (in-memory store).
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Start the host (starts SchedulerJobRegistrationService + ScheduleTickLoop).
 await host.StartAsync().ConfigureAwait(false);
 
-// Register a runtime job via IScheduleRegistry (uses a no-op dispatcher for
-// isolation; the in-memory store persists it).
 var registry = host.Services.GetRequiredService<IScheduleRegistry>();
 var runtimeDispatcher = new PrintingDispatcher();
 
@@ -122,10 +141,6 @@ await registry.RegisterAsync(
 
 Console.WriteLine("Registered runtime job 'smoke-runtime'.");
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. Inspect the registry — proves IBifrostScheduleInspector resolves cleanly.
-// ─────────────────────────────────────────────────────────────────────────────
-
 var inspector = host.Services.GetRequiredService<IBifrostScheduleInspector>();
 var jobs = inspector.GetJobs();
 
@@ -135,10 +150,6 @@ foreach (var job in jobs)
     Console.WriteLine(
         $"  {job.Name}: state={job.State}, nextFire={job.NextFireAt:u}");
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. Verify all four dispatch modes registered successfully.
-// ─────────────────────────────────────────────────────────────────────────────
 
 var jobNames = jobs.Select(j => j.Name).ToHashSet(StringComparer.Ordinal);
 if (!jobNames.Contains("smoke-orchestrator"))
@@ -167,20 +178,8 @@ if (!jobNames.Contains("smoke-custom"))
 
 Console.WriteLine("All four dispatch modes registered and resolved cleanly.");
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. Prove an actual dispatch EXECUTES under NativeAOT (not just registers).
-//    The orchestrator and inline jobs were scheduled ~300 ms out; the tick loop
-//    is running, so both should fire. Await both signals with a bounded
-//    real-wall-clock timeout. If either does not fire, the fire path is broken
-//    under AOT/trim even though registration resolved — FAIL non-zero.
-// ─────────────────────────────────────────────────────────────────────────────
-
 var fireTimeout = TimeSpan.FromSeconds(5);
 
-// Task.WaitAsync bounds the await on the externally-completed signal task with a
-// real-wall-clock timeout and throws TimeoutException if the job never fires. It
-// is AOT-safe (no reflection) and the analyzer-clean idiom for bounding a wait on
-// a Task that completes outside this method's flow.
 var orchestratorFired = true;
 try
 {
@@ -209,13 +208,11 @@ catch (TimeoutException)
 
 if (!orchestratorFired || !inlineFired)
 {
-    // Stop the host so the process terminates deterministically even on failure.
     await host.StopAsync().ConfigureAwait(false);
     return 1;
 }
 
 Console.WriteLine("Orchestrator and inline dispatch paths both executed under NativeAOT.");
-// Exercise the retirement overload through the DI decorator chain under NativeAOT.
 var scaling = host.Services.GetRequiredKeyedService<IAutoscalingCoordinator>(typeof(SmokeWork));
 var workers = host.Services.GetRequiredKeyedService<IWorkerRegistry>(typeof(SmokeWork));
 using (var retirementDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)))

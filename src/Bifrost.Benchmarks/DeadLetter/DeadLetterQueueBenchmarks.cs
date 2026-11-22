@@ -32,6 +32,10 @@ public class DeadLetterQueueBenchmarks
     /// <summary>
     /// Sets up the benchmarks.
     /// </summary>
+    /// <remarks>
+    /// The happy-path handler wraps an inner handler that succeeds. The failure-path handler wraps an
+    /// inner handler that always throws, with <c>MaxRetries</c> set to 0.
+    /// </remarks>
     [GlobalSetup]
     public Task GlobalSetup()
     {
@@ -45,12 +49,10 @@ public class DeadLetterQueueBenchmarks
         var noopNotifier = new DeadLetterNotifier<int>(NullLogger<DeadLetterNotifier<int>>.Instance);
         var logger = NullLogger<DeadLetterHandler<int>>.Instance;
 
-        // Happy path handler - inner handler succeeds
         var succeedingHandler = new DelegateHandler(_ => ValueTask.CompletedTask);
         _happyPathHandler = new DeadLetterHandler<int>(
             succeedingHandler, new DeadLetterQueue<int>(_options, NullLogger<DeadLetterQueue<int>>.Instance), noopNotifier, _options, logger);
 
-        // Failure path handler - inner handler always throws
         var failingHandler = new DelegateHandler(_ =>
             new ValueTask(Task.FromException(new InvalidOperationException("bench-fail"))));
         _failurePathHandler = new DeadLetterHandler<int>(
@@ -73,11 +75,13 @@ public class DeadLetterQueueBenchmarks
     /// <summary>
     /// Pre-populates the drain DLQ before each iteration.
     /// </summary>
+    /// <remarks>
+    /// The method creates a new queue each time, so every iteration starts from a clean state.
+    /// </remarks>
 #pragma warning disable VSTHRD002 // IterationSetup must return void
     [IterationSetup(Target = nameof(DlqDrain))]
     public void SetupDrainIteration()
     {
-        // Recreate to ensure clean state
         _drainDlq = new DeadLetterQueue<int>(_options!, NullLogger<DeadLetterQueue<int>>.Instance);
         for (var i = 0; i < 100; i++)
         {
@@ -126,10 +130,12 @@ public class DeadLetterQueueBenchmarks
     /// <summary>
     /// Cleans up the benchmarks.
     /// </summary>
+    /// <remarks>
+    /// This method does nothing, because the benchmarks hold no resources to clean up.
+    /// </remarks>
     [GlobalCleanup]
     public void GlobalCleanup()
     {
-        // No resources to clean up
     }
 
     private sealed class DelegateHandler(Func<int, ValueTask> handler) : IWorkHandler<int>

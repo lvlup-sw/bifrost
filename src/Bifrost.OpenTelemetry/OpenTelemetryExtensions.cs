@@ -78,6 +78,29 @@ public static class OpenTelemetryExtensions
     /// <see cref="OrchestratorMetrics{TWork}.Rejected"/>) — independent of whether a dead-letter
     /// queue is configured.
     /// </para>
+    /// <para>
+    /// <strong>Registration details.</strong> The metrics factory resolves the orchestrator lazily
+    /// for the observable gauges, which avoids a circular dependency during the build.
+    /// </para>
+    /// <para>
+    /// A pass-through decorator at the innermost order (<c>QueueWaitAttachOrder</c>) attaches the
+    /// queue-wait hook. Its factory receives the bare <c>WorkOrchestrator&lt;TWork&gt;</c> before any
+    /// wrapping decorator applies. The hook property is internal on the concrete type (reached through
+    /// <c>InternalsVisibleTo</c>), so the factory uses a pattern match instead of a wider public
+    /// <see cref="IWorkOrchestrator{TWork}"/> surface. The metrics instance is resolved once at build
+    /// time and bound as a closure-free method-group delegate, which keeps the per-dequeue record path
+    /// allocation-free. A guard stops repeated calls from registering a duplicate decorator order,
+    /// because <c>Build()</c> rejects duplicates.
+    /// </para>
+    /// <para>
+    /// Rejections are always counted (DR-6), independent of the dead-letter configuration. The method
+    /// makes sure that the rejection-routing decorator exists (idempotent and shared with
+    /// <c>WithDeadLetterQueue</c>, in any call order). It then attaches the rejected counter to that
+    /// decorator through a pass-through registered directly above it, in the same pattern as the
+    /// queue-wait attach. The hook is bound once at build time as a method-group delegate. The
+    /// per-rejection record path is allocation-free, because the <c>work.class</c> and
+    /// <c>rejection.reason</c> tag values are cached.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <para>Register the orchestrator with OpenTelemetry:</para>
@@ -121,23 +144,12 @@ public static class OpenTelemetryExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        // Register metrics with lazy resolution of orchestrator for observable gauges
         builder.Services.TryAddSingleton<OrchestratorMetrics<TWork>>(sp =>
         {
-            // Use lazy resolution to avoid circular dependency during build
             return new OrchestratorMetrics<TWork>(
                 () => sp.GetService<IWorkOrchestrator<TWork>>());
         });
 
-        // Attach the queue-wait hook via a pass-through decorator registered at the
-        // innermost order: its factory receives the bare WorkOrchestrator<TWork>
-        // before any wrapping decorator applies. The hook property is internal on the
-        // concrete type (reached via InternalsVisibleTo), so a pattern match is used
-        // rather than widening the public IWorkOrchestrator<TWork> surface. The
-        // metrics instance is resolved once at build time and bound as a closure-free
-        // method-group delegate, keeping the per-dequeue record path allocation-free.
-        // Guarded so repeated WithOpenTelemetry calls do not register a duplicate
-        // decorator order (Build() rejects duplicates).
         if (!builder.Decorators.Any(d => d.Order == QueueWaitAttachOrder))
         {
             builder.Decorators.Add(new DecoratorRegistration<TWork>(
@@ -154,13 +166,6 @@ public static class OpenTelemetryExtensions
                 }));
         }
 
-        // Rejections are always counted (DR-6), independent of DLQ configuration:
-        // ensure the rejection-routing decorator exists (idempotent, shared with
-        // WithDeadLetterQueue — any call order), then attach the rejected counter
-        // to it via a pass-through registered directly above it, mirroring the
-        // queue-wait attach pattern. The hook is bound once at build time as a
-        // method-group delegate; the per-rejection record path is allocation-free
-        // (cached work.class and rejection.reason tag values).
         RejectionRoutingRegistration.EnsureRegistered(builder);
 
         if (!builder.Decorators.Any(d => d.Order == RejectedCounterAttachOrder))

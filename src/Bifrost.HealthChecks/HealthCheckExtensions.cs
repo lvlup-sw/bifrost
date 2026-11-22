@@ -57,7 +57,6 @@ public static class HealthCheckExtensions
 
         var healthCheckName = name ?? $"{DefaultHealthCheckNamePrefix}<{typeof(TWork).Name}>";
 
-        // Register the health check directly on the service collection
         builder.Services.AddHealthChecks()
             .Add(new HealthCheckRegistration(
                 healthCheckName,

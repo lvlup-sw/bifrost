@@ -191,14 +191,29 @@ internal sealed class SubQueue<TElement, TPriority>
     /// behavior; <c>1..16</c> activates the buffered path with that logical cap. The owning queue
     /// validates the range before forwarding; this constructor debug-asserts it.
     /// </param>
+    /// <remarks>
+    /// <para>
+    /// The comparer goes through <c>PriorityComparerHelpers.InitializeComparer</c>, the same
+    /// normalization that the queue shell uses. A stored <see langword="null"/> selects the
+    /// devirtualized <c>Comparer&lt;TPriority&gt;.Default</c> path in the hot heap methods.
+    /// </para>
+    /// <para>
+    /// The <c>_cachedTop</c> assignment must call the explicit parameterless
+    /// <see cref="PaddedTopSlot{TPriority}"/> constructor, because that constructor allocates the
+    /// padded backing array. A change to <c>default</c> or <c>default(T)</c> (for example, to satisfy
+    /// SA1129) leaves the backing array null, and the seqlock then throws a
+    /// <see cref="NullReferenceException"/> on the first publish.
+    /// </para>
+    /// <para>
+    /// The constructor sets only <c>_header.EmptyFlag</c>. <c>TopVersion</c> keeps its default of 0,
+    /// which is even and so means "stable".
+    /// </para>
+    /// </remarks>
     internal SubQueue(IComparer<TPriority>? comparer, int index, ulong[] occupancy, int bufferCapacity = 0)
     {
         Debug.Assert(
             bufferCapacity is >= 0 and <= BufferCapacityMax,
             "bufferCapacity must be in [0, BufferCapacityMax]; the owning queue validates before forwarding.");
-        // Comparer normalization, shared with the queue shell (see
-        // PriorityComparerHelpers.InitializeComparer): a stored null selects the devirtualized
-        // Comparer<TPriority>.Default path in the hot heap methods.
         _comparer = PriorityComparerHelpers.InitializeComparer(comparer);
 
         _index = index;
@@ -207,13 +222,10 @@ internal sealed class SubQueue<TElement, TPriority>
 
         _nodes = [];
 
-        // MUST invoke the explicit parameterless constructor: it allocates the padded backing
-        // array. "Simplifying" this to default/default(T) (e.g. to satisfy SA1129) leaves the
-        // backing array null and the seqlock NREs on first publish.
 #pragma warning disable SA1129
         _cachedTop = new PaddedTopSlot<TPriority>();
 #pragma warning restore SA1129
-        _header.EmptyFlag = 1; // TopVersion defaults to 0 (even), i.e. "stable".
+        _header.EmptyFlag = 1;
     }
 
     /// <summary>
@@ -318,20 +330,21 @@ internal sealed class SubQueue<TElement, TPriority>
     /// cached copy does not keep an otherwise-dead object reachable; the flag word, not the slot
     /// value, is what readers consult for emptiness.
     /// </para>
+    /// <para>
+    /// The lock guarantees a single writer, so the plain read of <c>_header.TopVersion</c> into
+    /// <c>version</c> cannot race another writer. The steps of the list map to the code as follows:
+    /// step 1 is the <c>version + 1u</c> stamp that announces "writer in progress", step 2 is
+    /// <see cref="Volatile.WriteBarrier"/>, and step 3 is the <c>version + 2u</c> stamp.
+    /// </para>
     /// </remarks>
     internal void PublishTop(in TPriority top, bool empty)
     {
         Debug.Assert(SyncLock.IsHeldByCurrentThread, "PublishTop requires the sub-queue lock.");
 
-        // Single writer (lock-held): a plain read of the version cannot race another writer.
         uint version = _header.TopVersion;
 
-        // 1. Stamp odd: announce "writer in progress".
         Volatile.Write(ref _header.TopVersion, version + 1u);
 
-        // 2. Release fence for the *following* writes: the data writes below cannot become
-        //    observable before the odd stamp above (Volatile.Write alone orders only PRIOR
-        //    accesses; without this fence arm64 may publish data ahead of the odd stamp).
         Volatile.WriteBarrier();
 
         if (!empty)
@@ -340,13 +353,11 @@ internal sealed class SubQueue<TElement, TPriority>
         }
         else if (RuntimeHelpers.IsReferenceOrContainsReferences<TPriority>())
         {
-            // GC hygiene only; emptiness is signaled by the flag, never by the slot value.
             _cachedTop.Set(default!);
         }
 
         _header.EmptyFlag = empty ? 1 : 0;
 
-        // 3. Stamp even (release): all data writes above are observable no later than this stamp.
         Volatile.Write(ref _header.TopVersion, version + 2u);
     }
 
@@ -367,7 +378,9 @@ internal sealed class SubQueue<TElement, TPriority>
     /// slot/flag copies cannot float above the first version check. <see cref="Volatile.ReadBarrier"/>
     /// is an acquire fence that "applies to all prior reads", so the slot/flag copies cannot sink
     /// below it, hence not below the second version check either. If both checks observe the same
-    /// even version, no writer's window overlapped the copy, so the copy is untorn.
+    /// even version, no writer's window overlapped the copy, so the copy is untorn. The copies into
+    /// <c>candidate</c> and <c>emptyFlag</c> are plain reads, and <c>candidate</c> can be torn when a
+    /// writer overlaps. The re-check of the version into <c>after</c> discards exactly those cases.
     /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryReadTop(out TPriority top, out bool empty)
@@ -380,12 +393,9 @@ internal sealed class SubQueue<TElement, TPriority>
 
             if ((before & 1u) == 0)
             {
-                // Plain copies: candidate may be torn if a writer overlaps; the version
-                // re-check below discards exactly those cases.
                 TPriority candidate = _cachedTop.Get();
                 int emptyFlag = _header.EmptyFlag;
 
-                // Acquire fence: the copies above cannot be deferred past the re-check below.
                 Volatile.ReadBarrier();
 
                 uint after = Volatile.Read(ref _header.TopVersion);
@@ -490,6 +500,11 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <param name="priority">The popped (minimum) priority, when the heap was non-empty.</param>
     /// <returns><see langword="true"/> if an entry was popped; <see langword="false"/> if empty.</returns>
     /// <param name="trackRoot">Whether to precompute publication changes.</param>
+    /// <remarks>
+    /// The clear of the vacated slot at <c>last</c> runs only when the entry type contains
+    /// references, so that the slot does not keep them reachable. Entries of value types only skip
+    /// the write.
+    /// </remarks>
     internal bool TryHeapPop(out TElement element, out TPriority priority, bool trackRoot = false)
     {
         if (_size == 0)
@@ -506,7 +521,6 @@ internal sealed class SubQueue<TElement, TPriority>
 
         if (last > 0)
         {
-            // Move the last entry into the root hole, then sift it down to its place.
             (TElement Element, TPriority Priority) moving = nodes[last];
 
             if (HasNonThrowingComparer)
@@ -524,7 +538,6 @@ internal sealed class SubQueue<TElement, TPriority>
             }
         }
 
-        // Gated slot clear: only release references; value-type-only entries skip the write.
         if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
         {
             WriteNode(last, default);
@@ -566,7 +579,9 @@ internal sealed class SubQueue<TElement, TPriority>
     /// the unbuffered (default) path bit-exact with the pre-feature behavior; the buffered branch reads
     /// <c>D.front()</c>, the true live minimum, because on the buffered path the heap root is a LARGER
     /// key (the smallest entries were refilled into <c>D</c>) and the heap can even be empty while
-    /// <c>D</c> is non-empty — a heap-only peek would mis-revalidate or wrongly report empty.
+    /// <c>D</c> is non-empty — a heap-only peek would mis-revalidate or wrongly report empty. On the
+    /// buffered branch, <c>D</c> is empty exactly when the whole sub-queue is empty, so
+    /// <c>_deletionCount == 0</c> is a complete emptiness test.
     /// </remarks>
     /// <param name="element">The live minimum element, when the sub-queue is non-empty.</param>
     /// <param name="priority">The live minimum priority, when the sub-queue is non-empty.</param>
@@ -575,8 +590,6 @@ internal sealed class SubQueue<TElement, TPriority>
     {
         if (_bufferCapacity > 0)
         {
-            // Buffered: the resident minima live in the sorted deletion buffer D; D.front() (slot 0) is
-            // the live minimum (and the published top). D empty ⟺ the whole sub-queue is empty.
             if (_deletionCount == 0)
             {
                 element = default!;
@@ -588,7 +601,6 @@ internal sealed class SubQueue<TElement, TPriority>
             return true;
         }
 
-        // Unbuffered: bit-exact with the pre-feature behavior — the heap root is the live minimum.
         return TryHeapPeekRoot(out element, out priority);
     }
 
@@ -597,13 +609,15 @@ internal sealed class SubQueue<TElement, TPriority>
     /// growth), clamped to <see cref="Array.MaxLength"/> with guaranteed forward progress,
     /// the <see cref="PriorityQueue{TElement, TPriority}"/> <c>Grow</c> precedent.
     /// </summary>
+    /// <remarks>
+    /// The capacity arithmetic (the doubling, the <see cref="Array.MaxLength"/> clamp, the
+    /// forward-progress floor, and the "cannot grow further" throw at the exact limit) is in the pure
+    /// static <see cref="ComputeGrownCapacity"/>. Tests can then reach the
+    /// <see cref="Array.MaxLength"/> boundary through <see cref="ComputeGrownCapacityForTest"/>
+    /// without a multi-gigabyte allocation. A real push cannot reach those boundary clamps.
+    /// </remarks>
     private void Grow()
     {
-        // The capacity arithmetic (doubling, the Array.MaxLength clamp, the forward-progress floor,
-        // and the "cannot grow further" throw at the exact limit) is factored into a pure static so it
-        // can be unit-tested at the Array.MaxLength boundary WITHOUT allocating a multi-gigabyte array
-        // — the boundary clamps are otherwise unreachable from a real push. See
-        // ComputeGrownCapacityForTest.
         int newCapacity = ComputeGrownCapacity(_nodes.Length);
         Array.Resize(ref _nodes, newCapacity);
     }
@@ -628,6 +642,24 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <exception cref="InvalidOperationException">
     /// The store is already at <see cref="Array.MaxLength"/> and cannot grow further.
     /// </exception>
+    /// <remarks>
+    /// <para>
+    /// The first clamp of <c>newCapacity</c> lets the heap grow to the maximum possible capacity
+    /// before an overflow occurs. Without it, a doubling past 2^30 entries overflows to a negative
+    /// value and surfaces as a wrong-typed <see cref="ArgumentOutOfRangeException"/>.
+    /// </para>
+    /// <para>
+    /// The floor <c>minCapacity</c> guarantees forward progress, and the first growth allocates
+    /// <see cref="InitialCapacity"/> outright. Near the boundary the floor itself can exceed
+    /// <see cref="Array.MaxLength"/>, so it is re-clamped before the <c>Math.Max</c>. Otherwise the
+    /// first clamp is undone and the resize throws a wrong-typed exception at the exact limit that
+    /// this method exists to handle.
+    /// </para>
+    /// <para>
+    /// When the store is already at <see cref="Array.MaxLength"/> with no room to grow, the method
+    /// throws a clear, typed failure instead of a resize to a non-increasing length.
+    /// </para>
+    /// </remarks>
     private static int ComputeGrownCapacity(int currentLength)
     {
         const int GrowFactor = 2;
@@ -635,18 +667,11 @@ internal sealed class SubQueue<TElement, TPriority>
 
         int newCapacity = GrowFactor * currentLength;
 
-        // Allow the heap to grow to the maximum possible capacity before encountering overflow
-        // Without this, doubling past 2^30 entries would overflow negative and
-        // surface as a wrong-typed ArgumentOutOfRangeException.
         if ((uint)newCapacity > Array.MaxLength)
         {
             newCapacity = Array.MaxLength;
         }
 
-        // Guarantee forward progress; the first growth allocates InitialCapacity outright. The
-        // forward-progress floor itself can exceed Array.MaxLength near the boundary, so re-clamp it
-        // before the Math.Max — otherwise the earlier clamp is undone and the resize throws a
-        // wrong-typed exception at the exact limit this block exists to handle.
         int minCapacity = currentLength == 0 ? GrowInitialCapacity : currentLength + MinimumGrow;
         if ((uint)minCapacity > Array.MaxLength)
         {
@@ -656,8 +681,6 @@ internal sealed class SubQueue<TElement, TPriority>
         newCapacity = Math.Max(newCapacity, minCapacity);
         if (newCapacity <= currentLength)
         {
-            // Already at Array.MaxLength with no room to grow: surface a clear, typed failure rather
-            // than resizing to a non-increasing length.
             throw new InvalidOperationException("Sub-queue reached its maximum capacity and cannot grow further.");
         }
 
@@ -711,10 +734,14 @@ internal sealed class SubQueue<TElement, TPriority>
     }
 
     /// <summary>Records the chosen children before committing the sift.</summary>
+    /// <remarks>
+    /// The <c>path</c> buffer holds 16 entries, because an Int32-indexed quaternary heap has at most
+    /// 16 levels.
+    /// </remarks>
     private void MoveDownDefaultComparer(int index, TElement element, TPriority priority, int count, bool trackRoot)
     {
         var nodes = _nodes;
-        Span<int> path = stackalloc int[16]; // An Int32-indexed quaternary heap has at most 16 levels.
+        Span<int> path = stackalloc int[16];
         int length = 0;
         int start = index;
         int lastParent = (count - 2) >> 2;
@@ -767,10 +794,14 @@ internal sealed class SubQueue<TElement, TPriority>
     }
 
     /// <summary>Records the chosen children before committing the sift.</summary>
+    /// <remarks>
+    /// The <c>path</c> buffer holds 16 entries, because an Int32-indexed quaternary heap has at most
+    /// 16 levels.
+    /// </remarks>
     private void MoveDownCustomComparer(int index, TElement element, TPriority priority, int count, bool trackRoot)
     {
         var nodes = _nodes;
-        Span<int> path = stackalloc int[16]; // An Int32-indexed quaternary heap has at most 16 levels.
+        Span<int> path = stackalloc int[16];
         int length = 0;
         int start = index;
         int lastParent = (count - 2) >> 2;
@@ -862,6 +893,13 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <see langword="true"/> when the entry was pushed; <see langword="false"/> when the lock
     /// was contended and nothing was done.
     /// </returns>
+    /// <remarks>
+    /// Buffering is opt-in (<c>_bufferCapacity &gt; 0</c>). When the insertion buffer <c>I</c> is
+    /// full, one push causes several heap mutations, so an unknown comparer needs the rollback of
+    /// <see cref="BufferedTransaction"/>. Built-in numeric comparisons cannot throw. The
+    /// <see cref="HasNonThrowingComparer"/> test comes first, so those comparers skip the field reads
+    /// that trigger the transaction.
+    /// </remarks>
     internal bool TryLockedPush(TElement element, TPriority priority)
     {
         if (!SyncLock.TryEnter())
@@ -871,9 +909,6 @@ internal sealed class SubQueue<TElement, TPriority>
 
         try
         {
-            // Buffering is opt-in. Unknown comparers need rollback when a full I buffer
-            // causes multiple heap mutations; built-in numeric comparisons cannot throw.
-            // Classify first so those comparers skip the transaction-trigger field reads.
             if (_bufferCapacity > 0)
             {
                 if (!HasNonThrowingComparer && _insertionCount == _bufferCapacity)
@@ -905,24 +940,31 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     /// <param name="element">The element to store.</param>
     /// <param name="priority">The priority that orders the entry.</param>
+    /// <remarks>
+    /// <para>
+    /// When the sift reaches index zero, that alone proves a strict root change. The method reuses
+    /// that result from <see cref="HeapPush"/> as <c>publish</c> and does not call the comparer again.
+    /// It republishes only when the minimum changed: on the first entry, or when the new entry is
+    /// strictly smaller than the previous root. An equal-priority push leaves the published value
+    /// correct.
+    /// </para>
+    /// <para>
+    /// The occupancy transition is boundary-only. The empty→non-empty crossing is exactly
+    /// <c>wasEmpty</c>, so the method sets this sub-queue's bit together with the seqlock publish,
+    /// under the held lock. A push onto a populated sub-queue leaves <c>wasEmpty</c> false and never
+    /// touches the bitmask. This keeps the bitmask dormant on the dense hot path.
+    /// </para>
+    /// </remarks>
     private void UnbufferedPush(TElement element, TPriority priority)
     {
         bool wasEmpty = _size == 0;
-        // Reaching index zero during the sift already proves a strict root change.
-        // Reuse that decision instead of calling the comparer again for publication.
         bool publish = HeapPush(element, priority);
 
-        // Republish only when the minimum changed: first entry, or strictly smaller than
-        // the previous root. An equal-priority push leaves the published value correct.
         if (publish)
         {
             PublishTop(priority, empty: false);
         }
 
-        // Boundary-only occupancy transition. The empty→non-empty crossing is just `wasEmpty`;
-        // set this sub-queue's bit alongside the seqlock publish, under the held lock. A push onto
-        // an already-populated sub-queue leaves `wasEmpty` false and never touches the bitmask,
-        // which is what keeps it dormant on the dense hot path.
         if (wasEmpty)
         {
             SetOccupancyBit();
@@ -977,19 +1019,26 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <see cref="SubQueuePopStatus.Empty"/> when the heap is empty. Never returns
     /// <see cref="SubQueuePopStatus.Contended"/>: the caller already holds the lock.
     /// </returns>
+    /// <remarks>
+    /// <para>
+    /// A buffered removal serves <c>D.front()</c> and refills <c>D</c> from the heap when <c>D</c>
+    /// empties. An unknown comparer needs rollback across that compound refill, so the method then
+    /// goes through <see cref="BufferedTransaction"/>.
+    /// </para>
+    /// <para>
+    /// With at most one remaining entry, the flush and the refill cannot compare: a push into an
+    /// empty heap and a pop of its sole entry invoke no user code. That case keeps the identical
+    /// refill path, but it does not copy both buffers or open a journal. <c>_header.Count</c> is
+    /// exact under this lock. With <c>D</c> holding one item, <c>Count &gt; 2</c> means that the
+    /// refill has at least two remaining entries and can invoke the comparer.
+    /// </para>
+    /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal SubQueuePopStatus PopHeldRoot(out TElement element, out TPriority priority)
     {
         Debug.Assert(SyncLock.IsHeldByCurrentThread, "PopHeldRoot requires the sub-queue lock held by the caller.");
 
-        // Buffered removal serves D.front() and refills from the heap when it empties.
-        // Unknown comparers require rollback across that compound refill.
         if (_bufferCapacity == 0) return UnbufferedPopHeldRoot(out element, out priority);
-        // With at most one remaining entry, flushing/refilling cannot compare: pushing into
-        // an empty heap and popping its sole entry invoke no user code. Keep the identical
-        // refill path, but avoid copying both buffers and opening a journal in that case.
-        // Count is exact under this lock. With D holding one item, Count > 2 means
-        // the refill has at least two remaining entries and may invoke the comparer.
         if (!HasNonThrowingComparer && _header.Count > 2 && _deletionCount == 1)
             return BufferedTransaction(default!, default!, pop: true, out element, out priority);
         return BufferedPopHeldRoot(out element, out priority);
@@ -1003,6 +1052,19 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <param name="element">The removed element, on <see cref="SubQueuePopStatus.Success"/>.</param>
     /// <param name="priority">The removed priority, on <see cref="SubQueuePopStatus.Success"/>.</param>
     /// <returns><see cref="SubQueuePopStatus.Success"/> with the former root, or <see cref="SubQueuePopStatus.Empty"/>.</returns>
+    /// <remarks>
+    /// <para>
+    /// The occupancy transition is boundary-only. The non-empty→empty crossing is exactly
+    /// <c>_size == 0</c> after the pop, so the method clears this sub-queue's bit together with the
+    /// empty publish, under the held lock. A pop that leaves entries behind takes the else-branch and
+    /// never touches the bitmask. <see cref="PopHeldRoot"/> is the single drain funnel, so
+    /// <see cref="TryLockedPop"/> inherits this clear.
+    /// </para>
+    /// <para>
+    /// The method republishes only when the priority of the exposed root (<c>newRoot</c>) differs
+    /// from the popped one. A duplicate minimum leaves the published priority value correct.
+    /// </para>
+    /// </remarks>
     private SubQueuePopStatus UnbufferedPopHeldRoot(out TElement element, out TPriority priority)
     {
         if (!TryHeapPop(out element, out priority, trackRoot: !HasNonThrowingComparer))
@@ -1014,16 +1076,10 @@ internal sealed class SubQueue<TElement, TPriority>
         {
             PublishTop(priority, empty: true);
 
-            // Boundary-only occupancy transition. The non-empty→empty crossing is just `_size == 0`
-            // after the pop; clear this sub-queue's bit alongside the empty publish, under the held
-            // lock. A pop that leaves entries behind takes the else-branch and never touches the
-            // bitmask. PopHeldRoot is the single drain funnel, so TryLockedPop inherits this clear.
             ClearOccupancyBit();
         }
         else
         {
-            // Republish only when the exposed root's priority differs from the popped one;
-            // a duplicate minimum leaves the published priority value already correct.
             TPriority newRoot = _nodes[0].Priority;
             if (HasNonThrowingComparer ? CompareEffective(newRoot, priority) != 0 : _rootChanged)
             {
@@ -1053,20 +1109,38 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     /// <param name="element">The element to store.</param>
     /// <param name="priority">The priority that orders the entry.</param>
+    /// <remarks>
+    /// <para>
+    /// A small key belongs among the resident minima, so <see cref="SortedInsertIntoDeletion"/> puts
+    /// it into <c>D</c>. If <c>D</c> was full, its displaced maximum cascades out to <c>I</c>, and on
+    /// to the heap if <c>I</c> is also full.
+    /// </para>
+    /// <para>
+    /// An empty <c>D</c> means that the whole structure is empty (the refill invariant). The seed of
+    /// <c>D</c> by <see cref="DirectInsertIntoDeletion"/> makes <c>D.front()</c> the minimum at once
+    /// and leaves the heap untouched on the tiny-structure path.
+    /// </para>
+    /// <para>
+    /// A larger key with <c>D</c> non-empty cannot be a resident minimum yet, so it waits in
+    /// <c>I</c>. A full <c>I</c> flushes to the heap before this key lands, which keeps <c>I</c>
+    /// bounded by the logical capacity <c>C</c>.
+    /// </para>
+    /// <para>
+    /// <c>D.front()</c> is the published minimum, and <c>D</c> is non-empty exactly when the
+    /// sub-queue is occupied. A buffered push always leaves the structure non-empty, so the only
+    /// boundary that it can cross is empty→non-empty (<c>wasEmpty</c>).
+    /// </para>
+    /// </remarks>
     private void BufferedPush(TElement element, TPriority priority)
     {
         bool wasEmpty = _deletionCount == 0;
 
         if (_deletionCount > 0 && CompareEffective(priority, DeletionMax) <= 0)
         {
-            // Small key: it belongs among the resident minima. Sorted-insert into D; if D was full,
-            // its displaced max cascades out to I (and on to the heap if I is also full).
             SortedInsertIntoDeletion(element, priority);
         }
         else if (wasEmpty)
         {
-            // D empty ⟹ the whole structure is empty (the refill invariant); seed D directly so
-            // D.front() is immediately the minimum, leaving the heap untouched on the tiny-structure path.
             Debug.Assert(
                 _insertionCount == 0 && _size == 0,
                 "Buffered invariant violated: D is empty on a push but I or the heap still hold entries.");
@@ -1074,13 +1148,9 @@ internal sealed class SubQueue<TElement, TPriority>
         }
         else
         {
-            // Larger key with D non-empty: it cannot be a resident minimum yet, so it waits in I. A full
-            // I flushes to the heap before this key lands, keeping I bounded by the logical capacity C.
             AppendToInsertion(element, priority);
         }
 
-        // D.front() is the published minimum; D non-empty ⟺ occupied. A buffered push always leaves the
-        // structure non-empty, so the only boundary it can cross is empty→non-empty (wasEmpty).
         RepublishBufferedTop();
         if (wasEmpty)
         {
@@ -1100,11 +1170,27 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <param name="element">The removed element, on <see cref="SubQueuePopStatus.Success"/>.</param>
     /// <param name="priority">The removed (minimum) priority, on <see cref="SubQueuePopStatus.Success"/>.</param>
     /// <returns><see cref="SubQueuePopStatus.Success"/> with the former front, or <see cref="SubQueuePopStatus.Empty"/>.</returns>
+    /// <remarks>
+    /// <para>
+    /// An empty <c>D</c> means that the whole sub-queue is empty (the invariant), so there is nothing
+    /// to pop. The removal of <c>D.front()</c> (slot 0) shifts the rest of <c>D</c> down one slot to
+    /// keep the sorted order.
+    /// </para>
+    /// <para>
+    /// For tiny entries without references (at most <c>sizeof(ulong)</c>), a plain forward loop does
+    /// the shift and avoids the transition to the native overlapping copy. Larger entries and entries
+    /// with GC references keep the bulk copy of the runtime. The forward copy is safe for the overlap.
+    /// It does not compare and does not change the refill path.
+    /// </para>
+    /// <para>
+    /// If <c>D</c> is still empty after the refill check, the whole sub-queue is now empty: the
+    /// refill found nothing, or there was nothing to refill.
+    /// </para>
+    /// </remarks>
     private SubQueuePopStatus BufferedPopHeldRoot(out TElement element, out TPriority priority)
     {
         if (_deletionCount == 0)
         {
-            // D empty ⟹ whole sub-queue empty (the invariant). Nothing to pop.
             Debug.Assert(
                 _insertionCount == 0 && _size == 0,
                 "Buffered invariant violated: D is empty but I or the heap still hold entries.");
@@ -1113,15 +1199,11 @@ internal sealed class SubQueue<TElement, TPriority>
             return SubQueuePopStatus.Empty;
         }
 
-        // Remove D.front() (slot 0), shifting the rest down one to preserve the sorted order.
         Span<(TElement Element, TPriority Priority)> d = DeletionSpan(_deletionCount);
         (element, priority) = d[0];
         CountBufferedPopHit();
 
         int remaining = _deletionCount - 1;
-        // Tiny, reference-free entries avoid the native overlapping-copy transition.
-        // Larger entries and GC references retain the runtime's bulk-copy implementation.
-        // This forward copy preserves overlap; it neither compares nor changes the refill path.
         if (!RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>() &&
             Unsafe.SizeOf<(TElement, TPriority)>() <= sizeof(ulong))
         {
@@ -1135,7 +1217,6 @@ internal sealed class SubQueue<TElement, TPriority>
         ClearDeletionSlot(remaining);
         _deletionCount = remaining;
 
-        // D just emptied but I/heap still hold entries: refill D from the heap (flushing I first).
         if (_deletionCount == 0 && (_insertionCount > 0 || _size > 0))
         {
             RefillDeletion();
@@ -1143,7 +1224,6 @@ internal sealed class SubQueue<TElement, TPriority>
 
         if (_deletionCount == 0)
         {
-            // The whole sub-queue is now empty (refill found nothing, or there was nothing to refill).
             Debug.Assert(
                 _insertionCount == 0 && _size == 0,
                 "Buffered invariant violated: D drained to empty but I or the heap still hold entries.");
@@ -1206,7 +1286,6 @@ internal sealed class SubQueue<TElement, TPriority>
                 break;
             }
 
-            // Find the minimum child among the up-to-four children [firstChild, lastChild].
             int minChild = firstChild;
             TPriority minPriority = nodes[firstChild].Priority;
             int lastChild = Math.Min(firstChild + 3, count - 1);
@@ -1332,6 +1411,19 @@ internal sealed class SubQueue<TElement, TPriority>
     /// </summary>
     /// <param name="element">The element to store.</param>
     /// <param name="priority">The priority that orders the entry.</param>
+    /// <remarks>
+    /// <para>
+    /// The method first finds <c>hole</c>, the insert position, with the comparer. If <c>D</c> is
+    /// full, it then evicts the maximum of <c>D</c> to make room. The evicted maximum is the largest
+    /// resident minimum, and it still outranks everything in <c>I</c> and the heap, relative to the
+    /// smaller incoming key.
+    /// </para>
+    /// <para>
+    /// The hole-shift moves the block of larger entries from <c>hole</c> up one slot into the
+    /// vacant tail, then drops the new entry into the hole. The <c>CopyTo</c> of the moving block is
+    /// barrier-correct.
+    /// </para>
+    /// </remarks>
     private void SortedInsertIntoDeletion(TElement element, TPriority priority)
     {
         int hole = _deletionCount;
@@ -1349,8 +1441,6 @@ internal sealed class SubQueue<TElement, TPriority>
 
         if (_deletionCount == _bufferCapacity)
         {
-            // D is full: evict its max to make room. The evicted max is the largest resident minimum,
-            // which still outranks anything in I/heap relative to the incoming smaller key.
             (TElement Element, TPriority Priority) evicted = DeletionSpan(_deletionCount)[_deletionCount - 1];
             ClearDeletionSlot(_deletionCount - 1);
             _deletionCount--;
@@ -1358,8 +1448,6 @@ internal sealed class SubQueue<TElement, TPriority>
             EvictToInsertion(evicted.Element, evicted.Priority);
         }
 
-        // Hole-shift: walk from the (now-vacant) tail toward the front, shifting larger entries up one,
-        // then drop the new entry into the hole. CopyTo of the moving block is barrier-correct.
         Span<(TElement Element, TPriority Priority)> d = DeletionSpan(_deletionCount + 1);
         int shift = _deletionCount - hole;
         if (shift > 0)
@@ -1422,6 +1510,9 @@ internal sealed class SubQueue<TElement, TPriority>
     /// into <c>D</c> in ascending order. Called only when <c>D</c> emptied on a pop with <c>I</c> or the
     /// heap still populated. Assumes <see cref="SyncLock"/> held and <c>_deletionCount == 0</c>.
     /// </summary>
+    /// <remarks>
+    /// The heap pops in ascending order, so the front-to-back writes into <c>d</c> keep <c>D</c> sorted.
+    /// </remarks>
     private void RefillDeletion()
     {
         Debug.Assert(_deletionCount == 0, "RefillDeletion requires an empty deletion buffer.");
@@ -1435,7 +1526,6 @@ internal sealed class SubQueue<TElement, TPriority>
         Span<(TElement Element, TPriority Priority)> d = DeletionSpan(take);
         for (int k = 0; k < take; k++)
         {
-            // The heap pops in ascending order, so writing front-to-back keeps D sorted.
             bool popped = TryHeapPop(out TElement e, out TPriority p);
             Debug.Assert(popped, "RefillDeletion popped past the heap size.");
             d[k] = (e, p);
@@ -1517,6 +1607,18 @@ internal sealed class SubQueue<TElement, TPriority>
     /// bounded-reservation release stays exact; all three are cleared (reference-gated). When buffering
     /// is off, <c>I</c> and <c>D</c> are empty and only the heap is cleared — bit-exact with the
     /// pre-feature behavior.
+    /// <para>
+    /// The clears are gated: they only release references, and entries of value types only skip
+    /// the writes. On the unbuffered path the buffer counts are zero, so
+    /// <see cref="ClearInsertion"/> and <see cref="ClearDeletionRange"/> do nothing and only the heap
+    /// <c>Array.Clear</c> runs.
+    /// </para>
+    /// <para>
+    /// The method reaches the occupancy clear only when <c>removed &gt; 0</c>, that is, when the
+    /// sub-queue was non-empty (the non-empty→empty crossing). So it clears the occupancy bit together
+    /// with the empty publish. Because of the <c>removed &lt;= 0</c> early return, a
+    /// <c>Clear</c> of an empty sub-queue writes nothing.
+    /// </para>
     /// </remarks>
     /// <returns>The number of entries removed from this sub-queue.</returns>
     internal int LockedClear()
@@ -1530,9 +1632,6 @@ internal sealed class SubQueue<TElement, TPriority>
                 return removed;
             }
 
-            // Gated clears: only release references; value-type-only entries skip the writes. On the
-            // unbuffered path the buffer counts are zero, so ClearInsertion/ClearDeletion are no-ops and
-            // only the heap Array.Clear runs.
             if (RuntimeHelpers.IsReferenceOrContainsReferences<(TElement, TPriority)>())
             {
                 Array.Clear(_nodes, 0, _size);
@@ -1549,9 +1648,6 @@ internal sealed class SubQueue<TElement, TPriority>
             _deletionCount = 0;
             PublishTop(default!, empty: true);
 
-            // This clear is reached only when `removed > 0`, i.e. the sub-queue was non-empty (the
-            // non-empty→empty crossing), so clear its occupancy bit alongside the empty publish. The
-            // `removed <= 0` early-return above means an already-empty Clear writes nothing.
             ClearOccupancyBit();
 
             Volatile.Write(ref _header.Count, 0);
@@ -1696,7 +1792,6 @@ internal sealed class SubQueue<TElement, TPriority>
     {
         lock (SyncLock)
         {
-            // Buffered residents (empty and skipped on the unbuffered path).
             for (int i = 0; i < _insertionCount; i++)
             {
                 buffer.Add(InsertionSpan(_insertionCount)[i]);

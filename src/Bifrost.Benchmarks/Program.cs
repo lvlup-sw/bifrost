@@ -37,6 +37,11 @@ using Bifrost.Benchmarks.Scheduling;
 //   dotnet run -c Release -- throughput [windowSeconds] [outputDirectory]
 //   dotnet run -c Release -- stickiness [windowSeconds] [outputDirectory]
 //
+// DR-8 buffered-vs-unbuffered dense-throughput A/B: the relaxed MultiQueue swept across buffer
+// capacities {0, 16}. Like the other throughput verbs, this is the custom fixed-window harness, not
+// the BDN switcher:
+//   dotnet run -c Release -- buffered-throughput [windowSeconds] [outputDirectory]
+//
 // DR-8 consumer-shaped soak verb: a long mixed-arrival window with seconds-long simulated work
 // items driven against BOTH priority bindings — plain console harness, also not a BDN fit:
 //   dotnet run -c Release -- soak [--seconds 600] [--binding both|locking|multiqueue] [--workers 2,8] ...
@@ -58,10 +63,6 @@ if (args.Length > 0 && args[0].Equals("stickiness", StringComparison.OrdinalIgno
     return;
 }
 
-// DR-8 buffered-vs-unbuffered dense-throughput A/B: the relaxed MultiQueue swept across buffer
-// capacities {0, 16}. Like the other throughput verbs, this is the custom fixed-window harness, not
-// the BDN switcher:
-//   dotnet run -c Release -- buffered-throughput [windowSeconds] [outputDirectory]
 if (args.Length > 0 && args[0].Equals("buffered-throughput", StringComparison.OrdinalIgnoreCase))
 {
     ThroughputVerbs.RunBufferedThroughputAb(args);
@@ -97,7 +98,6 @@ var switcher = new BenchmarkSwitcher(
     typeof(OrchestratorBaselineBenchmarks),
     typeof(CpqSingleThreadedLatencyBenchmarks),
     typeof(CpqBufferedAbBenchmarks),
-    // Group L — Scheduling benchmarks (Tasks 41-44)
     typeof(RegistryRegistrationBenchmarks),
     typeof(TickEngineBenchmarks),
     typeof(CadenceComputeBenchmarks),

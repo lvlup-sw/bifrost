@@ -66,10 +66,14 @@ public class EventStreamOverheadBenchmarks
     /// <summary>
     /// Disposes orchestrator instances after each iteration.
     /// </summary>
+    /// <remarks>
+    /// VSTHRD002 is suppressed for the blocking wait: BenchmarkDotNet requires that
+    /// <c>IterationCleanup</c> is synchronous.
+    /// </remarks>
     [IterationCleanup]
     public void IterationCleanup()
     {
-#pragma warning disable VSTHRD002 // BenchmarkDotNet IterationCleanup must be synchronous
+#pragma warning disable VSTHRD002
         _withEventStream?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _bare?.DisposeAsync().AsTask().GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002

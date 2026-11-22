@@ -65,6 +65,12 @@ public sealed class WorkerRegistry : IWorkerRegistry
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The method passes <see cref="CancellationToken.None"/> to <c>StartNew</c>, so the delegate is
+    /// always scheduled. The delegate checks the cancellation itself, so the cleanup in its
+    /// <c>finally</c> block always runs. A fault-only continuation observes the worker task, which
+    /// prevents unobserved task exceptions and logs the error.
+    /// </remarks>
     public Task<WorkerInfo> CreateWorkerAsync(
         string workerId,
         Func<string, CancellationToken, Task> workerFunction,
@@ -82,9 +88,6 @@ public sealed class WorkerRegistry : IWorkerRegistry
             throw new InvalidOperationException($"Worker with ID '{workerId}' already exists.");
         }
 
-        // Start the worker task
-        // Note: Pass CancellationToken.None to StartNew so the delegate is always scheduled.
-        // Check cancellation inside the delegate to ensure cleanup always runs.
         var workerTask = Task.Factory.StartNew(
             async () =>
             {
@@ -103,7 +106,6 @@ public sealed class WorkerRegistry : IWorkerRegistry
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default).Unwrap();
 
-        // Observe faults to prevent unobserved task exceptions and log errors
         _ = workerTask.ContinueWith(
             t => _logger.LogError(t.Exception, "Worker {WorkerId} faulted", workerId),
             CancellationToken.None,
@@ -126,6 +128,10 @@ public sealed class WorkerRegistry : IWorkerRegistry
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The candidates are the workers without a stop request. Idle workers come first, then the
+    /// order is by creation time, descending (LIFO: newest first).
+    /// </remarks>
     public int RequestMultipleWorkerStop(int count)
     {
         if (count <= 0)
@@ -133,12 +139,10 @@ public sealed class WorkerRegistry : IWorkerRegistry
             return 0;
         }
 
-        // Get candidates that haven't been stopped yet
         var candidates = _workers.Values
             .Where(w => !w.StopRequested)
             .ToList();
 
-        // Sort: idle workers first, then by creation time descending (LIFO - newest first)
         var sorted = candidates
             .OrderByDescending(w => w.IsIdle)
             .ThenByDescending(w => w.CreatedAt)
@@ -190,12 +194,15 @@ public sealed class WorkerRegistry : IWorkerRegistry
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// All workers in the registry count as active.
+    /// </remarks>
     public WorkerRegistrySnapshot GetSnapshot()
     {
         var workers = _workers.Values.ToList();
 
         var total = workers.Count;
-        var active = total; // All workers in registry are considered active
+        var active = total;
         var idle = workers.Count(w => w.IsIdle && !w.StopRequested);
         var stopping = workers.Count(w => w.StopRequested);
         var busy = workers.Count(w => !w.IsIdle && !w.StopRequested);

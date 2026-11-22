@@ -58,27 +58,37 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// The handler makes one initial attempt plus <c>MaxRetries</c> retries. The retries are
+    /// immediate (no backoff) by design: the dead-letter path is for persistent failures, not for
+    /// transient network problems. A caller that needs backoff must implement it in the inner
+    /// handler. A cancellation of <paramref name="ct"/> is never dead-lettered. It propagates.
+    /// </para>
+    /// <para>
+    /// When all attempts are exhausted, the item is dead-lettered with
+    /// <see cref="CancellationToken.None"/>. This guarantees the dead-letter persistence, also when
+    /// the caller cancels.
+    /// </para>
+    /// </remarks>
     public async ValueTask HandleAsync(TWork work, CancellationToken ct)
     {
         var attempts = 0;
         Exception? lastException = null;
 
-        // 1 initial attempt + MaxRetries retries
         var maxAttempts = _maxRetries + 1;
 
-        // Retries are immediate (no backoff) by design: the DLQ path is for persistent failures,
-        // not transient network issues. Callers needing backoff should implement it in the inner handler.
         for (var i = 0; i < maxAttempts; i++)
         {
             try
             {
                 attempts++;
                 await _inner.HandleAsync(work, ct).ConfigureAwait(false);
-                return; // Success
+                return;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                throw; // Never dead-letter cancellations
+                throw;
             }
             catch (Exception ex)
             {
@@ -87,7 +97,6 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
             }
         }
 
-        // All attempts exhausted - dead-letter
         var deadLetteredWork = new DeadLetteredWork<TWork>(
             work,
             lastException,
@@ -95,7 +104,6 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
             DateTimeOffset.UtcNow,
             CorrelationId: null);
 
-        // Use CancellationToken.None to guarantee dead-letter persistence even if the caller cancels
         await _dlq.EnqueueAsync(deadLetteredWork, CancellationToken.None).ConfigureAwait(false);
 
         var evt = new WorkDeadLetteredEvent<TWork>(

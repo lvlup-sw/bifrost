@@ -77,7 +77,6 @@ public static class AutoscalingExtensions
         builder.Services.AddKeyedSingleton<IAutoscalingEngine>(key, (sp, _) =>
             sp.GetRequiredKeyedService<AutoscalingEngine>(key));
 
-        // Add the autoscaling decorator
         builder.Decorators.Add(new DecoratorRegistration<TWork>(
             AutoscalingDecoratorOrder,
             (sp, inner) => new AutoscalingOrchestrator<TWork>(

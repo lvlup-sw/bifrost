@@ -43,6 +43,13 @@ public class EventStreamAllocationBenchmarks
     /// Creates the base orchestrator, wraps it with the event stream decorator,
     /// and registers a subscriber to ensure the broadcast path is exercised.
     /// </summary>
+    /// <remarks>
+    /// The background subscriber registers a subscriber channel, so <c>PublishToSubscribers</c>
+    /// iterates at least one subscriber. Its loop only drains events, to prevent channel
+    /// backpressure. The registration of the subscriber channel is asynchronous and near-instant.
+    /// The setup waits for it with an async <c>Task.Delay</c>, because <c>Thread.Sleep</c> blocks the
+    /// setup thread without need, and BenchmarkDotNet handles the async wait properly.
+    /// </remarks>
     [GlobalSetup]
     public async Task GlobalSetup()
     {
@@ -54,8 +61,6 @@ public class EventStreamAllocationBenchmarks
         _innerOrchestrator = new WorkOrchestrator<int>(handler, options, innerLogger);
         _eventStreamOrchestrator = new EventStreamOrchestrator<int>(_innerOrchestrator, eventLogger);
 
-        // Start a background subscriber to register a subscriber channel.
-        // This ensures PublishToSubscribers iterates at least one subscriber.
         _subscriberCts = new CancellationTokenSource();
         _subscriberTask = Task.Run(
             async () =>
@@ -63,14 +68,10 @@ public class EventStreamAllocationBenchmarks
                 await foreach (var evt in _eventStreamOrchestrator.GetEventStreamAsync<WorkEnqueuedEvent<int>>(
                     cancellationToken: _subscriberCts.Token))
                 {
-                    // Drain events to prevent channel backpressure
                 }
             },
             _subscriberCts.Token);
 
-        // Allow subscriber channel registration to complete. This is an async operation
-        // that is near-instant, but Thread.Sleep blocks the setup thread unnecessarily.
-        // Using async Task.Delay allows BenchmarkDotNet to handle the wait properly.
         await Task.Delay(100).ConfigureAwait(false);
     }
 
@@ -89,6 +90,10 @@ public class EventStreamAllocationBenchmarks
     /// <summary>
     /// Disposes the orchestrators and cancels the subscriber.
     /// </summary>
+    /// <remarks>
+    /// VSTHRD003 is suppressed for the await of <c>_subscriberTask</c>: the cleanup awaits the task
+    /// that <see cref="GlobalSetup"/> started, for an orderly shutdown.
+    /// </remarks>
     [GlobalCleanup]
     public async Task GlobalCleanup()
     {
@@ -102,7 +107,7 @@ public class EventStreamAllocationBenchmarks
         {
             try
             {
-#pragma warning disable VSTHRD003 // Awaiting task started in GlobalSetup for orderly cleanup
+#pragma warning disable VSTHRD003
                 await _subscriberTask.ConfigureAwait(false);
 #pragma warning restore VSTHRD003
             }

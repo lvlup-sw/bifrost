@@ -42,6 +42,12 @@ internal static class RejectionRoutingRegistration
     /// </summary>
     /// <typeparam name="TWork">The type of work item to process.</typeparam>
     /// <param name="builder">The work orchestrator builder.</param>
+    /// <remarks>
+    /// The factory closure captures <paramref name="builder"/>, so it reads
+    /// <c>EventPublishCallback</c> when the factory runs during <c>Build()</c>. This lets
+    /// <c>WithEventStream</c> be called in any order, as in the wiring of
+    /// <see cref="DeadLetterHandler{TWork}"/>.
+    /// </remarks>
     internal static void EnsureRegistered<TWork>(WorkOrchestratorBuilder<TWork> builder)
     {
         if (builder.Decorators.Any(d => d.Order == DecoratorOrder))
@@ -49,9 +55,6 @@ internal static class RejectionRoutingRegistration
             return;
         }
 
-        // The factory closure captures 'builder' so that EventPublishCallback is
-        // read at factory execution time during Build(), allowing WithEventStream
-        // to be called in any order — mirroring the DeadLetterHandler wiring.
         builder.Decorators.Add(new DecoratorRegistration<TWork>(
             DecoratorOrder,
             (sp, orchestrator) => new RejectionRoutingOrchestrator<TWork>(

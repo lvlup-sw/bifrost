@@ -80,17 +80,18 @@ public class CpqBufferedAbBenchmarks
     /// so the heaps (and, when buffering is on, the buffers) have reached a realistic steady state
     /// before the measured <c>Enqueue + Dequeue</c> pair runs.
     /// </summary>
+    /// <remarks>
+    /// Both queues are unbounded, use the default stickiness, and set only the dialed buffer capacity.
+    /// The setup precomputes <c>_refElements</c>, so the measured pair never allocates a string
+    /// itself. Any non-zero Allocated value then comes from the queue, which is exactly what the
+    /// gate watches.
+    /// </remarks>
     [GlobalSetup]
     public void Setup()
     {
-        // Unbounded, default stickiness, dialed buffer capacity. The public four-argument ctor
-        // (boundedCapacity, stickiness, bufferCapacity, comparer) is a distinct arity, so -1 sentinels
-        // resolve to the unbounded / default-stickiness defaults without re-binding another overload.
         _multiQueueInt = ConcurrentPriorityQueue<int, int>.Create(new() { BufferCapacity = BufferCapacity });
         _multiQueueRef = ConcurrentPriorityQueue<string, long>.Create(new() { BufferCapacity = BufferCapacity });
 
-        // Precompute the reference elements so the measured pair never allocates a string itself —
-        // any non-zero Allocated then comes from the queue, which is exactly what the gate watches.
         _refElements = new string[Population];
         for (int i = 0; i < Population; i++)
         {

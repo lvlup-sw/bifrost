@@ -83,9 +83,22 @@ public sealed class WorkOrchestratorBuilder<TWork>
     /// <summary>
     /// Builds and registers the <see cref="IWorkOrchestrator{TWork}"/> with all configured decorators.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The method first makes sure that the orchestrator decorators and the handler decorators each
+    /// have unique order values. It then sorts both lists by order, innermost first, and copies the
+    /// post-build actions so that the factory runs a stable snapshot.
+    /// </para>
+    /// <para>
+    /// The factory resolves the handler through <see cref="ScopedHandlerProxy{TWork}"/> for the
+    /// scoped lifetime, and otherwise directly from DI (the existing behavior). It applies the handler
+    /// decorators in order, wraps the decorated handler in the base
+    /// <see cref="WorkOrchestrator{TWork}"/>, applies the orchestrator decorators in order, and then
+    /// runs the post-build actions.
+    /// </para>
+    /// </remarks>
     public void Build()
     {
-        // Validate unique orchestrator decorator orders
         var duplicateOrders = Decorators
             .GroupBy(d => d.Order)
             .Where(g => g.Count() > 1)
@@ -98,7 +111,6 @@ public sealed class WorkOrchestratorBuilder<TWork>
                 $"Duplicate decorator order(s): {string.Join(", ", duplicateOrders)}. Each orchestrator decorator must have a unique Order value.");
         }
 
-        // Validate unique handler decorator orders
         var duplicateHandlerOrders = HandlerDecorators
             .GroupBy(d => d.Order)
             .Where(g => g.Count() > 1)
@@ -111,13 +123,10 @@ public sealed class WorkOrchestratorBuilder<TWork>
                 $"Duplicate handler decorator order(s): {string.Join(", ", duplicateHandlerOrders)}. Each handler decorator must have a unique Order value.");
         }
 
-        // Sort decorators by order (innermost first)
         var orderedDecorators = Decorators.OrderBy(d => d.Order).ToList();
 
-        // Sort handler decorators by order (innermost first)
         var orderedHandlerDecorators = HandlerDecorators.OrderBy(d => d.Order).ToList();
 
-        // Capture post-build actions for execution inside the factory
         var postBuildActions = PostBuildActions.ToList();
         var handlerLifetime = HandlerLifetime;
         var classifier = Classifier;
@@ -125,8 +134,6 @@ public sealed class WorkOrchestratorBuilder<TWork>
         Services.AddSingleton<IWorkWriter<TWork>>(sp => sp.GetRequiredService<IWorkOrchestrator<TWork>>());
         Services.AddSingleton<IWorkOrchestrator<TWork>>(sp =>
         {
-            // Resolve handler: use ScopedHandlerProxy for scoped lifetime,
-            // otherwise resolve directly from DI (existing behavior)
             IWorkHandler<TWork> handler;
 
             if (handlerLifetime == ServiceLifetime.Scoped)
@@ -139,26 +146,22 @@ public sealed class WorkOrchestratorBuilder<TWork>
                 handler = sp.GetRequiredService<IWorkHandler<TWork>>();
             }
 
-            // Apply handler decorators in order
             foreach (var registration in orderedHandlerDecorators)
             {
                 handler = registration.Factory(sp, handler);
             }
 
-            // Start with base implementation using the decorated handler
             IWorkOrchestrator<TWork> orchestrator = new WorkOrchestrator<TWork>(
                 handler,
                 Options.Create(sp.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<TWork>())),
                 sp.GetRequiredService<ILogger<WorkOrchestrator<TWork>>>(),
                 classifier: classifier);
 
-            // Apply orchestrator decorators in order
             foreach (var registration in orderedDecorators)
             {
                 orchestrator = registration.Factory(sp, orchestrator);
             }
 
-            // Execute post-build actions
             foreach (var action in postBuildActions)
             {
                 action(sp);

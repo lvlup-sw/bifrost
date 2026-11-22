@@ -26,43 +26,63 @@
 // path would surface here as a dropped, duplicated, or corrupted element. This
 // mirrors the "assert real dispatch, not just construction" shape of the
 // scheduling AOT smoke.
+//
+// The smoke runs these steps:
+//
+//   1. Construct the buffered queue with a REFERENCE element type (object).
+//      BufferCapacity = 16 activates the ESA 2021 §4 per-sub-queue insertion
+//      and deletion buffers, the highest AOT/trim-risk surface
+//      (InlineArray<object> moves through Span<object> copies). The other
+//      options keep their defaults (unbounded, default stickiness). The object
+//      elements force the reference-type write path through the buffer moves.
+//
+//   2. Enqueue a spread that forces buffer FLUSH + REFILL. With
+//      bufferCapacity 16, any sub-queue that receives more than 16 inserts
+//      must flush its insertion buffer into the arity-4 heap, and on drain
+//      refill its deletion buffer from the heap. The default sub-queue count
+//      is 4 × ProcessorCount rounded up to a power of two. Enqueueing well
+//      past 16 × that count guarantees that every active sub-queue crosses the
+//      flush threshold many times over on any host. The keys go in
+//      interleaved: even keys ascending, then odd keys ascending. So neither
+//      the insertion order nor the heap-array order is already sorted, and the
+//      heap, not the insertion order, determines the drain order. Each
+//      priority is distinct (a dense 0..elementCount-1 range), so conservation
+//      can be checked exactly. Each element is a distinct boxed reference
+//      (object) that carries its own priority.
+//
+//   3. Drain via the relaxed two-choice TryDequeue (the buffer-aware
+//      throughput pop) and ASSERT real dispatch by multiset conservation:
+//      every distinct priority must be dispatched EXACTLY ONCE, with its
+//      matching element. The relaxed contract does not promise strict global
+//      order, so the order is not asserted. What it does promise (nothing is
+//      dropped, duplicated, or corrupted across the buffered flush + refill)
+//      is asserted. A regression in the buffered reference-element
+//      move/refill path surfaces as a duplicate priority, a missing priority,
+//      or an element/priority mismatch. The range check proves
+//      0 <= priority < elementCount (an int), so the narrowing conversion to
+//      the int index for the bool[] lookups is lossless.
+//
+//   4. Verify exact conservation: every enqueued priority came back exactly
+//      once, the drained count equals the enqueued count, and the queue is
+//      now empty. A short or long drain, or a gap in `seen`, means that the
+//      buffered flush/refill path dropped or duplicated elements under
+//      NativeAOT.
+//
+//   5. Compact value entries exercise the scalar buffer-shift specialization
+//      under AOT, with the default comparer and with a custom comparer. A
+//      single stripe permits an exact-order assertion, while the descending
+//      insertion forces deletion-buffer evictions, insertion flushes, and
+//      subsequent heap refills.
 // =============================================================================
 
 using Bifrost.Concurrency;
 
 Console.WriteLine("Bifrost.Concurrency AOT smoke — starting.");
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. Construct the buffered queue with a REFERENCE element type.
-//
-//    bufferCapacity: 16 activates the ESA 2021 §4 per-sub-queue insertion and
-//    deletion buffers (the highest AOT/trim-risk surface — InlineArray<object>
-//    moves through Span<object> copies). boundedCapacity: -1 = unbounded,
-//    stickiness: -1 = default. object elements force the reference-type write
-//    path through the buffer moves.
-// ─────────────────────────────────────────────────────────────────────────────
-
 var queue = ConcurrentPriorityQueue<object, long>.Create(new() { BufferCapacity = 16 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. Enqueue a spread that forces buffer FLUSH + REFILL.
-//
-//    With bufferCapacity 16, any sub-queue that receives more than 16 inserts
-//    must flush its insertion buffer into the arity-4 heap, and on drain refill
-//    its deletion buffer from the heap. The default sub-queue count is
-//    4 × ProcessorCount rounded up to a power of two; enqueueing well past
-//    16 × that count guarantees every active sub-queue crosses the flush
-//    threshold many times over on any host. Priorities are inserted in a
-//    deliberately non-sorted (interleaved) order so the heap — not the
-//    insertion order — determines the drain order. Each priority is distinct
-//    (a dense 0..elementCount-1 range) so conservation can be checked exactly.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const int elementCount = 4096;
 
-// Interleave priorities so neither the insertion nor the heap-array order is
-// already sorted: walk even keys ascending, then odd keys ascending. Each
-// element is a distinct boxed reference (object) carrying its own priority.
 var enqueued = 0;
 for (long key = 0; key < elementCount; key += 2)
 {
@@ -85,17 +105,6 @@ if (queue.Count != enqueued)
     return 1;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. Drain via the relaxed two-choice TryDequeue (the buffer-aware throughput
-//    pop) and ASSERT real dispatch by multiset conservation: every distinct
-//    priority must be dispatched EXACTLY ONCE, with its matching element. The
-//    relaxed contract does not promise strict global order, so order is not
-//    asserted; what it does promise — that nothing is dropped, duplicated, or
-//    corrupted across the buffered flush + refill — is. A regression in the
-//    buffered reference-element move/refill path would surface as a duplicate
-//    priority, a missing priority, or an element/priority mismatch.
-// ─────────────────────────────────────────────────────────────────────────────
-
 var seen = new bool[elementCount];
 var drained = 0;
 
@@ -108,8 +117,6 @@ while (queue.TryDequeue(out object? element, out long priority))
         return 1;
     }
 
-    // The range check above proves 0 <= priority < elementCount (an int), so the narrowing
-    // conversion is lossless; use the int index for the bool[] lookups.
     int index = (int)priority;
 
     if (seen[index])
@@ -131,13 +138,6 @@ while (queue.TryDequeue(out object? element, out long priority))
 }
 
 Console.WriteLine($"Drained {drained} element(s) via the buffer-aware relaxed dequeue.");
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. Verify exact conservation: every enqueued priority came back exactly once,
-//    the drained count equals the enqueued count, and the queue is now empty.
-//    A short/long drain or a gap in `seen` means the buffered flush/refill path
-//    dropped or duplicated elements under NativeAOT.
-// ─────────────────────────────────────────────────────────────────────────────
 
 if (drained != enqueued)
 {
@@ -165,9 +165,6 @@ if (queue.Count != 0)
 
 Console.WriteLine("Buffered reference-type dispatch verified: every element dispatched exactly once, conserved, and empty after drain.");
 
-// Compact value entries exercise the scalar buffer-shift specialization under AOT.
-// A single stripe permits an exact-order assertion while descending insertion forces
-// deletion-buffer evictions, insertion flushes and subsequent heap refills.
 foreach (IComparer<int>? comparer in new IComparer<int>?[] { null, Comparer<int>.Create((x, y) => x.CompareTo(y)) })
 {
     var compact = ConcurrentPriorityQueue<int, int>.Create(new()

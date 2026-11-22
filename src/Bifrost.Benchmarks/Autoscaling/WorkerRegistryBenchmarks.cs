@@ -22,13 +22,16 @@ public class WorkerRegistryBenchmarks
     /// <summary>
     /// Creates a worker registry pre-populated with workers.
     /// </summary>
+    /// <remarks>
+    /// The setup registers 8 workers with a long-running function that stays alive. It marks half
+    /// of them as busy to exercise the filtering of <c>IdleWorkerCount</c>.
+    /// </remarks>
     [GlobalSetup]
     public async Task GlobalSetup()
     {
         _registry = new WorkerRegistry();
         _cts = new CancellationTokenSource();
 
-        // Register 8 workers with a long-running function that stays alive
         for (var i = 0; i < 8; i++)
         {
             var workerId = $"worker-{i}";
@@ -37,7 +40,6 @@ public class WorkerRegistryBenchmarks
                 static (_, ct) => Task.Delay(Timeout.Infinite, ct),
                 _cts.Token).ConfigureAwait(false);
 
-            // Mark half as busy to exercise IdleWorkerCount filtering
             if (i % 2 == 0)
             {
                 _registry.GetWorkerInfo(workerId)?.MarkBusy();

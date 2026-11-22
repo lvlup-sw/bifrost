@@ -113,12 +113,14 @@ public class RegistryRegistrationBenchmarks
     /// channel, mimicking the production tick-loop consumer so the shared
     /// instance does not accumulate an unbounded backlog across invocations.
     /// </summary>
+    /// <remarks>
+    /// The loop discards each command. The benchmark does not need to act on the command, only to
+    /// keep the channel from growing across reused invocations.
+    /// </remarks>
     private void DrainWarmCommands()
     {
         while (_warmRegistry!.Commands.TryRead(out _))
         {
-            // Discard — the benchmark does not need to act on the command, only
-            // to keep the channel from growing across reused invocations.
         }
     }
 
@@ -126,20 +128,22 @@ public class RegistryRegistrationBenchmarks
     /// Fills a shared registry with one named job for pause/resume/trigger benchmarks.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the global-setup operation.</returns>
+    /// <remarks>
+    /// The setup registers <c>warm-job</c> for the pause, resume, and trigger benchmarks, then
+    /// pre-populates <see cref="BulkJobCount"/> jobs for <see cref="GetJobs_1000Jobs"/>.
+    /// </remarks>
     [GlobalSetup(Targets = [nameof(Pause_Single), nameof(Resume_Single), nameof(Trigger_Single), nameof(GetJobs_1000Jobs)])]
     public async Task GlobalSetup_WarmRegistry()
     {
         var store = new InMemoryScheduleStore();
         _warmRegistry = new ScheduleRegistry(store, FrozenClock);
 
-        // Register the job used by pause/resume/trigger benchmarks.
         await _warmRegistry.RegisterAsync(
             "warm-job",
             Cadence.Interval(TimeSpan.FromMinutes(5)),
             MissedFirePolicy.SkipMissed,
             NoOpDispatcher.Instance).ConfigureAwait(false);
 
-        // Pre-populate 1000 jobs for GetJobs_1000Jobs.
         for (var i = 0; i < BulkJobCount; i++)
         {
             await _warmRegistry.RegisterAsync(
@@ -154,15 +158,17 @@ public class RegistryRegistrationBenchmarks
     /// Measures the cost of pausing a running job.
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> representing the benchmark operation.</returns>
+    /// <remarks>
+    /// The benchmark pauses and then immediately resumes the job. This keeps the job in the Running
+    /// state across consecutive iterations without a separate <c>IterationSetup</c>. It then drains
+    /// the Pause and Resume commands, so the shared channel stays bounded.
+    /// </remarks>
     [Benchmark]
     public async ValueTask Pause_Single()
     {
-        // Pause + immediately resume to keep the job in Running state across
-        // consecutive benchmark iterations without a separate IterationSetup.
         await _warmRegistry!.PauseAsync("warm-job").ConfigureAwait(false);
         await _warmRegistry!.ResumeAsync("warm-job").ConfigureAwait(false);
 
-        // Drain the Pause + Resume commands so the shared channel stays bounded.
         DrainWarmCommands();
     }
 
@@ -170,14 +176,17 @@ public class RegistryRegistrationBenchmarks
     /// Measures the cost of resuming a paused job.
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> representing the benchmark operation.</returns>
+    /// <remarks>
+    /// The benchmark pauses the job first, so that there is a Paused job to resume, and the resume
+    /// then restores the state. It then drains the Pause and Resume commands, so the shared channel
+    /// stays bounded.
+    /// </remarks>
     [Benchmark]
     public async ValueTask Resume_Single()
     {
-        // Pause first so we have a Paused job to resume, then restore state.
         await _warmRegistry!.PauseAsync("warm-job").ConfigureAwait(false);
         await _warmRegistry!.ResumeAsync("warm-job").ConfigureAwait(false);
 
-        // Drain the Pause + Resume commands so the shared channel stays bounded.
         DrainWarmCommands();
     }
 
@@ -185,12 +194,14 @@ public class RegistryRegistrationBenchmarks
     /// Measures the cost of posting a trigger command for a registered job.
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> representing the benchmark operation.</returns>
+    /// <remarks>
+    /// The benchmark drains the Trigger command, so the shared channel stays bounded.
+    /// </remarks>
     [Benchmark]
     public async ValueTask Trigger_Single()
     {
         await _warmRegistry!.TriggerAsync("warm-job").ConfigureAwait(false);
 
-        // Drain the Trigger command so the shared channel stays bounded.
         DrainWarmCommands();
     }
 

@@ -1,3 +1,7 @@
+// In the latency scenario, the held timing (heldTimes) covers a reentrant push plus a held-root
+// pop. It measures the critical-section work of the stripe mutation, and excludes the outer lock
+// acquisition, routing, and contention. It includes one inner lock.
+
 using Bifrost.Concurrency;
 using System.Diagnostics;
 using System.Reflection;
@@ -133,8 +137,6 @@ if (args.Contains("latency"))
             publicTimes[i] = Stopwatch.GetTimestamp() - start;
             stripe.SyncLock.Enter();
             start = Stopwatch.GetTimestamp();
-            // Reentrant push plus held-root pop: measures stripe mutation critical-section work,
-            // excluding outer lock acquisition, routing and contention. Includes one inner lock.
             stripe.TryLockedPush(i, key); stripe.PopHeldRoot(out _, out _);
             heldTimes[i] = Stopwatch.GetTimestamp() - start;
             stripe.SyncLock.Exit();

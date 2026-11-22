@@ -77,7 +77,6 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
     /// <inheritdoc/>
     public double GetUtilizationRatio()
     {
-        // Prevent division by zero
         if (_orchestrator.Capacity == 0)
         {
             return 0.0;

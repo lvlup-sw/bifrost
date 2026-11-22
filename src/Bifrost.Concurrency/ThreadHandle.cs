@@ -85,11 +85,13 @@ internal sealed class ThreadHandle
     /// Initializes a new <see cref="ThreadHandle"/> with state seeded from
     /// <see cref="Random.Shared"/>, guaranteeing a non-zero (legal) xoshiro256** state.
     /// </summary>
+    /// <remarks>
+    /// xoshiro256** is undefined for the all-zero state, so the loop draws again until at least one
+    /// word is non-zero. The probability of an all-zero draw is negligible (2^-256), so the loop
+    /// effectively never runs more than once.
+    /// </remarks>
     private ThreadHandle()
     {
-        // xoshiro256** is undefined for the all-zero state; re-draw until at least one
-        // word is non-zero. The probability of an all-zero draw is negligible (2^-256),
-        // so this loop effectively never iterates more than once.
         do
         {
             _s0 = unchecked((ulong)Random.Shared.NextInt64());
@@ -146,10 +148,13 @@ internal sealed class ThreadHandle
     /// Advances the xoshiro256** generator and returns the next 64-bit output.
     /// </summary>
     /// <returns>The next pseudo-random 64-bit value.</returns>
+    /// <remarks>
+    /// This is xoshiro256** (Blackman/Vigna): the scrambler computes <c>result</c> first, then the
+    /// linear state transition updates <c>_s0</c> to <c>_s3</c>.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ulong NextUInt64()
     {
-        // xoshiro256** (Blackman/Vigna): scrambler then linear state transition.
         ulong result = BitOperations.RotateLeft(unchecked(_s1 * 5UL), 7) * 9UL;
 
         ulong t = _s1 << 17;
@@ -180,7 +185,8 @@ internal sealed class ThreadHandle
     /// <remarks>
     /// With <c>mask &gt;= 1</c> the rejection loop terminates with an expected fewer than two
     /// draws. A bounded fallback (<c>j = (i + 1) &amp; mask</c>) after eight attempts makes the
-    /// method provably terminating regardless of the RNG stream.
+    /// method provably terminating regardless of the RNG stream. The fallback is guaranteed
+    /// distinct when <c>mask &gt;= 1</c>.
     /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void NextTwoDistinct(int mask, out int i, out int j)
@@ -193,7 +199,6 @@ internal sealed class ThreadHandle
         {
             if (++attempts >= 8)
             {
-                // Bounded fallback: guaranteed distinct when mask >= 1.
                 j = (i + 1) & mask;
                 return;
             }
@@ -215,11 +220,15 @@ internal sealed class ThreadHandle
     /// hot-path cost is this method's predicted branch plus the period-refresh field stores.
     /// </param>
     /// <returns>The (possibly reused) sticky index in <c>[0, mask]</c>.</returns>
+    /// <remarks>
+    /// The method reuses the cached index only while the period is live
+    /// (<c>_stuckEnqRemaining &gt; 0</c>) and the index was sampled for this mask
+    /// (<c>_stuckEnqMask == mask</c>). A different mask (a different-sized queue on the same thread)
+    /// must sample again in its own range.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal int NextStickyIndex(int mask, int stickiness)
     {
-        // Reuse only while the period is live AND the cached index was sampled for THIS mask: a
-        // different mask (a different-sized queue on the same thread) must re-sample in its own range.
         if (_stuckEnqRemaining > 0 && _stuckEnqMask == mask)
         {
             _stuckEnqRemaining--;
@@ -246,11 +255,15 @@ internal sealed class ThreadHandle
     /// </param>
     /// <param name="i">The first index.</param>
     /// <param name="j">The second index, distinct from <paramref name="i"/>.</param>
+    /// <remarks>
+    /// The method reuses the cached pair only while the period is live
+    /// (<c>_stuckDeqRemaining &gt; 0</c>) and the pair was sampled for this mask
+    /// (<c>_stuckDeqMask == mask</c>). A different mask (a different-sized queue on the same thread)
+    /// must sample its own pair again.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void NextStickyPair(int mask, int stickiness, out int i, out int j)
     {
-        // Reuse only while the period is live AND the cached pair was sampled for THIS mask: a
-        // different mask (a different-sized queue on the same thread) must re-sample its own pair.
         if (_stuckDeqRemaining > 0 && _stuckDeqMask == mask)
         {
             _stuckDeqRemaining--;

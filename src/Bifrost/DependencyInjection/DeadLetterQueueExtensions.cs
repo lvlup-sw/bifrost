@@ -52,6 +52,15 @@ public static class DeadLetterQueueExtensions
     /// <see cref="Bifrost.Core.EnqueueResult"/>, and shutdown rejections during
     /// teardown are never dead-lettered.
     /// </para>
+    /// <para>
+    /// The options use DataAnnotations validation. The queue services use <c>TryAdd</c>, so a second
+    /// call does not register duplicates. The factory closure of the handler decorator captures
+    /// <paramref name="builder"/>, so it reads <c>EventPublishCallback</c> when the factory runs
+    /// during <c>Build()</c>. This is what lets <c>WithEventStream()</c> and
+    /// <c>WithDeadLetterQueue()</c> be called in any order. The rejection-routing registration is
+    /// idempotent and shared with <c>WithOpenTelemetry</c>, which attaches the rejected counter to
+    /// the same decorator.
+    /// </para>
     /// </remarks>
     [UnconditionalSuppressMessage(
         "Trimming",
@@ -63,13 +72,11 @@ public static class DeadLetterQueueExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        // Register options with DataAnnotations validation
         builder.Services.AddOptions<DeadLetterQueueOptions>(Bifrost.Core.WorkOptions.Name<TWork>())
             .Configure(configure ?? (_ => { }))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // Register DLQ services (TryAdd to avoid duplicates)
         builder.Services.TryAddSingleton<IDeadLetterQueue<TWork>>(sp =>
             new DeadLetterQueue<TWork>(
                 Options.Create(sp.GetRequiredService<IOptionsMonitor<DeadLetterQueueOptions>>().Get(Bifrost.Core.WorkOptions.Name<TWork>())),
@@ -77,10 +84,6 @@ public static class DeadLetterQueueExtensions
 
         builder.Services.TryAddSingleton<DeadLetterNotifier<TWork>>();
 
-        // Add handler decorator to wrap the handler with retry+DLQ logic.
-        // The factory closure captures 'builder' so that EventPublishCallback is read
-        // at factory execution time during Build(). This allows WithEventStream() and
-        // WithDeadLetterQueue() to be called in any order.
         builder.HandlerDecorators.Add(new HandlerDecoratorRegistration<TWork>(
             Order: builder.HandlerDecorators.Count,
             Factory: (sp, handler) =>
@@ -92,10 +95,6 @@ public static class DeadLetterQueueExtensions
                     sp.GetRequiredService<ILogger<DeadLetterHandler<TWork>>>(),
                     builder.EventPublishCallback)));
 
-        // Route admission rejections (DR-6) into the dead-letter pathway via the
-        // rejection-routing orchestrator decorator. Idempotent and shared with
-        // WithOpenTelemetry, which attaches the rejected counter to the same
-        // decorator.
         RejectionRoutingRegistration.EnsureRegistered(builder);
 
         return builder;

@@ -54,7 +54,6 @@ public static class SoakSweep
                 results.Add(result);
                 PrintRun(result);
 
-                // Quiesce between runs so collection-count deltas stay per-run.
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 GC.Collect();

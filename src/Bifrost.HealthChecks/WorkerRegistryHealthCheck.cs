@@ -67,13 +67,11 @@ public sealed class WorkerRegistryHealthCheck : IHealthCheck
         var idleWorkers = _registry.IdleWorkerCount;
         var busyWorkers = activeWorkers - idleWorkers;
 
-        // Count workers with stop requested
         var workers = _registry.GetAllWorkers();
         var stoppingWorkers = workers.Count(w => w.StopRequested);
 
         var data = CreateSnapshotData(activeWorkers, idleWorkers, busyWorkers, stoppingWorkers);
 
-        // Check: No active workers
         if (activeWorkers == 0)
         {
             return Task.FromResult(HealthCheckResult.Unhealthy(
@@ -81,7 +79,6 @@ public sealed class WorkerRegistryHealthCheck : IHealthCheck
                 data: data));
         }
 
-        // Check: All workers are busy
         if (idleWorkers == 0)
         {
             return Task.FromResult(HealthCheckResult.Degraded(
@@ -89,7 +86,6 @@ public sealed class WorkerRegistryHealthCheck : IHealthCheck
                 data: data));
         }
 
-        // Workers have capacity
         return Task.FromResult(HealthCheckResult.Healthy(
             $"Worker registry is healthy ({idleWorkers}/{activeWorkers} workers idle)",
             data: data));
