@@ -14,6 +14,6 @@ public sealed class NativeBuildkiteQualificationTests
     public async Task ReportsFixtureOutcome()
     {
         var observed = Math.Abs(-1);
-        await Assert.That(observed).IsEqualTo(1);
+        await Assert.That(observed).IsEqualTo(2);
     }
 }
