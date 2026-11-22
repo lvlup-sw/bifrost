@@ -106,8 +106,8 @@ public sealed class ThroughputRunner
     /// every worker reads the same volatile location again on each iteration. The workers and this
     /// controller all meet on the barrier. Because the controller takes part, it starts the timer at
     /// the exact release instant. Each worker seeds its own <see cref="Random"/> from its thread
-    /// index: the streams are distinct per thread and deterministic per index for reproducibility
-    /// within a run, without cross-thread contention on <see cref="Random.Shared"/>.
+    /// index. The streams are distinct per thread and deterministic per index, for reproducibility
+    /// within a run. There is no cross-thread contention on <see cref="Random.Shared"/>.
     /// </para>
     /// <para>
     /// Drain workers exit on their own when they observe the queue empty, usually well before the

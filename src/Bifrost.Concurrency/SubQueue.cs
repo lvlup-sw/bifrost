@@ -1415,8 +1415,8 @@ internal sealed class SubQueue<TElement, TPriority>
     /// <para>
     /// The method first finds <c>hole</c>, the insert position, with the comparer. If <c>D</c> is
     /// full, it then evicts the maximum of <c>D</c> to make room. The evicted maximum is the largest
-    /// resident minimum, and it still outranks everything in <c>I</c> and the heap, relative to the
-    /// smaller incoming key.
+    /// resident minimum. The incoming key is smaller, but the evicted entry still outranks everything
+    /// in <c>I</c> and the heap.
     /// </para>
     /// <para>
     /// The hole-shift moves the block of larger entries from <c>hole</c> up one slot into the

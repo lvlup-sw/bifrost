@@ -274,7 +274,8 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// <c>Interlocked.Increment</c> of <c>_waiterCount</c>) before it reads <c>_completed</c>.
     /// <see cref="Complete"/> publishes the flag behind a full fence before it reads this count.
     /// So either this method sees completion and never parks, or <see cref="Complete"/> sees the
-    /// registration and funds a wake-up permit. Never neither (the store-buffering handshake).
+    /// registration and funds a wake-up permit. This store-buffering handshake rules out the case
+    /// where neither side sees the other.
     /// </para>
     /// <para>
     /// The cancellation check comes before the check of <c>_completed</c>, which matches the

@@ -221,10 +221,10 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             return RunRegisteredWorkerAsync(id, stateCallback, token, retirementToken);
         };
 
-    // The additional linked source for retirement is allocated once per dynamic worker, never per
-    // item. In the finally block: a priority wait can acquire a permit just as retirement wins, so a
-    // retired worker hands a wake to a remaining consumer. An accepted item then cannot be left
-    // without a signal.
+    // The method allocates the extra linked source for retirement (dequeueCancellation) once per
+    // dynamic worker, never per item. A priority wait can acquire a permit just as retirement wins.
+    // So the finally block of a retired worker hands a wake to a remaining consumer, and an accepted
+    // item cannot be left without a signal.
     private async Task RunRegisteredWorkerAsync(string id, Action<bool>? callback, CancellationToken token,
         CancellationToken retirementToken = default)
     {
