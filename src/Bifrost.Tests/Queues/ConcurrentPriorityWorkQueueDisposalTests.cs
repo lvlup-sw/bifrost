@@ -63,7 +63,6 @@ public sealed class ConcurrentPriorityWorkQueueDisposalTests
     [Test]
     public async Task ConcurrentPriorityWorkQueue_DisposeTwice_DoesNotThrow()
     {
-        // Arrange
         var queue = new ConcurrentPriorityWorkQueue<int>(
             SmallCapacity, new PriorityDispatchOptions(), TestTimestampFrequency);
 

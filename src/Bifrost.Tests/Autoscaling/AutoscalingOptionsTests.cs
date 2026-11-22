@@ -25,10 +25,8 @@ public class AutoscalingOptionsTests
     [Test]
     public async Task AutoscalingOptions_DefaultValues_MatchDesign()
     {
-        // Arrange & Act
         var options = new AutoscalingOptions();
 
-        // Assert
         await Assert.That(options.Enabled).IsTrue();
         await Assert.That(options.MinWorkers).IsEqualTo(1);
         await Assert.That(options.MaxWorkers).IsEqualTo(16);
@@ -52,7 +50,6 @@ public class AutoscalingOptionsTests
         // Act - set via object initializer (init-only)
         var options = new AutoscalingOptions { Enabled = false };
 
-        // Assert
         await Assert.That(options.Enabled).IsFalse();
     }
 
@@ -62,11 +59,9 @@ public class AutoscalingOptionsTests
     [Test]
     public async Task MinWorkers_HasRangeAttribute()
     {
-        // Arrange
         var property = typeof(AutoscalingOptions).GetProperty("MinWorkers");
         var attribute = property?.GetCustomAttribute<RangeAttribute>();
 
-        // Assert
         await Assert.That(attribute).IsNotNull();
         await Assert.That(attribute!.Minimum).IsEqualTo(1);
         await Assert.That(attribute.Maximum).IsEqualTo(100);
@@ -78,11 +73,9 @@ public class AutoscalingOptionsTests
     [Test]
     public async Task MaxWorkers_HasRangeAttribute()
     {
-        // Arrange
         var property = typeof(AutoscalingOptions).GetProperty("MaxWorkers");
         var attribute = property?.GetCustomAttribute<RangeAttribute>();
 
-        // Assert
         await Assert.That(attribute).IsNotNull();
         await Assert.That(attribute!.Minimum).IsEqualTo(1);
         await Assert.That(attribute.Maximum).IsEqualTo(100);
@@ -94,11 +87,9 @@ public class AutoscalingOptionsTests
     [Test]
     public async Task HighWatermark_HasRangeAttribute()
     {
-        // Arrange
         var property = typeof(AutoscalingOptions).GetProperty("HighWatermark");
         var attribute = property?.GetCustomAttribute<RangeAttribute>();
 
-        // Assert
         await Assert.That(attribute).IsNotNull();
         await Assert.That(attribute!.Minimum).IsEqualTo(0.0);
         await Assert.That(attribute.Maximum).IsEqualTo(1.0);
@@ -110,11 +101,9 @@ public class AutoscalingOptionsTests
     [Test]
     public async Task LowWatermark_HasRangeAttribute()
     {
-        // Arrange
         var property = typeof(AutoscalingOptions).GetProperty("LowWatermark");
         var attribute = property?.GetCustomAttribute<RangeAttribute>();
 
-        // Assert
         await Assert.That(attribute).IsNotNull();
         await Assert.That(attribute!.Minimum).IsEqualTo(0.0);
         await Assert.That(attribute.Maximum).IsEqualTo(1.0);
@@ -126,11 +115,9 @@ public class AutoscalingOptionsTests
     [Test]
     public async Task ScaleUpStep_HasRangeAttribute()
     {
-        // Arrange
         var property = typeof(AutoscalingOptions).GetProperty("ScaleUpStep");
         var attribute = property?.GetCustomAttribute<RangeAttribute>();
 
-        // Assert
         await Assert.That(attribute).IsNotNull();
         await Assert.That(attribute!.Minimum).IsEqualTo(1);
         await Assert.That(attribute.Maximum).IsEqualTo(10);
@@ -142,11 +129,9 @@ public class AutoscalingOptionsTests
     [Test]
     public async Task ScaleDownStep_HasRangeAttribute()
     {
-        // Arrange
         var property = typeof(AutoscalingOptions).GetProperty("ScaleDownStep");
         var attribute = property?.GetCustomAttribute<RangeAttribute>();
 
-        // Assert
         await Assert.That(attribute).IsNotNull();
         await Assert.That(attribute!.Minimum).IsEqualTo(1);
         await Assert.That(attribute.Maximum).IsEqualTo(10);
@@ -170,7 +155,6 @@ public class AutoscalingOptionsTests
             ScaleDownStep = 2,
         };
 
-        // Assert
         await Assert.That(options.MinWorkers).IsEqualTo(2);
         await Assert.That(options.MaxWorkers).IsEqualTo(32);
         await Assert.That(options.HighWatermark).IsEqualTo(0.9);
@@ -192,7 +176,6 @@ public class AutoscalingOptionsTests
     [Test]
     public async Task Properties_AreInitOnly()
     {
-        // Arrange
         var type = typeof(AutoscalingOptions);
         var propertyNames = new[]
         {
@@ -221,10 +204,8 @@ public class AutoscalingOptionsTests
     [Test]
     public async Task Class_IsPublic()
     {
-        // Arrange
         var type = typeof(AutoscalingOptions);
 
-        // Assert
         await Assert.That(type.IsPublic).IsTrue();
         await Assert.That(type.IsClass).IsTrue();
     }

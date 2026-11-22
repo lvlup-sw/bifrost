@@ -24,7 +24,6 @@ public class WorkerRegistryHealthCheckTests
     [Test]
     public async Task WorkerRegistryHealthCheck_Constructor_ThrowsWhenRegistryNull()
     {
-        // Act & Assert
         await Assert.That(() => new WorkerRegistryHealthCheck(null!))
             .Throws<ArgumentNullException>();
     }
@@ -35,7 +34,6 @@ public class WorkerRegistryHealthCheckTests
     [Test]
     public async Task WorkerRegistryHealthCheck_CheckHealthAsync_ReturnsUnhealthyWhenNoWorkers()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(0);
         registry.IdleWorkerCount.Returns(0);
@@ -43,12 +41,10 @@ public class WorkerRegistryHealthCheckTests
 
         var healthCheck = new WorkerRegistryHealthCheck(registry);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
 
@@ -58,7 +54,6 @@ public class WorkerRegistryHealthCheckTests
     [Test]
     public async Task WorkerRegistryHealthCheck_CheckHealthAsync_ReturnsDegradedWhenAllWorkersBusy()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(4);
         registry.IdleWorkerCount.Returns(0);
@@ -66,12 +61,10 @@ public class WorkerRegistryHealthCheckTests
 
         var healthCheck = new WorkerRegistryHealthCheck(registry);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Degraded);
     }
 
@@ -81,7 +74,6 @@ public class WorkerRegistryHealthCheckTests
     [Test]
     public async Task WorkerRegistryHealthCheck_CheckHealthAsync_ReturnsHealthyWhenWorkersHaveCapacity()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(4);
         registry.IdleWorkerCount.Returns(2);
@@ -89,12 +81,10 @@ public class WorkerRegistryHealthCheckTests
 
         var healthCheck = new WorkerRegistryHealthCheck(registry);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
 
@@ -104,7 +94,6 @@ public class WorkerRegistryHealthCheckTests
     [Test]
     public async Task WorkerRegistryHealthCheck_CheckHealthAsync_IncludesWorkerCountsInData()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(4);
         registry.IdleWorkerCount.Returns(2);
@@ -112,12 +101,10 @@ public class WorkerRegistryHealthCheckTests
 
         var healthCheck = new WorkerRegistryHealthCheck(registry);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Data).IsNotNull();
         await Assert.That(result.Data!.ContainsKey("ActiveWorkers")).IsTrue();
         await Assert.That(result.Data!.ContainsKey("IdleWorkers")).IsTrue();
@@ -131,7 +118,6 @@ public class WorkerRegistryHealthCheckTests
     [Test]
     public async Task WorkerRegistryHealthCheck_CheckHealthAsync_ReturnsCorrectWorkerCounts()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(5);
         registry.IdleWorkerCount.Returns(2);
@@ -139,12 +125,10 @@ public class WorkerRegistryHealthCheckTests
 
         var healthCheck = new WorkerRegistryHealthCheck(registry);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Data!["ActiveWorkers"]).IsEqualTo(5);
         await Assert.That(result.Data!["IdleWorkers"]).IsEqualTo(2);
         await Assert.That(result.Data!["BusyWorkers"]).IsEqualTo(3); // 5 - 2 = 3 busy
@@ -157,7 +141,6 @@ public class WorkerRegistryHealthCheckTests
     [Test]
     public async Task WorkerRegistryHealthCheck_CheckHealthAsync_IncludesDescriptiveMessage()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(0);
         registry.IdleWorkerCount.Returns(0);
@@ -165,12 +148,10 @@ public class WorkerRegistryHealthCheckTests
 
         var healthCheck = new WorkerRegistryHealthCheck(registry);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Description).IsNotNull();
         await Assert.That(result.Description!.Length).IsGreaterThan(0);
     }

@@ -27,12 +27,10 @@ public class DeadLetterSubscriberExtensionsTests
     [Test]
     public async Task WithDeadLetterSubscriber_TypeBased_RegistersSubscriber()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Act
         builder.WithHandler<string>((work, ct) => ValueTask.CompletedTask)
             .WithDeadLetterQueue(opts => opts.MaxRetries = 0)
             .WithDeadLetterSubscriber<string, TestDeadLetterSubscriber>();
@@ -43,7 +41,6 @@ public class DeadLetterSubscriberExtensionsTests
         var subscriber = provider.GetService<TestDeadLetterSubscriber>();
         await Assert.That(subscriber).IsNotNull();
 
-        // Cleanup
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
@@ -54,7 +51,6 @@ public class DeadLetterSubscriberExtensionsTests
     [Test]
     public async Task WithDeadLetterSubscriber_TypeBased_InvokedOnDeadLetter()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
@@ -79,12 +75,10 @@ public class DeadLetterSubscriberExtensionsTests
             await Task.Delay(50, cts.Token).ConfigureAwait(false);
         }
 
-        // Assert
         await Assert.That(subscriber.ReceivedItems.Count).IsGreaterThanOrEqualTo(1);
         await Assert.That(subscriber.ReceivedItems[0].Work).IsEqualTo("test-work");
         await Assert.That(subscriber.ReceivedItems[0].Exception).IsNotNull();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -94,7 +88,6 @@ public class DeadLetterSubscriberExtensionsTests
     [Test]
     public async Task WithDeadLetterSubscriber_Callback_InvokedOnDeadLetter()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
@@ -113,18 +106,15 @@ public class DeadLetterSubscriberExtensionsTests
 
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Act
         await orchestrator.EnqueueAsync("callback-test").ConfigureAwait(false);
 
         // Wait for callback
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var result = await callbackInvoked.Task.WaitAsync(cts.Token).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Work).IsEqualTo("callback-test");
         await Assert.That(result.Exception).IsNotNull();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -134,7 +124,6 @@ public class DeadLetterSubscriberExtensionsTests
     [Test]
     public async Task WithDeadLetterSubscriber_Multiple_AllInvoked()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
@@ -155,7 +144,6 @@ public class DeadLetterSubscriberExtensionsTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var subscriber = provider.GetRequiredService<TestDeadLetterSubscriber>();
 
-        // Act
         await orchestrator.EnqueueAsync("multi-test").ConfigureAwait(false);
 
         // Wait for both to be invoked
@@ -173,7 +161,6 @@ public class DeadLetterSubscriberExtensionsTests
         await Assert.That(subscriber.ReceivedItems[0].Work).IsEqualTo("multi-test");
         await Assert.That(callbackResult.Work).IsEqualTo("multi-test");
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -184,7 +171,6 @@ public class DeadLetterSubscriberExtensionsTests
     [Test]
     public async Task WithDeadLetterSubscriber_WithoutWithDeadLetterQueue_ThrowsOnBuild()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
@@ -216,11 +202,9 @@ public class DeadLetterSubscriberExtensionsTests
     [Test]
     public async Task WithDeadLetterSubscriber_NullCallback_ThrowsArgumentNullException()
     {
-        // Arrange
         var services = new ServiceCollection();
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act & Assert
         await Assert.That(() =>
                 builder.WithDeadLetterSubscriber<string>(
                     (Func<DeadLetteredWork<string>, CancellationToken, Task>)null!))

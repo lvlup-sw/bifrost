@@ -24,10 +24,8 @@ public class IDeadLetterSubscriberTests
     [Test]
     public async Task IDeadLetterSubscriber_IsInterface()
     {
-        // Arrange
         var type = typeof(IDeadLetterSubscriber<>);
 
-        // Assert
         await Assert.That(type.IsInterface).IsTrue();
     }
 
@@ -37,10 +35,8 @@ public class IDeadLetterSubscriberTests
     [Test]
     public async Task IDeadLetterSubscriber_IsPublic()
     {
-        // Arrange
         var type = typeof(IDeadLetterSubscriber<>);
 
-        // Assert
         await Assert.That(type.IsPublic).IsTrue();
     }
 
@@ -50,11 +46,9 @@ public class IDeadLetterSubscriberTests
     [Test]
     public async Task IDeadLetterSubscriber_HasHandleAsyncMethod()
     {
-        // Arrange
         var type = typeof(IDeadLetterSubscriber<string>);
         var method = type.GetMethod("HandleAsync", BindingFlags.Public | BindingFlags.Instance);
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Task));
 
@@ -72,10 +66,8 @@ public class IDeadLetterSubscriberTests
     [Test]
     public async Task IDeadLetterSubscriber_IsGeneric()
     {
-        // Arrange
         var type = typeof(IDeadLetterSubscriber<>);
 
-        // Assert
         await Assert.That(type.IsGenericTypeDefinition).IsTrue();
         await Assert.That(type.GetGenericArguments()).HasCount(1);
     }

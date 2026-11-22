@@ -101,10 +101,8 @@ public sealed class ClassifierOptionTests
         // Arrange — no classifier supplied.
         await using var orchestrator = CreateOrchestrator(classifier: null);
 
-        // Act
         var result = await orchestrator.EnqueueAsync("plain").ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(orchestrator.TryReadEnvelope(out var envelope)).IsTrue();
         await Assert.That(envelope.Class).IsEqualTo(WorkClass.Default);

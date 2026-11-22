@@ -30,17 +30,14 @@ public class DeadLetterNotifierTests
     [Test]
     public async Task Notify_WithSubscriber_InvokesCallback()
     {
-        // Arrange
         var notifier = CreateNotifier();
         var received = new TaskCompletionSource<WorkDeadLetteredEvent<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
         notifier.Subscribe(evt => received.TrySetResult(evt));
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
-        // Act
         notifier.Notify(evt);
 
-        // Assert
         await Assert.That(await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false)).IsEqualTo(evt);
     }
 
@@ -50,7 +47,6 @@ public class DeadLetterNotifierTests
     [Test]
     public async Task Notify_WithoutSubscriber_DoesNotThrow()
     {
-        // Arrange
         var notifier = CreateNotifier();
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
@@ -68,13 +64,10 @@ public class DeadLetterNotifierTests
     [Test]
     public async Task Subscribe_ReturnsDisposable()
     {
-        // Arrange
         var notifier = CreateNotifier();
 
-        // Act
         var subscription = notifier.Subscribe(_ => { });
 
-        // Assert
         await Assert.That(subscription).IsNotNull();
     }
 
@@ -84,7 +77,6 @@ public class DeadLetterNotifierTests
     [Test]
     public async Task Subscribe_Dispose_RemovesSubscriber()
     {
-        // Arrange
         var notifier = CreateNotifier();
         var callCount = 0;
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -96,13 +88,11 @@ public class DeadLetterNotifierTests
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
-        // Act
         notifier.Notify(evt);
         await done.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         subscription.Dispose();
         notifier.Notify(evt);
 
-        // Assert
         await Assert.That(callCount).IsEqualTo(1);
     }
 
@@ -113,7 +103,6 @@ public class DeadLetterNotifierTests
     [Test]
     public async Task Subscribe_Multiple_DoesNotThrow()
     {
-        // Arrange
         var notifier = CreateNotifier();
         notifier.Subscribe(_ => { });
 
@@ -128,11 +117,9 @@ public class DeadLetterNotifierTests
     [Test]
     public async Task Subscribe_AfterDispose_AllowsResubscription()
     {
-        // Arrange
         var notifier = CreateNotifier();
         var firstSubscription = notifier.Subscribe(_ => { });
 
-        // Act
         firstSubscription.Dispose();
         var secondCallCount = 0;
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -145,7 +132,6 @@ public class DeadLetterNotifierTests
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
         notifier.Notify(evt);
 
-        // Assert
         await done.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(secondCallCount).IsEqualTo(1);
     }
@@ -156,7 +142,6 @@ public class DeadLetterNotifierTests
     [Test]
     public async Task Notify_WithMultipleSubscribers_InvokesAllCallbacks()
     {
-        // Arrange
         var notifier = CreateNotifier();
         var callCount1 = 0;
         var callCount2 = 0;
@@ -182,7 +167,6 @@ public class DeadLetterNotifierTests
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
-        // Act
         notifier.Notify(evt);
 
         // Assert — await all three fire-and-forget callbacks deterministically rather than racing a
@@ -199,7 +183,6 @@ public class DeadLetterNotifierTests
     [Test]
     public async Task Notify_SubscriberThrows_OtherSubscribersStillCalled()
     {
-        // Arrange
         var notifier = CreateNotifier();
         var beforeCallCount = 0;
         var afterCallCount = 0;
@@ -220,7 +203,6 @@ public class DeadLetterNotifierTests
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
-        // Act
         notifier.Notify(evt);
 
         // Assert - both non-throwing subscribers run even though the middle one throws; await them
@@ -236,7 +218,6 @@ public class DeadLetterNotifierTests
     [Test]
     public async Task Notify_SubscriberThrows_DoesNotPropagateToCallerSynchronously()
     {
-        // Arrange
         var notifier = CreateNotifier();
         notifier.SubscribeAsync(_ => throw new InvalidOperationException("subscriber error"));
 
@@ -259,7 +240,6 @@ public class DeadLetterNotifierTests
     [Test]
     public async Task SubscribeAsync_WithAsyncCallback_InvokesCallback()
     {
-        // Arrange
         var notifier = CreateNotifier();
         var received = new TaskCompletionSource<WorkDeadLetteredEvent<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
         notifier.SubscribeAsync(async evt =>
@@ -270,7 +250,6 @@ public class DeadLetterNotifierTests
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
-        // Act
         notifier.Notify(evt);
 
         // Assert — await the fire-and-forget callback deterministically rather than racing a fixed

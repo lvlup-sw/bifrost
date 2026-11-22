@@ -28,7 +28,6 @@ public class DelegateWorkHandlerTests
     [Test]
     public async Task DelegateWorkHandler_HandleAsync_ExecutesDelegate()
     {
-        // Arrange
         var handler = new DelegateWorkHandler();
         var executed = false;
         Func<Task> work = () =>
@@ -37,10 +36,8 @@ public class DelegateWorkHandlerTests
             return Task.CompletedTask;
         };
 
-        // Act
         await handler.HandleAsync(work, CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(executed).IsTrue();
     }
 
@@ -55,10 +52,8 @@ public class DelegateWorkHandlerTests
     [Test]
     public async Task DelegateWorkHandler_HandleAsync_ThrowsWhenWorkNull()
     {
-        // Arrange
         var handler = new DelegateWorkHandler();
 
-        // Act & Assert
         await Assert.That(() => handler.HandleAsync(null!, CancellationToken.None).AsTask())
             .Throws<ArgumentNullException>();
     }
@@ -74,7 +69,6 @@ public class DelegateWorkHandlerTests
     [Test]
     public async Task DelegateWorkHandler_HandleAsync_AwaitsAsyncDelegate()
     {
-        // Arrange
         var handler = new DelegateWorkHandler();
         var completedOrder = new List<int>();
 
@@ -84,7 +78,6 @@ public class DelegateWorkHandlerTests
             completedOrder.Add(1);
         };
 
-        // Act
         await handler.HandleAsync(work, CancellationToken.None).ConfigureAwait(false);
         completedOrder.Add(2);
 
@@ -103,7 +96,6 @@ public class DelegateWorkHandlerTests
     [Test]
     public async Task CancellableDelegateWorkHandler_HandleAsync_PassesCancellationToken()
     {
-        // Arrange
         var handler = new CancellableDelegateWorkHandler();
         using var cts = new CancellationTokenSource();
         CancellationToken receivedToken = default;
@@ -114,10 +106,8 @@ public class DelegateWorkHandlerTests
             return Task.CompletedTask;
         };
 
-        // Act
         await handler.HandleAsync(work, cts.Token).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(receivedToken).IsEqualTo(cts.Token);
     }
 
@@ -132,10 +122,8 @@ public class DelegateWorkHandlerTests
     [Test]
     public async Task CancellableDelegateWorkHandler_HandleAsync_ThrowsWhenWorkNull()
     {
-        // Arrange
         var handler = new CancellableDelegateWorkHandler();
 
-        // Act & Assert
         await Assert.That(() => handler.HandleAsync(null!, CancellationToken.None).AsTask())
             .Throws<ArgumentNullException>();
     }
@@ -151,7 +139,6 @@ public class DelegateWorkHandlerTests
     [Test]
     public async Task CancellableDelegateWorkHandler_HandleAsync_RespectsCancellation()
     {
-        // Arrange
         var handler = new CancellableDelegateWorkHandler();
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync().ConfigureAwait(false);
@@ -162,7 +149,6 @@ public class DelegateWorkHandlerTests
             await Task.CompletedTask.ConfigureAwait(false);
         };
 
-        // Act & Assert
         await Assert.That(() => handler.HandleAsync(work, cts.Token).AsTask())
             .Throws<OperationCanceledException>();
     }

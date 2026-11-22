@@ -22,10 +22,8 @@ public class WorkerMetricsTests
     [Test]
     public async Task InFlightCount_Initial_ReturnsZero()
     {
-        // Arrange
         var metrics = new WorkerMetrics();
 
-        // Assert
         await Assert.That(metrics.InFlightCount).IsEqualTo(0);
     }
 
@@ -35,7 +33,6 @@ public class WorkerMetricsTests
     [Test]
     public async Task RecordEnqueue_DoesNotThrow()
     {
-        // Arrange
         var metrics = new WorkerMetrics();
 
         // Act — RecordEnqueue is a signal for the autoscaling decorator
@@ -53,14 +50,11 @@ public class WorkerMetricsTests
     [Test]
     public async Task RecordExecutionStart_IncrementsInFlightCount()
     {
-        // Arrange
         var metrics = new WorkerMetrics();
 
-        // Act
         metrics.RecordExecutionStart();
         metrics.RecordExecutionStart();
 
-        // Assert
         await Assert.That(metrics.InFlightCount).IsEqualTo(2);
     }
 
@@ -70,15 +64,12 @@ public class WorkerMetricsTests
     [Test]
     public async Task RecordExecutionEnd_DecrementsInFlightCount()
     {
-        // Arrange
         var metrics = new WorkerMetrics();
         metrics.RecordExecutionStart();
         metrics.RecordExecutionStart();
 
-        // Act
         metrics.RecordExecutionEnd();
 
-        // Assert
         await Assert.That(metrics.InFlightCount).IsEqualTo(1);
     }
 
@@ -88,7 +79,6 @@ public class WorkerMetricsTests
     [Test]
     public async Task Metrics_ThreadSafe_HandlesParallelOperations()
     {
-        // Arrange
         var metrics = new WorkerMetrics();
         const int operationsPerTask = 1000;
         const int taskCount = 10;
@@ -116,10 +106,8 @@ public class WorkerMetricsTests
     [Test]
     public async Task WorkerMetrics_ImplementsIWorkerMetrics()
     {
-        // Arrange & Act
         var metrics = new WorkerMetrics();
 
-        // Assert
         await Assert.That(metrics).IsAssignableTo<IWorkerMetrics>();
     }
 }

@@ -23,13 +23,10 @@ public class EventsPortTests
     [Test]
     public async Task Interface_DefinesPublishEventMethod()
     {
-        // Arrange
         var type = typeof(IAutoscalingEventsPort);
 
-        // Act
         var method = type.GetMethod(nameof(IAutoscalingEventsPort.PublishEvent));
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(void));
 
@@ -45,13 +42,10 @@ public class EventsPortTests
     [Test]
     public async Task Interface_DefinesQueuedEventCountProperty()
     {
-        // Arrange
         var type = typeof(IAutoscalingEventsPort);
 
-        // Act
         var property = type.GetProperty(nameof(IAutoscalingEventsPort.QueuedEventCount));
 
-        // Assert
         await Assert.That(property).IsNotNull();
         await Assert.That(property!.PropertyType).IsEqualTo(typeof(long));
         await Assert.That(property.CanRead).IsTrue();
@@ -64,13 +58,10 @@ public class EventsPortTests
     [Test]
     public async Task Interface_DefinesActiveSubscriberCountProperty()
     {
-        // Arrange
         var type = typeof(IAutoscalingEventsPort);
 
-        // Act
         var property = type.GetProperty(nameof(IAutoscalingEventsPort.ActiveSubscriberCount));
 
-        // Assert
         await Assert.That(property).IsNotNull();
         await Assert.That(property!.PropertyType).IsEqualTo(typeof(long));
         await Assert.That(property.CanRead).IsTrue();
@@ -83,10 +74,8 @@ public class EventsPortTests
     [Test]
     public async Task Interface_IsInterface()
     {
-        // Arrange
         var type = typeof(IAutoscalingEventsPort);
 
-        // Assert
         await Assert.That(type.IsInterface).IsTrue();
     }
 }

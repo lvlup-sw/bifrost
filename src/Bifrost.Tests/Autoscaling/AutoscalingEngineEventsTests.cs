@@ -28,7 +28,6 @@ public class AutoscalingEngineEventsTests
     [Test]
     public async Task ScalingDecisionMade_AfterEvaluation_RaisesEvent()
     {
-        // Arrange
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -36,12 +35,10 @@ public class AutoscalingEngineEventsTests
         ScalingDecisionEventArgs? capturedArgs = null;
         engine.ScalingDecisionMade += (sender, args) => capturedArgs = args;
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
         await Task.Delay(200).ConfigureAwait(false); // Wait for at least one evaluation
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(capturedArgs).IsNotNull();
         await Assert.That(capturedArgs!.Decision.CurrentWorkers).IsEqualTo(2);
     }
@@ -52,7 +49,6 @@ public class AutoscalingEngineEventsTests
     [Test]
     public async Task ScalingDecisionMade_ContainsCorrelationId()
     {
-        // Arrange
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -60,12 +56,10 @@ public class AutoscalingEngineEventsTests
         ScalingDecisionEventArgs? capturedArgs = null;
         engine.ScalingDecisionMade += (sender, args) => capturedArgs = args;
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
         await Task.Delay(200).ConfigureAwait(false);
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(capturedArgs).IsNotNull();
         await Assert.That(capturedArgs!.CorrelationId).IsNotEmpty();
     }
@@ -76,7 +70,6 @@ public class AutoscalingEngineEventsTests
     [Test]
     public async Task ScalingDecisionMade_EachEventHasUniqueCorrelationId()
     {
-        // Arrange
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -84,7 +77,6 @@ public class AutoscalingEngineEventsTests
         var correlationIds = new List<string>();
         engine.ScalingDecisionMade += (_, args) => correlationIds.Add(args.CorrelationId);
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
 
         // Poll until we have at least 2 evaluations (generous timeout for CI)
@@ -122,12 +114,10 @@ public class AutoscalingEngineEventsTests
         ScalingDecisionEventArgs? capturedArgs = null;
         engine.ScalingDecisionMade += (_, args) => capturedArgs = args;
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
         await Task.Delay(200).ConfigureAwait(false);
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(capturedArgs).IsNotNull();
         await Assert.That(capturedArgs!.Decision.Action).IsEqualTo(ScalingAction.ScaleUp);
         await Assert.That(capturedArgs.Decision.CurrentWorkers).IsEqualTo(2);
@@ -140,7 +130,6 @@ public class AutoscalingEngineEventsTests
     [Test]
     public async Task ScalingDecisionMade_WhenStopped_NoEventRaised()
     {
-        // Arrange
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -151,7 +140,6 @@ public class AutoscalingEngineEventsTests
         // Act - Never start the engine
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(eventCount).IsEqualTo(0);
     }
 
@@ -161,10 +149,8 @@ public class AutoscalingEngineEventsTests
     [Test]
     public async Task ScalingDecisionEventArgs_IsSealedRecord()
     {
-        // Arrange
         var type = typeof(ScalingDecisionEventArgs);
 
-        // Assert
         await Assert.That(type.IsSealed).IsTrue();
     }
 
@@ -185,7 +171,6 @@ public class AutoscalingEngineEventsTests
         var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<AutoscalingEngine>>();
         var engine = new AutoscalingEngine(options, coordinator, logger);
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
         await Task.Delay(300).ConfigureAwait(false); // Wait for evaluation + fault handling
         await engine.StopAsync().ConfigureAwait(false);
@@ -223,7 +208,6 @@ public class AutoscalingEngineEventsTests
 
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
         // Wait for at least one scale up to start
         await scaleUpStarted.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);

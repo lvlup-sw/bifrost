@@ -27,22 +27,18 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_TypeBased_RegistersHandlerInDI()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Act
         builder.WithHandler<string, TestHandler>();
         builder.Build();
         var provider = services.BuildServiceProvider();
         var handler = provider.GetService<IWorkHandler<string>>();
 
-        // Assert
         await Assert.That(handler).IsNotNull();
         await Assert.That(handler).IsTypeOf<TestHandler>();
 
-        // Cleanup
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
@@ -53,12 +49,10 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_TypeBased_DefaultLifetime_IsSingleton()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Act
         builder.WithHandler<string, TestHandler>();
 
         // Assert - check the service descriptor
@@ -74,15 +68,12 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_TypeBased_ScopedLifetime_RegistersAsScoped()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Act
         builder.WithHandler<string, TestHandler>(ServiceLifetime.Scoped);
 
-        // Assert
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IWorkHandler<string>));
         await Assert.That(descriptor).IsNotNull();
@@ -95,15 +86,12 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_TypeBased_TransientLifetime_RegistersAsTransient()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Act
         builder.WithHandler<string, TestHandler>(ServiceLifetime.Transient);
 
-        // Assert
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IWorkHandler<string>));
         await Assert.That(descriptor).IsNotNull();
@@ -116,15 +104,12 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_TypeBased_SetsHandlerRegisteredFlag()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithHandler<string, TestHandler>();
 
-        // Assert
         await Assert.That(builder.HandlerRegistered).IsTrue();
     }
 
@@ -134,13 +119,11 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_CalledTwice_ThrowsInvalidOperationException()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>();
         builder.WithHandler<string, TestHandler>();
 
-        // Act & Assert
         await Assert.That(() => builder.WithHandler<string, TestHandler>())
             .Throws<InvalidOperationException>();
     }
@@ -151,7 +134,6 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_TypeBased_NullBuilder_ThrowsArgumentNullException()
     {
-        // Act & Assert
         await Assert.That(() =>
                 HandlerExtensions.WithHandler<string, TestHandler>(null!))
             .Throws<ArgumentNullException>();
@@ -163,15 +145,12 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_TypeBased_ChainsWithOtherExtensions()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Act
         var result = builder.WithHandler<string, TestHandler>();
 
-        // Assert
         await Assert.That(result).IsEqualTo(builder);
     }
 
@@ -185,23 +164,19 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_Factory_RegistersFromFactory()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
         var factoryHandler = new TestHandler();
 
-        // Act
         builder.WithHandler<string>(sp => factoryHandler);
         builder.Build();
         var provider = services.BuildServiceProvider();
         var resolved = provider.GetService<IWorkHandler<string>>();
 
-        // Assert
         await Assert.That(resolved).IsNotNull();
         await Assert.That(resolved).IsSameReferenceAs(factoryHandler);
 
-        // Cleanup
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
@@ -212,15 +187,12 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_Factory_RespectsLifetime()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Act
         builder.WithHandler<string>(sp => new TestHandler(), ServiceLifetime.Transient);
 
-        // Assert
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IWorkHandler<string>));
         await Assert.That(descriptor).IsNotNull();
@@ -233,11 +205,9 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_Factory_NullFactory_ThrowsArgumentNullException()
     {
-        // Arrange
         var services = new ServiceCollection();
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act & Assert
         await Assert.That(() =>
                 builder.WithHandler<string>(
                     (Func<IServiceProvider, IWorkHandler<string>>)null!))
@@ -254,22 +224,18 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_Delegate_RegistersInlineDelegateHandler()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Act
         builder.WithHandler<string>((work, ct) => ValueTask.CompletedTask);
         builder.Build();
         var provider = services.BuildServiceProvider();
         var handler = provider.GetService<IWorkHandler<string>>();
 
-        // Assert
         await Assert.That(handler).IsNotNull();
         await Assert.That(handler!.GetType().Name).Contains("InlineDelegateWorkHandler");
 
-        // Cleanup
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
@@ -280,7 +246,6 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_Delegate_HandlerInvokesDelegateOnProcess()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
@@ -295,14 +260,11 @@ public class HandlerExtensionsTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Act
         await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
         await Task.Delay(200).ConfigureAwait(false); // Allow processing
 
-        // Assert
         await Assert.That(invoked).IsTrue();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -312,11 +274,9 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_Delegate_NullDelegate_ThrowsArgumentNullException()
     {
-        // Arrange
         var services = new ServiceCollection();
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act & Assert
         await Assert.That(() =>
                 builder.WithHandler<string>(
                     (Func<string, CancellationToken, ValueTask>)null!))
@@ -329,15 +289,12 @@ public class HandlerExtensionsTests
     [Test]
     public async Task WithHandler_Delegate_RegistersAsSingleton()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Act
         builder.WithHandler<string>((work, ct) => ValueTask.CompletedTask);
 
-        // Assert
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IWorkHandler<string>));
         await Assert.That(descriptor).IsNotNull();

@@ -60,12 +60,10 @@ public class PriorityKeyTests
     [Arguments(WorkClass.Batch)]
     public async Task Compute_SameClass_PreservesFifoOrder(WorkClass workClass)
     {
-        // Arrange
         var boosts = PriorityKey.Precompute(new PriorityDispatchOptions(), TimeSpanTickFrequency);
         var earlier = new WorkEnvelope<string>("first", workClass, 1_000_000_000L);
         var later = new WorkEnvelope<string>("second", workClass, 1_000_000_001L);
 
-        // Act
         var earlierKey = PriorityKey.Compute(in earlier, in boosts);
         var laterKey = PriorityKey.Compute(in later, in boosts);
 
@@ -94,7 +92,6 @@ public class PriorityKeyTests
         var freshInteractive = new WorkEnvelope<string>(
             "interactive", WorkClass.Interactive, BaseTicks + BoostTicks - 1);
 
-        // Act
         var defaultKey = PriorityKey.Compute(in olderDefault, in boosts);
         var batchKey = PriorityKey.Compute(in olderBatch, in boosts);
         var interactiveKey = PriorityKey.Compute(in freshInteractive, in boosts);
@@ -115,7 +112,6 @@ public class PriorityKeyTests
     [Test]
     public async Task Compute_BatchOlderThanBoostWindow_OutranksFreshInteractive()
     {
-        // Arrange
         var fakeTime = new FakeTimeProvider();
         var options = new PriorityDispatchOptions();
         var boosts = PriorityKey.Precompute(options, fakeTime.TimestampFrequency);
@@ -127,7 +123,6 @@ public class PriorityKeyTests
         var freshInteractive = new WorkEnvelope<string>(
             "interactive", WorkClass.Interactive, fakeTime.GetTimestamp());
 
-        // Act
         var batchKey = PriorityKey.Compute(in batch, in boosts);
         var interactiveKey = PriorityKey.Compute(in freshInteractive, in boosts);
 
@@ -146,12 +141,10 @@ public class PriorityKeyTests
     [Arguments(NanosecondFrequency)]
     public async Task Compute_DefaultClass_ZeroBoost(long frequency)
     {
-        // Arrange
         var boosts = PriorityKey.Precompute(new PriorityDispatchOptions(), frequency);
         const long EnqueuedAt = 123_456_789L;
         var envelope = new WorkEnvelope<string>("default", WorkClass.Default, EnqueuedAt);
 
-        // Act
         var key = PriorityKey.Compute(in envelope, in boosts);
 
         // Assert — key equals the raw timestamp: zero boost, no scaling applied.
@@ -177,7 +170,6 @@ public class PriorityKeyTests
         const long PenaltyTicks = 5L * TimeSpanTickFrequency;
         var envelope = new WorkEnvelope<string>("batch", WorkClass.Batch, EnqueuedAt);
 
-        // Act
         var key = PriorityKey.Compute(in envelope, in boosts);
 
         // Assert — timestamp − (−penalty) = timestamp + penalty.
@@ -224,7 +216,6 @@ public class PriorityKeyTests
                 }
             }
 
-            // Assert
             await Assert.That(first).IsEqualTo(expected);
             await Assert.That(allIdentical).IsTrue();
         }
@@ -238,10 +229,8 @@ public class PriorityKeyTests
     [Test]
     public async Task Options_Defaults_Interactive30s_BatchZero()
     {
-        // Arrange & Act
         var options = new PriorityDispatchOptions();
 
-        // Assert
         await Assert.That(options.InteractiveBoostWindow).IsEqualTo(TimeSpan.FromSeconds(30));
         await Assert.That(options.BatchPenaltyWindow).IsEqualTo(TimeSpan.Zero);
     }
@@ -254,7 +243,6 @@ public class PriorityKeyTests
     [Test]
     public async Task Options_NegativeInteractiveBoostWindow_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new PriorityDispatchOptions
         {
             InteractiveBoostWindow = TimeSpan.FromSeconds(-1),
@@ -269,7 +257,6 @@ public class PriorityKeyTests
     [Test]
     public async Task Options_NegativeBatchPenaltyWindow_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new PriorityDispatchOptions
         {
             BatchPenaltyWindow = TimeSpan.FromSeconds(-1),

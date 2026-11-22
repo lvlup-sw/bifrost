@@ -22,7 +22,6 @@ public class WorkCompletedEventTests
     [Test]
     public async Task WorkCompletedEvent_IsSealedRecordClass()
     {
-        // Arrange
         var type = typeof(WorkCompletedEvent<>);
 
         // Assert - check it's a reference type (class), not a value type (struct)
@@ -41,10 +40,8 @@ public class WorkCompletedEventTests
     [Test]
     public async Task WorkCompletedEvent_HasCorrectProperties()
     {
-        // Arrange
         var type = typeof(WorkCompletedEvent<>);
 
-        // Assert
         var workProperty = type.GetProperty("Work");
         var durationProperty = type.GetProperty("Duration");
         var successProperty = type.GetProperty("Success");
@@ -66,10 +63,8 @@ public class WorkCompletedEventTests
     [Test]
     public async Task WorkCompletedEvent_ImplementsIOrchestratorEvent()
     {
-        // Arrange
         var type = typeof(WorkCompletedEvent<>);
 
-        // Assert
         await Assert.That(typeof(IOrchestratorEvent).IsAssignableFrom(type)).IsTrue();
     }
 
@@ -79,10 +74,8 @@ public class WorkCompletedEventTests
     [Test]
     public async Task WorkCompletedEvent_ImplementsICorrelatedEvent()
     {
-        // Arrange
         var type = typeof(WorkCompletedEvent<>);
 
-        // Assert
         await Assert.That(typeof(ICorrelatedEvent).IsAssignableFrom(type)).IsTrue();
     }
 
@@ -92,15 +85,12 @@ public class WorkCompletedEventTests
     [Test]
     public async Task Constructor_SetsPropertiesCorrectly()
     {
-        // Arrange
         var work = "test-work";
         var duration = TimeSpan.FromMilliseconds(100);
         var success = true;
 
-        // Act
         var evt = new WorkCompletedEvent<string>(work, duration, success);
 
-        // Assert
         await Assert.That(evt.Work).IsEqualTo(work);
         await Assert.That(evt.Duration).IsEqualTo(duration);
         await Assert.That(evt.Success).IsEqualTo(success);
@@ -112,10 +102,8 @@ public class WorkCompletedEventTests
     [Test]
     public async Task Constructor_DefaultsCorrelationIdToNull()
     {
-        // Act
         var evt = new WorkCompletedEvent<string>("work", TimeSpan.Zero, true);
 
-        // Assert
         await Assert.That(evt.CorrelationId).IsNull();
     }
 
@@ -125,10 +113,8 @@ public class WorkCompletedEventTests
     [Test]
     public async Task Constructor_SetsCorrelationId()
     {
-        // Act
         var evt = new WorkCompletedEvent<string>("work", TimeSpan.Zero, true, "corr-123");
 
-        // Assert
         await Assert.That(evt.CorrelationId).IsEqualTo("corr-123");
     }
 
@@ -138,15 +124,12 @@ public class WorkCompletedEventTests
     [Test]
     public async Task Constructor_SetsSuccessFalse_WhenFailed()
     {
-        // Arrange
         var work = "test-work";
         var duration = TimeSpan.FromMilliseconds(50);
         var success = false;
 
-        // Act
         var evt = new WorkCompletedEvent<string>(work, duration, success);
 
-        // Assert
         await Assert.That(evt.Success).IsFalse();
     }
 
@@ -156,10 +139,8 @@ public class WorkCompletedEventTests
     [Test]
     public async Task Type_IsPublic()
     {
-        // Arrange
         var type = typeof(WorkCompletedEvent<>);
 
-        // Assert
         await Assert.That(type.IsPublic).IsTrue();
     }
 }

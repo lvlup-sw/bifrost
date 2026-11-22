@@ -22,10 +22,8 @@ public class ResiliencySettingsTests
     [Test]
     public async Task Key_ReturnsExpectedSectionName()
     {
-        // Act
         var key = ResiliencySettings.Key;
 
-        // Assert
         await Assert.That(key).IsEqualTo("ResiliencySettings");
     }
 
@@ -35,10 +33,8 @@ public class ResiliencySettingsTests
     [Test]
     public async Task RetryCount_DefaultValue_IsThree()
     {
-        // Arrange
         var settings = new ResiliencySettings();
 
-        // Assert
         await Assert.That(settings.RetryCount).IsEqualTo(3);
     }
 
@@ -48,10 +44,8 @@ public class ResiliencySettingsTests
     [Test]
     public async Task RetryIntervalSeconds_DefaultValue_IsTwo()
     {
-        // Arrange
         var settings = new ResiliencySettings();
 
-        // Assert
         await Assert.That(settings.RetryIntervalSeconds).IsEqualTo(2);
     }
 
@@ -61,10 +55,8 @@ public class ResiliencySettingsTests
     [Test]
     public async Task UseExponentialBackoff_DefaultValue_IsTrue()
     {
-        // Arrange
         var settings = new ResiliencySettings();
 
-        // Assert
         await Assert.That(settings.UseExponentialBackoff).IsTrue();
     }
 
@@ -74,10 +66,8 @@ public class ResiliencySettingsTests
     [Test]
     public async Task TimeoutIntervalSeconds_DefaultValue_IsFive()
     {
-        // Arrange
         var settings = new ResiliencySettings();
 
-        // Assert
         await Assert.That(settings.TimeoutIntervalSeconds).IsEqualTo(5);
     }
 
@@ -87,10 +77,8 @@ public class ResiliencySettingsTests
     [Test]
     public async Task BulkheadMaxParallelization_DefaultValue_IsTen()
     {
-        // Arrange
         var settings = new ResiliencySettings();
 
-        // Assert
         await Assert.That(settings.BulkheadMaxParallelization).IsEqualTo(10);
     }
 
@@ -100,10 +88,8 @@ public class ResiliencySettingsTests
     [Test]
     public async Task BulkheadMaxQueuingActions_DefaultValue_IsTwenty()
     {
-        // Arrange
         var settings = new ResiliencySettings();
 
-        // Assert
         await Assert.That(settings.BulkheadMaxQueuingActions).IsEqualTo(20);
     }
 
@@ -113,10 +99,8 @@ public class ResiliencySettingsTests
     [Test]
     public async Task CircuitBreakerCount_DefaultValue_IsThree()
     {
-        // Arrange
         var settings = new ResiliencySettings();
 
-        // Assert
         await Assert.That(settings.CircuitBreakerCount).IsEqualTo(3);
     }
 
@@ -126,10 +110,8 @@ public class ResiliencySettingsTests
     [Test]
     public async Task CircuitBreakerIntervalMinutes_DefaultValue_IsOne()
     {
-        // Arrange
         var settings = new ResiliencySettings();
 
-        // Assert
         await Assert.That(settings.CircuitBreakerIntervalMinutes).IsEqualTo(1);
     }
 
@@ -139,7 +121,6 @@ public class ResiliencySettingsTests
     [Test]
     public async Task Settings_CanBeConfiguredViaInit()
     {
-        // Arrange
         var settings = new ResiliencySettings
         {
             RetryCount = 5,
@@ -152,7 +133,6 @@ public class ResiliencySettingsTests
             CircuitBreakerIntervalMinutes = 5
         };
 
-        // Assert
         await Assert.That(settings.RetryCount).IsEqualTo(5);
         await Assert.That(settings.RetryIntervalSeconds).IsEqualTo(10);
         await Assert.That(settings.UseExponentialBackoff).IsFalse();

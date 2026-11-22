@@ -24,19 +24,16 @@ public class ServiceCollectionExtensionsTests
     [Test]
     public async Task AddWorkOrchestrator_ReturnsBuilder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
 
-        // Act
         var builder = services.AddWorkOrchestrator<string>(opts =>
         {
             opts.Capacity = 64;
             opts.WorkerCount = 4;
         });
 
-        // Assert
         await Assert.That(builder).IsNotNull();
         await Assert.That(builder).IsTypeOf<WorkOrchestratorBuilder<string>>();
     }
@@ -47,10 +44,8 @@ public class ServiceCollectionExtensionsTests
     [Test]
     public async Task AddWorkOrchestrator_ThrowsWhenServicesNull()
     {
-        // Arrange
         IServiceCollection services = null!;
 
-        // Act & Assert
         await Assert.That(() => services.AddWorkOrchestrator<string>())
             .Throws<ArgumentNullException>();
     }
@@ -61,12 +56,10 @@ public class ServiceCollectionExtensionsTests
     [Test]
     public async Task AddWorkOrchestrator_RegistersOptions()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
 
-        // Act
         services.AddWorkOrchestrator<string>(opts =>
         {
             opts.Capacity = 256;
@@ -76,11 +69,9 @@ public class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert
         await Assert.That(orchestrator.Capacity).IsEqualTo(256);
         await Assert.That(orchestrator.ActiveWorkers).IsEqualTo(8);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 }

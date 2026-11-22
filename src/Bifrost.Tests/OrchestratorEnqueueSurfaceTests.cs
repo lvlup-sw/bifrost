@@ -60,7 +60,6 @@ public class OrchestratorEnqueueSurfaceTests
     [Test]
     public async Task EnqueueAsync_AfterShutdown_ReturnsRejectedShutdown()
     {
-        // Arrange
         var handler = Substitute.For<IWorkHandler<string>>();
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 }); // No default workers
         var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
@@ -146,10 +145,8 @@ public class OrchestratorEnqueueSurfaceTests
     [Test]
     public async Task Writer_Property_NoLongerExists()
     {
-        // Act
         var property = typeof(IWorkOrchestrator<string>).GetProperty("Writer");
 
-        // Assert
         await Assert.That(property).IsNull();
     }
 

@@ -51,7 +51,6 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Options_Default_IsFifo()
     {
-        // Arrange / Act
         var options = new WorkOrchestratorOptions();
 
         // Assert — FIFO is the default strategy; the priority options are eagerly
@@ -68,13 +67,11 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Orchestrator_Fifo_UsesFifoChannelWorkQueue()
     {
-        // Arrange / Act
         await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
         });
 
-        // Assert
         await Assert.That(orchestrator.WorkQueue)
             .IsTypeOf<FifoChannelWorkQueue<WorkEnvelope<string>>>();
     }
@@ -87,7 +84,6 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Orchestrator_PriorityMultiQueue_UsesConcurrentPriorityWorkQueue()
     {
-        // Arrange / Act
         await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
@@ -95,7 +91,6 @@ public sealed class DispatchStrategyTests
             FullMode = QueueFullMode.Reject,
         });
 
-        // Assert
         await Assert.That(orchestrator.WorkQueue)
             .IsTypeOf<ConcurrentPriorityWorkQueue<string>>();
     }
@@ -108,7 +103,6 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Orchestrator_PriorityLocking_UsesLockingPriorityWorkQueue()
     {
-        // Arrange / Act
         await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
@@ -116,7 +110,6 @@ public sealed class DispatchStrategyTests
             FullMode = QueueFullMode.Reject,
         });
 
-        // Assert
         await Assert.That(orchestrator.WorkQueue)
             .IsTypeOf<LockingPriorityWorkQueue<string>>();
     }
@@ -164,7 +157,6 @@ public sealed class DispatchStrategyTests
         await orchestrator.DrainAsync().ConfigureAwait(false);
         var afterComplete = await orchestrator.EnqueueAsync("late", WorkClass.Interactive).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(afterComplete.IsAccepted).IsFalse();
         await Assert.That(afterComplete.Reason).IsEqualTo(RejectionReason.Shutdown);
     }
@@ -196,7 +188,6 @@ public sealed class DispatchStrategyTests
             await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         }
 
-        // Act
         var batch = await orchestrator.EnqueueAsync("batch", WorkClass.Batch).ConfigureAwait(false);
         var interactive = await orchestrator.EnqueueAsync("interactive", WorkClass.Interactive).ConfigureAwait(false);
 
@@ -217,12 +208,10 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Builder_UsePriorityDispatch_SetsPrioritySentinelAndAppliesDelegate()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
 
-        // Act
         services.AddWorkOrchestrator<string>(opts =>
         {
             opts.Capacity = 16;
@@ -249,12 +238,10 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Builder_UsePriorityDispatch_Locking_SelectsLocking()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
 
-        // Act
         services.AddWorkOrchestrator<string>(opts =>
         {
             opts.Capacity = 16;

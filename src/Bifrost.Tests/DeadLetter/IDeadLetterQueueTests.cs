@@ -24,10 +24,8 @@ public class IDeadLetterQueueTests
     [Test]
     public async Task IDeadLetterQueue_IsInterface()
     {
-        // Arrange
         var type = typeof(IDeadLetterQueue<>);
 
-        // Assert
         await Assert.That(type.IsInterface).IsTrue();
     }
 
@@ -37,11 +35,9 @@ public class IDeadLetterQueueTests
     [Test]
     public async Task IDeadLetterQueue_HasEnqueueAsyncMethod()
     {
-        // Arrange
         var type = typeof(IDeadLetterQueue<string>);
         var method = type.GetMethod("EnqueueAsync");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(ValueTask));
     }
@@ -52,11 +48,9 @@ public class IDeadLetterQueueTests
     [Test]
     public async Task IDeadLetterQueue_HasReadAllAsyncMethod()
     {
-        // Arrange
         var type = typeof(IDeadLetterQueue<string>);
         var method = type.GetMethod("ReadAllAsync");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(IAsyncEnumerable<DeadLetteredWork<string>>));
     }
@@ -67,11 +61,9 @@ public class IDeadLetterQueueTests
     [Test]
     public async Task IDeadLetterQueue_HasCountProperty()
     {
-        // Arrange
         var type = typeof(IDeadLetterQueue<>);
         var property = type.GetProperty("Count");
 
-        // Assert
         await Assert.That(property).IsNotNull();
         await Assert.That(property!.PropertyType).IsEqualTo(typeof(int));
     }
@@ -82,10 +74,8 @@ public class IDeadLetterQueueTests
     [Test]
     public async Task Type_IsPublic()
     {
-        // Arrange
         var type = typeof(IDeadLetterQueue<>);
 
-        // Assert
         await Assert.That(type.IsPublic).IsTrue();
     }
 }

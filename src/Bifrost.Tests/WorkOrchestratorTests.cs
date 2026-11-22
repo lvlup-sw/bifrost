@@ -106,10 +106,8 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkOrchestrator_Constructor_CreatesChannel()
     {
-        // Arrange & Act
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Assert
         await Assert.That(orchestrator.Capacity).IsEqualTo(128);
         await Assert.That(orchestrator.ActiveWorkers).IsEqualTo(2);
         await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
@@ -126,7 +124,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkOrchestrator_Constructor_ThrowsWhenHandlerNull()
     {
-        // Arrange & Act & Assert
         await Assert.That(() => new WorkOrchestrator<string>(null!, _options, _logger))
             .Throws<ArgumentNullException>();
     }
@@ -142,7 +139,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkOrchestrator_Constructor_ThrowsWhenOptionsNull()
     {
-        // Arrange & Act & Assert
         await Assert.That(() => new WorkOrchestrator<string>(_handler, null!, _logger))
             .Throws<ArgumentNullException>();
     }
@@ -158,7 +154,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkOrchestrator_Constructor_ThrowsWhenLoggerNull()
     {
-        // Arrange & Act & Assert
         await Assert.That(() => new WorkOrchestrator<string>(_handler, _options, null!))
             .Throws<ArgumentNullException>();
     }
@@ -175,7 +170,6 @@ public class WorkOrchestratorTests
     [NotInParallel] // This wall-clock probe must not compete with unrelated blocking fixtures.
     public async Task EnqueueAsync_ValidWork_WritesToChannel()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var tcs = new TaskCompletionSource();
         _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -185,11 +179,9 @@ public class WorkOrchestratorTests
                 return ValueTask.CompletedTask;
             });
 
-        // Act
         await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
         await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -204,13 +196,10 @@ public class WorkOrchestratorTests
     [Test]
     public async Task TryEnqueue_ChannelNotFull_ReturnsTrue()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act
         var result = orchestrator.TryEnqueue("test-work");
 
-        // Assert
         await Assert.That(result).IsTrue();
     }
 
@@ -252,7 +241,6 @@ public class WorkOrchestratorTests
         // Act - Fourth enqueue should fail since channel is full (2 pending = capacity)
         var fourthResult = orchestrator.TryEnqueue("work-4");
 
-        // Assert
         await Assert.That(firstResult).IsTrue();
         await Assert.That(secondResult).IsTrue();
         await Assert.That(thirdResult).IsTrue();
@@ -273,7 +261,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkerLoop_ProcessesMultipleItems()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var processedCount = 0;
         var allProcessed = new TaskCompletionSource();
@@ -289,13 +276,11 @@ public class WorkOrchestratorTests
                 return ValueTask.CompletedTask;
             });
 
-        // Act
         await orchestrator.EnqueueAsync("work-1").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("work-2").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("work-3").ConfigureAwait(false);
         await allProcessed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(processedCount).IsEqualTo(3);
     }
 
@@ -310,7 +295,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkerLoop_ContinuesAfterHandlerException()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var processedCount = 0;
         var allProcessed = new TaskCompletionSource();
@@ -332,12 +316,10 @@ public class WorkOrchestratorTests
                 return ValueTask.CompletedTask;
             });
 
-        // Act
         await orchestrator.EnqueueAsync("work-1").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("work-2").ConfigureAwait(false);
         await allProcessed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(processedCount).IsEqualTo(2);
     }
 
@@ -390,11 +372,9 @@ public class WorkOrchestratorTests
     [Test]
     public async Task ActiveWorkers_MatchesConfiguration()
     {
-        // Arrange
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 4 });
         await using var orchestrator = new WorkOrchestrator<string>(_handler, options, _logger);
 
-        // Assert
         await Assert.That(orchestrator.ActiveWorkers).IsEqualTo(4);
     }
 
@@ -409,11 +389,9 @@ public class WorkOrchestratorTests
     [Test]
     public async Task Capacity_ReturnsConfiguredValue()
     {
-        // Arrange
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 256 });
         await using var orchestrator = new WorkOrchestrator<string>(_handler, options, _logger);
 
-        // Assert
         await Assert.That(orchestrator.Capacity).IsEqualTo(256);
     }
 
@@ -425,7 +403,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task Writer_EscapeHatch_Removed()
     {
-        // Assert
         await Assert.That(typeof(WorkOrchestrator<string>).GetProperty("Writer")).IsNull();
     }
 
@@ -441,7 +418,6 @@ public class WorkOrchestratorTests
     [NotInParallel] // This wall-clock probe must not compete with unrelated blocking fixtures.
     public async Task StopAsync_CompletesGracefully()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var processed = new TaskCompletionSource();
         _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -454,7 +430,6 @@ public class WorkOrchestratorTests
         await orchestrator.EnqueueAsync("work-1").ConfigureAwait(false);
         await processed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Act
         var stopTask = orchestrator.AbortAsync();
         var completed = await Task.WhenAny(stopTask, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
 
@@ -473,10 +448,8 @@ public class WorkOrchestratorTests
     [Test]
     public async Task DisposeAsync_DisposesResources()
     {
-        // Arrange
         var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
         // Assert - TryEnqueue should return false after dispose
@@ -495,7 +468,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkerLoop_HandlerThrows_LogsWorkItemContext()
     {
-        // Arrange
         var processed = new TaskCompletionSource();
         _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
@@ -506,7 +478,6 @@ public class WorkOrchestratorTests
 
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act
         await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
         await processed.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 

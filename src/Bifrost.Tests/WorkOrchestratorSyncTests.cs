@@ -40,7 +40,6 @@ public class WorkOrchestratorSyncTests
     [Test]
     public async Task Run_ChannelHasCapacity_EnqueuesWork()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var tcs = new TaskCompletionSource();
         _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -50,11 +49,9 @@ public class WorkOrchestratorSyncTests
                 return ValueTask.CompletedTask;
             });
 
-        // Act
         orchestrator.Enqueue("test-work");
         await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -81,13 +78,10 @@ public class WorkOrchestratorSyncTests
     [Test]
     public async Task TryRun_ChannelHasCapacity_ReturnsTrue()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act
         var result = orchestrator.TryEnqueue("test-work");
 
-        // Assert
         await Assert.That(result).IsTrue();
     }
 
@@ -107,7 +101,6 @@ public class WorkOrchestratorSyncTests
         // Act - Second should fail since channel is full
         var secondResult = orchestrator.TryEnqueue("work-2");
 
-        // Assert
         await Assert.That(firstResult).IsTrue();
         await Assert.That(secondResult).IsFalse();
     }
@@ -145,7 +138,6 @@ public class WorkOrchestratorSyncTests
     [Test]
     public async Task TryRun_Success_WorkGetsProcessed()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var tcs = new TaskCompletionSource();
         _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -155,11 +147,9 @@ public class WorkOrchestratorSyncTests
                 return ValueTask.CompletedTask;
             });
 
-        // Act
         var result = orchestrator.TryEnqueue("test-work");
         await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result).IsTrue();
         await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }

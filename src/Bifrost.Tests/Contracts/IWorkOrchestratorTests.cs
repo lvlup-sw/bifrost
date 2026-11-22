@@ -24,7 +24,6 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task IWorkOrchestrator_Interface_DefinesRequiredMembers()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
 
         // Assert - interface exists and is generic
@@ -55,11 +54,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task EnqueueAsync_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkWriter<>);
         var method = interfaceType.GetMethod("EnqueueAsync");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(ValueTask<EnqueueResult>));
 
@@ -80,11 +77,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task TryEnqueue_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkWriter<>);
         var method = interfaceType.GetMethod("TryEnqueue");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(bool));
 
@@ -102,11 +97,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task StopAsync_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var method = interfaceType.GetMethod("AbortAsync");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Task));
 
@@ -123,11 +116,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task PendingCount_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var property = interfaceType.GetProperty("PendingCount");
 
-        // Assert
         await Assert.That(property).IsNotNull();
         await Assert.That(property!.PropertyType).IsEqualTo(typeof(int));
         await Assert.That(property.CanRead).IsTrue();
@@ -140,11 +131,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task ActiveWorkers_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var property = interfaceType.GetProperty("ActiveWorkers");
 
-        // Assert
         await Assert.That(property).IsNotNull();
         await Assert.That(property!.PropertyType).IsEqualTo(typeof(int));
         await Assert.That(property.CanRead).IsTrue();
@@ -157,11 +146,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task Capacity_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var property = interfaceType.GetProperty("Capacity");
 
-        // Assert
         await Assert.That(property).IsNotNull();
         await Assert.That(property!.PropertyType).IsEqualTo(typeof(int));
         await Assert.That(property.CanRead).IsTrue();
@@ -174,11 +161,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task Writer_PropertyRemoved()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var property = interfaceType.GetProperty("Writer");
 
-        // Assert
         await Assert.That(property).IsNull();
     }
 
@@ -188,11 +173,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task Run_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkWriter<>);
         var method = interfaceType.GetMethod("Enqueue");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(EnqueueResult));
 
@@ -209,11 +192,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task TryRun_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkWriter<>);
         var method = interfaceType.GetMethod("TryEnqueue");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(bool));
 
@@ -230,14 +211,12 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task CreateWorkerFunction_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var methods = interfaceType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => m.Name == "CreateWorkerFunction")
             .ToArray();
         var method = methods.FirstOrDefault(m => m.GetParameters().Length == 0);
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Func<string, CancellationToken, Task>));
 
@@ -251,14 +230,12 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task CreateWorkerFunction_WithCallback_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var methods = interfaceType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => m.Name == "CreateWorkerFunction")
             .ToArray();
         var method = methods.FirstOrDefault(m => m.GetParameters().Length == 1);
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Func<string, CancellationToken, Task>));
 
@@ -274,11 +251,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task RequestScaleUpAsync_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var method = interfaceType.GetMethod("RequestScaleUpAsync");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Task));
 
@@ -297,11 +272,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task RequestScaleDownAsync_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var method = interfaceType.GetMethod("RequestScaleDownAsync");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Task));
 
@@ -320,11 +293,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task GetShutdownToken_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var method = interfaceType.GetMethod("GetShutdownToken");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(CancellationToken));
 
@@ -338,10 +309,8 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task Interface_ImplementsIAsyncDisposable()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
 
-        // Assert
         await Assert.That(typeof(IAsyncDisposable).IsAssignableFrom(interfaceType)).IsTrue();
     }
 
@@ -351,11 +320,9 @@ public class IWorkOrchestratorTests
     [Test]
     public async Task DrainAsync_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkOrchestrator<>);
         var method = interfaceType.GetMethod("DrainAsync");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Task));
 

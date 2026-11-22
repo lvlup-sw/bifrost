@@ -74,7 +74,6 @@ public sealed class SchedulerOrchestratorDlqTests
     [Test]
     public async Task ScheduledJob_DispatchesToOrchestrator_WorkProcessedByHandler()
     {
-        // Arrange
         var processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var fx = await Fixture.StartAsync(services =>
@@ -109,7 +108,6 @@ public sealed class SchedulerOrchestratorDlqTests
         var completed = await Task.WhenAny(processed.Task, Task.Delay(TestTimeout))
             .ConfigureAwait(false);
 
-        // Assert
         await Assert.That(completed == processed.Task).IsTrue();
     }
 
@@ -257,7 +255,6 @@ public sealed class SchedulerOrchestratorDlqTests
         var reached = await Task.WhenAny(secondFireReady.Task, Task.Delay(TestTimeout))
             .ConfigureAwait(false);
 
-        // Assert
         await Assert.That(reached == secondFireReady.Task).IsTrue();
         await Assert.That(Volatile.Read(ref fireCount)).IsGreaterThanOrEqualTo(2);
     }

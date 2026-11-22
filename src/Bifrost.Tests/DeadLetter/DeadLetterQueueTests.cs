@@ -29,7 +29,6 @@ public class DeadLetterQueueTests
     [Test]
     public async Task Constructor_ThrowsWhenOptionsNull()
     {
-        // Act & Assert
         await Assert.That(() => new DeadLetterQueue<string>(null!, NullLogger<DeadLetterQueue<string>>.Instance))
             .Throws<ArgumentNullException>();
     }
@@ -40,15 +39,12 @@ public class DeadLetterQueueTests
     [Test]
     public async Task EnqueueAsync_IncreasesCount()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions());
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
         var item = new DeadLetteredWork<string>("work", null, 1, DateTimeOffset.UtcNow, null);
 
-        // Act
         await dlq.EnqueueAsync(item).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(dlq.Count).IsEqualTo(1);
     }
 
@@ -58,18 +54,15 @@ public class DeadLetterQueueTests
     [Test]
     public async Task EnqueueAsync_MultipleItems_TracksCount()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions());
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
 
-        // Act
         for (int i = 0; i < 3; i++)
         {
             var item = new DeadLetteredWork<string>($"work-{i}", null, 1, DateTimeOffset.UtcNow, null);
             await dlq.EnqueueAsync(item).ConfigureAwait(false);
         }
 
-        // Assert
         await Assert.That(dlq.Count).IsEqualTo(3);
     }
 
@@ -79,7 +72,6 @@ public class DeadLetterQueueTests
     [Test]
     public async Task ReadAllAsync_DrainsQueue()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions());
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
 
@@ -89,14 +81,12 @@ public class DeadLetterQueueTests
             await dlq.EnqueueAsync(item).ConfigureAwait(false);
         }
 
-        // Act
         var results = new List<DeadLetteredWork<string>>();
         await foreach (var item in dlq.ReadAllAsync().ConfigureAwait(false))
         {
             results.Add(item);
         }
 
-        // Assert
         await Assert.That(results.Count).IsEqualTo(3);
         await Assert.That(dlq.Count).IsEqualTo(0);
     }
@@ -107,18 +97,15 @@ public class DeadLetterQueueTests
     [Test]
     public async Task ReadAllAsync_EmptyQueue_ReturnsEmpty()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions());
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
 
-        // Act
         var results = new List<DeadLetteredWork<string>>();
         await foreach (var item in dlq.ReadAllAsync().ConfigureAwait(false))
         {
             results.Add(item);
         }
 
-        // Assert
         await Assert.That(results.Count).IsEqualTo(0);
     }
 
@@ -128,7 +115,6 @@ public class DeadLetterQueueTests
     [Test]
     public async Task ReadAllAsync_PreservesOrder()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions());
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
 
@@ -136,14 +122,12 @@ public class DeadLetterQueueTests
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("B", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("C", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
 
-        // Act
         var results = new List<DeadLetteredWork<string>>();
         await foreach (var item in dlq.ReadAllAsync().ConfigureAwait(false))
         {
             results.Add(item);
         }
 
-        // Assert
         await Assert.That(results[0].Work).IsEqualTo("A");
         await Assert.That(results[1].Work).IsEqualTo("B");
         await Assert.That(results[2].Work).IsEqualTo("C");
@@ -155,7 +139,6 @@ public class DeadLetterQueueTests
     [Test]
     public async Task ReadAllAsync_PreservesFailureContext()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions());
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
         var exception = new InvalidOperationException("test failure");
@@ -163,14 +146,12 @@ public class DeadLetterQueueTests
 
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("work", exception, 5, failedAt, "corr-1")).ConfigureAwait(false);
 
-        // Act
         var results = new List<DeadLetteredWork<string>>();
         await foreach (var item in dlq.ReadAllAsync().ConfigureAwait(false))
         {
             results.Add(item);
         }
 
-        // Assert
         await Assert.That(results[0].Exception).IsEqualTo(exception);
         await Assert.That(results[0].AttemptCount).IsEqualTo(5);
         await Assert.That(results[0].FailedAt).IsEqualTo(failedAt);
@@ -183,11 +164,9 @@ public class DeadLetterQueueTests
     [Test]
     public async Task Count_InitiallyZero()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions());
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
 
-        // Assert
         await Assert.That(dlq.Count).IsEqualTo(0);
     }
 
@@ -197,7 +176,6 @@ public class DeadLetterQueueTests
     [Test]
     public async Task EnqueueAsync_AtCapacity_DropsOldest()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions { Capacity = 3 });
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
 
@@ -207,7 +185,6 @@ public class DeadLetterQueueTests
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("middle2", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("newest", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
 
-        // Act
         var results = new List<DeadLetteredWork<string>>();
         await foreach (var item in dlq.ReadAllAsync().ConfigureAwait(false))
         {
@@ -227,10 +204,8 @@ public class DeadLetterQueueTests
     [Test]
     public async Task ImplementsIDeadLetterQueue()
     {
-        // Arrange
         var type = typeof(DeadLetterQueue<string>);
 
-        // Assert
         await Assert.That(typeof(IDeadLetterQueue<string>).IsAssignableFrom(type)).IsTrue();
     }
 
@@ -240,11 +215,9 @@ public class DeadLetterQueueTests
     [Test]
     public async Task DroppedCount_Initially_ReturnsZero()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions());
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
 
-        // Assert
         await Assert.That(dlq.DroppedCount).IsEqualTo(0L);
     }
 
@@ -254,7 +227,6 @@ public class DeadLetterQueueTests
     [Test]
     public async Task EnqueueAsync_AtCapacity_IncrementsDroppedCount()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions { Capacity = 2 });
         var logger = Substitute.For<ILogger<DeadLetterQueue<string>>>();
         var dlq = new DeadLetterQueue<string>(options, logger);
@@ -266,7 +238,6 @@ public class DeadLetterQueueTests
         // Act - enqueue one more, which should drop the oldest
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("third", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(dlq.DroppedCount).IsEqualTo(1L);
     }
 
@@ -276,7 +247,6 @@ public class DeadLetterQueueTests
     [Test]
     public async Task EnqueueAsync_BelowCapacity_DoesNotIncrementDroppedCount()
     {
-        // Arrange
         var options = Options.Create(new DeadLetterQueueOptions { Capacity = 5 });
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
 
@@ -284,7 +254,6 @@ public class DeadLetterQueueTests
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("first", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("second", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(dlq.DroppedCount).IsEqualTo(0L);
     }
 }

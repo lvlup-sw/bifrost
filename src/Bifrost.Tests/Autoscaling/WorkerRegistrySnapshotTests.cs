@@ -22,13 +22,10 @@ public class WorkerRegistrySnapshotTests
     [Test]
     public async Task GetSnapshot_EmptyRegistry_ReturnsZeroCounts()
     {
-        // Arrange
         var registry = new WorkerRegistry();
 
-        // Act
         var snapshot = registry.GetSnapshot();
 
-        // Assert
         await Assert.That(snapshot.TotalWorkers).IsEqualTo(0);
         await Assert.That(snapshot.ActiveWorkers).IsEqualTo(0);
         await Assert.That(snapshot.IdleWorkers).IsEqualTo(0);
@@ -42,14 +39,11 @@ public class WorkerRegistrySnapshotTests
     [Test]
     public async Task GetSnapshot_ReturnsRecentTimestamp()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         var beforeSnapshot = DateTimeOffset.UtcNow;
 
-        // Act
         var snapshot = registry.GetSnapshot();
 
-        // Assert
         await Assert.That(snapshot.Timestamp).IsGreaterThanOrEqualTo(beforeSnapshot);
         await Assert.That(snapshot.Timestamp).IsLessThanOrEqualTo(DateTimeOffset.UtcNow);
     }
@@ -60,7 +54,6 @@ public class WorkerRegistrySnapshotTests
     [Test]
     public async Task GetSnapshot_WithWorkers_CountsTotalCorrectly()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -72,14 +65,11 @@ public class WorkerRegistrySnapshotTests
                 cts.Token).ConfigureAwait(false);
         }
 
-        // Act
         var snapshot = registry.GetSnapshot();
 
-        // Assert
         await Assert.That(snapshot.TotalWorkers).IsEqualTo(5);
         await Assert.That(snapshot.ActiveWorkers).IsEqualTo(5);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -89,7 +79,6 @@ public class WorkerRegistrySnapshotTests
     [Test]
     public async Task GetSnapshot_WithMixedStates_CountsCorrectly()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -113,16 +102,13 @@ public class WorkerRegistrySnapshotTests
             worker.MarkBusy();
         }
 
-        // Act
         var snapshot = registry.GetSnapshot();
 
-        // Assert
         await Assert.That(snapshot.TotalWorkers).IsEqualTo(5);
         await Assert.That(snapshot.ActiveWorkers).IsEqualTo(5);
         await Assert.That(snapshot.IdleWorkers).IsEqualTo(3);
         await Assert.That(snapshot.BusyWorkers).IsEqualTo(2);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -132,7 +118,6 @@ public class WorkerRegistrySnapshotTests
     [Test]
     public async Task GetSnapshot_WithStoppingWorkers_CountsCorrectly()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -149,15 +134,12 @@ public class WorkerRegistrySnapshotTests
         registry.RequestWorkerStop("worker-0");
         registry.RequestWorkerStop("worker-1");
 
-        // Act
         var snapshot = registry.GetSnapshot();
 
-        // Assert
         await Assert.That(snapshot.TotalWorkers).IsEqualTo(3);
         await Assert.That(snapshot.ActiveWorkers).IsEqualTo(3);
         await Assert.That(snapshot.StoppingWorkers).IsEqualTo(2);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -167,7 +149,6 @@ public class WorkerRegistrySnapshotTests
     [Test]
     public async Task WorkerRegistrySnapshot_IsImmutableRecord()
     {
-        // Arrange
         var snapshot = new WorkerRegistrySnapshot(
             TotalWorkers: 10,
             ActiveWorkers: 8,
@@ -190,7 +171,6 @@ public class WorkerRegistrySnapshotTests
     [Test]
     public async Task WorkerRegistrySnapshot_SupportsWithExpressions()
     {
-        // Arrange
         var original = new WorkerRegistrySnapshot(
             TotalWorkers: 10,
             ActiveWorkers: 8,
@@ -218,7 +198,6 @@ public class WorkerRegistrySnapshotTests
     [Test]
     public async Task GetSnapshot_IdleWorkersWithStopRequested_NotCountedAsBusy()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -242,10 +221,8 @@ public class WorkerRegistrySnapshotTests
         // Request stop on one idle worker (this was the bug scenario)
         registry.RequestWorkerStop("idle-worker-0");
 
-        // Act
         var snapshot = registry.GetSnapshot();
 
-        // Assert
         await Assert.That(snapshot.TotalWorkers).IsEqualTo(3);
         await Assert.That(snapshot.ActiveWorkers).IsEqualTo(3);
         await Assert.That(snapshot.IdleWorkers).IsEqualTo(1); // Only idle-worker-1 (not stop-requested)
@@ -256,7 +233,6 @@ public class WorkerRegistrySnapshotTests
         await Assert.That(snapshot.IdleWorkers + snapshot.BusyWorkers + snapshot.StoppingWorkers)
             .IsEqualTo(snapshot.ActiveWorkers);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -266,7 +242,6 @@ public class WorkerRegistrySnapshotTests
     [Test]
     public async Task GetSnapshot_SnapshotInvariant_IsCorrect()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -292,7 +267,6 @@ public class WorkerRegistrySnapshotTests
         registry.RequestWorkerStop("worker-0"); // idle becoming stopping
         registry.RequestWorkerStop("worker-4"); // busy becoming stopping
 
-        // Act
         var snapshot = registry.GetSnapshot();
 
         // Assert - Verify invariant: idle + busy + stopping = active
@@ -304,7 +278,6 @@ public class WorkerRegistrySnapshotTests
         await Assert.That(snapshot.BusyWorkers).IsEqualTo(3); // worker-3, worker-5, worker-6
         await Assert.That(snapshot.StoppingWorkers).IsEqualTo(2); // worker-0, worker-4
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -314,7 +287,6 @@ public class WorkerRegistrySnapshotTests
     [Test]
     public async Task GetSnapshot_CalledMultipleTimes_ReturnsConsistentCounts()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -327,7 +299,6 @@ public class WorkerRegistrySnapshotTests
             worker.MarkIdle();
         }
 
-        // Act
         var snapshot1 = registry.GetSnapshot();
         var snapshot2 = registry.GetSnapshot();
 
@@ -338,7 +309,6 @@ public class WorkerRegistrySnapshotTests
         await Assert.That(snapshot1.BusyWorkers).IsEqualTo(snapshot2.BusyWorkers);
         await Assert.That(snapshot1.StoppingWorkers).IsEqualTo(snapshot2.StoppingWorkers);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 }

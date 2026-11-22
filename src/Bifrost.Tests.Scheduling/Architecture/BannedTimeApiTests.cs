@@ -107,7 +107,6 @@ public class BannedTimeApiTests
             ("System.DateTime", "get_UtcNow"),
         };
 
-        // Act
         var violations = FindMemberReferenceViolations(paths, banned);
 
         // Assert — the fixture method MUST show up

@@ -27,16 +27,13 @@ public class HandlerDecoratorExtensionsTests
     [Test]
     public async Task WithHandlerDecorator_RegistersDecorator()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithHandlerDecorator<string>((sp, handler) => handler);
 
-        // Assert
         await Assert.That(builder.HandlerDecorators).HasCount(1);
     }
 
@@ -46,13 +43,11 @@ public class HandlerDecoratorExtensionsTests
     [Test]
     public async Task WithHandlerDecorator_AutoAssignsOrder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithHandlerDecorator<string>((sp, handler) => handler);
         builder.WithHandlerDecorator<string>((sp, handler) => handler);
 
@@ -67,16 +62,13 @@ public class HandlerDecoratorExtensionsTests
     [Test]
     public async Task WithHandlerDecorator_ExplicitOrder_UsesProvidedOrder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithHandlerDecorator<string>((sp, handler) => handler, order: 42);
 
-        // Assert
         await Assert.That(builder.HandlerDecorators[0].Order).IsEqualTo(42);
     }
 
@@ -86,7 +78,6 @@ public class HandlerDecoratorExtensionsTests
     [Test]
     public async Task WithHandlerDecorator_DecoratorWrapsHandler()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var innerHandler = Substitute.For<IWorkHandler<string>>();
@@ -103,10 +94,8 @@ public class HandlerDecoratorExtensionsTests
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Act
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert
         await Assert.That(decoratorApplied).IsTrue();
 
         await orchestrator.DisposeAsync().ConfigureAwait(false);
@@ -118,7 +107,6 @@ public class HandlerDecoratorExtensionsTests
     [Test]
     public async Task WithHandlerDecorator_ComposesWithBuiltInDecorators()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var innerHandler = Substitute.For<IWorkHandler<string>>();
@@ -137,7 +125,6 @@ public class HandlerDecoratorExtensionsTests
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Act
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
         // Assert - both DLQ handler decorator and custom decorator should be present
@@ -154,11 +141,9 @@ public class HandlerDecoratorExtensionsTests
     [Test]
     public async Task WithHandlerDecorator_NullFactory_ThrowsArgumentNullException()
     {
-        // Arrange
         var services = new ServiceCollection();
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act & Assert
         await Assert.That(() => builder.WithHandlerDecorator<string>(null!))
             .Throws<ArgumentNullException>();
     }
@@ -169,7 +154,6 @@ public class HandlerDecoratorExtensionsTests
     [Test]
     public async Task WithHandlerDecorator_NullBuilder_ThrowsArgumentNullException()
     {
-        // Act & Assert
         await Assert.That(() => HandlerDecoratorExtensions.WithHandlerDecorator<string>(
             null!,
             (sp, handler) => handler))
@@ -182,14 +166,11 @@ public class HandlerDecoratorExtensionsTests
     [Test]
     public async Task WithHandlerDecorator_ReturnsBuilderForChaining()
     {
-        // Arrange
         var services = new ServiceCollection();
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         var result = builder.WithHandlerDecorator<string>((sp, handler) => handler);
 
-        // Assert
         await Assert.That(result).IsEqualTo(builder);
     }
 }

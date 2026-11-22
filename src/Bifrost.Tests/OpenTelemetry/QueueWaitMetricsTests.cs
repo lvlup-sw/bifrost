@@ -76,7 +76,6 @@ public class QueueWaitMetricsTests
         await Assert.That(measurements[0].Value).IsEqualTo(250.0);
         await Assert.That(measurements[0].WorkClassTag).IsEqualTo("Batch");
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
     }
@@ -107,7 +106,6 @@ public class QueueWaitMetricsTests
         // Real wall-clock time elapses while the fake clock stays frozen.
         await Task.Delay(50).ConfigureAwait(false);
 
-        // Act
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("FrozenWorker", cts.Token), cts.Token);
@@ -118,7 +116,6 @@ public class QueueWaitMetricsTests
         await Assert.That(measurements.Count).IsEqualTo(1);
         await Assert.That(measurements[0].Value).IsEqualTo(0.0);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
     }
@@ -150,7 +147,6 @@ public class QueueWaitMetricsTests
         await orchestrator.EnqueueAsync("batch-item", WorkClass.Batch).ConfigureAwait(false);
         fakeTime.Advance(TimeSpan.FromMilliseconds(100));
 
-        // Act
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("MixedWorker", cts.Token), cts.Token);
@@ -170,7 +166,6 @@ public class QueueWaitMetricsTests
         await Assert.That(defaults[0].Value).IsEqualTo(200.0);
         await Assert.That(batch[0].Value).IsEqualTo(100.0);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
     }
@@ -184,7 +179,6 @@ public class QueueWaitMetricsTests
     [Test]
     public async Task ExistingMetrics_DepthDurationWorkers_Unchanged()
     {
-        // Arrange & Act
         using var metrics = new OrchestratorMetrics<string>(() => null, () => 0);
 
         // Assert — meter name pattern and every pre-existing instrument identity.
@@ -216,13 +210,11 @@ public class QueueWaitMetricsTests
     [Test]
     public async Task WithOpenTelemetry_AttachesQueueWaitHook()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithOpenTelemetry();
         builder.Build();
         var provider = services.BuildServiceProvider();
@@ -238,7 +230,6 @@ public class QueueWaitMetricsTests
         await Assert.That(concrete).IsNotNull();
         await Assert.That(concrete!.QueueWaitObserved).IsNotNull();
 
-        // Cleanup
         if (orchestrator is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync().ConfigureAwait(false);

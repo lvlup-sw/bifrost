@@ -28,7 +28,6 @@ public class ScopedHandlerIntegrationTests
     [Test]
     public async Task WithHandler_Scoped_ResolvesFromScope_PerWorkItem()
     {
-        // Arrange
         var tracker = new InstanceTracker();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -55,7 +54,6 @@ public class ScopedHandlerIntegrationTests
         var distinctInstances = tracker.InstanceIds.Distinct().Count();
         await Assert.That(distinctInstances).IsGreaterThanOrEqualTo(3);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -66,7 +64,6 @@ public class ScopedHandlerIntegrationTests
     [Test]
     public async Task WithHandler_Scoped_WorksWithDeadLetterQueue()
     {
-        // Arrange
         var tracker = new InstanceTracker();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -90,7 +87,6 @@ public class ScopedHandlerIntegrationTests
         var distinctInstances = tracker.InstanceIds.Distinct().Count();
         await Assert.That(distinctInstances).IsGreaterThanOrEqualTo(3);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -100,7 +96,6 @@ public class ScopedHandlerIntegrationTests
     [Test]
     public async Task WithHandler_Scoped_WorksWithEventStream()
     {
-        // Arrange
         var tracker = new InstanceTracker();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -156,7 +151,6 @@ public class ScopedHandlerIntegrationTests
         // Wait for subscriber registration before enqueuing
         await subscriberReady.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-        // Act
         await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
 
         // Wait for processing to complete deterministically
@@ -170,7 +164,6 @@ public class ScopedHandlerIntegrationTests
         // Assert - events should have been published
         await Assert.That(events.Count).IsGreaterThan(0);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -180,7 +173,6 @@ public class ScopedHandlerIntegrationTests
     [Test]
     public async Task WithHandler_Singleton_ResolvesOnce()
     {
-        // Arrange
         var tracker = new InstanceTracker();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -206,7 +198,6 @@ public class ScopedHandlerIntegrationTests
         var distinctInstances = tracker.InstanceIds.Distinct().Count();
         await Assert.That(distinctInstances).IsEqualTo(1);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 

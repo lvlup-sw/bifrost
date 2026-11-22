@@ -25,17 +25,14 @@ public class HostingExtensionsTests
     [Test]
     public async Task AddWorkOrchestratorHostedService_RegistersHostedService()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkOrchestrator<string>>());
 
-        // Act
         services.AddWorkOrchestratorHostedService<string>();
         var provider = services.BuildServiceProvider();
         var hostedServices = provider.GetServices<IHostedService>();
 
-        // Assert
         var hostedServiceTypes = hostedServices.Select(h => h.GetType()).ToList();
         await Assert.That(hostedServiceTypes).Contains(typeof(WorkOrchestratorHostedService<string>));
     }
@@ -46,13 +43,10 @@ public class HostingExtensionsTests
     [Test]
     public async Task AddWorkOrchestratorHostedService_ReturnsServiceCollection()
     {
-        // Arrange
         var services = new ServiceCollection();
 
-        // Act
         var result = services.AddWorkOrchestratorHostedService<string>();
 
-        // Assert
         await Assert.That(result).IsEqualTo(services);
     }
 
@@ -62,10 +56,8 @@ public class HostingExtensionsTests
     [Test]
     public async Task AddWorkOrchestratorHostedService_ThrowsWhenServicesNull()
     {
-        // Arrange
         IServiceCollection services = null!;
 
-        // Act & Assert
         await Assert.That(() => services.AddWorkOrchestratorHostedService<string>())
             .Throws<ArgumentNullException>();
     }

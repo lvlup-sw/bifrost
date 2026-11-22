@@ -199,7 +199,6 @@ public class RejectionRoutingTests
     [Test]
     public async Task EnqueueAccepted_NeverRoutesToDlq()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -221,7 +220,6 @@ public class RejectionRoutingTests
         var first = await orchestrator.EnqueueAsync("a", WorkClass.Interactive).ConfigureAwait(false);
         var second = await orchestrator.EnqueueAsync("b", WorkClass.Interactive).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(dlq.Count).IsEqualTo(0);
@@ -304,7 +302,6 @@ public class RejectionRoutingTests
         await Assert.That(metrics.Rejected.Name).IsEqualTo("bifrost.orchestrator.rejected");
         await Assert.That(metrics.Rejected.Unit).IsEqualTo("{item}");
 
-        // Act
         var accepted = await routing.EnqueueAsync("keep", WorkClass.Interactive).ConfigureAwait(false);
         var rejected = await routing.EnqueueAsync("shed", WorkClass.Interactive).ConfigureAwait(false);
 
@@ -326,7 +323,6 @@ public class RejectionRoutingTests
     [Test]
     public async Task RejectedCounter_NotIncrementedOnAccepted()
     {
-        // Arrange
         var options = Options.Create(new WorkOrchestratorOptions
         {
             Capacity = 4,
@@ -366,7 +362,6 @@ public class RejectionRoutingTests
     [Test]
     public async Task WithDeadLetterQueue_RegistersRejectionRoutingDecorator()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -376,7 +371,6 @@ public class RejectionRoutingTests
 
         await using var provider = services.BuildServiceProvider();
 
-        // Act
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
         // Assert — routing decorator wraps the bare orchestrator; without
@@ -396,7 +390,6 @@ public class RejectionRoutingTests
     [Test]
     public async Task WithOpenTelemetry_AttachesRejectedCounterHook()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
@@ -406,7 +399,6 @@ public class RejectionRoutingTests
 
         await using var provider = services.BuildServiceProvider();
 
-        // Act
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
         // Assert — the counter hook is attached even though no DLQ is configured.
@@ -414,7 +406,6 @@ public class RejectionRoutingTests
         await Assert.That(routing).IsNotNull();
         await Assert.That(routing!.RejectionObserved).IsNotNull();
 
-        // Cleanup
         provider.GetService<OrchestratorMetrics<string>>()?.Dispose();
     }
 

@@ -43,7 +43,6 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
     [Test]
     public async Task FifoOrdering_DequeueOrder_MatchesEnqueueOrder()
     {
-        // Arrange
         const int itemCount = SmallCapacity;
         var queue = new FifoChannelWorkQueue<int>(itemCount);
         for (var i = 0; i < itemCount; i++)
@@ -88,7 +87,6 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
         await Assert.That(dequeued).IsTrue();
         await pending.WaitAsync(BindingWaitTimeout).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(pending.IsCompletedSuccessfully).IsTrue();
     }
 
@@ -103,7 +101,6 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
     [Test]
     public async Task WriteAsync_AfterComplete_ThrowsChannelClosed()
     {
-        // Arrange
         var queue = new FifoChannelWorkQueue<int>(SmallCapacity);
         queue.Complete();
 

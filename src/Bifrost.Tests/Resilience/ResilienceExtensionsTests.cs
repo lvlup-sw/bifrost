@@ -33,7 +33,6 @@ public class ResilienceExtensionsTests
     [Test]
     public async Task WithResilience_NullBuilder_Throws()
     {
-        // Act & Assert
         await Assert.That(() => ResilienceExtensions.WithResilience<string>(null!))
             .Throws<ArgumentNullException>();
     }
@@ -44,17 +43,14 @@ public class ResilienceExtensionsTests
     [Test]
     public async Task WithResilience_ValidBuilder_ReturnsBuilder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton<ILogger<WorkOrchestrator<string>>>(NullLogger<WorkOrchestrator<string>>.Instance);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         var result = builder.WithResilience();
 
-        // Assert
         await Assert.That(result).IsNotNull();
         await Assert.That(result).IsEqualTo(builder);
     }
@@ -65,19 +61,16 @@ public class ResilienceExtensionsTests
     [Test]
     public async Task WithResilience_RegistersResiliencySettingsOptions()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton<ILogger<WorkOrchestrator<string>>>(NullLogger<WorkOrchestrator<string>>.Instance);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithResilience();
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert
         var options = provider.GetService<IOptionsMonitor<ResiliencySettings>>();
         await Assert.That(options).IsNotNull();
         await Assert.That(options!.Get(WorkOptions.Name<string>())).IsNotNull();
@@ -89,14 +82,12 @@ public class ResilienceExtensionsTests
     [Test]
     public async Task WithResilience_CustomConfiguration_AppliesSettings()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton<ILogger<WorkOrchestrator<string>>>(NullLogger<WorkOrchestrator<string>>.Instance);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithResilience(options =>
         {
             options.RetryCount = 5;
@@ -105,7 +96,6 @@ public class ResilienceExtensionsTests
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert
         var options = provider.GetRequiredService<IOptionsMonitor<ResiliencySettings>>().Get(WorkOptions.Name<string>());
         await Assert.That(options.RetryCount).IsEqualTo(5);
         await Assert.That(options.TimeoutIntervalSeconds).IsEqualTo(30);
@@ -117,19 +107,16 @@ public class ResilienceExtensionsTests
     [Test]
     public async Task WithResilience_AddsDecoratorToOrchestrator()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton<ILogger<WorkOrchestrator<string>>>(NullLogger<WorkOrchestrator<string>>.Instance);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithResilience();
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         await Assert.That(orchestrator).IsAssignableTo<ResilientOrchestrator<string>>();
     }
@@ -140,7 +127,6 @@ public class ResilienceExtensionsTests
     [Test]
     public async Task WithResilience_AndAutoscaling_ResilienceIsInner()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton<ILogger<WorkOrchestrator<string>>>(NullLogger<WorkOrchestrator<string>>.Instance);
@@ -167,19 +153,16 @@ public class ResilienceExtensionsTests
     [Test]
     public async Task WithResilience_DefaultSettings_HaveExpectedValues()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton<ILogger<WorkOrchestrator<string>>>(NullLogger<WorkOrchestrator<string>>.Instance);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithResilience();
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert
         var options = provider.GetRequiredService<IOptionsMonitor<ResiliencySettings>>().Get(WorkOptions.Name<string>());
         await Assert.That(options.RetryCount).IsEqualTo(3);
         await Assert.That(options.UseExponentialBackoff).IsTrue();

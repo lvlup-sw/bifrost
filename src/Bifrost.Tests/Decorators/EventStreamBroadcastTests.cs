@@ -51,7 +51,6 @@ public class EventStreamBroadcastTests
     [Test]
     public async Task GetEventStreamAsync_MultipleSubscribers_AllReceiveSameEvent()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriber1Events = new ConcurrentBag<IOrchestratorEvent>();
         var subscriber2Events = new ConcurrentBag<IOrchestratorEvent>();
@@ -118,7 +117,6 @@ public class EventStreamBroadcastTests
     [Test]
     public async Task GetEventStreamAsync_SlowSubscriber_DoesNotBlockOthers()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var fastSubscriberEvents = new ConcurrentBag<IOrchestratorEvent>();
         var slowSubscriberReady = new TaskCompletionSource();
@@ -191,7 +189,6 @@ public class EventStreamBroadcastTests
     [Test]
     public async Task GetEventStreamAsync_OnCancellation_CleansUpSubscriber()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriberCts = new CancellationTokenSource();
         var eventsReceived = 0;
@@ -238,7 +235,6 @@ public class EventStreamBroadcastTests
     [Test]
     public async Task GetEventStreamAsync_EachSubscriber_GetsOwnChannel()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriber1Received = new TaskCompletionSource<IOrchestratorEvent>();
         var subscriber2Received = new TaskCompletionSource<IOrchestratorEvent>();
@@ -267,7 +263,6 @@ public class EventStreamBroadcastTests
         // Give subscribers time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         await decorator.EnqueueAsync("broadcast-test").ConfigureAwait(false);
 
         // Assert - both subscribers should receive the same event
@@ -290,7 +285,6 @@ public class EventStreamBroadcastTests
     [Test]
     public async Task TryEnqueue_BroadcastsToMultipleSubscribers()
     {
-        // Arrange
         _inner.Enqueue(Arg.Any<string>()).Returns(EnqueueResult.Accepted);
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriber1Events = new ConcurrentBag<IOrchestratorEvent>();
@@ -335,7 +329,6 @@ public class EventStreamBroadcastTests
         // Wait for subscribers to consume
         await Task.WhenAll(task1, task2).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(subscriber1Events.Count).IsEqualTo(1);
         await Assert.That(subscriber2Events.Count).IsEqualTo(1);
     }
@@ -346,7 +339,6 @@ public class EventStreamBroadcastTests
     [Test]
     public async Task DisposeAsync_CompletesAllSubscriberChannels()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriber1Completed = new TaskCompletionSource();
         var subscriber2Completed = new TaskCompletionSource();
@@ -374,7 +366,6 @@ public class EventStreamBroadcastTests
         // Give subscribers time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         await decorator.DisposeAsync().ConfigureAwait(false);
 
         // Assert - both subscribers should complete gracefully

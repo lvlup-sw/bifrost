@@ -65,7 +65,6 @@ public sealed class WatermarkAdmissionTests
 
         await Assert.That(queue.Count).IsEqualTo(90);
 
-        // Act
         var batchAccepted = queue.TryEnqueue(new WorkEnvelope<int>(900, WorkClass.Batch, ++stamp));
         var interactiveAccepted = queue.TryEnqueue(new WorkEnvelope<int>(901, WorkClass.Interactive, ++stamp));
 
@@ -96,11 +95,9 @@ public sealed class WatermarkAdmissionTests
 
         await Assert.That(queue.Count).IsEqualTo(95);
 
-        // Act
         var defaultAccepted = queue.TryEnqueue(new WorkEnvelope<int>(900, WorkClass.Default, ++stamp));
         var interactiveAccepted = queue.TryEnqueue(new WorkEnvelope<int>(901, WorkClass.Interactive, ++stamp));
 
-        // Assert
         await Assert.That(defaultAccepted).IsFalse();
         await Assert.That(interactiveAccepted).IsTrue();
         await Assert.That(queue.Count).IsEqualTo(96);
@@ -115,7 +112,6 @@ public sealed class WatermarkAdmissionTests
     [Test]
     public async Task TryEnqueue_Interactive_AdmittedToFullCapacity()
     {
-        // Arrange
         var queue = CreateEnvelopeQueue(WatermarkCapacity);
         var stamp = 0L;
 

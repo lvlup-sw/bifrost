@@ -75,7 +75,6 @@ public sealed class WorkOrchestratorDisposalTests
     [Test]
     public async Task WorkOrchestrator_DisposeAsync_DisposesLockingPriorityBinding()
     {
-        // Arrange
         var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
@@ -86,10 +85,8 @@ public sealed class WorkOrchestratorDisposalTests
         var binding = (LockingPriorityWorkQueue<string>)orchestrator.WorkQueue;
         await Assert.That(binding.IsDisposedForTest).IsFalse();
 
-        // Act
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(binding.IsDisposedForTest).IsTrue();
     }
 
@@ -123,7 +120,6 @@ public sealed class WorkOrchestratorDisposalTests
     [Test]
     public async Task WorkOrchestrator_DisposeAsyncTwice_Priority_DoesNotThrow()
     {
-        // Arrange
         var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,

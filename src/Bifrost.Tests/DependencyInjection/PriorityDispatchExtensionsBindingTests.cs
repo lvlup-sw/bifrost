@@ -31,7 +31,6 @@ public class PriorityDispatchExtensionsBindingTests
     [Test]
     public async Task UsePriorityDispatch_DefaultBinding_SetsPrioritySentinelAndAutoIntent()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -58,7 +57,6 @@ public class PriorityDispatchExtensionsBindingTests
     [Test]
     public async Task UsePriorityDispatch_ExplicitLocking_SetsBindingLocking()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());

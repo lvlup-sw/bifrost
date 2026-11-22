@@ -43,7 +43,6 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task Constructor_NullOrchestrator_ThrowsArgumentNullException()
     {
-        // Act & Assert
         await Assert.That(() => new AutoscalingCoordinator<string>(null!, _mockRegistry))
             .Throws<ArgumentNullException>();
     }
@@ -54,7 +53,6 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task Constructor_NullRegistry_ThrowsArgumentNullException()
     {
-        // Act & Assert
         await Assert.That(() => new AutoscalingCoordinator<string>(_mockOrchestrator, null!))
             .Throws<ArgumentNullException>();
     }
@@ -69,14 +67,11 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task MaxBacklog_DelegatesToOrchestratorCapacity()
     {
-        // Arrange
         _mockOrchestrator.Capacity.Returns(100);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.MaxBacklog;
 
-        // Assert
         await Assert.That(result).IsEqualTo(100);
     }
 
@@ -86,14 +81,11 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task PendingWorkCount_DelegatesToOrchestratorPendingCount()
     {
-        // Arrange
         _mockOrchestrator.PendingCount.Returns(42);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.PendingWorkCount;
 
-        // Assert
         await Assert.That(result).IsEqualTo(42);
     }
 
@@ -103,14 +95,11 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task ActiveWorkerCount_DelegatesToOrchestratorActiveWorkers()
     {
-        // Arrange
         _mockOrchestrator.ActiveWorkers.Returns(5);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.ActiveWorkerCount;
 
-        // Assert
         await Assert.That(result).IsEqualTo(5);
     }
 
@@ -120,15 +109,12 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task GetUtilizationRatio_ReturnsCorrectRatio()
     {
-        // Arrange
         _mockOrchestrator.PendingCount.Returns(50);
         _mockOrchestrator.Capacity.Returns(100);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.GetUtilizationRatio();
 
-        // Assert
         await Assert.That(result).IsEqualTo(0.5);
     }
 
@@ -138,15 +124,12 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task GetUtilizationRatio_ZeroCapacity_ReturnsZero()
     {
-        // Arrange
         _mockOrchestrator.PendingCount.Returns(50);
         _mockOrchestrator.Capacity.Returns(0);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.GetUtilizationRatio();
 
-        // Assert
         await Assert.That(result).IsEqualTo(0.0);
     }
 
@@ -156,15 +139,12 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task GetUtilizationRatio_FullyUtilized_ReturnsOne()
     {
-        // Arrange
         _mockOrchestrator.PendingCount.Returns(100);
         _mockOrchestrator.Capacity.Returns(100);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.GetUtilizationRatio();
 
-        // Assert
         await Assert.That(result).IsEqualTo(1.0);
     }
 
@@ -174,15 +154,12 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task GetUtilizationRatio_OverCapacity_ReturnsGreaterThanOne()
     {
-        // Arrange
         _mockOrchestrator.PendingCount.Returns(150);
         _mockOrchestrator.Capacity.Returns(100);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.GetUtilizationRatio();
 
-        // Assert
         await Assert.That(result).IsEqualTo(1.5);
     }
 
@@ -192,13 +169,10 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task QueuedCount_ReturnsExpectedValue()
     {
-        // Arrange
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.QueuedCount;
 
-        // Assert
         await Assert.That(result).IsEqualTo(0L);
     }
 
@@ -212,10 +186,8 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task Interface_ImplementsAllPorts()
     {
-        // Arrange
         var type = typeof(IAutoscalingCoordinator);
 
-        // Assert
         await Assert.That(typeof(IAutoscalingMetricsPort).IsAssignableFrom(type)).IsTrue();
         await Assert.That(typeof(IAutoscalingControlPort).IsAssignableFrom(type)).IsTrue();
         await Assert.That(typeof(IAutoscalingEventsPort).IsAssignableFrom(type)).IsTrue();
@@ -227,10 +199,8 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task Class_ImplementsIAutoscalingCoordinator()
     {
-        // Arrange
         var type = typeof(AutoscalingCoordinator<string>);
 
-        // Assert
         await Assert.That(typeof(IAutoscalingCoordinator).IsAssignableFrom(type)).IsTrue();
     }
 
@@ -244,15 +214,12 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task CreateWorkerFunction_DelegatesToInnerOrchestrator()
     {
-        // Arrange
         Func<string, CancellationToken, Task> expectedFunc = (_, _) => Task.CompletedTask;
         _mockOrchestrator.CreateWorkerFunction().Returns(expectedFunc);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.CreateWorkerFunction();
 
-        // Assert
         await Assert.That(result).IsEqualTo(expectedFunc);
         _mockOrchestrator.Received(1).CreateWorkerFunction();
     }
@@ -263,16 +230,13 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task CreateWorkerFunction_WithCallback_DelegatesToInnerOrchestrator()
     {
-        // Arrange
         Action<bool> callback = _ => { };
         Func<string, CancellationToken, Task> expectedFunc = (_, _) => Task.CompletedTask;
         _mockOrchestrator.CreateWorkerFunction(callback).Returns(expectedFunc);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.CreateWorkerFunction(callback);
 
-        // Assert
         await Assert.That(result).IsEqualTo(expectedFunc);
         _mockOrchestrator.Received(1).CreateWorkerFunction(callback);
     }
@@ -287,7 +251,6 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task RequestScaleUpAsync_CreatesWorkersViaRegistry()
     {
-        // Arrange
         Func<string, CancellationToken, Task> workerFunc = (_, _) => Task.CompletedTask;
         _mockOrchestrator.CreateWorkerFunction().Returns(workerFunc);
         _mockRegistry.CreateWorkerAsync(
@@ -297,7 +260,6 @@ public class AutoscalingCoordinatorTests
             .Returns(Task.FromResult(new WorkerInfo("test")));
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         await coordinator.RequestScaleUpAsync(3, CancellationToken.None).ConfigureAwait(false);
 
         // Assert - 3 workers should be created via registry
@@ -313,14 +275,11 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task RequestScaleDownAsync_StopsWorkersViaRegistry()
     {
-        // Arrange
         _mockRegistry.RequestMultipleWorkerStop(3).Returns(3);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         await coordinator.RequestScaleDownAsync(3, CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         _mockRegistry.Received(1).RequestMultipleWorkerStop(3);
     }
 
@@ -330,15 +289,12 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task GetShutdownToken_DelegatesToOrchestrator()
     {
-        // Arrange
         using var cts = new CancellationTokenSource();
         _mockOrchestrator.GetShutdownToken().Returns(cts.Token);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.GetShutdownToken();
 
-        // Assert
         await Assert.That(result).IsEqualTo(cts.Token);
         _mockOrchestrator.Received(1).GetShutdownToken();
     }
@@ -353,17 +309,14 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task PublishEvent_WithEventStream_DelegatesToEventStream()
     {
-        // Arrange
         IOrchestratorEvent? capturedEvent = null;
         Action<IOrchestratorEvent> publishCallback = evt => capturedEvent = evt;
         var coordinator = new AutoscalingCoordinator<string>(
             _mockOrchestrator, _mockRegistry, publishCallback);
         var mockEvent = Substitute.For<IOrchestratorEvent>();
 
-        // Act
         coordinator.PublishEvent(mockEvent);
 
-        // Assert
         await Assert.That(capturedEvent).IsEqualTo(mockEvent);
     }
 
@@ -373,7 +326,6 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task PublishEvent_WithoutEventStream_NoOp()
     {
-        // Arrange
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
         var mockEvent = Substitute.For<IOrchestratorEvent>();
 
@@ -387,13 +339,10 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task QueuedEventCount_ReturnsZeroWhenNoEventStream()
     {
-        // Arrange
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.QueuedEventCount;
 
-        // Assert
         await Assert.That(result).IsEqualTo(0L);
     }
 
@@ -403,13 +352,10 @@ public class AutoscalingCoordinatorTests
     [Test]
     public async Task ActiveSubscriberCount_ReturnsZeroWhenNoEventStream()
     {
-        // Arrange
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        // Act
         var result = coordinator.ActiveSubscriberCount;
 
-        // Assert
         await Assert.That(result).IsEqualTo(0L);
     }
 

@@ -24,12 +24,10 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_StartAsync_Completes()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
 
-        // Act
         var task = service.StartAsync(CancellationToken.None);
         await task.ConfigureAwait(false);
 
@@ -43,15 +41,12 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_StopAsync_StopsOrchestrator()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
 
-        // Act
         await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await orchestrator.Received(1).DrainAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -61,10 +56,8 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_Constructor_ThrowsWhenOrchestratorNull()
     {
-        // Arrange
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
 
-        // Act & Assert
         await Assert.That(() => new WorkOrchestratorHostedService<string>(null!, logger))
             .Throws<ArgumentNullException>();
     }
@@ -75,10 +68,8 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_Constructor_ThrowsWhenLoggerNull()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
 
-        // Act & Assert
         await Assert.That(() => new WorkOrchestratorHostedService<string>(orchestrator, null!))
             .Throws<ArgumentNullException>();
     }
@@ -89,13 +80,11 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_StopAsync_PassesCancellationToken()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
         using var cts = new CancellationTokenSource();
 
-        // Act
         await service.StopAsync(cts.Token).ConfigureAwait(false);
 
         // Assert - Verify the token was passed
@@ -108,7 +97,6 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_StartAsync_CanBeCalledMultipleTimes()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);

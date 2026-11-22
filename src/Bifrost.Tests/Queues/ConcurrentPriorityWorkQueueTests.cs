@@ -301,11 +301,9 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     [Test]
     public async Task TryEnqueue_AfterComplete_ReturnsFalse()
     {
-        // Arrange
         var queue = CreateEnvelopeQueue(SmallCapacity);
         queue.Complete();
 
-        // Act
         var accepted = queue.TryEnqueue(new WorkEnvelope<int>(1, WorkClass.Default, 100));
 
         // Assert — rejected, and the queue stays empty (no phantom item, no permit).
@@ -388,7 +386,6 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
         int itemsPerProducer,
         int consumerCount)
     {
-        // Arrange
         var totalItems = producerCount * itemsPerProducer;
         var queue = CreateEnvelopeQueue(totalItems);
         using var timeoutCts = new CancellationTokenSource(StressTimeout);
@@ -446,7 +443,6 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
             });
         }
 
-        // Act
         await Task.WhenAll(producers).ConfigureAwait(false);
         await Task.WhenAll(consumers).ConfigureAwait(false);
 

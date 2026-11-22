@@ -22,13 +22,10 @@ public class ControlPortTests
     [Test]
     public async Task Interface_DefinesRequestScaleUpAsyncMethod()
     {
-        // Arrange
         var type = typeof(IAutoscalingControlPort);
 
-        // Act
         var method = type.GetMethod(nameof(IAutoscalingControlPort.RequestScaleUpAsync));
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Task));
 
@@ -45,13 +42,10 @@ public class ControlPortTests
     [Test]
     public async Task Interface_DefinesRequestScaleDownAsyncMethod()
     {
-        // Arrange
         var type = typeof(IAutoscalingControlPort);
 
-        // Act
         var method = type.GetMethod(nameof(IAutoscalingControlPort.RequestScaleDownAsync));
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Task));
 
@@ -68,7 +62,6 @@ public class ControlPortTests
     [Test]
     public async Task Interface_DefinesCreateWorkerFunctionMethod()
     {
-        // Arrange
         var type = typeof(IAutoscalingControlPort);
 
         // Act - Get the overload without parameters
@@ -78,7 +71,6 @@ public class ControlPortTests
 
         var method = methods.FirstOrDefault(m => m.GetParameters().Length == 0);
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Func<string, CancellationToken, Task>));
     }
@@ -89,7 +81,6 @@ public class ControlPortTests
     [Test]
     public async Task Interface_DefinesCreateWorkerFunctionMethodWithCallback()
     {
-        // Arrange
         var type = typeof(IAutoscalingControlPort);
 
         // Act - Get the overload with Action<bool> parameter
@@ -99,7 +90,6 @@ public class ControlPortTests
 
         var method = methods.FirstOrDefault(m => m.GetParameters().Length == 1);
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(Func<string, CancellationToken, Task>));
 
@@ -113,13 +103,10 @@ public class ControlPortTests
     [Test]
     public async Task Interface_DefinesGetShutdownTokenMethod()
     {
-        // Arrange
         var type = typeof(IAutoscalingControlPort);
 
-        // Act
         var method = type.GetMethod(nameof(IAutoscalingControlPort.GetShutdownToken));
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(CancellationToken));
         await Assert.That(method.GetParameters()).HasCount().EqualTo(0);
@@ -131,10 +118,8 @@ public class ControlPortTests
     [Test]
     public async Task Interface_IsInterface()
     {
-        // Arrange
         var type = typeof(IAutoscalingControlPort);
 
-        // Assert
         await Assert.That(type.IsInterface).IsTrue();
     }
 }

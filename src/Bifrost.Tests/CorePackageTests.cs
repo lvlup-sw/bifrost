@@ -24,10 +24,8 @@ public class CorePackageTests
     [Test]
     public async Task CorePackageStructure_WhenReferenced_ProvidesExpectedTypes()
     {
-        // Arrange
         var coreAssembly = typeof(IWorkOrchestrator<>).Assembly;
 
-        // Act
         var exportedTypes = coreAssembly.GetExportedTypes();
 
         // Assert - Verify key types are accessible

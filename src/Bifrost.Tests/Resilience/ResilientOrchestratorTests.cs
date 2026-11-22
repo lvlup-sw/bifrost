@@ -51,7 +51,6 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task Constructor_NullInner_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new ResilientOrchestrator<string>(null!, _options, _logger))
             .Throws<ArgumentNullException>();
     }
@@ -62,7 +61,6 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task Constructor_NullOptions_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new ResilientOrchestrator<string>(_inner, null!, _logger))
             .Throws<ArgumentNullException>();
     }
@@ -73,7 +71,6 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task Constructor_NullLogger_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new ResilientOrchestrator<string>(_inner, _options, null!))
             .Throws<ArgumentNullException>();
     }
@@ -84,14 +81,11 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task EnqueueAsync_DelegatesToInner()
     {
-        // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
-        // Act
         var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
@@ -102,7 +96,6 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task EnqueueAsync_TransientFailure_Retries()
     {
-        // Arrange
         var callCount = 0;
         var settings = new ResiliencySettings
         {
@@ -126,10 +119,8 @@ public class ResilientOrchestratorTests
                 return new ValueTask<EnqueueResult>(EnqueueResult.Accepted);
             });
 
-        // Act
         var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(callCount).IsEqualTo(2);
     }
@@ -140,14 +131,11 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task TryEnqueue_DelegatesToInner()
     {
-        // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.Enqueue("work").Returns(EnqueueResult.Accepted);
 
-        // Act
         var result = orchestrator.TryEnqueue("work");
 
-        // Assert
         await Assert.That(result).IsTrue();
         _inner.Received(1).Enqueue("work");
     }
@@ -158,14 +146,11 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task TryEnqueue_InnerReturnsFalse_ReturnsFalse()
     {
-        // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.Enqueue("work").Returns(EnqueueResult.Rejected(RejectionReason.CapacityExceeded));
 
-        // Act
         var result = orchestrator.TryEnqueue("work");
 
-        // Assert
         await Assert.That(result).IsFalse();
     }
 
@@ -175,14 +160,11 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task PendingCount_DelegatesToInner()
     {
-        // Arrange
         _inner.PendingCount.Returns(42);
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
 
-        // Act
         var result = orchestrator.PendingCount;
 
-        // Assert
         await Assert.That(result).IsEqualTo(42);
     }
 
@@ -192,14 +174,11 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task ActiveWorkers_DelegatesToInner()
     {
-        // Arrange
         _inner.ActiveWorkers.Returns(8);
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
 
-        // Act
         var result = orchestrator.ActiveWorkers;
 
-        // Assert
         await Assert.That(result).IsEqualTo(8);
     }
 
@@ -209,14 +188,11 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task Capacity_DelegatesToInner()
     {
-        // Arrange
         _inner.Capacity.Returns(256);
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
 
-        // Act
         var result = orchestrator.Capacity;
 
-        // Assert
         await Assert.That(result).IsEqualTo(256);
     }
 
@@ -226,15 +202,12 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task EnqueueAsync_Rejected_PropagatesResult()
     {
-        // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Rejected(RejectionReason.Shutdown));
 
-        // Act
         var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(result.Reason).IsEqualTo(RejectionReason.Shutdown);
     }
@@ -245,14 +218,11 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task StopAsync_DelegatesToInner()
     {
-        // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        // Act
         await orchestrator.AbortAsync().ConfigureAwait(false);
 
-        // Assert
         await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -262,14 +232,11 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task DisposeAsync_DelegatesToInner()
     {
-        // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.DisposeAsync().Returns(ValueTask.CompletedTask);
 
-        // Act
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
-        // Assert
         await _inner.Received(1).DisposeAsync().ConfigureAwait(false);
     }
 
@@ -279,10 +246,8 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task ResilientOrchestrator_ImplementsIWorkOrchestrator()
     {
-        // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
 
-        // Assert
         await Assert.That(orchestrator).IsAssignableTo<IWorkOrchestrator<string>>();
     }
 
@@ -292,14 +257,11 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task DrainAsync_ForwardsToInner()
     {
-        // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.DrainAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        // Act
         await orchestrator.DrainAsync().ConfigureAwait(false);
 
-        // Assert
         await _inner.Received(1).DrainAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -311,11 +273,9 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task TryRun_BypassesResiliencePolicy()
     {
-        // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.Enqueue("work").Returns(EnqueueResult.Accepted);
 
-        // Act
         var result = orchestrator.TryEnqueue("work");
 
         // Assert - TryRun delegates directly (exactly once), no retry wrapping
@@ -331,10 +291,8 @@ public class ResilientOrchestratorTests
     [Test]
     public async Task Run_BypassesResiliencePolicy()
     {
-        // Arrange
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
 
-        // Act
         orchestrator.Enqueue("work");
 
         // Assert - Run delegates directly (exactly once), no retry wrapping

@@ -33,7 +33,6 @@ public class ResilienceDlqInteractionTests
     [Test]
     public async Task Resilience_WrapsEnqueue_DLQ_WrapsHandler_IndependentLayers()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
@@ -73,7 +72,6 @@ public class ResilienceDlqInteractionTests
             await Task.Delay(50, cts.Token).ConfigureAwait(false);
         }
 
-        // Assert
         // DLQ with MaxRetries=1 means 2 handler attempts (1 initial + 1 retry)
         // Resilience does NOT retry handler failures - it only wraps enqueue
         await Assert.That(handlerCallCount).IsEqualTo(2);
@@ -89,7 +87,6 @@ public class ResilienceDlqInteractionTests
     [Test]
     public async Task Resilience_DoesNotRetryHandlerFailures()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
@@ -119,7 +116,6 @@ public class ResilienceDlqInteractionTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        // Act
         await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -148,7 +144,6 @@ public class ResilienceDlqInteractionTests
     [Test]
     public async Task DLQ_DoesNotRetryEnqueueFailures()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 

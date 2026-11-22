@@ -27,12 +27,10 @@ public class AutoscalingEngineTimerTests
     [Test]
     public async Task IsRunning_Initially_ReturnsFalse()
     {
-        // Arrange
         var options = CreateOptions();
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Assert
         await Assert.That(engine.IsRunning).IsFalse();
     }
 
@@ -42,18 +40,14 @@ public class AutoscalingEngineTimerTests
     [Test]
     public async Task StartAsync_WhenNotRunning_SetsIsRunningTrue()
     {
-        // Arrange
         var options = CreateOptions();
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(engine.IsRunning).IsTrue();
 
-        // Cleanup
         await engine.StopAsync().ConfigureAwait(false);
     }
 
@@ -63,19 +57,15 @@ public class AutoscalingEngineTimerTests
     [Test]
     public async Task StartAsync_WhenAlreadyRunning_RemainsRunning()
     {
-        // Arrange
         var options = CreateOptions();
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
         await engine.StartAsync().ConfigureAwait(false); // Second call should be idempotent
 
-        // Assert
         await Assert.That(engine.IsRunning).IsTrue();
 
-        // Cleanup
         await engine.StopAsync().ConfigureAwait(false);
     }
 
@@ -85,16 +75,13 @@ public class AutoscalingEngineTimerTests
     [Test]
     public async Task StopAsync_WhenRunning_SetsIsRunningFalse()
     {
-        // Arrange
         var options = CreateOptions();
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
         await engine.StartAsync().ConfigureAwait(false);
 
-        // Act
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(engine.IsRunning).IsFalse();
     }
 
@@ -104,15 +91,12 @@ public class AutoscalingEngineTimerTests
     [Test]
     public async Task StopAsync_WhenNotRunning_RemainsNotRunning()
     {
-        // Arrange
         var options = CreateOptions();
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Act
         await engine.StopAsync().ConfigureAwait(false); // Should not throw
 
-        // Assert
         await Assert.That(engine.IsRunning).IsFalse();
     }
 
@@ -122,7 +106,6 @@ public class AutoscalingEngineTimerTests
     [Test]
     public async Task StartAsync_WithCheckInterval_FiresEvaluationPeriodically()
     {
-        // Arrange
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -137,7 +120,6 @@ public class AutoscalingEngineTimerTests
             }
         };
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
 
         // Wait for events deterministically (thread pool may be slow under CI load)
@@ -158,7 +140,6 @@ public class AutoscalingEngineTimerTests
     [Test]
     public async Task StopAsync_StopsTimerEvaluation()
     {
-        // Arrange
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -171,7 +152,6 @@ public class AutoscalingEngineTimerTests
             firstEventReceived.TrySetResult();
         };
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
 
         // Wait for at least one event before stopping
@@ -191,12 +171,10 @@ public class AutoscalingEngineTimerTests
     [Test]
     public async Task Configuration_ReturnsOptions()
     {
-        // Arrange
         var options = CreateOptions();
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Assert
         await Assert.That(engine.Configuration).IsNotNull();
         await Assert.That(engine.Configuration.MinWorkers).IsEqualTo(1);
         await Assert.That(engine.Configuration.MaxWorkers).IsEqualTo(10);

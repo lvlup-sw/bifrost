@@ -31,7 +31,6 @@ public class ScalingEventTests
     [Test]
     public async Task ScalingEvent_IsSealedRecordClass()
     {
-        // Arrange
         var type = typeof(ScalingEvent);
 
         // Assert - check it's a reference type (class), not a value type (struct)
@@ -55,10 +54,8 @@ public class ScalingEventTests
     [Test]
     public async Task ScalingEvent_HasCorrectProperties()
     {
-        // Arrange
         var type = typeof(ScalingEvent);
 
-        // Assert
         var actionProperty = type.GetProperty("Action");
         var previousWorkersProperty = type.GetProperty("PreviousWorkers");
         var currentWorkersProperty = type.GetProperty("CurrentWorkers");
@@ -86,10 +83,8 @@ public class ScalingEventTests
     [Test]
     public async Task ScalingEvent_ImplementsIOrchestratorEvent()
     {
-        // Arrange
         var type = typeof(ScalingEvent);
 
-        // Assert
         await Assert.That(typeof(IOrchestratorEvent).IsAssignableFrom(type)).IsTrue();
     }
 
@@ -104,16 +99,13 @@ public class ScalingEventTests
     [Test]
     public async Task Constructor_SetsPropertiesCorrectly()
     {
-        // Arrange
         var action = ScalingAction.ScaleUp;
         var previousWorkers = 2;
         var currentWorkers = 4;
         var utilization = 0.85;
 
-        // Act
         var evt = new ScalingEvent(action, previousWorkers, currentWorkers, utilization);
 
-        // Assert
         await Assert.That(evt.Action).IsEqualTo(action);
         await Assert.That(evt.PreviousWorkers).IsEqualTo(previousWorkers);
         await Assert.That(evt.CurrentWorkers).IsEqualTo(currentWorkers);
@@ -131,10 +123,8 @@ public class ScalingEventTests
     [Test]
     public async Task Type_IsPublic()
     {
-        // Arrange
         var type = typeof(ScalingEvent);
 
-        // Assert
         await Assert.That(type.IsPublic).IsTrue();
     }
 
@@ -149,10 +139,8 @@ public class ScalingEventTests
     [Test]
     public async Task ScalingAction_HasCorrectValues()
     {
-        // Arrange
         var values = Enum.GetValues<ScalingAction>();
 
-        // Assert
         await Assert.That(values).Contains(ScalingAction.None);
         await Assert.That(values).Contains(ScalingAction.ScaleUp);
         await Assert.That(values).Contains(ScalingAction.ScaleDown);
@@ -170,10 +158,8 @@ public class ScalingEventTests
     [Test]
     public async Task ScalingAction_IsPublicEnum()
     {
-        // Arrange
         var type = typeof(ScalingAction);
 
-        // Assert
         await Assert.That(type.IsPublic).IsTrue();
         await Assert.That(type.IsEnum).IsTrue();
     }

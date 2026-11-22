@@ -46,11 +46,9 @@ public class OrchestratorWorkQueueRewriteTests
     [Test]
     public async Task WorkerLoop_UsesWaitTryDequeue_NotChannelReader()
     {
-        // Arrange
         var fields = typeof(WorkOrchestrator<string>).GetFields(
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
-        // Act
         var queueFieldCount = fields.Count(
             static f => typeof(IWorkQueue<WorkEnvelope<string>>).IsAssignableFrom(f.FieldType));
         var channelFieldCount = fields.Count(
@@ -98,7 +96,6 @@ public class OrchestratorWorkQueueRewriteTests
         await Assert.That(handler.Processed).Contains("after-start");
         await Assert.That(handler.Processed).Contains("via-queue");
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
     }
@@ -117,7 +114,6 @@ public class OrchestratorWorkQueueRewriteTests
         await using var orchestrator = new WorkOrchestrator<string>(
             handler, options, NullLogger<WorkOrchestrator<string>>.Instance);
 
-        // Act
         await orchestrator.EnqueueAsync("a").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("b").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("c").ConfigureAwait(false);
@@ -166,7 +162,6 @@ public class OrchestratorWorkQueueRewriteTests
         await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
         await Assert.That(orchestrator.TryEnqueue("late")).IsFalse();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -242,7 +237,6 @@ public class OrchestratorWorkQueueRewriteTests
         await Assert.That(workClass).IsEqualTo(WorkClass.Interactive);
         await Assert.That(waited).IsEqualTo(TimeSpan.FromSeconds(5));
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
     }

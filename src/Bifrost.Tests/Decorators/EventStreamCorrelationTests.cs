@@ -50,7 +50,6 @@ public class EventStreamCorrelationTests
     [Test]
     public async Task GetEventStreamAsync_NullCorrelationId_ReturnsAllEvents()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvents = new ConcurrentBag<IOrchestratorEvent>();
 
@@ -88,7 +87,6 @@ public class EventStreamCorrelationTests
     [Test]
     public async Task GetEventStreamAsync_SpecifiedCorrelationId_FiltersCorrectly()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvents = new ConcurrentBag<ICorrelatedEvent>();
         var targetCorrelationId = "correlation-123";
@@ -142,7 +140,6 @@ public class EventStreamCorrelationTests
     [Test]
     public async Task GetEventStreamAsync_CorrelationIdComparison_IsCaseSensitive()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvents = new ConcurrentBag<ICorrelatedEvent>();
         var targetCorrelationId = "Correlation-ABC";
@@ -189,7 +186,6 @@ public class EventStreamCorrelationTests
     [Test]
     public async Task GetEventStreamAsync_EventsWithoutCorrelationId_AreExcludedWhenFiltering()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvents = new ConcurrentBag<ICorrelatedEvent>();
         var targetCorrelationId = "correlation-filter";
@@ -244,7 +240,6 @@ public class EventStreamCorrelationTests
     [Test]
     public async Task GetEventStreamAsync_TypeAndCorrelationFiltering_WorkTogether()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvents = new ConcurrentBag<WorkEnqueuedEvent<string>>();
         var targetCorrelationId = "workflow-123";
@@ -273,12 +268,10 @@ public class EventStreamCorrelationTests
         // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: targetCorrelationId)).ConfigureAwait(false);
 
         await subscriberTask.ConfigureAwait(false);
 
-        // Assert
         await Assert.That(receivedEvents.Count).IsEqualTo(1);
         await Assert.That(receivedEvents.First().Work).IsEqualTo("test1");
     }
@@ -289,7 +282,6 @@ public class EventStreamCorrelationTests
     [Test]
     public async Task EnqueueAsync_WithCorrelationId_IsAvailable()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<ICorrelatedEvent>();
 
@@ -307,12 +299,10 @@ public class EventStreamCorrelationTests
         // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         await decorator.EnqueueAsync("test-work", new WorkEnqueueOptions(CorrelationId: "my-correlation-id")).ConfigureAwait(false);
 
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(evt.CorrelationId).IsEqualTo("my-correlation-id");
     }
 
@@ -322,7 +312,6 @@ public class EventStreamCorrelationTests
     [Test]
     public async Task TryEnqueue_WithCorrelationId_IsAvailable()
     {
-        // Arrange
         _inner.Enqueue(Arg.Any<string>(), Arg.Any<WorkEnqueueOptions>()).Returns(EnqueueResult.Accepted);
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<ICorrelatedEvent>();
@@ -341,12 +330,10 @@ public class EventStreamCorrelationTests
         // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         var result = decorator.TryEnqueue("test-work", new WorkEnqueueOptions(CorrelationId: "my-correlation-id"));
 
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result).IsTrue();
         await Assert.That(evt.CorrelationId).IsEqualTo("my-correlation-id");
     }
@@ -357,7 +344,6 @@ public class EventStreamCorrelationTests
     [Test]
     public async Task EnqueueAsync_WithoutCorrelationId_EventHasNullCorrelationId()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<ICorrelatedEvent>();
 

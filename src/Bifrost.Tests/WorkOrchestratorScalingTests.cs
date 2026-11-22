@@ -40,7 +40,6 @@ public class WorkOrchestratorScalingTests
     [Test]
     public async Task RequestScaleUpAsync_CompletesSuccessfully()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
         // Act & Assert - should not throw
@@ -53,7 +52,6 @@ public class WorkOrchestratorScalingTests
     [Test]
     public async Task RequestScaleDownAsync_CompletesSuccessfully()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
         // Act & Assert - should not throw
@@ -66,7 +64,6 @@ public class WorkOrchestratorScalingTests
     [Test]
     public async Task RequestScaleUpAsync_ZeroCount_CompletesSuccessfully()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
         // Act & Assert - should not throw
@@ -79,7 +76,6 @@ public class WorkOrchestratorScalingTests
     [Test]
     public async Task RequestScaleDownAsync_ZeroCount_CompletesSuccessfully()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
         // Act & Assert - should not throw
@@ -92,15 +88,12 @@ public class WorkOrchestratorScalingTests
     [Test]
     public async Task RequestScaleUpAsync_WithCancellation_CompletesBeforeToken()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         using var cts = new CancellationTokenSource();
 
-        // Act
         var task = orchestrator.RequestScaleUpAsync(5, cts.Token);
         await task.ConfigureAwait(false);
 
-        // Assert
         await Assert.That(task.IsCompleted).IsTrue();
     }
 
@@ -110,15 +103,12 @@ public class WorkOrchestratorScalingTests
     [Test]
     public async Task RequestScaleDownAsync_WithCancellation_CompletesBeforeToken()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         using var cts = new CancellationTokenSource();
 
-        // Act
         var task = orchestrator.RequestScaleDownAsync(3, cts.Token);
         await task.ConfigureAwait(false);
 
-        // Assert
         await Assert.That(task.IsCompleted).IsTrue();
     }
 }

@@ -29,7 +29,6 @@ public class AutoscalingEngineEffectiveMinTests
     [Test]
     public async Task EffectiveMinWorkers_WhenInitialCountMatchesConfig_EqualsMinWorkers()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -39,7 +38,6 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Assert
         await Assert.That(engine.EffectiveMinWorkers).IsEqualTo(2);
     }
 
@@ -59,7 +57,6 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Assert
         await Assert.That(engine.EffectiveMinWorkers).IsEqualTo(5);
     }
 
@@ -79,7 +76,6 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 1);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Assert
         await Assert.That(engine.EffectiveMinWorkers).IsEqualTo(3);
     }
 
@@ -89,7 +85,6 @@ public class AutoscalingEngineEffectiveMinTests
     [Test]
     public async Task Constructor_WhenMismatch_LogsWarning()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -99,7 +94,6 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 5);
         var logger = Substitute.For<ILogger<AutoscalingEngine>>();
 
-        // Act
         _ = new AutoscalingEngine(options, coordinator, logger);
 
         // Assert - Verify warning was logged
@@ -121,7 +115,6 @@ public class AutoscalingEngineEffectiveMinTests
     [Test]
     public async Task Constructor_WhenMatch_NoWarningLogged()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -131,7 +124,6 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var logger = Substitute.For<ILogger<AutoscalingEngine>>();
 
-        // Act
         var engine = new AutoscalingEngine(options, coordinator, logger);
 
         // Assert - Verify warning was NOT logged (only informational logs expected)
@@ -203,7 +195,6 @@ public class AutoscalingEngineEffectiveMinTests
         coordinator.ActiveWorkerCount.Returns(7);
         coordinator.GetUtilizationRatio().Returns(0.1);
 
-        // Act
         var decision = engine.EvaluateScaling();
 
         // Assert - Should clamp to effective min (5), not raw min (2)

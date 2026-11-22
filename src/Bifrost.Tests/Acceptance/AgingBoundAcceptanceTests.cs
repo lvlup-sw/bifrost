@@ -167,7 +167,6 @@ public sealed class AgingBoundAcceptanceTests
         await Assert.That(sequence[0]).IsEqualTo("batch-old");
         await Assert.That(sequence[1]).IsEqualTo("interactive-fresh");
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
     }

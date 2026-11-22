@@ -62,13 +62,11 @@ public class WorkOrchestratorDrainTests
         // Act - drain should process all remaining items
         await orchestrator.DrainAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(processedItems.Count).IsEqualTo(3);
         await Assert.That(processedItems).Contains("item-1");
         await Assert.That(processedItems).Contains("item-2");
         await Assert.That(processedItems).Contains("item-3");
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -78,7 +76,6 @@ public class WorkOrchestratorDrainTests
     [Test]
     public async Task DrainAsync_RejectsNewEnqueues()
     {
-        // Arrange
         var handler = Substitute.For<IWorkHandler<string>>();
         handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.CompletedTask);
@@ -92,10 +89,8 @@ public class WorkOrchestratorDrainTests
         // After drain, TryEnqueue should return false
         var result = orchestrator.TryEnqueue("new-work");
 
-        // Assert
         await Assert.That(result).IsFalse();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -105,7 +100,6 @@ public class WorkOrchestratorDrainTests
     [Test]
     public async Task DrainAsync_EmptyQueue_CompletesImmediately()
     {
-        // Arrange
         var handler = Substitute.For<IWorkHandler<string>>();
         handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.CompletedTask);
@@ -120,7 +114,6 @@ public class WorkOrchestratorDrainTests
         // Assert - drain should have completed (not the 5s delay)
         await Assert.That(ReferenceEquals(completed, drainTask)).IsTrue();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -155,7 +148,6 @@ public class WorkOrchestratorDrainTests
         await Assert.That(async () => await orchestrator.DrainAsync(cts.Token).ConfigureAwait(false))
             .Throws<TaskCanceledException>();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -165,7 +157,6 @@ public class WorkOrchestratorDrainTests
     [Test]
     public async Task DrainAsync_PendingCountIsZero_AfterDrain()
     {
-        // Arrange
         var handler = Substitute.For<IWorkHandler<string>>();
         handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.CompletedTask);
@@ -177,13 +168,10 @@ public class WorkOrchestratorDrainTests
         await orchestrator.EnqueueAsync("item-1").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("item-2").ConfigureAwait(false);
 
-        // Act
         await orchestrator.DrainAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 }

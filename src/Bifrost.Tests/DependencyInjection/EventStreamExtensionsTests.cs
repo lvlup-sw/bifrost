@@ -26,24 +26,20 @@ public class EventStreamExtensionsTests
     [Test]
     public async Task WithEventStream_AddsDecorator()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithEventStream();
         builder.Build();
 
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
 
-        // Assert
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(orchestrator).IsAssignableTo<IEventStreamOrchestrator<string>>();
 
-        // Cleanup
         if (orchestrator is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync().ConfigureAwait(false);
@@ -56,16 +52,13 @@ public class EventStreamExtensionsTests
     [Test]
     public async Task WithEventStream_ReturnsBuilder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         var result = builder.WithEventStream();
 
-        // Assert
         await Assert.That(result).IsSameReferenceAs(builder);
     }
 
@@ -75,7 +68,6 @@ public class EventStreamExtensionsTests
     [Test]
     public async Task WithEventStream_OrchestratorCanStreamEvents()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -110,7 +102,6 @@ public class EventStreamExtensionsTests
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
         await Assert.That(evt.Work).IsEqualTo("test-work");
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -120,7 +111,6 @@ public class EventStreamExtensionsTests
     [Test]
     public async Task WithEventStream_CanChainWithBuild()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -133,11 +123,9 @@ public class EventStreamExtensionsTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
 
-        // Assert
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(orchestrator).IsAssignableTo<IEventStreamOrchestrator<string>>();
 
-        // Cleanup
         if (orchestrator is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync().ConfigureAwait(false);

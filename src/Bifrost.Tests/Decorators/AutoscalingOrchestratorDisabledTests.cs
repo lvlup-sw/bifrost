@@ -57,15 +57,12 @@ public class AutoscalingOrchestratorDisabledTests
     [Test]
     public async Task WhenDisabled_EnqueueAsync_NoMetrics()
     {
-        // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
-        // Act
         await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
-        // Assert
         _metrics.DidNotReceive().RecordEnqueue();
         await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
@@ -76,15 +73,12 @@ public class AutoscalingOrchestratorDisabledTests
     [Test]
     public async Task WhenDisabled_TryEnqueue_NoMetrics()
     {
-        // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.Enqueue("work").Returns(EnqueueResult.Accepted);
 
-        // Act
         var result = orchestrator.TryEnqueue("work");
 
-        // Assert
         await Assert.That(result).IsTrue();
         _metrics.DidNotReceive().RecordEnqueue();
     }
@@ -95,14 +89,12 @@ public class AutoscalingOrchestratorDisabledTests
     [Test]
     public async Task WhenDisabled_PureDelegation()
     {
-        // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
         _inner.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         _inner.DisposeAsync().Returns(ValueTask.CompletedTask);
 
-        // Act
         await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
         _ = orchestrator.PendingCount;
         _ = orchestrator.Capacity;
@@ -122,7 +114,6 @@ public class AutoscalingOrchestratorDisabledTests
     [Test]
     public Task WhenDisabled_LogsWarning()
     {
-        // Arrange & Act
         _ = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
@@ -143,14 +134,12 @@ public class AutoscalingOrchestratorDisabledTests
     [Test]
     public async Task WhenDisabled_ActiveWorkers_OnlyInnerCount()
     {
-        // Arrange
         _inner.ActiveWorkers.Returns(5);
         _registry.ActiveWorkerCount.Returns(3);
 
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         var result = orchestrator.ActiveWorkers;
 
         // Assert - Should only use inner count when disabled
@@ -163,11 +152,9 @@ public class AutoscalingOrchestratorDisabledTests
     [Test]
     public async Task WhenDisabled_RequestScaleUpAsync_NoOp()
     {
-        // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         await orchestrator.RequestScaleUpAsync(5).ConfigureAwait(false);
 
         // Assert - no workers should be created
@@ -183,13 +170,11 @@ public class AutoscalingOrchestratorDisabledTests
     [Test]
     public async Task WhenDisabled_RequestScaleDownAsync_NoOp()
     {
-        // Arrange
         _registry.IdleWorkerCount.Returns(5);
 
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         await orchestrator.RequestScaleDownAsync(3).ConfigureAwait(false);
 
         // Assert - no workers should be stopped

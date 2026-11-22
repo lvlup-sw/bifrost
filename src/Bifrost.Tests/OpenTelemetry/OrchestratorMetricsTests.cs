@@ -25,7 +25,6 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task Constructor_NullProvider_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new OrchestratorMetrics<string>(null!))
             .Throws<ArgumentNullException>();
     }
@@ -36,10 +35,8 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task Constructor_CreatesAllMetrics()
     {
-        // Arrange & Act
         using var metrics = new OrchestratorMetrics<string>(() => null);
 
-        // Assert
         await Assert.That(metrics.ItemsEnqueued).IsNotNull();
         await Assert.That(metrics.ItemsProcessed).IsNotNull();
         await Assert.That(metrics.ItemsFailed).IsNotNull();
@@ -54,7 +51,6 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task RecordEnqueued_IncrementsCounter()
     {
-        // Arrange
         using var metrics = new OrchestratorMetrics<string>(() => null);
 
         // Act - Should not throw
@@ -72,14 +68,12 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task RecordProcessed_IncrementsCounterAndRecordsDuration()
     {
-        // Arrange
         using var metrics = new OrchestratorMetrics<string>(() => null);
 
         // Act - Should not throw
         metrics.RecordProcessed(100.5);
         metrics.RecordProcessed(50.25);
 
-        // Assert
         await Assert.That(metrics.ItemsProcessed).IsNotNull();
         await Assert.That(metrics.ProcessingDuration).IsNotNull();
     }
@@ -90,13 +84,11 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task RecordFailed_IncrementsCounterAndRecordsDuration()
     {
-        // Arrange
         using var metrics = new OrchestratorMetrics<string>(() => null);
 
         // Act - Should not throw
         metrics.RecordFailed(25.0);
 
-        // Assert
         await Assert.That(metrics.ItemsFailed).IsNotNull();
         await Assert.That(metrics.ProcessingDuration).IsNotNull();
     }
@@ -107,12 +99,10 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task ObservableGauges_ReadFromOrchestrator()
     {
-        // Arrange
         var mockOrchestrator = Substitute.For<IWorkOrchestrator<string>>();
         mockOrchestrator.PendingCount.Returns(5);
         mockOrchestrator.ActiveWorkers.Returns(3);
 
-        // Act
         using var metrics = new OrchestratorMetrics<string>(() => mockOrchestrator);
 
         // Assert - Observable gauges should be created (we verify the provider is called
@@ -127,7 +117,6 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task Dispose_CanBeCalledMultipleTimes()
     {
-        // Arrange
         var metrics = new OrchestratorMetrics<string>(() => null);
 
         // Act - Should not throw
@@ -145,7 +134,6 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task MeterName_IncludesWorkTypeName()
     {
-        // Arrange & Act
         using var stringMetrics = new OrchestratorMetrics<string>(() => null);
         using var intMetrics = new OrchestratorMetrics<int>(() => null);
 
@@ -161,10 +149,8 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task Constructor_CreatesDeadLetteredCounter()
     {
-        // Arrange & Act
         using var metrics = new OrchestratorMetrics<string>(() => null);
 
-        // Assert
         await Assert.That(metrics.ItemsDeadLettered).IsNotNull();
     }
 
@@ -174,14 +160,12 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task RecordDeadLettered_IncrementsCounter()
     {
-        // Arrange
         using var metrics = new OrchestratorMetrics<string>(() => null);
 
         // Act - Should not throw
         metrics.RecordDeadLettered();
         metrics.RecordDeadLettered();
 
-        // Assert
         await Assert.That(metrics.ItemsDeadLettered).IsNotNull();
     }
 
@@ -191,10 +175,8 @@ public class OrchestratorMetricsTests
     [Test]
     public async Task Constructor_CreatesDlqDepthGauge()
     {
-        // Arrange & Act
         using var metrics = new OrchestratorMetrics<string>(() => null, () => 5);
 
-        // Assert
         await Assert.That(metrics.DeadLetterQueueDepth).IsNotNull();
     }
 }

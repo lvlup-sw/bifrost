@@ -513,7 +513,6 @@ public sealed class DecoratorStackCompatibilityTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         await Assert.That(orchestrator).IsNotNull();
 
-        // Act
         var healthService = provider.GetRequiredService<HealthCheckService>();
         var report = await healthService.CheckHealthAsync().ConfigureAwait(false);
 

@@ -25,10 +25,8 @@ public class WorkOrchestratorOptionsTests
     [Test]
     public async Task WorkOrchestratorOptions_DefaultValues_AreReasonable()
     {
-        // Arrange & Act
         var options = new WorkOrchestratorOptions();
 
-        // Assert
         await Assert.That(options.Capacity).IsEqualTo(128);
         await Assert.That(options.WorkerCount).IsEqualTo(2);
     }
@@ -39,11 +37,9 @@ public class WorkOrchestratorOptionsTests
     [Test]
     public async Task Capacity_HasRangeAttribute()
     {
-        // Arrange
         var property = typeof(WorkOrchestratorOptions).GetProperty("Capacity");
         var attribute = property?.GetCustomAttribute<RangeAttribute>();
 
-        // Assert
         await Assert.That(attribute).IsNotNull();
         await Assert.That(attribute!.Minimum).IsEqualTo(1);
         await Assert.That(attribute.Maximum).IsEqualTo(10000);
@@ -55,11 +51,9 @@ public class WorkOrchestratorOptionsTests
     [Test]
     public async Task WorkerCount_HasRangeAttribute()
     {
-        // Arrange
         var property = typeof(WorkOrchestratorOptions).GetProperty("WorkerCount");
         var attribute = property?.GetCustomAttribute<RangeAttribute>();
 
-        // Assert
         await Assert.That(attribute).IsNotNull();
         await Assert.That(attribute!.Minimum).IsEqualTo(1);
         await Assert.That(attribute.Maximum).IsEqualTo(100);
@@ -71,14 +65,11 @@ public class WorkOrchestratorOptionsTests
     [Test]
     public async Task Properties_CanBeSet()
     {
-        // Arrange
         var options = new WorkOrchestratorOptions();
 
-        // Act
         options.Capacity = 256;
         options.WorkerCount = 4;
 
-        // Assert
         await Assert.That(options.Capacity).IsEqualTo(256);
         await Assert.That(options.WorkerCount).IsEqualTo(4);
     }
@@ -89,10 +80,8 @@ public class WorkOrchestratorOptionsTests
     [Test]
     public async Task Class_IsPublic()
     {
-        // Arrange
         var type = typeof(WorkOrchestratorOptions);
 
-        // Assert
         await Assert.That(type.IsPublic).IsTrue();
         await Assert.That(type.IsClass).IsTrue();
     }

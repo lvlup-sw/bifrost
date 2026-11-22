@@ -55,13 +55,10 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task TryEnqueue_WhenBelowCapacity_ReturnsTrue()
     {
-        // Arrange
         var queue = CreateQueue(SmallCapacity);
 
-        // Act
         var accepted = queue.TryEnqueue(1);
 
-        // Assert
         await Assert.That(accepted).IsTrue();
     }
 
@@ -73,7 +70,6 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task TryEnqueue_WhenAtCapacity_ReturnsFalse()
     {
-        // Arrange
         var queue = CreateQueue(SmallCapacity);
         for (var i = 0; i < SmallCapacity; i++)
         {
@@ -81,10 +77,8 @@ public abstract class WorkQueueContractTests
             await Assert.That(filled).IsTrue();
         }
 
-        // Act
         var accepted = queue.TryEnqueue(SmallCapacity);
 
-        // Assert
         await Assert.That(accepted).IsFalse();
     }
 
@@ -96,16 +90,13 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task WaitToDequeueAsync_AfterEnqueue_CompletesTrue()
     {
-        // Arrange
         var queue = CreateQueue(SmallCapacity);
         var enqueued = queue.TryEnqueue(42);
         await Assert.That(enqueued).IsTrue();
         using var timeoutCts = new CancellationTokenSource(WaitTimeout);
 
-        // Act
         var signaled = await queue.WaitToDequeueAsync(timeoutCts.Token).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(signaled).IsTrue();
     }
 
@@ -159,7 +150,6 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task TryDequeue_AfterWait_YieldsItem_ToleratesSpuriousMissRetry()
     {
-        // Arrange
         var queue = CreateQueue(SmallCapacity);
         var enqueued = queue.TryEnqueue(99);
         await Assert.That(enqueued).IsTrue();
@@ -168,7 +158,6 @@ public abstract class WorkQueueContractTests
         // Act — the canonical loop tolerates spurious TryDequeue misses by re-waiting.
         var (received, item) = await ConsumeOneAsync(queue, timeoutCts.Token).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(received).IsTrue();
         await Assert.That(item).IsEqualTo(99);
     }
@@ -182,7 +171,6 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task Count_Approximate_WithinDocumentedBounds()
     {
-        // Arrange
         const int enqueueCount = 3;
         var queue = CreateQueue(SmallCapacity);
         await Assert.That(queue.Count).IsEqualTo(0);
@@ -217,7 +205,6 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task Conservation_NItemsIn_NItemsOut_MultiProducerConsumer()
     {
-        // Arrange
         const int producerCount = 4;
         const int consumerCount = 4;
         const int itemsPerProducer = 250;
@@ -274,7 +261,6 @@ public abstract class WorkQueueContractTests
             });
         }
 
-        // Act
         await Task.WhenAll(producers).ConfigureAwait(false);
         await Task.WhenAll(consumers).ConfigureAwait(false);
 

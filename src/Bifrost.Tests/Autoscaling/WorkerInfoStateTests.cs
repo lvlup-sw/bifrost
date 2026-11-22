@@ -22,10 +22,8 @@ public class WorkerInfoStateTests
     [Test]
     public async Task NewWorker_StartsIdle()
     {
-        // Arrange & Act
         var worker = new WorkerInfo("worker-1");
 
-        // Assert
         await Assert.That(worker.IsIdle).IsTrue();
     }
 
@@ -35,13 +33,10 @@ public class WorkerInfoStateTests
     [Test]
     public async Task MarkBusy_SetsIsIdleToFalse()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
 
-        // Act
         worker.MarkBusy();
 
-        // Assert
         await Assert.That(worker.IsIdle).IsFalse();
     }
 
@@ -51,14 +46,11 @@ public class WorkerInfoStateTests
     [Test]
     public async Task MarkIdle_SetsIsIdleToTrue()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
         worker.MarkBusy(); // First mark busy
 
-        // Act
         worker.MarkIdle();
 
-        // Assert
         await Assert.That(worker.IsIdle).IsTrue();
     }
 
@@ -68,15 +60,12 @@ public class WorkerInfoStateTests
     [Test]
     public async Task MarkBusy_CalledMultipleTimes_KeepsIsIdleFalse()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
 
-        // Act
         worker.MarkBusy();
         worker.MarkBusy();
         worker.MarkBusy();
 
-        // Assert
         await Assert.That(worker.IsIdle).IsFalse();
     }
 
@@ -86,16 +75,13 @@ public class WorkerInfoStateTests
     [Test]
     public async Task MarkIdle_CalledMultipleTimes_KeepsIsIdleTrue()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
         worker.MarkBusy();
 
-        // Act
         worker.MarkIdle();
         worker.MarkIdle();
         worker.MarkIdle();
 
-        // Assert
         await Assert.That(worker.IsIdle).IsTrue();
     }
 
@@ -105,7 +91,6 @@ public class WorkerInfoStateTests
     [Test]
     public async Task StateTransitions_BusyIdleSequence_WorksCorrectly()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
 
         // Act & Assert - Initial state is idle
@@ -134,7 +119,6 @@ public class WorkerInfoStateTests
     [Test]
     public async Task StateTransitions_ConcurrentAccess_IsThreadSafe()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
         var iterations = 10000;
         var busyCount = 0;

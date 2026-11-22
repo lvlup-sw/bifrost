@@ -22,13 +22,10 @@ public class MetricsPortTests
     [Test]
     public async Task Interface_DefinesMaxBacklogProperty()
     {
-        // Arrange
         var type = typeof(IAutoscalingMetricsPort);
 
-        // Act
         var property = type.GetProperty(nameof(IAutoscalingMetricsPort.MaxBacklog));
 
-        // Assert
         await Assert.That(property).IsNotNull();
         await Assert.That(property!.PropertyType).IsEqualTo(typeof(int));
         await Assert.That(property.CanRead).IsTrue();
@@ -41,13 +38,10 @@ public class MetricsPortTests
     [Test]
     public async Task Interface_DefinesPendingWorkCountProperty()
     {
-        // Arrange
         var type = typeof(IAutoscalingMetricsPort);
 
-        // Act
         var property = type.GetProperty(nameof(IAutoscalingMetricsPort.PendingWorkCount));
 
-        // Assert
         await Assert.That(property).IsNotNull();
         await Assert.That(property!.PropertyType).IsEqualTo(typeof(int));
         await Assert.That(property.CanRead).IsTrue();
@@ -60,13 +54,10 @@ public class MetricsPortTests
     [Test]
     public async Task Interface_DefinesActiveWorkerCountProperty()
     {
-        // Arrange
         var type = typeof(IAutoscalingMetricsPort);
 
-        // Act
         var property = type.GetProperty(nameof(IAutoscalingMetricsPort.ActiveWorkerCount));
 
-        // Assert
         await Assert.That(property).IsNotNull();
         await Assert.That(property!.PropertyType).IsEqualTo(typeof(int));
         await Assert.That(property.CanRead).IsTrue();
@@ -79,13 +70,10 @@ public class MetricsPortTests
     [Test]
     public async Task Interface_DefinesQueuedCountProperty()
     {
-        // Arrange
         var type = typeof(IAutoscalingMetricsPort);
 
-        // Act
         var property = type.GetProperty(nameof(IAutoscalingMetricsPort.QueuedCount));
 
-        // Assert
         await Assert.That(property).IsNotNull();
         await Assert.That(property!.PropertyType).IsEqualTo(typeof(long));
         await Assert.That(property.CanRead).IsTrue();
@@ -98,13 +86,10 @@ public class MetricsPortTests
     [Test]
     public async Task Interface_DefinesGetUtilizationRatioMethod()
     {
-        // Arrange
         var type = typeof(IAutoscalingMetricsPort);
 
-        // Act
         var method = type.GetMethod(nameof(IAutoscalingMetricsPort.GetUtilizationRatio));
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(double));
         await Assert.That(method.GetParameters()).HasCount().EqualTo(0);
@@ -116,10 +101,8 @@ public class MetricsPortTests
     [Test]
     public async Task Interface_IsInterface()
     {
-        // Arrange
         var type = typeof(IAutoscalingMetricsPort);
 
-        // Assert
         await Assert.That(type.IsInterface).IsTrue();
     }
 }

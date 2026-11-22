@@ -22,10 +22,8 @@ public class DeadLetteredWorkTests
     [Test]
     public async Task DeadLetteredWork_IsValueType()
     {
-        // Arrange
         var type = typeof(DeadLetteredWork<>);
 
-        // Assert
         await Assert.That(type.IsValueType).IsTrue();
     }
 
@@ -35,10 +33,8 @@ public class DeadLetteredWorkTests
     [Test]
     public async Task DeadLetteredWork_HasCorrectProperties()
     {
-        // Arrange
         var type = typeof(DeadLetteredWork<>);
 
-        // Assert
         var workProperty = type.GetProperty("Work");
         var exceptionProperty = type.GetProperty("Exception");
         var attemptCountProperty = type.GetProperty("AttemptCount");
@@ -63,17 +59,14 @@ public class DeadLetteredWorkTests
     [Test]
     public async Task Constructor_SetsPropertiesCorrectly()
     {
-        // Arrange
         var work = "test-work";
         var exception = new InvalidOperationException("test");
         var attemptCount = 3;
         var failedAt = DateTimeOffset.UtcNow;
         var correlationId = "corr-123";
 
-        // Act
         var item = new DeadLetteredWork<string>(work, exception, attemptCount, failedAt, correlationId);
 
-        // Assert
         await Assert.That(item.Work).IsEqualTo(work);
         await Assert.That(item.Exception).IsEqualTo(exception);
         await Assert.That(item.AttemptCount).IsEqualTo(attemptCount);
@@ -87,10 +80,8 @@ public class DeadLetteredWorkTests
     [Test]
     public async Task Type_IsPublic()
     {
-        // Arrange
         var type = typeof(DeadLetteredWork<>);
 
-        // Assert
         await Assert.That(type.IsPublic).IsTrue();
     }
 
@@ -100,11 +91,9 @@ public class DeadLetteredWorkTests
     [Test]
     public async Task DeadLetteredWork_ImplementsIEquatable()
     {
-        // Arrange
         var type = typeof(DeadLetteredWork<string>);
         var interfaces = type.GetInterfaces();
 
-        // Assert
         await Assert.That(interfaces.Any(i =>
             i.IsGenericType
             && i.GetGenericTypeDefinition() == typeof(IEquatable<>))).IsTrue();

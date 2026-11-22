@@ -22,13 +22,10 @@ public class WorkerRegistryIdleCountTests
     [Test]
     public async Task IdleWorkerCount_NoWorkers_ReturnsZero()
     {
-        // Arrange
         var registry = new WorkerRegistry();
 
-        // Act
         var idleCount = registry.IdleWorkerCount;
 
-        // Assert
         await Assert.That(idleCount).IsEqualTo(0);
     }
 
@@ -38,7 +35,6 @@ public class WorkerRegistryIdleCountTests
     [Test]
     public async Task IdleWorkerCount_WithIdleWorkers_ReturnsCorrectCount()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -54,13 +50,10 @@ public class WorkerRegistryIdleCountTests
             cts.Token).ConfigureAwait(false);
         worker2.MarkIdle();
 
-        // Act
         var idleCount = registry.IdleWorkerCount;
 
-        // Assert
         await Assert.That(idleCount).IsEqualTo(2);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -70,7 +63,6 @@ public class WorkerRegistryIdleCountTests
     [Test]
     public async Task IdleWorkerCount_WithBusyWorkers_ExcludesBusyWorkers()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -86,13 +78,10 @@ public class WorkerRegistryIdleCountTests
             cts.Token).ConfigureAwait(false);
         worker2.MarkBusy();
 
-        // Act
         var idleCount = registry.IdleWorkerCount;
 
-        // Assert
         await Assert.That(idleCount).IsEqualTo(1);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -102,7 +91,6 @@ public class WorkerRegistryIdleCountTests
     [Test]
     public async Task IdleWorkerCount_WithStoppingWorkers_ExcludesStoppingWorkers()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -119,13 +107,10 @@ public class WorkerRegistryIdleCountTests
         worker2.MarkIdle();
         registry.RequestWorkerStop("worker-2"); // Request stop
 
-        // Act
         var idleCount = registry.IdleWorkerCount;
 
-        // Assert
         await Assert.That(idleCount).IsEqualTo(1);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -135,7 +120,6 @@ public class WorkerRegistryIdleCountTests
     [Test]
     public async Task IdleWorkerCount_StateChanges_ReflectsCorrectly()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -155,7 +139,6 @@ public class WorkerRegistryIdleCountTests
         worker.MarkIdle();
         await Assert.That(registry.IdleWorkerCount).IsEqualTo(1);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -165,7 +148,6 @@ public class WorkerRegistryIdleCountTests
     [Test]
     public async Task IdleWorkerCount_ConcurrentAccess_IsThreadSafe()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
         var workers = new List<WorkerInfo>();
@@ -218,7 +200,6 @@ public class WorkerRegistryIdleCountTests
         await Assert.That(finalCount).IsGreaterThanOrEqualTo(0);
         await Assert.That(finalCount).IsLessThanOrEqualTo(10);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 }

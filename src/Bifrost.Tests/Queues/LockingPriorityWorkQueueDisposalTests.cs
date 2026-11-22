@@ -63,7 +63,6 @@ public sealed class LockingPriorityWorkQueueDisposalTests
     [Test]
     public async Task LockingPriorityWorkQueue_DisposeTwice_DoesNotThrow()
     {
-        // Arrange
         var queue = new LockingPriorityWorkQueue<int>(
             SmallCapacity, new PriorityDispatchOptions(), TestTimestampFrequency);
 

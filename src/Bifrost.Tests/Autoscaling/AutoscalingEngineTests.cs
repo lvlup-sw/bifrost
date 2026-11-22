@@ -34,7 +34,6 @@ public class AutoscalingEngineTests
     [Test]
     public async Task EvaluateScaling_HighUtilization_ReturnsScaleUp()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 1,
@@ -49,7 +48,6 @@ public class AutoscalingEngineTests
         // Act - 90% utilization should trigger scale up
         var decision = engine.EvaluateScaling(currentWorkers: 2, utilization: 0.9, maxBacklog: 100);
 
-        // Assert
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.ScaleUp);
         await Assert.That(decision.CurrentWorkers).IsEqualTo(2);
         await Assert.That(decision.TargetWorkers).IsEqualTo(4); // 2 + 2 (step)
@@ -67,7 +65,6 @@ public class AutoscalingEngineTests
     [Test]
     public async Task EvaluateScaling_LowUtilization_ReturnsScaleDown()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 1,
@@ -82,7 +79,6 @@ public class AutoscalingEngineTests
         // Act - 20% utilization should trigger scale down
         var decision = engine.EvaluateScaling(currentWorkers: 4, utilization: 0.2, maxBacklog: 100);
 
-        // Assert
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.ScaleDown);
         await Assert.That(decision.CurrentWorkers).IsEqualTo(4);
         await Assert.That(decision.TargetWorkers).IsEqualTo(3); // 4 - 1 (step)
@@ -99,7 +95,6 @@ public class AutoscalingEngineTests
     [Test]
     public async Task EvaluateScaling_NormalUtilization_ReturnsNoAction()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             HighWatermark = 0.8,
@@ -111,7 +106,6 @@ public class AutoscalingEngineTests
         // Act - 50% utilization is between watermarks
         var decision = engine.EvaluateScaling(currentWorkers: 4, utilization: 0.5, maxBacklog: 100);
 
-        // Assert
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.None);
         await Assert.That(decision.TargetWorkers).IsEqualTo(4); // No change
     }
@@ -127,7 +121,6 @@ public class AutoscalingEngineTests
     [Test]
     public async Task EvaluateScaling_AtMaxWorkers_DoesNotScaleUp()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 1,
@@ -141,7 +134,6 @@ public class AutoscalingEngineTests
         // Act - Already at max
         var decision = engine.EvaluateScaling(currentWorkers: 5, utilization: 0.9, maxBacklog: 100);
 
-        // Assert
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.None);
         await Assert.That(decision.TargetWorkers).IsEqualTo(5);
         await Assert.That(decision.Reason).Contains("max");
@@ -158,7 +150,6 @@ public class AutoscalingEngineTests
     [Test]
     public async Task EvaluateScaling_AtMinWorkers_DoesNotScaleDown()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -172,7 +163,6 @@ public class AutoscalingEngineTests
         // Act - Already at min
         var decision = engine.EvaluateScaling(currentWorkers: 2, utilization: 0.1, maxBacklog: 100);
 
-        // Assert
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.None);
         await Assert.That(decision.TargetWorkers).IsEqualTo(2);
         await Assert.That(decision.Reason).Contains("min");
@@ -189,7 +179,6 @@ public class AutoscalingEngineTests
     [Test]
     public async Task EvaluateScaling_ScaleUpClampsToMax()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 1,
@@ -203,7 +192,6 @@ public class AutoscalingEngineTests
         // Act - 4 + 3 = 7, but max is 5
         var decision = engine.EvaluateScaling(currentWorkers: 4, utilization: 0.9, maxBacklog: 100);
 
-        // Assert
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.ScaleUp);
         await Assert.That(decision.TargetWorkers).IsEqualTo(5); // Clamped to max
     }
@@ -219,7 +207,6 @@ public class AutoscalingEngineTests
     [Test]
     public async Task EvaluateScaling_ScaleDownClampsToMin()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -233,7 +220,6 @@ public class AutoscalingEngineTests
         // Act - 3 - 3 = 0, but min is 2
         var decision = engine.EvaluateScaling(currentWorkers: 3, utilization: 0.1, maxBacklog: 100);
 
-        // Assert
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.ScaleDown);
         await Assert.That(decision.TargetWorkers).IsEqualTo(2); // Clamped to min
     }
@@ -249,7 +235,6 @@ public class AutoscalingEngineTests
     [Test]
     public async Task EvaluateScaling_WithinCooldown_ReturnsNoAction()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             HighWatermark = 0.8,
@@ -264,7 +249,6 @@ public class AutoscalingEngineTests
         // Act - Second call should be blocked by cooldown
         var decision = engine.EvaluateScaling(currentWorkers: 4, utilization: 0.9, maxBacklog: 100);
 
-        // Assert
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.None);
         await Assert.That(decision.Reason).Contains("cooldown");
     }
@@ -280,7 +264,6 @@ public class AutoscalingEngineTests
     [Test]
     public async Task EvaluateScaling_AfterCooldown_AllowsScaling()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             HighWatermark = 0.8,
@@ -295,10 +278,8 @@ public class AutoscalingEngineTests
         // Wait for cooldown to expire
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         var decision = engine.EvaluateScaling(currentWorkers: 4, utilization: 0.9, maxBacklog: 100);
 
-        // Assert
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.ScaleUp);
     }
 
@@ -313,7 +294,6 @@ public class AutoscalingEngineTests
     [Test]
     public async Task EvaluateScaling_IncludesReason()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             HighWatermark = 0.8,
@@ -321,10 +301,8 @@ public class AutoscalingEngineTests
         });
         var engine = new AutoscalingEngine(options);
 
-        // Act
         var decision = engine.EvaluateScaling(currentWorkers: 2, utilization: 0.9, maxBacklog: 100);
 
-        // Assert
         await Assert.That(decision.Reason).IsNotEmpty();
     }
 
@@ -339,10 +317,8 @@ public class AutoscalingEngineTests
     [Test]
     public async Task ScalingDecision_IsReadonlyRecordStruct()
     {
-        // Arrange
         var type = typeof(ScalingDecision);
 
-        // Assert
         await Assert.That(type.IsValueType).IsTrue();
     }
 
@@ -360,7 +336,6 @@ public class AutoscalingEngineTests
     [NotInParallel(nameof(EvaluateScaling_ConcurrentCalls_OnlyOneBypassesCooldown))]
     public async Task EvaluateScaling_ConcurrentCalls_OnlyOneBypassesCooldown()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 1,

@@ -51,10 +51,8 @@ public class WorkClassTests
     [Test]
     public async Task EnqueueResult_Accepted_HasNoRejectionReason()
     {
-        // Arrange
         var result = EnqueueResult.Accepted;
 
-        // Assert
         await Assert.That(result.IsAccepted).IsTrue();
         await Assert.That(result.Reason).IsNull();
     }
@@ -70,10 +68,8 @@ public class WorkClassTests
     [Arguments(RejectionReason.Shutdown)]
     public async Task EnqueueResult_Rejected_CarriesReason(RejectionReason reason)
     {
-        // Arrange
         var result = EnqueueResult.Rejected(reason);
 
-        // Assert
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(result.Reason).IsEqualTo(reason);
     }

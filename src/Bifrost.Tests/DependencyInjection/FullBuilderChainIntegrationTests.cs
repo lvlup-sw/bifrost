@@ -35,7 +35,6 @@ public class FullBuilderChainIntegrationTests
     [Test]
     public async Task Builder_AllExtensions_ChainableInAnyOrder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
@@ -62,7 +61,6 @@ public class FullBuilderChainIntegrationTests
         // Verify the decorator chain was applied (outermost should be autoscaling)
         await Assert.That(orchestrator).IsAssignableTo<AutoscalingOrchestrator<string>>();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -75,7 +73,6 @@ public class FullBuilderChainIntegrationTests
     [Test]
     public async Task Builder_AllExtensions_ReverseOrder_ChainableInAnyOrder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
@@ -102,7 +99,6 @@ public class FullBuilderChainIntegrationTests
         // Verify autoscaling is still outermost (decorator order is fixed, not call order)
         await Assert.That(orchestrator).IsAssignableTo<AutoscalingOrchestrator<string>>();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -113,7 +109,6 @@ public class FullBuilderChainIntegrationTests
     [Test]
     public async Task Builder_FullChain_ProcessesWorkEndToEnd()
     {
-        // Arrange
         var handlerInvocations = new ConcurrentBag<string>();
         var dlSubscriberItems = new ConcurrentBag<DeadLetteredWork<string>>();
         var decoratorInvocations = new ConcurrentBag<string>();
@@ -249,7 +244,6 @@ public class FullBuilderChainIntegrationTests
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
         await Assert.That(dlq.Count).IsGreaterThanOrEqualTo(1);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
@@ -319,7 +313,6 @@ public class FullBuilderChainIntegrationTests
         var eventOrchestrator = GetInnerOrchestrator<IEventStreamOrchestrator<string>>(orchestrator);
         await Assert.That(eventOrchestrator).IsNotNull();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 

@@ -26,10 +26,8 @@ public class WorkerRegistryTests
     [Test]
     public async Task ActiveWorkerCount_Initial_ReturnsZero()
     {
-        // Arrange
         var registry = new WorkerRegistry();
 
-        // Assert
         await Assert.That(registry.ActiveWorkerCount).IsEqualTo(0);
     }
 
@@ -39,10 +37,8 @@ public class WorkerRegistryTests
     [Test]
     public async Task IdleWorkerCount_Initial_ReturnsZero()
     {
-        // Arrange
         var registry = new WorkerRegistry();
 
-        // Assert
         await Assert.That(registry.IdleWorkerCount).IsEqualTo(0);
     }
 
@@ -52,21 +48,17 @@ public class WorkerRegistryTests
     [Test]
     public async Task CreateWorkerAsync_AddsWorker()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
-        // Act
         var workerInfo = await registry.CreateWorkerAsync(
             "worker-1",
             async (id, ct) => await Task.Delay(100, ct).ConfigureAwait(false),
             cts.Token).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(registry.ActiveWorkerCount).IsEqualTo(1);
         await Assert.That(workerInfo.WorkerId).IsEqualTo("worker-1");
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -76,23 +68,19 @@ public class WorkerRegistryTests
     [Test]
     public async Task CreateWorkerAsync_ReturnsCorrectWorkerInfo()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
         var beforeCreate = DateTimeOffset.UtcNow;
 
-        // Act
         var workerInfo = await registry.CreateWorkerAsync(
             "test-worker",
             async (id, ct) => await Task.Delay(100, ct).ConfigureAwait(false),
             cts.Token).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(workerInfo.WorkerId).IsEqualTo("test-worker");
         await Assert.That(workerInfo.CreatedAt).IsGreaterThanOrEqualTo(beforeCreate);
         await Assert.That(workerInfo.StopRequested).IsFalse();
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -102,11 +90,9 @@ public class WorkerRegistryTests
     [Test]
     public async Task GetAllWorkers_ReturnsAllWorkers()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
-        // Act
         await registry.CreateWorkerAsync(
             "worker-1",
             async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
@@ -118,10 +104,8 @@ public class WorkerRegistryTests
 
         var workers = registry.GetAllWorkers();
 
-        // Assert
         await Assert.That(workers.Count).IsEqualTo(2);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -131,7 +115,6 @@ public class WorkerRegistryTests
     [Test]
     public async Task RequestWorkerStop_SetsStopFlag_ReturnsTrue()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -140,16 +123,13 @@ public class WorkerRegistryTests
             async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
             cts.Token).ConfigureAwait(false);
 
-        // Act
         var result = registry.RequestWorkerStop("worker-1");
 
-        // Assert
         await Assert.That(result).IsTrue();
         var workers = registry.GetAllWorkers();
         var worker = workers.First(w => w.WorkerId == "worker-1");
         await Assert.That(worker.StopRequested).IsTrue();
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -159,13 +139,10 @@ public class WorkerRegistryTests
     [Test]
     public async Task RequestWorkerStop_NonExistent_ReturnsFalse()
     {
-        // Arrange
         var registry = new WorkerRegistry();
 
-        // Act
         var result = registry.RequestWorkerStop("non-existent");
 
-        // Assert
         await Assert.That(result).IsFalse();
     }
 
@@ -175,7 +152,6 @@ public class WorkerRegistryTests
     [Test]
     public async Task RequestMultipleWorkerStop_StopsIdleWorkersFirst()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -191,7 +167,6 @@ public class WorkerRegistryTests
             cts.Token).ConfigureAwait(false);
         worker2.IsIdle = false;
 
-        // Act
         var stoppedCount = registry.RequestMultipleWorkerStop(1);
 
         // Assert - Should stop the idle worker first
@@ -202,7 +177,6 @@ public class WorkerRegistryTests
         await Assert.That(idleWorker.StopRequested).IsTrue();
         await Assert.That(busyWorker.StopRequested).IsFalse();
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -212,7 +186,6 @@ public class WorkerRegistryTests
     [Test]
     public async Task RequestMultipleWorkerStop_RespectsCount()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -225,15 +198,12 @@ public class WorkerRegistryTests
             worker.IsIdle = true;
         }
 
-        // Act
         var stoppedCount = registry.RequestMultipleWorkerStop(2);
 
-        // Assert
         await Assert.That(stoppedCount).IsEqualTo(2);
         var stoppedWorkers = registry.GetAllWorkers().Count(w => w.StopRequested);
         await Assert.That(stoppedWorkers).IsEqualTo(2);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -243,7 +213,6 @@ public class WorkerRegistryTests
     [Test]
     public async Task RequestMultipleWorkerStop_SelectsNewestFirst()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -267,7 +236,6 @@ public class WorkerRegistryTests
         var worker2 = workers.First(w => w.WorkerId == "worker-2");
         await Assert.That(worker2.StopRequested).IsTrue();
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -277,7 +245,6 @@ public class WorkerRegistryTests
     [Test]
     public async Task RequestMultipleWorkerStop_ReturnsActualCount_WhenLessAvailable()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -290,10 +257,8 @@ public class WorkerRegistryTests
         // Act - Request more than available
         var stoppedCount = registry.RequestMultipleWorkerStop(5);
 
-        // Assert
         await Assert.That(stoppedCount).IsEqualTo(1);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -303,7 +268,6 @@ public class WorkerRegistryTests
     [Test]
     public async Task IdleWorkerCount_TracksIdleWorkers()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -316,14 +280,11 @@ public class WorkerRegistryTests
             async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
             cts.Token).ConfigureAwait(false);
 
-        // Act
         worker1.IsIdle = true;
         worker2.IsIdle = false;
 
-        // Assert
         await Assert.That(registry.IdleWorkerCount).IsEqualTo(1);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -333,10 +294,8 @@ public class WorkerRegistryTests
     [Test]
     public async Task WorkerRegistry_ImplementsIWorkerRegistry()
     {
-        // Arrange & Act
         var registry = new WorkerRegistry();
 
-        // Assert
         await Assert.That(registry).IsAssignableTo<IWorkerRegistry>();
     }
 
@@ -346,7 +305,6 @@ public class WorkerRegistryTests
     [Test]
     public async Task GetWorkerInfo_WhenExists_ReturnsWorker()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -355,14 +313,11 @@ public class WorkerRegistryTests
             async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
             cts.Token).ConfigureAwait(false);
 
-        // Act
         var worker = registry.GetWorkerInfo("worker-1");
 
-        // Assert
         await Assert.That(worker).IsNotNull();
         await Assert.That(worker!.WorkerId).IsEqualTo("worker-1");
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -372,13 +327,10 @@ public class WorkerRegistryTests
     [Test]
     public async Task GetWorkerInfo_WhenNotExists_ReturnsNull()
     {
-        // Arrange
         var registry = new WorkerRegistry();
 
-        // Act
         var worker = registry.GetWorkerInfo("non-existent");
 
-        // Assert
         await Assert.That(worker).IsNull();
     }
 
@@ -388,14 +340,11 @@ public class WorkerRegistryTests
     [Test]
     public async Task MarkBusy_SetsIsIdleToFalse()
     {
-        // Arrange
         var workerInfo = new WorkerInfo("test-worker");
         workerInfo.IsIdle = true;
 
-        // Act
         workerInfo.MarkBusy();
 
-        // Assert
         await Assert.That(workerInfo.IsIdle).IsFalse();
     }
 
@@ -405,14 +354,11 @@ public class WorkerRegistryTests
     [Test]
     public async Task MarkIdle_SetsIsIdleToTrue()
     {
-        // Arrange
         var workerInfo = new WorkerInfo("test-worker");
         workerInfo.IsIdle = false;
 
-        // Act
         workerInfo.MarkIdle();
 
-        // Assert
         await Assert.That(workerInfo.IsIdle).IsTrue();
     }
 
@@ -422,7 +368,6 @@ public class WorkerRegistryTests
     [Test]
     public async Task CreateWorkerAsync_WorkerFaults_LogsError()
     {
-        // Arrange
         var logger = Substitute.For<ILogger<WorkerRegistry>>();
         var logReceived = new TaskCompletionSource();
 

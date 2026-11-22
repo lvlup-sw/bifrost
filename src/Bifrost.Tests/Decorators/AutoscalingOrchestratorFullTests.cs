@@ -58,15 +58,12 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task EnqueueAsync_TracksMetrics()
     {
-        // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
-        // Act
         await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
 
-        // Assert
         _metrics.Received(1).RecordEnqueue();
         await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
@@ -77,7 +74,6 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task RequestScaleUpAsync_RegistersWorkersWithRegistry()
     {
-        // Arrange
         var workerInfo = new WorkerInfo("test-worker");
         Func<string, CancellationToken, Task> workerFunc = (_, _) => Task.CompletedTask;
         _inner.CreateWorkerFunction(Arg.Any<Action<bool>?>()).Returns(workerFunc);
@@ -90,7 +86,6 @@ public class AutoscalingOrchestratorFullTests
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         await orchestrator.RequestScaleUpAsync(3).ConfigureAwait(false);
 
         // Assert - 3 workers should be created via registry
@@ -135,14 +130,12 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task RequestScaleDownAsync_RespectsIdleWorkerCount()
     {
-        // Arrange
         _registry.IdleWorkerCount.Returns(3);
         _registry.RequestMultipleWorkerStop(Arg.Any<int>()).Returns(3);
 
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         await orchestrator.RequestScaleDownAsync(5).ConfigureAwait(false);
 
         // Assert - Should only stop 3 (the idle count)
@@ -155,17 +148,14 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task ActiveWorkers_IncludesRegistryWorkers()
     {
-        // Arrange
         _inner.ActiveWorkers.Returns(5);
         _registry.ActiveWorkerCount.Returns(3);
 
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         var result = orchestrator.ActiveWorkers;
 
-        // Assert
         await Assert.That(result).IsEqualTo(5);
     }
 
@@ -175,7 +165,6 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task Constructor_NullInner_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new AutoscalingOrchestrator<string>(
                 null!, _registry, _metrics, Options.Create(_options), _logger))
             .Throws<ArgumentNullException>();
@@ -187,7 +176,6 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task Constructor_NullRegistry_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new AutoscalingOrchestrator<string>(
                 _inner, null!, _metrics, Options.Create(_options), _logger))
             .Throws<ArgumentNullException>();
@@ -199,7 +187,6 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task Constructor_NullMetrics_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new AutoscalingOrchestrator<string>(
                 _inner, _registry, null!, Options.Create(_options), _logger))
             .Throws<ArgumentNullException>();
@@ -211,7 +198,6 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task Constructor_NullOptions_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new AutoscalingOrchestrator<string>(
                 _inner, _registry, _metrics, (IOptions<AutoscalingOptions>)null!, _logger))
             .Throws<ArgumentNullException>();
@@ -223,7 +209,6 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task Constructor_NullLogger_Throws()
     {
-        // Act & Assert
         await Assert.That(() => new AutoscalingOrchestrator<string>(
                 _inner, _registry, _metrics, Options.Create(_options), null!))
             .Throws<ArgumentNullException>();
@@ -235,15 +220,12 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task TryEnqueue_Success_TracksMetrics()
     {
-        // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.Enqueue("work").Returns(EnqueueResult.Accepted);
 
-        // Act
         var result = orchestrator.TryEnqueue("work");
 
-        // Assert
         await Assert.That(result).IsTrue();
         _metrics.Received(1).RecordEnqueue();
     }
@@ -254,15 +236,12 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task TryEnqueue_Failure_DoesNotTrackMetrics()
     {
-        // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.Enqueue("work").Returns(EnqueueResult.Rejected(RejectionReason.CapacityExceeded));
 
-        // Act
         var result = orchestrator.TryEnqueue("work");
 
-        // Assert
         await Assert.That(result).IsFalse();
         _metrics.DidNotReceive().RecordEnqueue();
     }
@@ -273,15 +252,12 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task PendingCount_DelegatesToInner()
     {
-        // Arrange
         _inner.PendingCount.Returns(42);
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         var result = orchestrator.PendingCount;
 
-        // Assert
         await Assert.That(result).IsEqualTo(42);
     }
 
@@ -291,15 +267,12 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task Capacity_DelegatesToInner()
     {
-        // Arrange
         _inner.Capacity.Returns(256);
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         var result = orchestrator.Capacity;
 
-        // Assert
         await Assert.That(result).IsEqualTo(256);
     }
 
@@ -309,15 +282,12 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task TryEnqueue_ForwardsWorkClassToInner()
     {
-        // Arrange
         _inner.Enqueue("work", Arg.Any<WorkEnqueueOptions>()).Returns(EnqueueResult.Accepted);
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         var result = orchestrator.TryEnqueue("work", WorkClass.Batch);
 
-        // Assert
         await Assert.That(result).IsTrue();
         _inner.Received(1).Enqueue("work", WorkClass.Batch);
     }
@@ -328,15 +298,12 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task StopAsync_DelegatesToInner()
     {
-        // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        // Act
         await orchestrator.AbortAsync().ConfigureAwait(false);
 
-        // Assert
         await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -346,15 +313,12 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task DisposeAsync_DelegatesToInner()
     {
-        // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.DisposeAsync().Returns(ValueTask.CompletedTask);
 
-        // Act
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
-        // Assert
         await _inner.Received(1).DisposeAsync().ConfigureAwait(false);
     }
 
@@ -364,11 +328,9 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task AutoscalingOrchestrator_ImplementsIWorkOrchestrator()
     {
-        // Arrange
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Assert
         await Assert.That(orchestrator).IsAssignableTo<IWorkOrchestrator<string>>();
     }
 
@@ -378,13 +340,11 @@ public class AutoscalingOrchestratorFullTests
     [Test]
     public async Task RequestScaleDownAsync_NoIdleWorkers_StopsNone()
     {
-        // Arrange
         _registry.IdleWorkerCount.Returns(0);
 
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Act
         await orchestrator.RequestScaleDownAsync(5).ConfigureAwait(false);
 
         // Assert - Should request stop for 0 workers

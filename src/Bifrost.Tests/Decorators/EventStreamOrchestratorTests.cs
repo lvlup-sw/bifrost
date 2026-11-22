@@ -50,7 +50,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task EventStreamOrchestrator_EnqueueAsync_DelegatesToInnerAndPublishesEvent()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<WorkEnqueuedEvent<string>>();
 
@@ -69,10 +68,8 @@ public class EventStreamOrchestratorTests
         // Give subscriber time to start
         await Task.Delay(250).ConfigureAwait(false);
 
-        // Act
         await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
 
-        // Assert
         await _inner.Received(1).EnqueueAsync("test-work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
 
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
@@ -85,7 +82,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task GetEventStreamAsync_ReturnsFilteredEvents()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvents = new List<WorkEnqueuedEvent<string>>();
 
@@ -123,13 +119,10 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task PendingCount_DelegatesToInner()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
-        // Act
         var result = decorator.PendingCount;
 
-        // Assert
         await Assert.That(result).IsEqualTo(5);
     }
 
@@ -139,13 +132,10 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task ActiveWorkers_DelegatesToInner()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
-        // Act
         var result = decorator.ActiveWorkers;
 
-        // Assert
         await Assert.That(result).IsEqualTo(2);
     }
 
@@ -155,13 +145,10 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task Capacity_DelegatesToInner()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
-        // Act
         var result = decorator.Capacity;
 
-        // Assert
         await Assert.That(result).IsEqualTo(100);
     }
 
@@ -171,14 +158,11 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task TryEnqueue_DelegatesToInner()
     {
-        // Arrange
         _inner.Enqueue(Arg.Any<string>()).Returns(EnqueueResult.Accepted);
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
-        // Act
         var result = decorator.TryEnqueue("test-work");
 
-        // Assert
         await Assert.That(result).IsTrue();
         _inner.Received(1).Enqueue("test-work");
     }
@@ -189,7 +173,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task TryEnqueue_WhenSuccessful_PublishesEvent()
     {
-        // Arrange
         _inner.Enqueue(Arg.Any<string>()).Returns(EnqueueResult.Accepted);
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<WorkEnqueuedEvent<string>>();
@@ -209,7 +192,6 @@ public class EventStreamOrchestratorTests
         // Give subscriber time to start
         await Task.Delay(250).ConfigureAwait(false);
 
-        // Act
         decorator.TryEnqueue("test-work");
 
         // Assert - verify event was published
@@ -223,7 +205,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task TryEnqueue_WhenFails_DoesNotPublishEvent()
     {
-        // Arrange
         _inner.Enqueue(Arg.Any<string>()).Returns(EnqueueResult.Rejected(RejectionReason.CapacityExceeded));
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
@@ -250,13 +231,11 @@ public class EventStreamOrchestratorTests
         // Give subscriber time to start
         await Task.Delay(250).ConfigureAwait(false);
 
-        // Act
         var result = decorator.TryEnqueue("test-work");
 
         // Wait for timeout
         await subscriberTask.ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result).IsFalse();
         await Assert.That(eventReceived).IsFalse();
     }
@@ -267,13 +246,10 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task StopAsync_DelegatesToInner()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
-        // Act
         await decorator.AbortAsync().ConfigureAwait(false);
 
-        // Assert
         await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -283,13 +259,10 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task DisposeAsync_DelegatesToInner()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
-        // Act
         await decorator.DisposeAsync().ConfigureAwait(false);
 
-        // Assert
         await _inner.Received(1).DisposeAsync().ConfigureAwait(false);
     }
 
@@ -299,7 +272,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task EnqueueAsync_Rejected_DoesNotPublishEvent()
     {
-        // Arrange
         _inner.EnqueueAsync(Arg.Any<string>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Rejected(RejectionReason.Shutdown));
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
@@ -324,11 +296,9 @@ public class EventStreamOrchestratorTests
 
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         var result = await decorator.EnqueueAsync("rejected-work").ConfigureAwait(false);
         await subscriberTask.ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(eventReceived).IsFalse();
     }
@@ -339,10 +309,8 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task EventStreamOrchestrator_ImplementsIEventStreamOrchestrator()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
-        // Assert
         await Assert.That(decorator).IsAssignableTo<IEventStreamOrchestrator<string>>();
     }
 
@@ -352,7 +320,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task Constructor_NullInner_ThrowsArgumentNullException()
     {
-        // Act & Assert
         await Assert.That(() => new EventStreamOrchestrator<string>(null!, _logger))
             .ThrowsExactly<ArgumentNullException>();
     }
@@ -363,7 +330,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        // Act & Assert
         await Assert.That(() => new EventStreamOrchestrator<string>(_inner, null!))
             .ThrowsExactly<ArgumentNullException>();
     }
@@ -374,7 +340,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task EnqueueAsync_EventIncludesTimestamp()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<WorkEnqueuedEvent<string>>();
 
@@ -395,12 +360,10 @@ public class EventStreamOrchestratorTests
 
         var before = DateTimeOffset.UtcNow;
 
-        // Act
         await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
 
         var after = DateTimeOffset.UtcNow;
 
-        // Assert
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(evt.Timestamp).IsGreaterThanOrEqualTo(before);
         await Assert.That(evt.Timestamp).IsLessThanOrEqualTo(after);
@@ -412,7 +375,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task EnqueueAsync_EventIncludesQueueDepth()
     {
-        // Arrange
         _inner.PendingCount.Returns(10);
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<WorkEnqueuedEvent<string>>();
@@ -432,10 +394,8 @@ public class EventStreamOrchestratorTests
         // Give subscriber time to start
         await Task.Delay(250).ConfigureAwait(false);
 
-        // Act
         await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
 
-        // Assert
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(evt.QueueDepth).IsEqualTo(10);
     }
@@ -447,7 +407,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task PublishToSubscribers_WithFullSubscriberBuffer_RemovesStaleSubscriber()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
         // Create a subscriber but do NOT consume any events from it
@@ -503,7 +462,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task PublishToSubscribers_WithActiveSubscriber_KeepsSubscriber()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvents = new ConcurrentBag<IOrchestratorEvent>();
         var eventCount = 100; // Well below the 1000 buffer capacity
@@ -545,7 +503,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task ReadWithCleanup_CompletesNormally_RemovesSubscriber()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriberCts = new CancellationTokenSource();
         var eventsReceived = 0;
@@ -642,7 +599,6 @@ public class EventStreamOrchestratorTests
         // Act - process work through the tracking handler
         await trackingHandler.HandleAsync("completed-work", CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
         await Assert.That(evt.Work).IsEqualTo("completed-work");
         await Assert.That(evt.Success).IsTrue();
@@ -693,7 +649,6 @@ public class EventStreamOrchestratorTests
             // Expected - the handler throws, and CompletionTrackingHandler re-throws after publishing
         }
 
-        // Assert
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
         await Assert.That(evt.Work).IsEqualTo("failing-work");
         await Assert.That(evt.Success).IsFalse();
@@ -707,7 +662,6 @@ public class EventStreamOrchestratorTests
     [Test]
     public async Task DrainAsync_ForwardsToInner_AndCompletesSubscribers()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         _inner.DrainAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
@@ -728,7 +682,6 @@ public class EventStreamOrchestratorTests
         // Give subscriber time to register
         await Task.Delay(200).ConfigureAwait(false);
 
-        // Act
         await decorator.DrainAsync().ConfigureAwait(false);
 
         // Wait for subscriber task to complete

@@ -32,7 +32,6 @@ public class DeadLetterEventStreamIntegrationTests
     [Test]
     public async Task WithEventStream_AndWithDeadLetterQueue_PublishesWorkDeadLetteredEvent()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
@@ -90,7 +89,6 @@ public class DeadLetterEventStreamIntegrationTests
         await Assert.That(dlEvent.AttemptCount).IsEqualTo(1); // MaxRetries=0 => 1 attempt
         await Assert.That(dlEvent.Exception).IsNotNull();
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await orchestrator.DisposeAsync().ConfigureAwait(false);
         await eventTask.ConfigureAwait(false);
@@ -103,7 +101,6 @@ public class DeadLetterEventStreamIntegrationTests
     [Test]
     public async Task WithDeadLetterQueue_AndWithEventStream_OrderIndependent()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
@@ -146,7 +143,6 @@ public class DeadLetterEventStreamIntegrationTests
 
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         await orchestrator.EnqueueAsync("doomed-work").ConfigureAwait(false);
         await Task.Delay(1000).ConfigureAwait(false);
 
@@ -156,7 +152,6 @@ public class DeadLetterEventStreamIntegrationTests
         var dlEvent = deadLetterEvents.First();
         await Assert.That(dlEvent.Work).IsEqualTo("doomed-work");
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await orchestrator.DisposeAsync().ConfigureAwait(false);
         await eventTask.ConfigureAwait(false);
@@ -169,7 +164,6 @@ public class DeadLetterEventStreamIntegrationTests
     [Test]
     public async Task WithDeadLetterQueue_WithoutEventStream_NoPublishCallback()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
@@ -197,7 +191,6 @@ public class DeadLetterEventStreamIntegrationTests
         var dlq = provider.GetRequiredService<Bifrost.Core.DeadLetter.IDeadLetterQueue<string>>();
         await Assert.That(dlq.Count).IsGreaterThanOrEqualTo(1);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -208,7 +201,6 @@ public class DeadLetterEventStreamIntegrationTests
     [Test]
     public async Task WithEventStream_WithoutDeadLetterQueue_NoError()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
@@ -250,7 +242,6 @@ public class DeadLetterEventStreamIntegrationTests
 
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         await orchestrator.EnqueueAsync("normal-work").ConfigureAwait(false);
         await Task.Delay(500).ConfigureAwait(false);
 
@@ -259,7 +250,6 @@ public class DeadLetterEventStreamIntegrationTests
         var deadLetterEvents = events.Where(e => e is WorkDeadLetteredEvent<string>).ToList();
         await Assert.That(deadLetterEvents.Count).IsEqualTo(0);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await orchestrator.DisposeAsync().ConfigureAwait(false);
         await eventTask.ConfigureAwait(false);
