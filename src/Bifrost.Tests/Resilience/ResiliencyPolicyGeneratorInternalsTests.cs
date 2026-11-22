@@ -67,7 +67,6 @@ public class ResiliencyPolicyGeneratorInternalsTests
         var delayAttempt0 = InvokeCalculateRetryDelay(settings, 0);
         var delayAttempt4 = InvokeCalculateRetryDelay(settings, 4);
 
-        // 2^0 = 1 s base; 2^4 = 16 s base. Jitter is only ±100 ms, so the ordering is firm.
         await Assert.That(delayAttempt0).IsGreaterThan(TimeSpan.FromMilliseconds(800));
         await Assert.That(delayAttempt0).IsLessThan(TimeSpan.FromMilliseconds(1200));
         await Assert.That(delayAttempt4).IsGreaterThan(TimeSpan.FromSeconds(15));
@@ -92,7 +91,6 @@ public class ResiliencyPolicyGeneratorInternalsTests
         var delayAttempt0 = InvokeCalculateRetryDelay(settings, 0);
         var delayAttempt9 = InvokeCalculateRetryDelay(settings, 9);
 
-        // Fixed 10 s base ± 100 ms jitter for every attempt — no exponential growth.
         await Assert.That(delayAttempt0).IsGreaterThan(TimeSpan.FromMilliseconds(9800));
         await Assert.That(delayAttempt0).IsLessThan(TimeSpan.FromMilliseconds(10200));
         await Assert.That(delayAttempt9).IsGreaterThan(TimeSpan.FromMilliseconds(9800));
@@ -107,10 +105,21 @@ public class ResiliencyPolicyGeneratorInternalsTests
     /// return is never non-positive — covering the clamp branch and proving the floor.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// <para>
+    /// A fixed interval of 0 s gives <c>baseDelay == TimeSpan.Zero</c>, and the jitter is in
+    /// [-100, 99] ms. Each draw is non-positive with a probability of about 101/200. Over about 10k draws,
+    /// the probability that no draw is non-positive is vanishingly small. Thus the clamp arm runs
+    /// deterministically in practice, and the test asserts that the result never falls to zero or below.
+    /// </para>
+    /// <para>
+    /// When <c>baseDelay</c> is zero, the clamp arm and the degenerate positive-jitter arm are the only
+    /// outcomes. In both cases the returned delay is strictly positive.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task CalculateRetryDelay_NonPositiveBaseAndJitter_ClampsTo100ms()
     {
-        // Fixed interval 0 s => baseDelay == TimeSpan.Zero; jitter in [-100, 99] ms.
         var settings = new ResiliencySettings
         {
             UseExponentialBackoff = false,
@@ -119,16 +128,10 @@ public class ResiliencyPolicyGeneratorInternalsTests
 
         var clampObserved = false;
 
-        // ~10k draws: the probability of never drawing a non-positive jitter is vanishing
-        // (each draw is non-positive with probability ~101/200), so the clamp arm is
-        // exercised deterministically in practice while the result is asserted to never
-        // fall to or below zero.
         for (var i = 0; i < 10_000; i++)
         {
             var delay = InvokeCalculateRetryDelay(settings, 0);
 
-            // The clamp arm and the (degenerate) positive-jitter arm are the only outcomes
-            // when baseDelay is zero; either way the returned delay is strictly positive.
             await Assert.That(delay).IsGreaterThan(TimeSpan.Zero);
 
             if (delay == TimeSpan.FromMilliseconds(100))
@@ -237,7 +240,6 @@ public class ResiliencyPolicyGeneratorInternalsTests
 
             public void Dispose()
             {
-                // No-op.
             }
         }
     }

@@ -54,6 +54,9 @@ public class PriorityKeyTests
     /// </summary>
     /// <param name="workClass">The work class shared by both items.</param>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// A smaller key is dequeued sooner, so the earlier item must hold the smaller key.
+    /// </remarks>
     [Test]
     [Arguments(WorkClass.Interactive)]
     [Arguments(WorkClass.Default)]
@@ -67,7 +70,6 @@ public class PriorityKeyTests
         var earlierKey = PriorityKey.Compute(in earlier, in boosts);
         var laterKey = PriorityKey.Compute(in later, in boosts);
 
-        // Assert — smaller = sooner, so the earlier item must hold the smaller key.
         await Assert.That(earlierKey).IsLessThan(laterKey);
     }
 
@@ -77,10 +79,13 @@ public class PriorityKeyTests
     /// it jumps ahead of work enqueued up to <c>InteractiveBoostWindow</c> earlier.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The default 30 s window at 10 MHz gives 300,000,000 boost ticks. The Interactive item is enqueued
+    /// one timestamp unit inside the boost window after the older items, and it outranks both of them.
+    /// </remarks>
     [Test]
     public async Task Compute_Interactive_JumpsBoostWindowAhead()
     {
-        // Arrange — default 30s window at 10 MHz = 300,000,000 boost ticks.
         var boosts = PriorityKey.Precompute(new PriorityDispatchOptions(), TimeSpanTickFrequency);
         const long BoostTicks = 30L * TimeSpanTickFrequency;
         const long BaseTicks = 5_000_000_000L;
@@ -88,7 +93,6 @@ public class PriorityKeyTests
         var olderDefault = new WorkEnvelope<string>("default", WorkClass.Default, BaseTicks);
         var olderBatch = new WorkEnvelope<string>("batch", WorkClass.Batch, BaseTicks);
 
-        // Enqueued one timestamp unit INSIDE the boost window after the older items.
         var freshInteractive = new WorkEnvelope<string>(
             "interactive", WorkClass.Interactive, BaseTicks + BoostTicks - 1);
 
@@ -96,7 +100,6 @@ public class PriorityKeyTests
         var batchKey = PriorityKey.Compute(in olderBatch, in boosts);
         var interactiveKey = PriorityKey.Compute(in freshInteractive, in boosts);
 
-        // Assert — the interactive item outranks both older items.
         await Assert.That(interactiveKey).IsLessThan(defaultKey);
         await Assert.That(interactiveKey).IsLessThan(batchKey);
     }
@@ -109,6 +112,10 @@ public class PriorityKeyTests
     /// <see cref="TimeProvider.TimestampFrequency"/>.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The test ages the Batch item past the Interactive boost window and then enqueues the Interactive
+    /// item. The over-aged Batch item wins, so starvation is bounded by construction.
+    /// </remarks>
     [Test]
     public async Task Compute_BatchOlderThanBoostWindow_OutranksFreshInteractive()
     {
@@ -118,7 +125,6 @@ public class PriorityKeyTests
 
         var batch = new WorkEnvelope<string>("batch", WorkClass.Batch, fakeTime.GetTimestamp());
 
-        // Age the batch item past the interactive boost window, then enqueue interactive.
         fakeTime.Advance(options.InteractiveBoostWindow + TimeSpan.FromMilliseconds(1));
         var freshInteractive = new WorkEnvelope<string>(
             "interactive", WorkClass.Interactive, fakeTime.GetTimestamp());
@@ -126,7 +132,6 @@ public class PriorityKeyTests
         var batchKey = PriorityKey.Compute(in batch, in boosts);
         var interactiveKey = PriorityKey.Compute(in freshInteractive, in boosts);
 
-        // Assert — the over-aged batch item wins: starvation bounded by construction.
         await Assert.That(batchKey).IsLessThan(interactiveKey);
     }
 
@@ -136,6 +141,9 @@ public class PriorityKeyTests
     /// </summary>
     /// <param name="frequency">The timestamp frequency to precompute against.</param>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The key equals the raw timestamp: zero boost and no scaling.
+    /// </remarks>
     [Test]
     [Arguments(TimeSpanTickFrequency)]
     [Arguments(NanosecondFrequency)]
@@ -147,7 +155,6 @@ public class PriorityKeyTests
 
         var key = PriorityKey.Compute(in envelope, in boosts);
 
-        // Assert — key equals the raw timestamp: zero boost, no scaling applied.
         await Assert.That(key).IsEqualTo(EnqueuedAt);
     }
 
@@ -157,10 +164,13 @@ public class PriorityKeyTests
     /// negative — the key GROWS by exactly the penalty ticks, deferring batch work.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// A 5 s penalty at 10 MHz gives 50,000,000 penalty ticks. The key is timestamp − (−penalty), which is
+    /// timestamp + penalty.
+    /// </remarks>
     [Test]
     public async Task Compute_BatchPenaltyWindowConfigured_AddsPenaltyTicks()
     {
-        // Arrange — 5s penalty at 10 MHz = 50,000,000 penalty ticks.
         var options = new PriorityDispatchOptions
         {
             BatchPenaltyWindow = TimeSpan.FromSeconds(5),
@@ -172,7 +182,6 @@ public class PriorityKeyTests
 
         var key = PriorityKey.Compute(in envelope, in boosts);
 
-        // Assert — timestamp − (−penalty) = timestamp + penalty.
         await Assert.That(key).IsEqualTo(EnqueuedAt + PenaltyTicks);
     }
 
@@ -184,11 +193,14 @@ public class PriorityKeyTests
     /// frequency — no per-call floating-point conversion, no drift.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The default 30 s window is a whole number of seconds. Thus the exact boost is expressible in pure
+    /// <c>long</c> arithmetic as 30 × frequency. The test calls the hot path many times, and every call
+    /// must produce the identical key.
+    /// </remarks>
     [Test]
     public async Task Compute_HotPath_NoFloatingPointDrift()
     {
-        // Arrange — the default 30s window is a whole number of seconds, so the exact
-        // boost is expressible in pure long arithmetic as 30 × frequency.
         var frequencies = new[]
         {
             TimeSpanTickFrequency,
@@ -204,7 +216,6 @@ public class PriorityKeyTests
             var envelope = new WorkEnvelope<string>("hot", WorkClass.Interactive, EnqueuedAt);
             var expected = EnqueuedAt - (30L * frequency);
 
-            // Act — hammer the hot path; every call must produce the identical key.
             var first = PriorityKey.Compute(in envelope, in boosts);
             var allIdentical = true;
             for (var i = 0; i < Iterations; i++)

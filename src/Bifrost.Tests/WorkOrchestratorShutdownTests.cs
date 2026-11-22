@@ -29,7 +29,7 @@ public class WorkOrchestratorShutdownTests
     public Task Setup()
     {
         _handler = Substitute.For<IWorkHandler<string>>();
-        _options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 }); // No default workers
+        _options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
         _logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
         return Task.CompletedTask;
     }

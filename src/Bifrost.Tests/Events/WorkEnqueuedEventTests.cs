@@ -26,11 +26,8 @@ public class WorkEnqueuedEventTests
     {
         var type = typeof(WorkEnqueuedEvent<>);
 
-        // Assert - check it's a reference type (class), not a value type (struct)
         await Assert.That(type.IsValueType).IsFalse();
 
-        // Check it's a record (has EqualityContract property or similar record patterns)
-        // Records implement IEquatable<T>
         var interfaces = type.GetInterfaces();
         await Assert.That(interfaces.Any(i =>
             i.IsGenericType

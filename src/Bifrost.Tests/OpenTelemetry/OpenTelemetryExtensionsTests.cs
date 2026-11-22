@@ -93,7 +93,6 @@ public class OpenTelemetryExtensionsTests
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert - should resolve the same singleton instance
         var metrics1 = provider.GetService<OrchestratorMetrics<string>>();
         var metrics2 = provider.GetService<OrchestratorMetrics<string>>();
         await Assert.That(metrics1).IsNotNull();

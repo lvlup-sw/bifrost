@@ -24,10 +24,8 @@ public class WorkCompletedEventTests
     {
         var type = typeof(WorkCompletedEvent<>);
 
-        // Assert - check it's a reference type (class), not a value type (struct)
         await Assert.That(type.IsValueType).IsFalse();
 
-        // Check it's a record (implements IEquatable<T>)
         var interfaces = type.GetInterfaces();
         await Assert.That(interfaces.Any(i =>
             i.IsGenericType

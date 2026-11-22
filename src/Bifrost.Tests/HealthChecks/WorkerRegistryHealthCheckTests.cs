@@ -115,6 +115,10 @@ public class WorkerRegistryHealthCheckTests
     /// <summary>
     /// Verifies that the health check returns correct worker counts in data.
     /// </summary>
+    /// <remarks>
+    /// Five active workers with two idle gives three busy workers. <c>StoppingWorkers</c> is 0, because
+    /// a test cannot set <c>StopRequested</c> (it is internal).
+    /// </remarks>
     [Test]
     public async Task WorkerRegistryHealthCheck_CheckHealthAsync_ReturnsCorrectWorkerCounts()
     {
@@ -131,8 +135,8 @@ public class WorkerRegistryHealthCheckTests
 
         await Assert.That(result.Data!["ActiveWorkers"]).IsEqualTo(5);
         await Assert.That(result.Data!["IdleWorkers"]).IsEqualTo(2);
-        await Assert.That(result.Data!["BusyWorkers"]).IsEqualTo(3); // 5 - 2 = 3 busy
-        await Assert.That(result.Data!["StoppingWorkers"]).IsEqualTo(0); // Can't set StopRequested from tests (internal)
+        await Assert.That(result.Data!["BusyWorkers"]).IsEqualTo(3);
+        await Assert.That(result.Data!["StoppingWorkers"]).IsEqualTo(0);
     }
 
     /// <summary>
@@ -156,6 +160,8 @@ public class WorkerRegistryHealthCheckTests
         await Assert.That(result.Description!.Length).IsGreaterThan(0);
     }
 
+    // The first idle workers get IsIdle = true. WorkerInfo.RequestStop() is internal, so this helper
+    // cannot mark the last stopping workers. The stopping branch is empty on purpose.
     private static IReadOnlyCollection<WorkerInfo> CreateWorkerInfos(
         int total,
         int idle,
@@ -166,17 +172,13 @@ public class WorkerRegistryHealthCheckTests
         {
             var worker = new WorkerInfo($"worker-{i}");
 
-            // First 'idle' workers are idle
             if (i < idle)
             {
                 worker.IsIdle = true;
             }
 
-            // Last 'stopping' workers have stop requested (using reflection to set private field)
             if (i >= total - stopping)
             {
-                // WorkerInfo.RequestStop() is internal, so we need to use a workaround
-                // For test purposes, we'll just track them separately
             }
 
             workers.Add(worker);

@@ -48,7 +48,6 @@ public sealed class WorkOrchestratorDisposalTests
     [Test]
     public async Task WorkOrchestrator_DisposeAsync_DisposesPriorityBinding()
     {
-        // Arrange — a priority MultiQueue orchestrator (its binding owns a semaphore).
         var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
@@ -59,10 +58,8 @@ public sealed class WorkOrchestratorDisposalTests
         var binding = (ConcurrentPriorityWorkQueue<string>)orchestrator.WorkQueue;
         await Assert.That(binding.IsDisposedForTest).IsFalse();
 
-        // Act — disposing the orchestrator must dispose the owned binding.
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
-        // Assert — the binding's owned semaphore was released.
         await Assert.That(binding.IsDisposedForTest).IsTrue();
     }
 
@@ -99,13 +96,11 @@ public sealed class WorkOrchestratorDisposalTests
     [Test]
     public async Task WorkOrchestrator_DisposeAsync_Fifo_DisposesCleanly()
     {
-        // Arrange — default FIFO strategy: the binding is non-disposable.
         var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
         });
 
-        // Act + Assert — disposal completes without throwing.
         await Assert.That(async () => await orchestrator.DisposeAsync().ConfigureAwait(false))
             .ThrowsNothing();
     }
@@ -127,7 +122,6 @@ public sealed class WorkOrchestratorDisposalTests
             FullMode = QueueFullMode.Reject,
         });
 
-        // Act + Assert — both disposals complete without throwing.
         await orchestrator.DisposeAsync().ConfigureAwait(false);
         await Assert.That(async () => await orchestrator.DisposeAsync().ConfigureAwait(false))
             .ThrowsNothing();

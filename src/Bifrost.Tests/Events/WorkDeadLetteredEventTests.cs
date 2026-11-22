@@ -24,10 +24,8 @@ public class WorkDeadLetteredEventTests
     {
         var type = typeof(WorkDeadLetteredEvent<>);
 
-        // Assert - check it's a reference type (class), not a value type (struct)
         await Assert.That(type.IsValueType).IsFalse();
 
-        // Check it's a record (has IEquatable<T>)
         var interfaces = type.GetInterfaces();
         await Assert.That(interfaces.Any(i =>
             i.IsGenericType

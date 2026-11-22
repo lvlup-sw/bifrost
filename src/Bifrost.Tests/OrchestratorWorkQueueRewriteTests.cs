@@ -54,7 +54,6 @@ public class OrchestratorWorkQueueRewriteTests
         var channelFieldCount = fields.Count(
             static f => f.FieldType.Namespace == "System.Threading.Channels");
 
-        // Assert — exactly one IWorkQueue-typed field, zero channel-typed fields.
         await Assert.That(queueFieldCount).IsEqualTo(1);
         await Assert.That(channelFieldCount).IsEqualTo(0);
     }
@@ -67,10 +66,13 @@ public class OrchestratorWorkQueueRewriteTests
     /// directly into the internal queue.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// There are no static workers, so the dynamic worker is the only consumer. The test starts the
+    /// dynamic worker first and then feeds both enqueue surfaces.
+    /// </remarks>
     [Test]
     public async Task CreateWorkerFunction_DynamicWorkers_RouteThroughWorkQueue()
     {
-        // Arrange — no static workers; the dynamic worker is the only consumer.
         var handler = new CountingHandler(expected: 2);
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
         await using var orchestrator = new WorkOrchestrator<string>(
@@ -79,7 +81,6 @@ public class OrchestratorWorkQueueRewriteTests
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
 
-        // Act — start the dynamic worker first, then feed both enqueue surfaces.
         var workerTask = Task.Run(() => workerFunc("DynamicWorker", cts.Token), cts.Token);
 
         var enqueued = await orchestrator.EnqueueAsync("after-start").ConfigureAwait(false);
@@ -92,7 +93,6 @@ public class OrchestratorWorkQueueRewriteTests
 
         await handler.Done.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Assert — both items flowed through the same IWorkQueue to the dynamic worker.
         await Assert.That(handler.Processed).Contains("after-start");
         await Assert.That(handler.Processed).Contains("via-queue");
 
@@ -105,10 +105,13 @@ public class OrchestratorWorkQueueRewriteTests
     /// internal queue's <see cref="IWorkQueue{T}.Count"/>.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// There are no workers, so the enqueued items stay queued and countable. The test reads
+    /// <c>PendingCount</c> before and after a direct dequeue.
+    /// </remarks>
     [Test]
     public async Task PendingCount_DelegatesToQueueCount()
     {
-        // Arrange — no workers, so enqueued items stay queued and countable.
         var handler = new CountingHandler(expected: 1);
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
         await using var orchestrator = new WorkOrchestrator<string>(
@@ -118,8 +121,6 @@ public class OrchestratorWorkQueueRewriteTests
         await orchestrator.EnqueueAsync("b").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("c").ConfigureAwait(false);
 
-        // Assert — PendingCount reads through to the queue's count, before and after
-        // a direct dequeue.
         await Assert.That(orchestrator.PendingCount).IsEqualTo(3);
         await Assert.That(orchestrator.PendingCount).IsEqualTo(orchestrator.WorkQueue.Count);
 
@@ -135,10 +136,13 @@ public class OrchestratorWorkQueueRewriteTests
     /// drain completes.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The single worker parks on the first item while four residual items wait in the queue. The drain
+    /// completes the queue, and the released worker finishes all the residual items.
+    /// </remarks>
     [Test]
     public async Task DrainAsync_CompletesQueue_WorkersFinishResidualItems()
     {
-        // Arrange — single worker parked on the first item; four residual items queued.
         var handler = new GateCountingHandler();
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 128, WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(
@@ -152,12 +156,10 @@ public class OrchestratorWorkQueueRewriteTests
             await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         }
 
-        // Act — drain completes the queue; the released worker finishes all residue.
         var drainTask = orchestrator.DrainAsync();
         handler.Release();
         await drainTask.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Assert — every residual item was processed and the queue rejects new work.
         await Assert.That(handler.ProcessedCount).IsEqualTo(5);
         await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
         await Assert.That(orchestrator.TryEnqueue("late")).IsFalse();
@@ -173,10 +175,13 @@ public class OrchestratorWorkQueueRewriteTests
     /// <see cref="RejectionReason.Shutdown"/>, and DisposeAsync stays bounded.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The worker parks in a handler that obeys cancellation. <c>AbortAsync</c> cancels the workers, and
+    /// the cooperative handler unblocks promptly, well inside the 30-second graceful-shutdown window.
+    /// </remarks>
     [Test]
     public async Task StopAsync_DisposeAsync_SemanticsPreserved()
     {
-        // Arrange — worker parked in a handler that honors cancellation.
         var handler = new ParkUntilCancelledHandler();
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 8, WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(
@@ -186,18 +191,14 @@ public class OrchestratorWorkQueueRewriteTests
         await orchestrator.EnqueueAsync("parked").ConfigureAwait(false);
         await handler.Started.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Act — StopAsync cancels workers; the cooperative handler unblocks promptly,
-        // well inside the 30-second graceful-shutdown window.
         await orchestrator.AbortAsync().WaitAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
-        // Assert — shutdown token fired and the queue is closed to new work.
         await Assert.That(shutdownToken.IsCancellationRequested).IsTrue();
         var afterStop = await orchestrator.EnqueueAsync("after-stop").ConfigureAwait(false);
         await Assert.That(afterStop.IsAccepted).IsFalse();
         await Assert.That(afterStop.Reason).IsEqualTo(RejectionReason.Shutdown);
         await Assert.That(orchestrator.TryEnqueue("after-stop-try")).IsFalse();
 
-        // DisposeAsync after StopAsync stays bounded.
         await orchestrator.DisposeAsync().AsTask().WaitAsync(WaitTimeout).ConfigureAwait(false);
     }
 
@@ -211,7 +212,6 @@ public class OrchestratorWorkQueueRewriteTests
     [Test]
     public async Task QueueWaitHook_ObservedAtDequeue()
     {
-        // Arrange — FakeTimeProvider makes the queue-wait duration deterministic.
         var fakeTime = new FakeTimeProvider();
         var handler = new CountingHandler(expected: 1);
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
@@ -226,14 +226,12 @@ public class OrchestratorWorkQueueRewriteTests
         await Assert.That(enqueued).IsEqualTo(EnqueueResult.Accepted);
         fakeTime.Advance(TimeSpan.FromSeconds(5));
 
-        // Act — start a worker; dequeueing the envelope must fire the hook.
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("HookWorker", cts.Token), cts.Token);
 
         var (workClass, waited) = await observed.Task.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Assert — the hook reports the envelope's class and its exact queue wait.
         await Assert.That(workClass).IsEqualTo(WorkClass.Interactive);
         await Assert.That(waited).IsEqualTo(TimeSpan.FromSeconds(5));
 

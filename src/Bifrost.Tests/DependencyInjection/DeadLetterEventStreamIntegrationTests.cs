@@ -29,13 +29,16 @@ public class DeadLetterEventStreamIntegrationTests
     /// Verifies that when both WithEventStream and WithDeadLetterQueue are configured,
     /// a dead-lettered work item produces a WorkDeadLetteredEvent visible in the event stream.
     /// </summary>
+    /// <remarks>
+    /// The test waits 100 ms so that the subscriber registers before the enqueue. With
+    /// <c>MaxRetries = 0</c> the item gets one attempt, so <c>AttemptCount</c> is 1.
+    /// </remarks>
     [Test]
     public async Task WithEventStream_AndWithDeadLetterQueue_PublishesWorkDeadLetteredEvent()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // Register a handler that always fails to trigger dead-lettering
         var handler = Substitute.For<IWorkHandler<string>>();
         handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask(Task.FromException(new InvalidOperationException("always fails"))));
@@ -52,7 +55,6 @@ public class DeadLetterEventStreamIntegrationTests
 
         await Assert.That(eventOrchestrator).IsNotNull();
 
-        // Collect dead-lettered events
         var deadLetterEvents = new ConcurrentBag<WorkDeadLetteredEvent<string>>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var eventTask = Task.Run(async () =>
@@ -68,25 +70,20 @@ public class DeadLetterEventStreamIntegrationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected when CTS fires
             }
         });
 
-        // Allow subscriber to register
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act - enqueue work that will fail and be dead-lettered
         await orchestrator.EnqueueAsync("doomed-work").ConfigureAwait(false);
 
-        // Wait for processing
         await Task.Delay(1000).ConfigureAwait(false);
 
-        // Assert - WorkDeadLetteredEvent should appear in the event stream
         await Assert.That(deadLetterEvents.Count).IsGreaterThanOrEqualTo(1);
 
         var dlEvent = deadLetterEvents.First();
         await Assert.That(dlEvent.Work).IsEqualTo("doomed-work");
-        await Assert.That(dlEvent.AttemptCount).IsEqualTo(1); // MaxRetries=0 => 1 attempt
+        await Assert.That(dlEvent.AttemptCount).IsEqualTo(1);
         await Assert.That(dlEvent.Exception).IsNotNull();
 
         await cts.CancelAsync().ConfigureAwait(false);
@@ -110,7 +107,6 @@ public class DeadLetterEventStreamIntegrationTests
         services.AddSingleton(handler);
 
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
-        // Reverse order: DLQ first, then event stream
         builder.WithDeadLetterQueue(opts => opts.MaxRetries = 0);
         builder.WithEventStream();
         builder.Build();
@@ -121,7 +117,6 @@ public class DeadLetterEventStreamIntegrationTests
 
         await Assert.That(eventOrchestrator).IsNotNull();
 
-        // Collect dead-lettered events
         var deadLetterEvents = new ConcurrentBag<WorkDeadLetteredEvent<string>>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var eventTask = Task.Run(async () =>
@@ -137,7 +132,6 @@ public class DeadLetterEventStreamIntegrationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected
             }
         });
 
@@ -146,7 +140,6 @@ public class DeadLetterEventStreamIntegrationTests
         await orchestrator.EnqueueAsync("doomed-work").ConfigureAwait(false);
         await Task.Delay(1000).ConfigureAwait(false);
 
-        // Assert - same behavior regardless of call order
         await Assert.That(deadLetterEvents.Count).IsGreaterThanOrEqualTo(1);
 
         var dlEvent = deadLetterEvents.First();
@@ -174,20 +167,16 @@ public class DeadLetterEventStreamIntegrationTests
 
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
         builder.WithDeadLetterQueue(opts => opts.MaxRetries = 0);
-        // Intentionally NOT calling WithEventStream()
         builder.Build();
 
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Act - enqueue work that will fail and be dead-lettered
         await orchestrator.EnqueueAsync("doomed-work").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false); // Allow processing
+        await Task.Delay(500).ConfigureAwait(false);
 
-        // Assert - orchestrator is NOT an event stream orchestrator
         await Assert.That(orchestrator is IEventStreamOrchestrator<string>).IsFalse();
 
-        // Verify DLQ received the item (via the DLQ service)
         var dlq = provider.GetRequiredService<Bifrost.Core.DeadLetter.IDeadLetterQueue<string>>();
         await Assert.That(dlq.Count).IsGreaterThanOrEqualTo(1);
 
@@ -211,7 +200,6 @@ public class DeadLetterEventStreamIntegrationTests
 
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
         builder.WithEventStream();
-        // Intentionally NOT calling WithDeadLetterQueue()
         builder.Build();
 
         var provider = services.BuildServiceProvider();
@@ -220,7 +208,6 @@ public class DeadLetterEventStreamIntegrationTests
 
         await Assert.That(eventOrchestrator).IsNotNull();
 
-        // Collect events
         var events = new ConcurrentBag<IOrchestratorEvent>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var eventTask = Task.Run(async () =>
@@ -236,7 +223,6 @@ public class DeadLetterEventStreamIntegrationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected
             }
         });
 
@@ -245,7 +231,6 @@ public class DeadLetterEventStreamIntegrationTests
         await orchestrator.EnqueueAsync("normal-work").ConfigureAwait(false);
         await Task.Delay(500).ConfigureAwait(false);
 
-        // Assert - events published, no dead letter events
         await Assert.That(events.Count).IsGreaterThan(0);
         var deadLetterEvents = events.Where(e => e is WorkDeadLetteredEvent<string>).ToList();
         await Assert.That(deadLetterEvents.Count).IsEqualTo(0);

@@ -51,7 +51,6 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
             await Assert.That(enqueued).IsTrue();
         }
 
-        // Act + Assert — every dequeue yields the next item in enqueue order.
         for (var i = 0; i < itemCount; i++)
         {
             var dequeued = queue.TryDequeue(out var item);
@@ -66,10 +65,13 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
     /// space (producer-wait semantics) and completes once a slot frees.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The test fills the queue to capacity, so the async write must wait. The write stays pending while
+    /// the queue is full. When the test frees one slot, the pending write must complete successfully.
+    /// </remarks>
     [Test]
     public async Task WriteAsync_WaitsForSpace_ThenCompletes()
     {
-        // Arrange — fill to capacity so the async write must wait.
         var queue = new FifoChannelWorkQueue<int>(SmallCapacity);
         for (var i = 0; i < SmallCapacity; i++)
         {
@@ -77,12 +79,10 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
             await Assert.That(filled).IsTrue();
         }
 
-        // Act — start the async write; it must remain pending while the queue is full.
         var pending = queue.WriteAsync(SmallCapacity, CancellationToken.None).AsTask();
         await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
         await Assert.That(pending.IsCompleted).IsFalse();
 
-        // Free one slot; the pending write must now complete successfully.
         var dequeued = queue.TryDequeue(out _);
         await Assert.That(dequeued).IsTrue();
         await pending.WaitAsync(BindingWaitTimeout).ConfigureAwait(false);
@@ -104,7 +104,6 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
         var queue = new FifoChannelWorkQueue<int>(SmallCapacity);
         queue.Complete();
 
-        // Act + Assert — channel-native fault surfaces at the binding layer.
         await Assert.That(() => queue.WriteAsync(1, CancellationToken.None).AsTask())
             .Throws<ChannelClosedException>();
     }
@@ -120,13 +119,11 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
     [Test]
     public async Task Complete_DrainsRemainingItems_ThenWaitReturnsFalse()
     {
-        // Arrange — two residual items, then complete the queue.
         var queue = new FifoChannelWorkQueue<int>(SmallCapacity);
         await Assert.That(queue.TryEnqueue(1)).IsTrue();
         await Assert.That(queue.TryEnqueue(2)).IsTrue();
         queue.Complete();
 
-        // Act + Assert — residue drains in FIFO order.
         var firstDequeued = queue.TryDequeue(out var first);
         await Assert.That(firstDequeued).IsTrue();
         await Assert.That(first).IsEqualTo(1);
@@ -134,7 +131,6 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
         await Assert.That(secondDequeued).IsTrue();
         await Assert.That(second).IsEqualTo(2);
 
-        // Once empty and completed, the wait reports shutdown via false — never throws.
         var signaled = await queue.WaitToDequeueAsync(CancellationToken.None)
             .AsTask()
             .WaitAsync(BindingWaitTimeout)

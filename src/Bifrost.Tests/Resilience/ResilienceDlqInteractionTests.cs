@@ -30,6 +30,11 @@ public class ResilienceDlqInteractionTests
     /// resilience wraps enqueue (orchestrator decorator), DLQ wraps handler execution
     /// (handler decorator). They do not compound.
     /// </summary>
+    /// <remarks>
+    /// The enqueue succeeds, because resilience wraps the enqueue and not the handler. The DLQ has
+    /// <c>MaxRetries = 1</c>, which gives two handler attempts (one initial and one retry). Resilience
+    /// does not retry handler failures.
+    /// </remarks>
     [Test]
     public async Task Resilience_WrapsEnqueue_DLQ_WrapsHandler_IndependentLayers()
     {
@@ -62,18 +67,14 @@ public class ResilienceDlqInteractionTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        // Act - enqueue should succeed (resilience wraps enqueue, not handler)
         await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
 
-        // Wait for the handler to process and dead-letter
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (dlq.Count == 0 && !cts.IsCancellationRequested)
         {
             await Task.Delay(50, cts.Token).ConfigureAwait(false);
         }
 
-        // DLQ with MaxRetries=1 means 2 handler attempts (1 initial + 1 retry)
-        // Resilience does NOT retry handler failures - it only wraps enqueue
         await Assert.That(handlerCallCount).IsEqualTo(2);
         await Assert.That(dlq.Count).IsEqualTo(1);
 
@@ -84,6 +85,11 @@ public class ResilienceDlqInteractionTests
     /// Verifies that handler exceptions do NOT trigger the resilience policy.
     /// Resilience only wraps enqueue operations (EnqueueAsync), not handler execution.
     /// </summary>
+    /// <remarks>
+    /// The resilience retry count is high (5), but the DLQ has <c>MaxRetries = 0</c>, which gives one
+    /// attempt. The handler runs exactly once, because the resilience retry count does not apply to
+    /// handler failures.
+    /// </remarks>
     [Test]
     public async Task Resilience_DoesNotRetryHandlerFailures()
     {
@@ -104,12 +110,12 @@ public class ResilienceDlqInteractionTests
         builder
             .WithResilience(settings =>
             {
-                settings.RetryCount = 5; // High retry count
+                settings.RetryCount = 5;
                 settings.RetryIntervalSeconds = 0;
                 settings.UseExponentialBackoff = false;
                 settings.TimeoutIntervalSeconds = 30;
             })
-            .WithDeadLetterQueue(opts => opts.MaxRetries = 0); // No DLQ retries
+            .WithDeadLetterQueue(opts => opts.MaxRetries = 0);
 
         builder.Build();
         var provider = services.BuildServiceProvider();
@@ -124,8 +130,6 @@ public class ResilienceDlqInteractionTests
             await Task.Delay(50, cts.Token).ConfigureAwait(false);
         }
 
-        // Assert - handler called exactly once (MaxRetries=0 means 1 attempt)
-        // Resilience retry count (5) does NOT apply to handler failures
         await Assert.That(handlerCallCount).IsEqualTo(1);
         await Assert.That(dlq.Count).IsEqualTo(1);
 
@@ -141,13 +145,27 @@ public class ResilienceDlqInteractionTests
     /// <c>MaxRetries</c> never engaged (never admitted, never attempted,
     /// never retried) — and the caller still receives the rejection.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The handler blocks forever, so the channel stays full. Capacity 1 fills the channel quickly: the
+    /// first item goes to the handler and blocks, and the second item fills the channel. Queue capacity
+    /// is available only after the handler has actually started, so the test waits for
+    /// <c>handlerEntered</c>.
+    /// </para>
+    /// <para>
+    /// The overflow enqueue is an enqueue-level failure. The DLQ retry machinery must not engage, because
+    /// it wraps handler execution only. Rejection routing (DR-6) records the shed item as a dead-letter
+    /// entry for observability. The caller still receives the rejection. The routed entry shows that no
+    /// retry happened: <c>AttemptCount</c> is 0 (never admitted, never attempted) with the rejection
+    /// marker, although <c>MaxRetries = 3</c>.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task DLQ_DoesNotRetryEnqueueFailures()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // Use a handler that blocks forever so the channel stays full
         var handlerEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var blockingHandler = Substitute.For<IWorkHandler<string>>();
         blockingHandler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -158,7 +176,6 @@ public class ResilienceDlqInteractionTests
             });
         services.AddSingleton(blockingHandler);
 
-        // Use capacity=1 to quickly fill the channel
         var builder = services.AddWorkOrchestrator<string>(opts =>
         {
             opts.WorkerCount = 1;
@@ -170,22 +187,13 @@ public class ResilienceDlqInteractionTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        // Fill the channel: first item goes to handler (blocks), second fills the channel
         await orchestrator.EnqueueAsync("item-in-handler").ConfigureAwait(false);
 
-        // Queue capacity is available only after the handler has actually started.
         await handlerEntered.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         await Assert.That(orchestrator.TryEnqueue("fill-channel")).IsTrue();
 
-        // Act - try to enqueue when full. This is an enqueue-level failure:
-        // the DLQ retry machinery must NOT engage (it wraps handler execution
-        // only), but rejection routing (DR-6) records the shed item as a
-        // dead-letter entry for observability.
         var enqueueResult = orchestrator.TryEnqueue("overflow-item");
 
-        // Assert — the caller still receives the rejection, and the routed
-        // entry proves no retry happened: AttemptCount 0 (never admitted,
-        // never attempted) with the rejection marker, despite MaxRetries = 3.
         await Assert.That(enqueueResult).IsFalse();
         await Assert.That(dlq.Count).IsEqualTo(1);
 

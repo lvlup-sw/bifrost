@@ -37,7 +37,6 @@ public class DeadLetterSubscriberExtensionsTests
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert - subscriber should be registered and resolvable
         var subscriber = provider.GetService<TestDeadLetterSubscriber>();
         await Assert.That(subscriber).IsNotNull();
 
@@ -55,7 +54,6 @@ public class DeadLetterSubscriberExtensionsTests
         services.AddLogging();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Failing handler to trigger dead-lettering
         builder.WithHandler<string>((_, _) => throw new InvalidOperationException("fail"))
             .WithDeadLetterQueue(opts => opts.MaxRetries = 0)
             .WithDeadLetterSubscriber<string, TestDeadLetterSubscriber>();
@@ -65,10 +63,8 @@ public class DeadLetterSubscriberExtensionsTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var subscriber = provider.GetRequiredService<TestDeadLetterSubscriber>();
 
-        // Act - enqueue work that will fail and be dead-lettered
         await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
 
-        // Wait for dead-lettering to complete
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (subscriber.ReceivedItems.Count == 0 && !cts.IsCancellationRequested)
         {
@@ -108,7 +104,6 @@ public class DeadLetterSubscriberExtensionsTests
 
         await orchestrator.EnqueueAsync("callback-test").ConfigureAwait(false);
 
-        // Wait for callback
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var result = await callbackInvoked.Task.WaitAsync(cts.Token).ConfigureAwait(false);
 
@@ -146,17 +141,14 @@ public class DeadLetterSubscriberExtensionsTests
 
         await orchestrator.EnqueueAsync("multi-test").ConfigureAwait(false);
 
-        // Wait for both to be invoked
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var callbackResult = await callbackInvoked.Task.WaitAsync(cts.Token).ConfigureAwait(false);
 
-        // Also wait for the type-based subscriber
         while (subscriber.ReceivedItems.Count == 0 && !cts.IsCancellationRequested)
         {
             await Task.Delay(50, cts.Token).ConfigureAwait(false);
         }
 
-        // Assert - both subscribers invoked
         await Assert.That(subscriber.ReceivedItems.Count).IsGreaterThanOrEqualTo(1);
         await Assert.That(subscriber.ReceivedItems[0].Work).IsEqualTo("multi-test");
         await Assert.That(callbackResult.Work).IsEqualTo("multi-test");
@@ -168,6 +160,9 @@ public class DeadLetterSubscriberExtensionsTests
     /// Verifies that using WithDeadLetterSubscriber without WithDeadLetterQueue throws on build
     /// because the DeadLetterNotifier cannot be resolved.
     /// </summary>
+    /// <remarks>
+    /// Resolving the orchestrator runs the post-build actions, and these actions need the notifier.
+    /// </remarks>
     [Test]
     public async Task WithDeadLetterSubscriber_WithoutWithDeadLetterQueue_ThrowsOnBuild()
     {
@@ -180,7 +175,6 @@ public class DeadLetterSubscriberExtensionsTests
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Act & Assert - resolving the orchestrator triggers post-build actions, which need the notifier
         await Assert.That(() => provider.GetRequiredService<IWorkOrchestrator<string>>())
             .Throws<InvalidOperationException>();
     }

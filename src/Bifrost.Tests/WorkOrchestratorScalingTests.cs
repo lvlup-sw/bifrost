@@ -42,7 +42,6 @@ public class WorkOrchestratorScalingTests
     {
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act & Assert - should not throw
         await orchestrator.RequestScaleUpAsync(2).ConfigureAwait(false);
     }
 
@@ -54,7 +53,6 @@ public class WorkOrchestratorScalingTests
     {
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act & Assert - should not throw
         await orchestrator.RequestScaleDownAsync(1).ConfigureAwait(false);
     }
 
@@ -66,7 +64,6 @@ public class WorkOrchestratorScalingTests
     {
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act & Assert - should not throw
         await orchestrator.RequestScaleUpAsync(0).ConfigureAwait(false);
     }
 
@@ -78,7 +75,6 @@ public class WorkOrchestratorScalingTests
     {
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act & Assert - should not throw
         await orchestrator.RequestScaleDownAsync(0).ConfigureAwait(false);
     }
 

@@ -37,7 +37,6 @@ public class ResilientOrchestratorTests
         _options = Options.Create(new ResiliencySettings());
         _logger = NullLogger<ResilientOrchestrator<string>>.Instance;
 
-        // Setup default property values
         _inner.PendingCount.Returns(0);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
@@ -278,7 +277,6 @@ public class ResilientOrchestratorTests
 
         var result = orchestrator.TryEnqueue("work");
 
-        // Assert - TryRun delegates directly (exactly once), no retry wrapping
         await Assert.That(result).IsTrue();
         _inner.Received(1).Enqueue("work");
     }
@@ -295,7 +293,6 @@ public class ResilientOrchestratorTests
 
         orchestrator.Enqueue("work");
 
-        // Assert - Run delegates directly (exactly once), no retry wrapping
         _inner.Received(1).Enqueue("work");
         var callReceived = true;
         await Assert.That(callReceived).IsTrue();

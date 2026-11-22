@@ -136,7 +136,6 @@ public class DeadLetterQueueExtensionsTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        // Act - enqueue and poll for processing completion
         await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));

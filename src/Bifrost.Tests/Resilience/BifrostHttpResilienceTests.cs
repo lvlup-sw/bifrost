@@ -149,13 +149,15 @@ public class BifrostHttpResilienceHandlerTests
 
     /// <summary>
     /// The platform combines the client and pipeline names as <c>{client}-{pipeline}</c>; the client name
+    /// <remarks>
+    /// A builder name without the pipeline suffix is returned unchanged (the defensive no-suffix branch).
+    /// </remarks>
     /// is recovered by stripping the pipeline suffix (empty for the default client).
     /// </summary>
     [Test]
     [Arguments("no-retry-client-bifrost-http", "bifrost-http", "no-retry-client")]
     [Arguments("-bifrost-http", "bifrost-http", "")]
     [Arguments("control-plane-streaming-bifrost-http", "bifrost-http", "control-plane-streaming")]
-    // A builder name without the pipeline suffix is returned unchanged (defensive no-suffix branch).
     [Arguments("no-suffix-name", "bifrost-http", "no-suffix-name")]
     public async Task GetClientName_StripsPipelineSuffix(string builderName, string pipelineName, string expected)
     {
@@ -170,6 +172,12 @@ public class BifrostHttpResilienceHandlerTests
     /// must observe the 503 directly (its keyed policy wins), while a sibling client still retries on the
     /// blanket default — i.e. RemoveAllResilienceHandlers on one client does NOT leak to others.
     /// </summary>
+    /// <remarks>
+    /// For the per-client keyed override, the client only calls <c>AddBifrostResilienceHandler()</c>.
+    /// That call strips the inherited blanket default internally, so application code never writes
+    /// <c>RemoveAllResilienceHandlers</c>. The keyed no-retry policy of the overriding client wins, so the
+    /// 503 surfaces after one call. The sibling client still retries on the blanket default and gets 200.
+    /// </remarks>
     [Test]
     public async Task BlanketDefault_WithPerClientKeyedOverride_BothResolveCorrectly()
     {
@@ -180,7 +188,6 @@ public class BifrostHttpResilienceHandlerTests
             options.Policies[NoRetryClient] = new BifrostHttpResiliencePolicy { MaxRetries = 0, EnableCircuitBreaker = false };
         });
 
-        // Blanket default for every client.
         services.ConfigureHttpClientDefaults(builder => builder.AddBifrostResilienceHandler());
 
         var defaultStub = new StubPrimaryHandler();
@@ -191,8 +198,6 @@ public class BifrostHttpResilienceHandlerTests
         var overrideStub = new StubPrimaryHandler();
         overrideStub.EnqueueResponse(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
         overrideStub.EnqueueResponse(new HttpResponseMessage(HttpStatusCode.OK));
-        // Per-client keyed override — just call AddBifrostResilienceHandler(); it strips the inherited
-        // blanket default internally, so application code never writes RemoveAllResilienceHandlers.
         services.AddHttpClient(NoRetryClient)
             .AddBifrostResilienceHandler()
             .ConfigurePrimaryHttpMessageHandler(() => overrideStub);
@@ -205,10 +210,8 @@ public class BifrostHttpResilienceHandlerTests
         var defaultResponse = await factory.CreateClient(DefaultClient)
             .GetAsync("https://example.test/health", CancellationToken.None).ConfigureAwait(false);
 
-        // Overriding client: keyed no-retry policy wins → 503 surfaces, one call.
         await Assert.That((int)overrideResponse.StatusCode).IsEqualTo(503);
         await Assert.That(overrideStub.TotalCallCount).IsEqualTo(1);
-        // Sibling client: unaffected, still retries on the blanket default → 200.
         await Assert.That((int)defaultResponse.StatusCode).IsEqualTo(200);
         await Assert.That(defaultStub.TotalCallCount).IsGreaterThanOrEqualTo(2);
     }

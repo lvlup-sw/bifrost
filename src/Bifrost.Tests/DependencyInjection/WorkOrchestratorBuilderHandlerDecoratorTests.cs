@@ -125,6 +125,10 @@ public class WorkOrchestratorBuilderHandlerDecoratorTests
     /// Verifies that handler decorators with explicit Order values are applied in order
     /// (lowest Order = innermost, applied first).
     /// </summary>
+    /// <remarks>
+    /// The test adds <c>Order = 2</c> first and <c>Order = 1</c> second. The builder must apply them in
+    /// the order 1, 2, so <c>Order = 1</c> is innermost.
+    /// </remarks>
     [Test]
     public async Task Build_WithOrderedHandlerDecorators_AppliesInOrder()
     {
@@ -137,7 +141,6 @@ public class WorkOrchestratorBuilderHandlerDecoratorTests
 
         var applicationOrder = new List<int>();
 
-        // Add Order=2 first, then Order=1 — they should be applied in order 1, 2
         builder.HandlerDecorators.Add(new HandlerDecoratorRegistration<string>(
             Order: 2,
             Factory: (sp, handler) =>
@@ -159,7 +162,6 @@ public class WorkOrchestratorBuilderHandlerDecoratorTests
 
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert — Order=1 should be applied first (innermost), then Order=2
         await Assert.That(applicationOrder).HasCount(2);
         await Assert.That(applicationOrder[0]).IsEqualTo(1);
         await Assert.That(applicationOrder[1]).IsEqualTo(2);

@@ -132,10 +132,13 @@ public class WorkOrchestratorHealthCheckTests
     /// <summary>
     /// Verifies exact threshold behavior at 95% utilization.
     /// </summary>
+    /// <remarks>
+    /// The check is Degraded only above 95%. At exactly 95% the pool is not above the threshold, so it
+    /// is Healthy.
+    /// </remarks>
     [Test]
     public async Task WorkOrchestratorHealthCheck_CheckHealthAsync_ReturnsDegradedAtExactly95Percent()
     {
-        // Arrange - 95% should still be healthy, >95% degraded
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         orchestrator.PendingCount.Returns(95);
         orchestrator.Capacity.Returns(100);
@@ -147,7 +150,6 @@ public class WorkOrchestratorHealthCheckTests
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert - 95% is not > 95%, so should be Healthy
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
 }

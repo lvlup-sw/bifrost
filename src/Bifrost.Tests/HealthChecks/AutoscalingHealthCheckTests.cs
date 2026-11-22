@@ -234,6 +234,9 @@ public class AutoscalingHealthCheckTests
     /// <summary>
     /// Verifies that the health check handles at min workers with some idle as Healthy.
     /// </summary>
+    /// <remarks>
+    /// The pool is at min workers, but some workers are idle, so it has capacity and is Healthy.
+    /// </remarks>
     [Test]
     public async Task AutoscalingHealthCheck_CheckHealthAsync_ReturnsHealthyAtMinWorkersWithIdle()
     {
@@ -254,7 +257,6 @@ public class AutoscalingHealthCheckTests
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert - at min workers but with some idle is Healthy (has capacity)
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
 

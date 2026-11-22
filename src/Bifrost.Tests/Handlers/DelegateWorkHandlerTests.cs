@@ -81,7 +81,6 @@ public class DelegateWorkHandlerTests
         await handler.HandleAsync(work, CancellationToken.None).ConfigureAwait(false);
         completedOrder.Add(2);
 
-        // Assert - 1 should come before 2 because we await the delegate
         await Assert.That(completedOrder).IsEquivalentTo(new[] { 1, 2 });
     }
 

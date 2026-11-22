@@ -32,7 +32,6 @@ public class IOrchestratorEventTests
     {
         var interfaceType = typeof(IOrchestratorEvent);
 
-        // Assert - should be an interface with no members
         await Assert.That(interfaceType.IsInterface).IsTrue();
 
         var methods = interfaceType.GetMethods();

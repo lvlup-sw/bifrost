@@ -33,10 +33,8 @@ public class ScalingEventTests
     {
         var type = typeof(ScalingEvent);
 
-        // Assert - check it's a reference type (class), not a value type (struct)
         await Assert.That(type.IsValueType).IsFalse();
 
-        // Check it's a record (implements IEquatable<T>)
         var interfaces = type.GetInterfaces();
         await Assert.That(interfaces.Any(i =>
             i.IsGenericType
@@ -173,16 +171,16 @@ public class ScalingEventTests
     /// Pins explicit enum values: None=0, ScaleUp=1, ScaleDown=2.
     /// This ensures the consolidated enum (from Bifrost.Core.Events) maintains
     /// stable integer representations across versions.
+    /// The test first casts each value to an <c>int</c> variable, which avoids the TUnit assertion
+    /// error for constant values.
     /// </remarks>
     [Test]
     public async Task ScalingAction_HasExplicitValues()
     {
-        // Arrange - cast to int variables to avoid TUnit constant value assertion error
         var noneValue = (int)ScalingAction.None;
         var scaleUpValue = (int)ScalingAction.ScaleUp;
         var scaleDownValue = (int)ScalingAction.ScaleDown;
 
-        // Assert - verify each enum member has the expected explicit integer value
         await Assert.That(noneValue).IsEqualTo(0);
         await Assert.That(scaleUpValue).IsEqualTo(1);
         await Assert.That(scaleDownValue).IsEqualTo(2);

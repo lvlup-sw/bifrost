@@ -38,15 +38,12 @@ public class HealthCheckExtensionsTests
 
         var provider = services.BuildServiceProvider();
 
-        // Get the orchestrator to ensure it was built
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         await Assert.That(orchestrator).IsNotNull();
 
-        // Get the health check service to verify the health check is registered
         var healthCheckService = provider.GetService<HealthCheckService>();
         await Assert.That(healthCheckService).IsNotNull();
 
-        // Verify by running the health check
         var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
         await Assert.That(report.Entries).IsNotEmpty();
 
@@ -72,11 +69,9 @@ public class HealthCheckExtensionsTests
 
         var provider = services.BuildServiceProvider();
 
-        // Get health check service
         var healthCheckService = provider.GetService<HealthCheckService>();
         await Assert.That(healthCheckService).IsNotNull();
 
-        // Verify custom name is in the report
         var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
         var hasCustomName = report.Entries.ContainsKey("custom-health-check");
         await Assert.That(hasCustomName).IsTrue();
@@ -118,7 +113,6 @@ public class HealthCheckExtensionsTests
         var builder = services.AddWorkOrchestrator<string>();
         builder.Build();
 
-        // Act - Use the separate extension method
         services.AddWorkOrchestratorHealthCheck<string>();
 
         var provider = services.BuildServiceProvider();

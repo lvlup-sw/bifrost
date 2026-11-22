@@ -40,7 +40,6 @@ public class AutoscalingExtensionsTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert - The outer orchestrator should be the AutoscalingOrchestrator
         await Assert.That(orchestrator).IsAssignableTo<AutoscalingOrchestrator<string>>();
     }
 
@@ -139,7 +138,6 @@ public class AutoscalingExtensionsTests
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredKeyedService<Microsoft.Extensions.Options.IOptions<AutoscalingOptions>>(typeof(string));
 
-        // Assert - Should use default values
         await Assert.That(options.Value.MinWorkers).IsEqualTo(1);
         await Assert.That(options.Value.MaxWorkers).IsEqualTo(16);
     }

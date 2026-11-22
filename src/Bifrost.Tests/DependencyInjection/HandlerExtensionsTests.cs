@@ -55,7 +55,6 @@ public class HandlerExtensionsTests
 
         builder.WithHandler<string, TestHandler>();
 
-        // Assert - check the service descriptor
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IWorkHandler<string>));
         await Assert.That(descriptor).IsNotNull();
@@ -261,7 +260,7 @@ public class HandlerExtensionsTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
         await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
-        await Task.Delay(200).ConfigureAwait(false); // Allow processing
+        await Task.Delay(200).ConfigureAwait(false);
 
         await Assert.That(invoked).IsTrue();
 

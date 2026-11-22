@@ -237,13 +237,16 @@ public class ResiliencyPolicyGeneratorTests
     /// <summary>
     /// Verifies CreateExceptionPredicate handles custom types.
     /// </summary>
+    /// <remarks>
+    /// <see cref="ArgumentNullException"/> matches because it derives from a specified type.
+    /// </remarks>
     [Test]
     public async Task CreateExceptionPredicate_CustomTypes_MatchesSpecifiedTypes()
     {
         var predicate = ResiliencyPolicyGenerator.CreateExceptionPredicate([typeof(ArgumentException)]);
 
         await Assert.That(predicate(new ArgumentException())).IsTrue();
-        await Assert.That(predicate(new ArgumentNullException())).IsTrue(); // Derived type
+        await Assert.That(predicate(new ArgumentNullException())).IsTrue();
         await Assert.That(predicate(new HttpRequestException())).IsFalse();
     }
 }

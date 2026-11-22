@@ -61,14 +61,11 @@ public class WorkOrchestratorSyncTests
     [Test]
     public async Task Enqueue_QueueFull_ReturnsCapacityRejection()
     {
-        // Arrange - Create orchestrator with capacity of 1 and block the handler
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 1, WorkerCount = 0 });
         await using var orchestrator = new WorkOrchestrator<string>(_handler, options, _logger);
 
-        // First enqueue should succeed
         orchestrator.Enqueue("work-1");
 
-        // Act & Assert - Second run should throw
         await Assert.That(orchestrator.Enqueue("work-2").Reason).IsEqualTo(RejectionReason.CapacityExceeded);
     }
 
@@ -91,14 +88,11 @@ public class WorkOrchestratorSyncTests
     [Test]
     public async Task TryRun_QueueFull_ReturnsFalse()
     {
-        // Arrange - Create orchestrator with capacity of 1 and no workers
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 1, WorkerCount = 0 });
         await using var orchestrator = new WorkOrchestrator<string>(_handler, options, _logger);
 
-        // First enqueue should succeed
         var firstResult = orchestrator.TryEnqueue("work-1");
 
-        // Act - Second should fail since channel is full
         var secondResult = orchestrator.TryEnqueue("work-2");
 
         await Assert.That(firstResult).IsTrue();
@@ -111,14 +105,11 @@ public class WorkOrchestratorSyncTests
     [Test]
     public async Task TryRun_QueueFull_DoesNotThrow()
     {
-        // Arrange - Create orchestrator with capacity of 1 and no workers
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 1, WorkerCount = 0 });
         await using var orchestrator = new WorkOrchestrator<string>(_handler, options, _logger);
 
-        // Fill the queue
         orchestrator.TryEnqueue("work-1");
 
-        // Act & Assert - Should not throw
         var exception = default(Exception);
         try
         {

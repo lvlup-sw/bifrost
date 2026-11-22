@@ -114,7 +114,6 @@ public class WorkOrchestratorBuilderTests
             Order: 2,
             Factory: (sp, inner) => inner));
 
-        // Act & Assert - should not throw
         await Assert.That(() => builder.Build()).ThrowsNothing();
     }
 
@@ -135,7 +134,6 @@ public class WorkOrchestratorBuilderTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert - orchestrator resolves successfully, handler flag is not set
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(builder.HandlerRegistered).IsFalse();
 
@@ -145,13 +143,16 @@ public class WorkOrchestratorBuilderTests
     /// <summary>
     /// Verifies that Build uses ScopedHandlerProxy when HandlerLifetime is Scoped.
     /// </summary>
+    /// <remarks>
+    /// The test registers the handler as scoped, the same as <c>WithHandler</c> does. If the enqueued
+    /// item processes without an exception, the scoped handler proxy resolved the handler correctly.
+    /// </remarks>
     [Test]
     public async Task Build_WithScopedHandlerLifetime_UsesScopedHandlerProxy()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // Register the actual handler as scoped (simulating what WithHandler would do)
         services.AddScoped<IWorkHandler<string>, TestStringHandler>();
 
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
@@ -162,11 +163,9 @@ public class WorkOrchestratorBuilderTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Enqueue and process a work item to verify the proxy resolves handlers from scope
         await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
-        await Task.Delay(200).ConfigureAwait(false); // Allow processing
+        await Task.Delay(200).ConfigureAwait(false);
 
-        // Assert - If we got here without exception, the scoped handler proxy resolved correctly
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(TestStringHandler.HandleCallCount).IsGreaterThan(0);
 

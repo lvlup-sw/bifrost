@@ -37,7 +37,6 @@ public class WorkOrchestratorDrainTests
     [Test]
     public async Task DrainAsync_ProcessesRemainingItems()
     {
-        // Arrange - use a handler that tracks processed items
         var processedItems = new List<string>();
         var handler = Substitute.For<IWorkHandler<string>>();
         handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -54,12 +53,10 @@ public class WorkOrchestratorDrainTests
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 128, WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
 
-        // Enqueue items
         await orchestrator.EnqueueAsync("item-1").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("item-2").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("item-3").ConfigureAwait(false);
 
-        // Act - drain should process all remaining items
         await orchestrator.DrainAsync().ConfigureAwait(false);
 
         await Assert.That(processedItems.Count).IsEqualTo(3);
@@ -83,10 +80,8 @@ public class WorkOrchestratorDrainTests
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 128, WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
 
-        // Act - drain the orchestrator
         await orchestrator.DrainAsync().ConfigureAwait(false);
 
-        // After drain, TryEnqueue should return false
         var result = orchestrator.TryEnqueue("new-work");
 
         await Assert.That(result).IsFalse();
@@ -107,11 +102,9 @@ public class WorkOrchestratorDrainTests
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 128, WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
 
-        // Act - drain empty orchestrator should complete quickly
         var drainTask = orchestrator.DrainAsync();
         var completed = await Task.WhenAny(drainTask, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
 
-        // Assert - drain should have completed (not the 5s delay)
         await Assert.That(ReferenceEquals(completed, drainTask)).IsTrue();
 
         await orchestrator.DisposeAsync().ConfigureAwait(false);
@@ -123,25 +116,21 @@ public class WorkOrchestratorDrainTests
     [Test]
     public async Task DrainAsync_WithCancellation_ThrowsOperationCanceled()
     {
-        // Arrange - use a blocking handler so workers never finish
         var blockStarted = new TaskCompletionSource();
         var handler = Substitute.For<IWorkHandler<string>>();
         handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
                 blockStarted.TrySetResult();
-                // Block for a long time
                 return new ValueTask(Task.Delay(TimeSpan.FromMinutes(10), callInfo.Arg<CancellationToken>()));
             });
 
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 128, WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
 
-        // Enqueue work to keep a worker busy
         await orchestrator.EnqueueAsync("blocking-work").ConfigureAwait(false);
         await blockStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-        // Act & Assert - drain with already-cancelled token should throw
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync().ConfigureAwait(false);
 
@@ -164,7 +153,6 @@ public class WorkOrchestratorDrainTests
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 128, WorkerCount = 2 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
 
-        // Enqueue items
         await orchestrator.EnqueueAsync("item-1").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("item-2").ConfigureAwait(false);
 

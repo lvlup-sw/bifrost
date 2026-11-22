@@ -38,7 +38,6 @@ public class FullBuilderChainIntegrationTests
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // Act - chain all extensions in forward order
         services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1)
             .WithHandler<string, NoOpStringHandler>()
             .WithDeadLetterQueue(opts => opts.MaxRetries = 2)
@@ -55,10 +54,8 @@ public class FullBuilderChainIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert - orchestrator was created successfully
         await Assert.That(orchestrator).IsNotNull();
 
-        // Verify the decorator chain was applied (outermost should be autoscaling)
         await Assert.That(orchestrator).IsAssignableTo<AutoscalingOrchestrator<string>>();
 
         await orchestrator.DisposeAsync().ConfigureAwait(false);
@@ -70,13 +67,16 @@ public class FullBuilderChainIntegrationTests
     /// Chain: WithAutoscaling, WithResilience, WithHandlerDecorator, WithEventStream,
     ///     WithDeadLetterSubscriber, WithDeadLetterQueue, WithHandler, Build.
     /// </summary>
+    /// <remarks>
+    /// Autoscaling stays the outermost decorator, because the decorator order is fixed and does not
+    /// follow the call order.
+    /// </remarks>
     [Test]
     public async Task Builder_AllExtensions_ReverseOrder_ChainableInAnyOrder()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // Act - chain all extensions in reverse order
         services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1)
             .WithAutoscaling()
             .WithResilience()
@@ -93,10 +93,8 @@ public class FullBuilderChainIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert - orchestrator was created successfully
         await Assert.That(orchestrator).IsNotNull();
 
-        // Verify autoscaling is still outermost (decorator order is fixed, not call order)
         await Assert.That(orchestrator).IsAssignableTo<AutoscalingOrchestrator<string>>();
 
         await orchestrator.DisposeAsync().ConfigureAwait(false);
@@ -106,6 +104,24 @@ public class FullBuilderChainIntegrationTests
     /// Verifies the full chain processes work end-to-end: enqueue work, handler called,
     /// events published through event stream, and DLQ subscriber wired for dead-lettered items.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The handler fails each item that starts with <c>fail-</c>. With <c>MaxRetries = 0</c>, the DLQ
+    /// dead-letters that item on its first failure.
+    /// </para>
+    /// <para>
+    /// The test subscribes to events before the enqueue. <c>GetEventStreamAsync</c> registers each
+    /// subscriber channel eagerly at call time, not lazily at the first enumeration. The test creates
+    /// the streams on the test thread before the enqueue, so no published event can be missed. The
+    /// bounded subscriber channels buffer events until the collector tasks start to drain them. Thus
+    /// the hand-off has no race and needs no timing delay.
+    /// </para>
+    /// <para>
+    /// An earlier <c>Task.Delay</c> caused CI flakiness. Under load, the <c>Task.Run</c> bodies had not
+    /// yet reached their <c>GetEventStreamAsync</c> call. They registered after the enqueue and missed
+    /// the events.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task Builder_FullChain_ProcessesWorkEndToEnd()
     {
@@ -121,7 +137,6 @@ public class FullBuilderChainIntegrationTests
             {
                 handlerInvocations.Add(work);
 
-                // Fail items that start with "fail-" to trigger DLQ
                 if (work.StartsWith("fail-", StringComparison.Ordinal))
                 {
                     throw new InvalidOperationException($"Simulated failure for {work}");
@@ -129,7 +144,7 @@ public class FullBuilderChainIntegrationTests
 
                 return ValueTask.CompletedTask;
             })
-            .WithDeadLetterQueue(opts => opts.MaxRetries = 0) // Dead-letter on first failure
+            .WithDeadLetterQueue(opts => opts.MaxRetries = 0)
             .WithDeadLetterSubscriber<string>((item, ct) =>
             {
                 dlSubscriberItems.Add(item);
@@ -148,14 +163,6 @@ public class FullBuilderChainIntegrationTests
 
         await Assert.That(eventOrchestrator).IsNotNull();
 
-        // Subscribe to events before enqueuing. GetEventStreamAsync registers each
-        // subscriber channel EAGERLY at call time (not lazily at first enumeration), so
-        // creating the streams here — on the test thread, before the enqueue — guarantees
-        // no published event can be missed. The bounded subscriber channels buffer events
-        // until the collector tasks below begin draining, so the hand-off is race-free and
-        // needs no timing delay (the previous Task.Delay was the source of CI flakiness:
-        // under load the Task.Run bodies had not yet reached their GetEventStreamAsync call,
-        // so they registered after the enqueue and missed the events).
         var enqueuedEvents = new ConcurrentBag<WorkEnqueuedEvent<string>>();
         var completedEvents = new ConcurrentBag<WorkCompletedEvent<string>>();
         var deadLetteredEvents = new ConcurrentBag<WorkDeadLetteredEvent<string>>();
@@ -176,7 +183,6 @@ public class FullBuilderChainIntegrationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected when CTS fires
             }
         });
 
@@ -191,7 +197,6 @@ public class FullBuilderChainIntegrationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected when CTS fires
             }
         });
 
@@ -206,55 +211,41 @@ public class FullBuilderChainIntegrationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected when CTS fires
             }
         });
 
-        // Act - enqueue a successful item and a failing item. The subscribers are already
-        // registered, so these events are captured even if the collector tasks have not yet
-        // begun draining their (buffered) channels.
         await orchestrator.EnqueueAsync("success-item").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("fail-doomed").ConfigureAwait(false);
 
-        // Wait for processing
         await Task.Delay(2000).ConfigureAwait(false);
 
-        // Assert - handler was called for both items
         await Assert.That(handlerInvocations).Contains("success-item");
         await Assert.That(handlerInvocations).Contains("fail-doomed");
 
-        // Assert - decorator was invoked (proving WithHandlerDecorator works in the chain)
         await Assert.That(decoratorInvocations.Count).IsGreaterThanOrEqualTo(2);
 
-        // Assert - WorkEnqueuedEvent was published for both items
         await Assert.That(enqueuedEvents.Count).IsGreaterThanOrEqualTo(2);
 
-        // Assert - WorkCompletedEvent was published for the successful item
         await Assert.That(completedEvents.Any(e => e.Work == "success-item" && e.Success)).IsTrue();
 
-        // Assert - WorkDeadLetteredEvent appeared in the event stream
         await Assert.That(deadLetteredEvents.Count).IsGreaterThanOrEqualTo(1);
         await Assert.That(deadLetteredEvents.Any(e => e.Work == "fail-doomed")).IsTrue();
 
-        // Assert - DLQ subscriber was called for the failing item
         await Assert.That(dlSubscriberItems.Count).IsGreaterThanOrEqualTo(1);
         await Assert.That(dlSubscriberItems.Any(i => Equals(i.Work, "fail-doomed"))).IsTrue();
 
-        // Assert - DLQ has the dead-lettered item
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
         await Assert.That(dlq.Count).IsGreaterThanOrEqualTo(1);
 
         await cts.CancelAsync().ConfigureAwait(false);
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
-        // Wait for event subscriber tasks to complete
         try
         {
             await enqueueTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            // Expected during shutdown
         }
 
         try
@@ -263,7 +254,6 @@ public class FullBuilderChainIntegrationTests
         }
         catch (OperationCanceledException)
         {
-            // Expected during shutdown
         }
 
         try
@@ -272,7 +262,6 @@ public class FullBuilderChainIntegrationTests
         }
         catch (OperationCanceledException)
         {
-            // Expected during shutdown
         }
     }
 
@@ -280,20 +269,20 @@ public class FullBuilderChainIntegrationTests
     /// Verifies the old backward-compatible pattern: manually register the handler in DI
     /// and use the builder without calling WithHandler. This is the pre-0.4.0 pattern.
     /// </summary>
+    /// <remarks>
+    /// Without <c>WithHandler</c>, the builder falls back to the handler that is registered in DI.
+    /// </remarks>
     [Test]
     public async Task Builder_WithHandler_BackwardCompatible_ManualRegistration()
     {
-        // Arrange - old pattern: manually register handler, no WithHandler call
         var handlerInvocations = new ConcurrentBag<string>();
         var handler = new RecordingStringHandler(handlerInvocations);
 
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // Manual handler registration (old pattern)
         services.AddSingleton<IWorkHandler<string>>(handler);
 
-        // Build without WithHandler - should fallback to DI-resolved handler
         services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1)
             .WithDeadLetterQueue()
             .WithEventStream()
@@ -302,14 +291,11 @@ public class FullBuilderChainIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Act - enqueue work
         await orchestrator.EnqueueAsync("legacy-item").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false); // Allow processing
+        await Task.Delay(500).ConfigureAwait(false);
 
-        // Assert - handler was called (proving backward compatibility)
         await Assert.That(handlerInvocations).Contains("legacy-item");
 
-        // Assert - event stream is available
         var eventOrchestrator = GetInnerOrchestrator<IEventStreamOrchestrator<string>>(orchestrator);
         await Assert.That(eventOrchestrator).IsNotNull();
 
