@@ -74,9 +74,9 @@ public sealed class JobDispatcherRouterTests
     /// <para>
     /// The test issues the fire-and-forget dispatch from a dedicated non-pool foreground thread,
     /// and keeps that thread alive until it observes the pool dispatch. The runtime recycles the
-    /// <c>ManagedThreadId</c> of a terminated thread. If the test joined the driver before the
-    /// dispatch ran, the pool thread that runs the queued dispatch could get the freed id of the
-    /// driver. Then the two ids would be equal by chance (the historical flake, issue #44). While
+    /// <c>ManagedThreadId</c> of a terminated thread. If the test joins the driver before the
+    /// dispatch runs, the pool thread that runs the queued dispatch can get the freed id of the
+    /// driver. Then the two ids can be equal by chance (the historical flake, issue #44). While
     /// the driver stays blocked on <c>releaseDriver</c>, its id stays reserved. So the pool thread
     /// always gets a different id, and "ran on a thread other than the caller" holds
     /// deterministically, not by luck.

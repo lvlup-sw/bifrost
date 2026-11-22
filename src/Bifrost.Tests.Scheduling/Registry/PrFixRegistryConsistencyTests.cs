@@ -186,8 +186,9 @@ public sealed class PrFixRegistryConsistencyTests
 
         public int Arrivals => Volatile.Read(ref this.arrivals);
 
-        // Counts each arrival in arrivals before it waits on the gate, so that a test can
-        // coordinate the gate release.
+        // Counts each arrival in arrivals (exposed as Arrivals) before it waits on the gate. The
+        // count is there to coordinate the gate release, but no test reads it now:
+        // ReleaseAfterArrivalGraceAsync waits a fixed grace instead.
         public async ValueTask SaveAsync(JobRecord job, CancellationToken ct)
         {
             ArgumentNullException.ThrowIfNull(job);

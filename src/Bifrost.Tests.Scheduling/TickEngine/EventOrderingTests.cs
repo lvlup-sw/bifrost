@@ -111,7 +111,7 @@ public sealed class EventOrderingTests
     /// </summary>
     private sealed class InlineRouter : IJobDispatcherRouter
     {
-        // The dispatcher under test completes synchronously, so the fire (and its synchronous
+        // The dispatcher under test completes synchronously. So the fire (and its synchronous
         // failure publication) is fully observed by the time Dispatch returns, and no blocking wait
         // is necessary. The throw on a dispatch that did not complete synchronously is defensive: a
         // synchronous test dispatcher never reaches it.

@@ -104,9 +104,10 @@ public sealed class BackoffBetweenRestartsTests
     /// </para>
     /// <para>
     /// Then the test drives the fake clock across each remaining per-restart backoff until the loop
-    /// gives up. The loop arms each backoff on its own thread. So the test advances and yields
-    /// until the faulted barrier completes (bounded by <c>TestTimeout</c>), and does not assume
-    /// that a single advance crosses a backoff that is possibly not armed yet.
+    /// gives up. The loop arms each backoff on its own thread, so a backoff is possibly not armed
+    /// yet when the test advances. For this reason, the test advances and yields until the faulted
+    /// barrier completes (bounded by <c>TestTimeout</c>). It does not assume that a single advance
+    /// crosses a backoff.
     /// </para>
     /// <para>
     /// When the loop is faulted, advancing time no longer ticks, so the loop attempts no further
@@ -157,7 +158,7 @@ public sealed class BackoffBetweenRestartsTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The backoff (1 hour) is far longer than the test could ever advance. So when the loop parks
+    /// The backoff (1 hour) is far longer than the test can ever advance. So when the loop parks
     /// on it, only cancellation can release it. Fault #1 (no backoff) faults again into fault #2,
     /// which arms the hour-long backoff.
     /// </para>
@@ -165,11 +166,12 @@ public sealed class BackoffBetweenRestartsTests
     /// The test stops the loop while it is parked on the backoff. <c>StopAsync</c> cancels the
     /// stopping token, the backoff delay observes the cancellation, and the loop exits cleanly.
     /// <c>StopAsync</c> must return within the real-wall-clock timeout with no exception leak. The
-    /// final <c>await stop</c> throws again if the loop leaked an exception on stop.
+    /// final <c>await stop</c> rethrows any exception that the loop leaked on stop.
     /// </para>
     /// <para>
-    /// A clean cancellation is not a fault: the loop did not go to the faulted state, and nothing
-    /// logged the loop-gave-up message.
+    /// A clean cancellation is not a fault. The loop must not go to the faulted state and must not
+    /// log the loop-gave-up message. The test asserts only <c>IsFaulted</c>. It creates a
+    /// <c>CapturingLogger</c> but does not assert on the log.
     /// </para>
     /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
@@ -213,10 +215,10 @@ public sealed class BackoffBetweenRestartsTests
     /// <c>ExecuteTask</c> never completes and the bounded wait times out, failing the test.
     /// </summary>
     /// <remarks>
-    /// The backoff (1 hour) is far longer than the test could ever advance. So when the loop parks
+    /// The backoff (1 hour) is far longer than the test can ever advance. So when the loop parks
     /// on it, only the channel completion from the registry dispose can release it. Fault #1 (the
     /// first in the window, no backoff) faults again into fault #2, which arms the hour-long
-    /// backoff, and after two faults the loop is parked on the backoff. The test then disposes the
+    /// backoff. After two faults, the loop is parked on the backoff. The test then disposes the
     /// registry without cancelling the stopping token and without advancing the fake clock past the
     /// backoff. The completion of the command-channel writer must wake the loop out of the backoff,
     /// so that it checks <c>ShouldStop</c> again and exits cleanly.

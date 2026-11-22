@@ -99,9 +99,9 @@ public sealed class FireFaultEdgeTests
     /// so the loop reaching idle is the assertion.
     /// </summary>
     /// <remarks>
-    /// On the one due fire, the router runs the dispatch (in-flight, then the <c>finally</c>
-    /// completes it) and then throws, so the handoff-fault path attempts a second completion. The
-    /// loop faults and restarts. It must reach idle again, which requires the in-flight count to be
+    /// On the one due fire, the router runs the dispatch, and the <c>finally</c> completes the
+    /// in-flight fire. Then the router throws, so the handoff-fault path attempts a second
+    /// completion. The loop faults and restarts. It must reach idle again, which requires the in-flight count to be
     /// exactly zero, not -1. The dispatch must run exactly once.
     /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
@@ -161,7 +161,7 @@ public sealed class FireFaultEdgeTests
     private sealed class CompleteThenThrowRouter : IJobDispatcherRouter
     {
         // Drives the synchronous dispatch to completion, so the finally of the decorator runs its
-        // completion, and then throws, so the catch of the loop attempts a second completion. The
+        // completion. Then it throws, so the catch of the loop attempts a second completion. The
         // test dispatcher completes synchronously, so the sync wait (VSTHRD002, intentional) never
         // actually blocks.
         public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)

@@ -49,7 +49,7 @@ public sealed class ClockJumpTests
     /// skew is cleared the loop must re-arm at the correct delay against the
     /// (un-skewed) current time, so a subsequent advance fires it exactly once.
     /// <para>
-    /// The test registers a job due in 5 minutes and then injects a backward skew of 3 days, so the
+    /// The test registers a job due in 5 minutes and then injects a backward skew of 3 days. So the
     /// next <c>GetUtcNow()</c> read of the loop sees a time far in the past. The loop must detect
     /// the regression (log a warning) and arm again against the skewed time, which extends the
     /// delay. It must not hang on a stale timer that will never fire. The idle barrier wakes the

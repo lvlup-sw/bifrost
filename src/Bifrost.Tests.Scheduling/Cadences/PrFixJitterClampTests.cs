@@ -64,10 +64,12 @@ public sealed class PrFixJitterClampTests
     /// rescues a draw — the base fire is the strictly-future fallback.
     /// </summary>
     /// <remarks>
-    /// Every result must be strictly future. When the clamp engages, it returns the un-jittered
-    /// base fire, which is strictly future. It never returns a value between now and the base fire,
-    /// because such a value brings back the churn risk. A downward jitter draw that the clamp did
-    /// not engage on (<c>next</c> &lt; <c>baseFire</c>) must still be later than now.
+    /// Every result must be strictly future. The intended clamp behavior is that, when the clamp
+    /// engages, it returns the un-jittered base fire, which is strictly future. It must never
+    /// return a value between now and the base fire, because such a value brings back the churn
+    /// risk. If a downward jitter draw is not clamped (<c>next</c> &lt; <c>baseFire</c>), it must
+    /// still be later than now. The test asserts only <c>next</c> &gt; now. The inner branch
+    /// repeats that bound, so the test does not prove that the clamp returns <c>baseFire</c>.
     /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]

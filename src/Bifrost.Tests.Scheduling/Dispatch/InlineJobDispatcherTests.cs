@@ -47,9 +47,9 @@ public sealed class InlineJobDispatcherTests
     /// </summary>
     /// <remarks>
     /// The test drives the dispatch from a dedicated non-pool thread, so the assertion that the
-    /// delegate ran on a different thread than the caller is deterministic. If the caller were a
-    /// pool thread (the test runner is one in Release), the runtime could reuse it to run the
-    /// queued delegate. Then the two thread ids would be equal by chance. This real flake occurred
+    /// delegate ran on a different thread than the caller is deterministic. If the caller is a
+    /// pool thread (the test runner is one in Release), the runtime can reuse it to run the
+    /// queued delegate. Then the two thread ids can be equal by chance. This real flake occurred
     /// in about 2 of 3 Release runs. A foreground <c>Thread</c> is never a pool thread, so its id
     /// can never equal the id of the pool thread.
     /// </remarks>

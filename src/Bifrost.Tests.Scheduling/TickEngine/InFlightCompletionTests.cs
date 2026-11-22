@@ -58,14 +58,14 @@ public sealed class InFlightCompletionTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The first fire goes through the non-conforming router (complete, then throw). After the
-    /// fault recovery of the loop restarts it, the router routes normally, so the second fire can
+    /// The first fire goes through the non-conforming router (complete, then throw). After the loop
+    /// recovers from the fault and restarts, the router routes normally, so the second fire can
     /// drain. Both fires exercise the same <c>InFlightTrackingDispatcher</c> completion path.
     /// </para>
     /// <para>
-    /// On fire #1, the router runs the dispatch (the <c>finally</c> of the decorator completes the
-    /// fire, in-flight goes to 0) and then throws (the handoff-fault path attempts a second
-    /// completion). The single-shot guard makes the second completion a no-op, so the count is 0,
+    /// On fire #1, the router runs the dispatch. The <c>finally</c> of the decorator completes the
+    /// fire, and in-flight goes to 0. Then the router throws, and the handoff-fault path attempts a
+    /// second completion. The single-shot guard makes the second completion a no-op, so the count is 0,
     /// not -1. The loop faults on the router throw, restarts, and reaches idle.
     /// </para>
     /// <para>
@@ -137,7 +137,7 @@ public sealed class InFlightCompletionTests
         private int dispatchCount;
 
         // On the first fire, drives the synchronous dispatch to completion, so the finally of the
-        // decorator runs its completion, and then throws, so the catch of the loop attempts a
+        // decorator runs its completion. Then it throws, so the catch of the loop attempts a
         // second completion. The test dispatcher completes synchronously, so the sync wait
         // (VSTHRD002, intentional) never blocks.
         public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)
