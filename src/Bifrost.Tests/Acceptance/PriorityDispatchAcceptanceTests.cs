@@ -224,9 +224,9 @@ public sealed class PriorityDispatchAcceptanceTests
     /// concurrently. Each producer uses a deterministic xorshift sequence. That sequence gives an
     /// approximately uniform class spread with NO systematic correlation between class and enqueue
     /// order, so FIFO shows no ordering. The test requires that nothing was shed and that
-    /// everything dispatched exactly one time. Each class must carry real statistical mass: the
-    /// deterministic seeds give approximately 200 items per class, and the minimum of 100 protects
-    /// the means against noise from small samples. The final assertions require the strict class
+    /// everything dispatched exactly one time. Each class must carry real statistical mass. The
+    /// deterministic seeds give approximately 200 items per class. The minimum of 100 protects the
+    /// means against noise from small samples. The final assertions require the strict class
     /// ordering of the mean dispatch wait, plus the separation floor that noise cannot
     /// clear.</para>
     /// </remarks>

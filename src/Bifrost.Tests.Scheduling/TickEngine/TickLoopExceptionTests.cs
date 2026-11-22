@@ -78,7 +78,7 @@ public sealed class TickLoopExceptionTests
     /// <para>The sink throws on every fire publish, so each restart faults again
     /// immediately.</para>
     /// <para><c>RestartBackoff</c> is <c>TimeSpan.Zero</c> so that this test examines the give-up
-    /// transition in isolation: every queued occurrence faults again on the single 30 minute
+    /// transition in isolation. Every queued occurrence then faults again on the single 30 minute
     /// advance, as before the backoff was added. <c>BackoffBetweenRestartsTests</c> covers the
     /// backoff itself: the delay between restarts, that give-up still occurs WITH a backoff, and
     /// clean cancellation during a backoff.</para>

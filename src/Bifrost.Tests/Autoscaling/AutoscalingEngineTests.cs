@@ -334,8 +334,8 @@ public class AutoscalingEngineTests
     /// The 30 s <c>CooldownPeriod</c> is long so that the test stays valid. The callers run on
     /// dedicated threads (<c>TaskCreationOptions.LongRunning</c>), so the synchronous
     /// <c>Barrier</c> waits cannot starve the shared thread pool on 4-vCPU runners.
-    /// <c>barrier.SignalAndWait</c> makes all threads start at the same time. Only one decision can
-    /// trigger a scale-up action.</para>
+    /// <c>barrier.SignalAndWait</c> makes all threads start at the same time. Exactly one decision
+    /// must trigger a scale-up action.</para>
     /// </remarks>
     [Test]
     [Repeat(10)]

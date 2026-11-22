@@ -118,9 +118,10 @@ public sealed class ClassifierOptionTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     /// <remarks>
-    /// The classifier maps everything to Batch. With the per-call class Default, <c>TryEnqueue</c>,
-    /// <c>Run</c>, and <c>TryRun</c> each defer to the classifier. A per-call class that is not
-    /// Default wins over the classifier on the synchronous overloads too.
+    /// The classifier maps everything to Batch. With the per-call class Default, the calls
+    /// <c>TryEnqueue("try-enqueue")</c>, <c>Enqueue("run")</c>, and <c>TryEnqueue("try-run")</c>
+    /// each defer to the classifier. A per-call class that is not Default wins over the classifier
+    /// on the synchronous overloads too.
     /// </remarks>
     [Test]
     public async Task Classifier_AppliesAcrossAllEnqueueOverloads()

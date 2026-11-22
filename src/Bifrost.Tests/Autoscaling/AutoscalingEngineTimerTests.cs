@@ -147,7 +147,7 @@ public class AutoscalingEngineTimerTests
     /// </summary>
     /// <remarks>
     /// The test waits for at least one event before it stops the engine. The 300 ms delay after the
-    /// stop makes sure that no more evaluations occur. No new events can arrive after the stop.
+    /// stop gives a late evaluation time to occur. The event count must not change after the stop.
     /// </remarks>
     [Test]
     public async Task StopAsync_StopsTimerEvaluation()

@@ -508,9 +508,9 @@ public class EventStreamOrchestratorTests
     /// scheduling is not a registration barrier. The <c>OperationCanceledException</c> in the
     /// subscriber is expected. One enqueue makes sure that the subscriber works. Then the test
     /// cancels the subscriber, which triggers the <c>finally</c> block of <c>ReadWithCleanup</c>,
-    /// and gives the cleanup a moment. The removal is checked indirectly with a new subscriber. The
-    /// removed subscriber must NOT cause a stale-subscriber warning, because it was removed
-    /// cleanly, so the test enqueues more events.
+    /// and gives the cleanup a moment. The test checks the removal indirectly with a new subscriber
+    /// and more enqueues. The cleanup removed the old subscriber, so it must NOT cause a
+    /// stale-subscriber warning.
     /// </remarks>
     [Test]
     public async Task ReadWithCleanup_CompletesNormally_RemovesSubscriber()

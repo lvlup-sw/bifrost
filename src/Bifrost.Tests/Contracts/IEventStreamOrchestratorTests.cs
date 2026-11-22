@@ -63,8 +63,9 @@ public class IEventStreamOrchestratorTests
     /// This catches accidental additions or removals.
     /// </summary>
     /// <remarks>
-    /// The interface declares 3 methods: <c>GetEventStreamAsync</c>, <c>EnqueueAsync</c>, and
-    /// <c>TryEnqueue</c>.
+    /// The interface declares only one member, <c>GetEventStreamAsync</c>. The
+    /// <c>DeclaredOnly</c> binding flag excludes inherited members, for example <c>EnqueueAsync</c>
+    /// and <c>TryEnqueue</c> from <c>IWorkWriter</c>.
     /// </remarks>
     [Test]
     public async Task Interface_HasExpectedMemberCount()

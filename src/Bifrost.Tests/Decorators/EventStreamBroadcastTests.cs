@@ -186,7 +186,7 @@ public class EventStreamBroadcastTests
     /// <remarks>
     /// The test gives the subscriber time to start, because CI can be slow. The
     /// <c>OperationCanceledException</c> in the subscriber is expected. The test makes some events,
-    /// cancels the subscriber, waits, and then makes more events. No errors can occur, and the
+    /// cancels the subscriber, waits, and then makes more events. No errors must occur, and the
     /// cancelled subscriber must be cleaned up. The test checks this indirectly: no exceptions
     /// occur and the orchestrator still works.
     /// </remarks>
