@@ -397,9 +397,9 @@ public class StrictMinInspectTests
     private static void PushDirect(SubQueue<int, int> subQueue, int priority)
         => subQueue.TryLockedPush(priority, priority);
 
-    /// <summary>Pops the strict global minimum priority, asserting success first.</summary>
+    /// <summary>Pops the strict global minimum priority.</summary>
     /// <param name="queue">The queue to pop from.</param>
-    /// <returns>The popped minimum priority.</returns>
+    /// <returns>The popped minimum priority, or <see cref="int.MinValue"/> when the pop fails.</returns>
     private static int PopMinPriority(ConcurrentPriorityQueue<int, int> queue)
     {
         bool ok = queue.TryDequeueBestObserved(out _, out int priority);

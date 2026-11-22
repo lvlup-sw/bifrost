@@ -196,8 +196,8 @@ public class TickEngineBenchmarks
 
     /// <summary>
     /// A router that records the handoff count but performs no real dispatch.
-    /// Avoids Task.Run overhead so the measurement isolates the tick-loop
-    /// dispatch path rather than thread-pool scheduling.
+    /// It keeps the production <c>Task.Run</c> handoff but skips the I/O of a real
+    /// dispatch, so the measurement isolates the tick-loop dispatch path.
     /// </summary>
     private sealed class NullRecordingRouter : IJobDispatcherRouter
     {

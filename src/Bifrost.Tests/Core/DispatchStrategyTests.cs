@@ -31,8 +31,8 @@ public class DispatchStrategyTests
     }
 
     /// <summary>
-    /// Verifies that <see cref="DispatchStrategy"/> declares a <c>Priority</c>
-    /// sentinel member, distinct from all other members.
+    /// Verifies that <see cref="DispatchStrategy"/> declares only explicit orderings,
+    /// with no sentinel member.
     /// </summary>
     /// <remarks>
     /// <c>PriorityRelaxed</c> must be distinct from <c>Fifo</c> and <c>PriorityExact</c>, and the

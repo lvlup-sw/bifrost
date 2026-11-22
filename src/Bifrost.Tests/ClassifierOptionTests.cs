@@ -111,8 +111,8 @@ public sealed class ClassifierOptionTests
     }
 
     /// <summary>
-    /// Verifies that every enqueue overload — <c>TryEnqueue</c>, <c>Run</c>, and
-    /// <c>TryRun</c> — consults the classifier under the same precedence rule as
+    /// Verifies that the synchronous overloads <c>TryEnqueue</c> and <c>Enqueue</c>
+    /// consult the classifier under the same precedence rule as
     /// <c>EnqueueAsync</c>: per-call non-Default wins, per-call Default defers to
     /// the classifier.
     /// </summary>
