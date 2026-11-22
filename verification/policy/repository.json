@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "profile": "strict",
+  "languages": [
+    "csharp"
+  ],
+  "exclusions": []
+}

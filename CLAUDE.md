@@ -24,7 +24,13 @@ scripts/ci/coverage-gate.sh <cobertura.xml>      # 80% line/branch/method gate
   reflection or runtime codegen). Test projects opt out.
 - **Central Package Management** — bump versions in `src/Directory.Packages.props` only, never in a `.csproj`.
 - Versioning via **MinVer** (`v`-prefixed git tags); analyzers/warnings-as-errors flow in from the
-  internal `Lvlup.Build` package.
+  internal `Lvlup.Build` package (2.x, owned by Hierophant).
+- **ConfigureAwait is automatic.** `Lvlup.Build` 2.x rewrites every implicit await to
+  `ConfigureAwait(false)` at build time and suppresses VSTHRD111. Existing explicit calls are kept.
+- **No comments inside function bodies** (`comments/no-function-body`, enforced in CI by
+  `lvlup-policy`). Put the explanation on the enclosing declaration (XML `<remarks>` or a comment
+  above it) or express it in code. Check locally with `dotnet tool restore && bash scripts/check-conventions.sh`.
+  The baseline in `verification/policy/comment-baseline.json` may only shrink.
 
 ## Layout
 
