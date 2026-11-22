@@ -87,45 +87,62 @@ def main():
         fault = FAULTS / c["fault"]
         replay_file = ROOT / c["replay_path"]
         req_copy = out / "replay-request.json"
+        # A pre-existing replay target would be deleted below as if this run made it.
+        assert not replay_file.exists(), f"replay target already exists: {replay_file}"
+        fault_applied = False
         try:
-            assert run(["git", "apply", str(fault)]).returncode == 0
-            failed = native(c["project"], c["cls"], out, "fault.log")
-            text = out.joinpath("fault.log").read_text()
-            recs = records(text)
-            if c.get("expect_fail") is False:
-                # Survivor control: suite must pass and emit no oracle replay.
-                assert failed.returncode == 0 and not recs, (failed.returncode, recs[:1])
-                summary[name] = {"outcome": "survivor", "suiteExit": failed.returncode}
-                print(name, json.dumps(summary[name])); continue
-            assert failed.returncode != 0 and recs, (failed.returncode, text[-2000:])
-            rec = recs[0]
-            assert "oracle" in rec["signature"] or "state-mismatch" in rec["signature"], rec
-            # Replay at a fresh target, fault still applied.
-            req = json.loads((ROOT / c["request"]).read_text())
-            req["target"]["path"] = c["replay_path"]; req["target"]["className"] = c["replay_cls"]
-            req_copy.write_text(json.dumps(req))
-            fixture = out / "replay.json"; fixture.write_text(json.dumps(rec))
-            rep = run([*testgen, "replay", "--input", str(req_copy), "--fixture", str(fixture),
-                       "--case", rec["caseId"]])
-            assert rep.returncode == 0, rep.stderr
-            applied = subprocess.run(["git", "apply"], cwd=ROOT, input=rep.stdout,
-                                     text=True, capture_output=True)
-            assert applied.returncode == 0, applied.stderr
-            replayed = native(c["project"], c["replay_cls"], out, "replay-fault.log")
-            rrecs = records(out.joinpath("replay-fault.log").read_text())
-            assert replayed.returncode != 0 and rrecs and rrecs[0]["signature"] == rec["signature"], \
-                (replayed.returncode, rrecs[:1], rec)
-            summary[name] = {"outcome": "killed+replayed", "signature": rec["signature"],
-                             "caseId": rec["caseId"], "cases": rec.get("cases") or rec.get("histories"),
-                             "reduction": rec.get("reduction")}
+            try:
+                assert run(["git", "apply", str(fault)]).returncode == 0
+                fault_applied = True
+                failed = native(c["project"], c["cls"], out, "fault.log")
+                text = out.joinpath("fault.log").read_text()
+                recs = records(text)
+                if c.get("expect_fail") is False:
+                    # Survivor control: suite must pass and emit no oracle replay.
+                    assert failed.returncode == 0 and not recs, (failed.returncode, recs[:1])
+                    summary[name] = {"outcome": "survivor", "suiteExit": failed.returncode}
+                else:
+                    assert failed.returncode != 0 and recs, (failed.returncode, text[-2000:])
+                    rec = recs[0]
+                    assert "oracle" in rec["signature"] or "state-mismatch" in rec["signature"], rec
+                    # Replay at a fresh target, fault still applied.
+                    req = json.loads((ROOT / c["request"]).read_text())
+                    req["target"]["path"] = c["replay_path"]
+                    req["target"]["className"] = c["replay_cls"]
+                    req_copy.write_text(json.dumps(req))
+                    fixture = out / "replay.json"
+                    fixture.write_text(json.dumps(rec))
+                    rep = run([*testgen, "replay", "--input", str(req_copy), "--fixture", str(fixture),
+                               "--case", rec["caseId"]])
+                    assert rep.returncode == 0, rep.stderr
+                    patched = subprocess.run(["git", "apply"], cwd=ROOT, input=rep.stdout,
+                                             text=True, capture_output=True)
+                    assert patched.returncode == 0, patched.stderr
+                    replayed = native(c["project"], c["replay_cls"], out, "replay-fault.log")
+                    rrecs = records(out.joinpath("replay-fault.log").read_text())
+                    assert replayed.returncode != 0 and rrecs and rrecs[0]["signature"] == rec["signature"], \
+                        (replayed.returncode, rrecs[:1], rec)
+                    summary[name] = {"outcome": "killed+replayed", "signature": rec["signature"],
+                                     "caseId": rec["caseId"], "cases": rec.get("cases") or rec.get("histories"),
+                                     "reduction": rec.get("reduction")}
+            finally:
+                # Reverse only a fault this run applied; never undo a pre-existing patch.
+                if fault_applied:
+                    run(["git", "apply", "-R", str(fault)])
+            # Restored baseline: with the fault reversed, the reduced replay suite (when one
+            # was built) and the original suite must both pass.
+            if replay_file.exists():
+                restored_replay = native(c["project"], c["replay_cls"], out, "restored-replay.log")
+                assert restored_replay.returncode == 0, \
+                    out.joinpath("restored-replay.log").read_text()[-2000:]
+                summary[name]["restoredReplayExit"] = restored_replay.returncode
+            restored = native(c["project"], c["cls"], out, "restored.log")
+            assert restored.returncode == 0, out.joinpath("restored.log").read_text()[-2000:]
+            summary[name]["restoredExit"] = restored.returncode
         finally:
-            run(["git", "apply", "-R", str(fault)])
+            # The pre-check above guarantees any replay file here was created by this run.
             if replay_file.exists():
                 replay_file.unlink()
-        # Restored baseline: replay suite was removed, original suite must pass.
-        restored = native(c["project"], c["cls"], out, "restored.log")
-        assert restored.returncode == 0, out.joinpath("restored.log").read_text()[-2000:]
-        summary[name] = {**summary.get(name, {}), "restoredExit": restored.returncode}
         print(name, json.dumps(summary[name]))
     (args.output / "controls-summary.json").write_text(json.dumps(summary, indent=2))
     print("OK", json.dumps(summary))

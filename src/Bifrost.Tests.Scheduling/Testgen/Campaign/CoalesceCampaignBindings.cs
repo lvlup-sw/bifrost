@@ -29,6 +29,11 @@ internal static class CoalesceObserve
     /// </summary>
     /// <param name="input">The generated record.</param>
     /// <returns><see langword="true"/> when the record is in domain.</returns>
+    /// <remarks>
+    /// The final check keeps <c>now + interval</c> (advance) and <c>last + interval</c> and
+    /// <c>now + interval</c> (translate) representable as <see cref="DateTimeOffset"/> ticks at
+    /// zero offset.
+    /// </remarks>
     public static bool IsValid(JsonElement input)
     {
         if (!TryRead(input, out var last, out var now, out var interval))
@@ -47,8 +52,6 @@ internal static class CoalesceObserve
             return false;
         }
 
-        // Advance (now + interval) and translate (both + interval) must stay
-        // representable as DateTimeOffset ticks at zero offset.
         return now <= long.MaxValue - interval && last <= long.MaxValue - interval;
     }
 
@@ -262,6 +265,11 @@ internal static class CoalesceDifferentialBinding
     /// <summary>Computes the expected latest occurrence by enumeration.</summary>
     /// <param name="input">The generated record.</param>
     /// <returns>The expected occurrence ticks.</returns>
+    /// <remarks>
+    /// The loop stops once <c>candidate</c> passes <c>now - interval</c>, because the next step
+    /// would pass <c>now</c>. Stopping there also keeps <c>candidate + interval</c> from
+    /// overflowing.
+    /// </remarks>
     public static Task<JsonElement> Reference(JsonElement input)
     {
         CoalesceObserve.TryRead(input, out var last, out var now, out var interval);
@@ -271,7 +279,7 @@ internal static class CoalesceDifferentialBinding
             latest = candidate;
             if (candidate > now - interval)
             {
-                break; // next step would pass now (and avoids overflow past it)
+                break;
             }
         }
 
