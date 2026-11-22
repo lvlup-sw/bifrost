@@ -66,8 +66,8 @@ public class EventStreamExtensionsTests
     /// Verifies that the decorated orchestrator can stream events.
     /// </summary>
     /// <remarks>
-    /// The event stream is a broadcast, so the subscriber starts before the enqueue. The short delay
-    /// gives the subscriber time to start before the work item is enqueued.
+    /// The event stream is a broadcast, so a subscriber gets only the events published after it starts.
+    /// The test starts the subscriber first, then waits 100 ms so that it can start before the enqueue.
     /// </remarks>
     [Test]
     public async Task WithEventStream_OrchestratorCanStreamEvents()

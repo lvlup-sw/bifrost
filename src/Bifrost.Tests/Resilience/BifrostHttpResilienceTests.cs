@@ -149,11 +149,12 @@ public class BifrostHttpResilienceHandlerTests
 
     /// <summary>
     /// The platform combines the client and pipeline names as <c>{client}-{pipeline}</c>; the client name
-    /// <remarks>
-    /// A builder name without the pipeline suffix is returned unchanged (the defensive no-suffix branch).
-    /// </remarks>
     /// is recovered by stripping the pipeline suffix (empty for the default client).
     /// </summary>
+    /// <remarks>
+    /// The last case covers the defensive no-suffix branch: a builder name without the pipeline suffix
+    /// is returned unchanged.
+    /// </remarks>
     [Test]
     [Arguments("no-retry-client-bifrost-http", "bifrost-http", "no-retry-client")]
     [Arguments("-bifrost-http", "bifrost-http", "")]

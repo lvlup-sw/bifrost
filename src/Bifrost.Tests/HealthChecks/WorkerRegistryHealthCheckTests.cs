@@ -160,8 +160,8 @@ public class WorkerRegistryHealthCheckTests
         await Assert.That(result.Description!.Length).IsGreaterThan(0);
     }
 
-    // The first idle workers get IsIdle = true. WorkerInfo.RequestStop() is internal, so this helper
-    // cannot mark the last stopping workers. The stopping branch is empty on purpose.
+    // The first `idle` workers get IsIdle = true. WorkerInfo.RequestStop() is internal, so this helper
+    // cannot mark the last `stopping` workers as stopping. The stopping branch is empty on purpose.
     private static IReadOnlyCollection<WorkerInfo> CreateWorkerInfos(
         int total,
         int idle,
