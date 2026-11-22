@@ -211,6 +211,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// disposes it once the (pool-thread) dispatch completes. When <see langword="null"/>
     /// — a few low-level fixtures with no provider — a fire falls back to a no-op
     /// provider so scoped resolution returns <see langword="null"/> rather than throwing.
+    /// The scope factory is resolved once from the root provider, so every fire can open a cheap
+    /// per-fire scope without another resolution. It is <see langword="null"/> when no provider is
+    /// supplied or the provider has no factory (a bare provider in a fixture).
     /// </param>
     internal ScheduleTickLoop(
         ScheduleRegistry registry,
@@ -242,9 +245,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         this.metrics = metrics ?? new SchedulerMetrics();
         this.healthMonitor = healthMonitor ?? new TickHealthMonitor(timeProvider);
 
-        // Resolve the scope factory once from the root provider so every fire can open a
-        // cheap per-fire scope without re-resolving. Falls back to null when no provider
-        // is supplied or the factory is absent (a bare provider in a fixture).
         this.scopeFactory = serviceProvider?.GetService<IServiceScopeFactory>();
     }
 
@@ -258,6 +258,23 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     /// <param name="timeout">The maximum time to wait for the loop to go idle.</param>
     /// <returns>A task that completes when the loop next reaches its idle point.</returns>
+    /// <remarks>
+    /// <para>
+    /// The method registers a barrier request and wakes the loop. The loop drains every command and
+    /// dispatches every due job before it parks, and it completes all pending barrier requests at
+    /// that quiescent park. Thus a request registered now is guaranteed to complete at the next
+    /// quiescent point of the loop, after the loop has absorbed whatever command or clock advance
+    /// came before this call. The replacement of <c>barrierWake</c> wakes a parked loop, so it
+    /// evaluates again and reaches its quiescent park.
+    /// </para>
+    /// <para>
+    /// The <paramref name="timeout"/> is a real-wall-clock guard against a test hang, NOT a scheduled
+    /// tick. The barrier completes on the tick thread. This deadline only bounds the wait, so it must
+    /// advance on the system clock (<see cref="TimeProvider.System"/>) whatever fake clock is
+    /// injected. The <see cref="TimeProvider"/> overload of <c>Task.Delay</c> also keeps this call off
+    /// the banned-API list (RS0030), which bars the bare <c>Task.Delay(TimeSpan)</c>.
+    /// </para>
+    /// </remarks>
     [SuppressMessage(
         "Usage",
         "VSTHRD003:Avoid awaiting foreign Tasks",
@@ -266,27 +283,16 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             "park; awaiting it here is the point.")]
     internal async Task WaitForIdleAsync(TimeSpan timeout)
     {
-        // Register a barrier request and wake the loop. Because the loop drains every
-        // command and dispatches every due job before it parks, and completes all
-        // pending barrier requests at that quiescent park, a request registered now is
-        // guaranteed to be completed at the loop's next quiescent point — after it has
-        // absorbed whatever command or clock advance preceded this call.
         var request = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (this.barrierGate)
         {
             this.pendingBarriers.Add(request);
 
-            // Wake a parked loop so it re-evaluates and reaches its quiescent park.
             var previousWake = this.barrierWake;
             this.barrierWake = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             previousWake.TrySetResult();
         }
 
-        // Real-wall-clock guard against a test hang — NOT a scheduled tick. The
-        // barrier completes on the tick thread; this deadline only bounds the wait, so
-        // it must advance on the system clock (TimeProvider.System) regardless of any
-        // injected fake clock. The TimeProvider overload also keeps this off the
-        // banned-API list (RS0030), which bars the bare Task.Delay(TimeSpan).
         var deadline = Task.Delay(timeout, TimeProvider.System, CancellationToken.None);
         var completed = await Task.WhenAny(request.Task, deadline).ConfigureAwait(false);
         if (completed == deadline)
@@ -334,31 +340,47 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// DR-6: the loop is unconditionally always-leader. There is no leadership, lease, or
+    /// coordination path. Thus an opt-in to multi-instance against the default non-exclusive store
+    /// produces duplicate fires, and the loop logs a prominent warning. The waiting-for-first-tick
+    /// liveness deadline is armed before <c>SeedAsync</c> awaits the store.
+    /// </para>
+    /// <para>
+    /// Fault-recovery loop (DR-10): a fault in the code of the loop itself (not an isolated dispatch,
+    /// which the router catches) is logged critical and surfaced as a
+    /// <see cref="SchedulerFaultedEvent"/>. The tick loop then restarts after a bounded backoff, so a
+    /// persistent fault does not spin the CPU at full tilt. Too many restarts in the window indicate
+    /// a crash loop, not a transient fault, so the scheduler transitions to its faulted state and
+    /// stops ticking. The loop also stops when the command channel of the registry completes (the
+    /// registry was disposed), so a dispose-while-running cannot hot-spin the empty-heap wait over a
+    /// completed channel. An <see cref="OperationCanceledException"/> on the stopping token is a
+    /// normal shutdown. The recovery policy must catch every loop fault, which is why CA1031 is
+    /// suppressed on the general <c>catch</c>.
+    /// </para>
+    /// <para>
+    /// <c>AwaitRestartBackoffAsync</c> backs off before the loop starts again, so a crash loop does
+    /// not spin the CPU. The backoff is skipped for an isolated first fault (immediate recovery) and
+    /// on the give-up iteration (<c>HandleTickLoopFault</c> set the faulted state). That final
+    /// iteration exits through the loop condition with no delay. Cancellation during the backoff
+    /// exits cleanly as a normal stop. When the loop exits (faulted or stopped),
+    /// <c>ReleaseIdleBarrierOnExit</c> unblocks any test that waits on idle.
+    /// </para>
+    /// </remarks>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         this.loopStoppingToken = stoppingToken;
 
-        // DR-6: the loop is unconditionally always-leader — there is no leadership,
-        // lease, or coordination path. Opting into multi-instance against the default
-        // non-exclusive store therefore produces duplicate fires; warn prominently.
         if (this.options.MultiInstanceExpected)
         {
             this.LogMultiInstanceWarning();
         }
 
-        // Arm the waiting-for-first-tick liveness deadline before SeedAsync awaits the store.
         this.healthMonitor.RecordLoopStarted(this.timeProvider.GetUtcNow());
 
         await this.SeedAsync(stoppingToken).ConfigureAwait(false);
 
-        // Fault-recovery loop (DR-10). A fault in the loop's own code — not an isolated
-        // dispatch, which the router catches — is logged critical, surfaced as a
-        // SchedulerFaultedEvent, and the tick loop restarts after a bounded backoff so a
-        // persistent fault does not spin the CPU at full tilt. Too many restarts in the
-        // window indicates a crash loop, not a transient fault, so the scheduler
-        // transitions to its faulted state and stops ticking. The loop also stops when the
-        // registry's command channel completes (the registry was disposed) so a
-        // dispose-while-running cannot hot-spin the empty-heap wait over a completed channel.
         while (!this.ShouldStop(stoppingToken) && !this.IsFaulted)
         {
             try
@@ -367,20 +389,14 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                // Normal shutdown.
                 break;
             }
-#pragma warning disable CA1031 // The recovery policy must catch every loop fault.
+#pragma warning disable CA1031
             catch (Exception ex)
 #pragma warning restore CA1031
             {
                 this.HandleTickLoopFault(ex);
 
-                // Back off before re-entering the loop so a crash loop does not spin the
-                // CPU. Skipped for an isolated first fault (recover immediately) and on the
-                // give-up iteration (HandleTickLoopFault set the faulted state) — that final
-                // iteration exits via the loop condition with no delay. Cancellation during
-                // the backoff exits cleanly as a normal stop.
                 await this.AwaitRestartBackoffAsync(stoppingToken).ConfigureAwait(false);
             }
         }
@@ -391,7 +407,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         }
         finally
         {
-            // Unblock any test waiting on idle once the loop exits (faulted or stopped).
             this.ReleaseIdleBarrierOnExit();
         }
     }
@@ -452,6 +467,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// its faulted state and stops ticking.
     /// </summary>
     /// <param name="ex">The fault that crashed the loop body.</param>
+    /// <remarks>
+    /// The restart window slides: restarts older than the window are dropped, then this restart is
+    /// recorded.
+    /// </remarks>
     private void HandleTickLoopFault(Exception ex)
     {
         this.LogTickLoopFaulted(ex);
@@ -459,8 +478,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         var now = this.timeProvider.GetUtcNow();
         this.SafePublishFaultedEvent(ex, now);
 
-        // Slide the restart window: drop restarts older than the window, then record
-        // this one.
         var windowStart = now - this.options.RestartWindow;
         this.restartTimes.RemoveAll(t => t < windowStart);
         this.restartTimes.Add(now);
@@ -486,6 +503,15 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// counts against <see cref="SchedulerOptions.MaxRestartsInWindow"/>) pays the backoff.
     /// Cancellation during the wait is absorbed as a normal shutdown — the caller's loop
     /// condition then exits — so no exception leaks from a stop issued mid-backoff.
+    /// <para>
+    /// The backoff races ONLY against registry disposal (<c>DisposedTask</c>), not against
+    /// <c>CommandReadyTask</c>. Thus ordinary commands (Register, Trigger, Update, and more) cannot
+    /// wake the loop early and bypass <see cref="SchedulerOptions.RestartBackoff"/> during a crash
+    /// loop. When the delay wins, the await on it observes its completion or cancellation (it does
+    /// nothing when the delay ran to term). When shutdown is requested during the backoff, the method
+    /// exits cleanly, and the condition of the fault-recovery loop observes the cancellation and
+    /// stops without another entry.
+    /// </para>
     /// </remarks>
     /// <param name="stoppingToken">The loop's stopping token, cancelled on shutdown.</param>
     /// <returns>A task that completes when the backoff elapses or the loop should exit.</returns>
@@ -510,21 +536,15 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
         try
         {
-            // Race the backoff ONLY against registry disposal (not CommandReadyTask),
-            // so ordinary commands (Register, Trigger, Update, etc.) cannot wake the
-            // loop early and bypass RestartBackoff during a crash loop.
             var delay = Task.Delay(backoff, this.timeProvider, stoppingToken);
             var winner = await Task.WhenAny(delay, this.registry.DisposedTask).ConfigureAwait(false);
             if (winner == delay)
             {
-                // Observe the delay's completion/cancellation (no-op when it ran to term).
                 await delay.ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // Shutdown requested during the backoff: exit cleanly. The fault-recovery
-            // loop's condition observes the cancellation and stops without re-entering.
         }
     }
 
@@ -535,6 +555,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     /// <param name="timeout">The maximum time to wait for the faulted transition.</param>
     /// <returns>A task that completes when the loop is faulted.</returns>
+    /// <remarks>
+    /// The <paramref name="timeout"/> is a real-wall-clock guard against a test hang, NOT a scheduled
+    /// tick. The barrier completes on the tick thread. This deadline only bounds the wait, so it must
+    /// advance on the system clock (<see cref="TimeProvider.System"/>) whatever fake clock is
+    /// injected. The <see cref="TimeProvider"/> overload of <c>Task.Delay</c> also keeps this call off
+    /// the banned-API list (RS0030), which bars the bare <c>Task.Delay(TimeSpan)</c>.
+    /// </remarks>
     [SuppressMessage(
         "Usage",
         "VSTHRD003:Avoid awaiting foreign Tasks",
@@ -553,11 +580,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             this.pendingFaulted.Add(request);
         }
 
-        // Real-wall-clock guard against a test hang — NOT a scheduled tick. The
-        // barrier completes on the tick thread; this deadline only bounds the wait, so
-        // it must advance on the system clock (TimeProvider.System) regardless of any
-        // injected fake clock. The TimeProvider overload also keeps this off the
-        // banned-API list (RS0030), which bars the bare Task.Delay(TimeSpan).
         var deadline = Task.Delay(timeout, TimeProvider.System, CancellationToken.None);
         var completed = await Task.WhenAny(request.Task, deadline).ConfigureAwait(false);
         if (completed == deadline)
@@ -590,17 +612,20 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     /// <param name="ex">The fault to report.</param>
     /// <param name="faultedAt">The instant the fault occurred.</param>
+    /// <remarks>
+    /// Fault reporting must not itself fault the recovery loop, which is why CA1031 is suppressed on
+    /// the <c>catch</c>. When the sink itself faults, nothing more can safely be done here.
+    /// </remarks>
     private void SafePublishFaultedEvent(Exception ex, DateTimeOffset faultedAt)
     {
         try
         {
             this.eventSink.Publish(new SchedulerFaultedEvent(ex, faultedAt));
         }
-#pragma warning disable CA1031 // Fault reporting must not itself fault the recovery loop.
+#pragma warning disable CA1031
         catch (Exception)
 #pragma warning restore CA1031
         {
-            // The sink itself faulted; nothing more we can safely do here.
         }
     }
 
@@ -611,8 +636,26 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// is never blocked indefinitely.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Idempotent and safe to call before the loop has fully started (NCronJob#172):
     /// stopping a never-started loop is a no-op, and a second stop returns immediately.
+    /// </para>
+    /// <para>
+    /// The shutdown-window deadline is armed BEFORE the first await. This order is load-bearing (it
+    /// mirrors the wake-timer rule in <c>WaitForNextWakeAsync</c>). A test advances the
+    /// <c>FakeTimeProvider</c> only after <see cref="StopAsync"/> has yielded, and an advance fires only
+    /// timers that already exist. The synchronous creation of the deadline, before
+    /// <c>base.StopAsync</c> unwinds the loop, guarantees that it is registered before the clock can be
+    /// advanced. Thus the timeout reliably elapses and does not race the loop teardown. Otherwise the
+    /// drain wait can park on a timer that never fires, and <see cref="StopAsync"/> hangs indefinitely
+    /// under a fake clock.
+    /// </para>
+    /// <para>
+    /// <c>base.StopAsync</c> signals the loop to stop scheduling and unwinds <c>ExecuteAsync</c>. The
+    /// base call is guarded: it does nothing when <c>ExecuteAsync</c> never started. The method then
+    /// waits up to the shutdown window for the in-flight dispatches that were handed to the pool to
+    /// finish, and abandons any that still run when the window elapses.
+    /// </para>
     /// </remarks>
     /// <param name="cancellationToken">A token to cancel the stop.</param>
     /// <returns>A task that completes when the loop has stopped.</returns>
@@ -622,30 +665,17 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         Justification = "Dispatch cancellation runs when the shutdown deadline elapses and must not delay StopAsync after the in-flight drain.")]
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        // Idempotent: a second stop (or a stop of a never-started loop) is a no-op.
         if (Interlocked.Exchange(ref this.stopState, 1) == 1)
         {
             return;
         }
 
-        // Arm the shutdown-window deadline BEFORE the first await. Ordering is
-        // load-bearing (it mirrors the wake-timer rule in WaitForNextWakeAsync): a test
-        // advances the FakeTimeProvider only after StopAsync has yielded, and an advance
-        // fires only timers that already exist. Creating the deadline synchronously here
-        // — before base.StopAsync unwinds the loop — guarantees it is registered before
-        // the clock can be advanced, so the timeout reliably elapses instead of racing
-        // the loop teardown (otherwise the drain wait can park on a timer that is never
-        // fired, hanging StopAsync indefinitely under a fake clock).
         var deadline = Task.Delay(this.options.ShutdownTimeout, this.timeProvider, cancellationToken);
         this.shutdownDeadline = deadline;
         _ = this.CancelDispatchesAtDeadlineAsync(deadline);
 
-        // Signal the loop to stop scheduling and let the base unwind ExecuteAsync. The
-        // base call is guarded: it is a no-op when ExecuteAsync never started.
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
 
-        // Wait up to the shutdown window for in-flight dispatches handed to the pool to
-        // finish; abandon any still running when the window elapses.
         await this.WaitForInFlightToDrainAsync(deadline).ConfigureAwait(false);
     }
 
@@ -659,6 +689,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     /// <param name="deadline">The pre-armed shutdown-window deadline task.</param>
     /// <returns>A task that completes when in-flight drains or the timeout elapses.</returns>
+    /// <remarks>
+    /// The count is read again after the drain task is captured, to avoid a lost wakeup. A dispatch
+    /// that drained between the first count read and the capture completed a previous drain task,
+    /// but the count is now zero, so the method exits. When the deadline wins, the method times out
+    /// and abandons the dispatches that still run.
+    /// </remarks>
     [SuppressMessage(
         "Usage",
         "VSTHRD003:Avoid awaiting foreign Tasks",
@@ -670,9 +706,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             var drain = this.CurrentDrainTask();
 
-            // Re-check after capturing the drain task to avoid a lost wakeup: a
-            // dispatch that drained between the count read and here completed a
-            // previous drain task, but the count is now zero so we exit.
             if (Volatile.Read(ref this.inFlightDispatches) == 0)
             {
                 return;
@@ -683,7 +716,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 var completed = await Task.WhenAny(drain, deadline).ConfigureAwait(false);
                 if (completed == deadline || deadline.IsCompleted)
                 {
-                    // Timed out: abandon the still-running dispatches.
                     return;
                 }
             }
@@ -701,6 +733,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     /// <param name="stoppingToken">The loop's stopping token.</param>
     /// <returns>A task that completes when the tick has been processed.</returns>
+    /// <remarks>
+    /// Each iteration records liveness, so the health check can detect a stalled loop (DR-8). The
+    /// instant comes from the injected clock (DR-7).
+    /// </remarks>
     private async Task RunTickAsync(CancellationToken stoppingToken)
     {
         int barrierCount;
@@ -711,8 +747,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             barrierWakeTask = this.barrierWake.Task;
         }
 
-        // Record liveness each iteration so the health check can detect a stalled
-        // loop (DR-8). The instant is read from the injected clock (DR-7).
         this.healthMonitor.RecordTick(this.timeProvider.GetUtcNow());
 
         this.DrainCommands();
@@ -729,6 +763,43 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// waiting test observes the settled state.
     /// </summary>
     /// <returns>A task that completes when the loop should re-evaluate.</returns>
+    /// <remarks>
+    /// <para>
+    /// DR-10 clock-skew guard: if the clock moved backwards since the last reading, the loop logs a
+    /// warning and continues. The loop always computes its sleep from a freshly read <c>now</c>, never
+    /// from a stale absolute deadline. Thus a backwards jump only arms a longer delay, and no fire is
+    /// lost or duplicated.
+    /// </para>
+    /// <para>
+    /// Due work means no wait: the loop goes straight back to dispatch it. When the outstanding
+    /// budget (<c>MaxOutstandingDispatches</c>) is already full, a spin would not start that work, so
+    /// the loop waits for one slot or a command (shutdown included). <c>RecordTick</c> cleared the idle
+    /// observation, so <c>RecordIdleWait(now)</c> sets the deadline to this instant, and the usual
+    /// stale window applies while no dispatch finishes. An empty heap still records a
+    /// <see langword="null"/> deadline and stays healthy.
+    /// </para>
+    /// <para>
+    /// Every wait source is armed BEFORE the idle barrier is released. This order is load-bearing. A
+    /// test advances the <c>FakeTimeProvider</c> only after its <c>WaitForIdleAsync</c> returns (which
+    /// the barrier release completes), and the advance fires only timers that already exist. The
+    /// <c>Task.Delay</c> is created first, so the next-fire timer is armed before the test can advance
+    /// the clock, and the advance reliably wakes the loop (no missed wakeup).
+    /// </para>
+    /// <para>
+    /// <c>Task.Delay</c> rejects a span above <c>int.MaxValue</c> milliseconds, and that exception
+    /// would fault the shared loop. Thus the delay is capped at <c>MaxWakeDelay</c>: the loop wakes at
+    /// the limit and arms again. <c>delayCancellation</c> cancels the timer when the wait ends, so a
+    /// command or drain does not leave a superseded delay alive until its original deadline.
+    /// </para>
+    /// <para>
+    /// At a fully quiescent point (nothing due and no dispatch in flight), the loop releases the idle
+    /// barrier after the timer is armed. Thus any waiting test observes the settled state and can
+    /// safely advance the clock. When a dispatch is in flight, the loop is not yet idle, and the
+    /// barrier is released at the next park after that dispatch drains. With an empty heap, the loop
+    /// waits on the command stream, the dispatch drain, and the barrier only. An
+    /// <see cref="OperationCanceledException"/> from the wait means that shutdown was requested.
+    /// </para>
+    /// </remarks>
     [SuppressMessage(
         "Usage",
         "VSTHRD003:Avoid awaiting foreign Tasks",
@@ -739,10 +810,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     {
         var now = this.timeProvider.GetUtcNow();
 
-        // DR-10 clock-skew guard: if the clock moved backwards since the last reading,
-        // warn and continue. The loop always computes its sleep from a freshly read
-        // 'now' (below), never from a stale absolute deadline, so a backwards jump just
-        // re-arms a longer delay rather than losing or duplicating a fire.
         var previous = Volatile.Read(ref this.previousNowTicks);
         if (previous != long.MinValue && now.UtcTicks < previous)
         {
@@ -755,9 +822,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         var workRemains = this.HasQueuedWork()
             || (nextFire is not null && nextFire.Value <= now);
 
-        // Due work means do not wait — loop straight back to dispatch it. When the
-        // outstanding budget is already full, spinning would not start that work.
-        // Wait for one slot or a command (including shutdown).
         if (workRemains)
         {
             if (Volatile.Read(ref this.inFlightDispatches) < MaxOutstandingDispatches)
@@ -773,20 +837,11 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
             var blockedCommand = this.CommandReadyTask(stoppingToken);
 
-            // RecordTick cleared the idle observation. The deadline is this instant, so
-            // the usual stale window applies while no dispatch finishes. An empty heap
-            // still records a null deadline below and stays healthy.
             this.healthMonitor.RecordIdleWait(now);
             await Task.WhenAny(slot, blockedCommand).ConfigureAwait(false);
             return;
         }
 
-        // Arm every wait source BEFORE releasing the idle barrier. Ordering is
-        // load-bearing: a test advances the FakeTimeProvider only after its
-        // WaitForIdleAsync returns (which the barrier release completes), and the
-        // advance fires only timers that already exist. Creating the Task.Delay first
-        // guarantees the next-fire timer is armed before the test can advance the
-        // clock, so the advance reliably wakes the loop (no missed wakeup).
         var drainTask = this.CurrentDrainTask();
         var commandReady = this.CommandReadyTask(stoppingToken);
         Task? delayTask = null;
@@ -800,13 +855,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             }
             else if (delay > MaxWakeDelay)
             {
-                // Task.Delay rejects a span above int.MaxValue milliseconds and that
-                // exception faults the shared loop. Wake at the limit and re-arm.
                 delay = MaxWakeDelay;
             }
 
-            // Cancel this timer when the wait ends so a command or drain does not
-            // leave a superseded delay alive until its original deadline.
             delayCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
             delayTask = Task.Delay(delay, this.timeProvider, delayCancellation.Token);
             this.healthMonitor.RecordIdleWait(now + delay);
@@ -816,10 +867,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             this.healthMonitor.RecordIdleWait(deadline: null);
         }
 
-        // Fully quiescent: nothing due and no dispatch in flight. Release the idle
-        // barrier (after the timer is armed) so any waiting test observes the settled
-        // state and can safely advance the clock. When a dispatch is in flight the loop
-        // is not yet idle; the barrier is released at the next park after it drains.
         if (Volatile.Read(ref this.inFlightDispatches) == 0)
         {
             this.ReleaseIdleBarrier(barrierCount);
@@ -829,7 +876,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             if (delayTask is null)
             {
-                // Empty heap: wait on the command stream, dispatch drain, and barrier.
                 await Task.WhenAny(commandReady, drainTask, barrierWakeTask).ConfigureAwait(false);
                 return;
             }
@@ -838,7 +884,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         }
         catch (OperationCanceledException)
         {
-            // Shutdown requested.
         }
         finally
         {
@@ -938,7 +983,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// next occurrence is computed from <c>(LastFiredAt, now)</c> so the loop arms
     /// at the next <em>natural</em> future occurrence rather than replaying stale
     /// past instants as if they were missed fires (DR-10: missed-fire catch-up is
-    /// startup-from-store recovery only, not live resume).
+    /// startup-from-store recovery only, not live resume). A job that was removed or is not
+    /// currently running is disarmed.
     /// </remarks>
     /// <param name="jobName">The job to arm.</param>
     /// <param name="expectedRegistrationId">
@@ -956,17 +1002,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         var record = this.registry.TryGetRecord(jobName);
         if (record is null || record.State != JobState.Running)
         {
-            // Job removed or not currently running: ensure it is not armed.
             this.Disarm(jobName, expectedRegistrationId);
             return;
         }
 
         var now = this.timeProvider.GetUtcNow();
 
-        // Use the stored NextFireAt only when it is still in the future; if it is
-        // stale (in the past or absent) compute the next natural occurrence from now.
-        // This ensures a resume after a long pause arms at the next future occurrence
-        // rather than treating the intervening period as missed fires (DR-10).
         if (record.NextFireAt is not null && record.NextFireAt.Value > now)
         {
             this.Enqueue(jobName, record.Cadence, record.MissedFirePolicy, record.NextFireAt.Value);
@@ -1043,6 +1084,11 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     /// <param name="deadline">The pre-armed shutdown deadline.</param>
     /// <returns>A task that completes after the deadline.</returns>
+    /// <remarks>
+    /// An <see cref="OperationCanceledException"/> from the deadline means that the stop itself was
+    /// canceled. An <see cref="ObjectDisposedException"/> from the cancellation means that the stop
+    /// finished and the loop was disposed. The method ignores both.
+    /// </remarks>
     [SuppressMessage(
         "Usage",
         "VSTHRD003:Avoid awaiting foreign Tasks",
@@ -1055,7 +1101,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         }
         catch (OperationCanceledException)
         {
-            // The stop itself was cancelled.
         }
 
         try
@@ -1064,7 +1109,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         }
         catch (ObjectDisposedException)
         {
-            // Stop finished and the loop was disposed.
         }
     }
 
@@ -1152,6 +1196,22 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// reschedule) are discarded.
     /// </summary>
     /// <param name="stoppingToken">The loop's stopping token.</param>
+    /// <remarks>
+    /// <para>
+    /// When the outstanding budget (<c>MaxOutstandingDispatches</c>) is full, the occurrence stays
+    /// queued. The caller waits for a free slot, and no other admission and scope open.
+    /// </para>
+    /// <para>
+    /// Lazy deletion: the loop skips an entry whose job is no longer armed at this generation
+    /// (paused, removed, or already rescheduled). A different registration of the same name is stale
+    /// too, because its own arm owns the schedule.
+    /// </para>
+    /// <para>
+    /// The next occurrence is computed strictly after this one, because the clock is anchored at the
+    /// occurrence itself, not at the wall clock. <c>SafeComputeNextFire</c> returns a discriminated
+    /// outcome, so Faulted and Exhausted need no racy secondary name lookup.
+    /// </para>
+    /// </remarks>
     private void DispatchDueJobs(CancellationToken stoppingToken)
     {
         var now = this.timeProvider.GetUtcNow();
@@ -1166,8 +1226,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             && this.heap.TryPeek(out _, out var occurrence)
             && occurrence <= now)
         {
-            // Leave the occurrence queued. The caller waits for a free slot instead of
-            // opening another admission and scope.
             if (Volatile.Read(ref this.inFlightDispatches) >= MaxOutstandingDispatches)
             {
                 return;
@@ -1176,9 +1234,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             this.heap.TryDequeue(out var handle, out _);
             dispatched++;
 
-            // Lazy deletion: skip an entry whose job is no longer armed at this
-            // generation (paused, removed, or already rescheduled). A different
-            // registration of the same name is stale too: its own arm owns the schedule.
             if (handle is null || !this.IsCurrent(handle) || this.BelongsToReplacement(handle))
             {
                 continue;
@@ -1186,10 +1241,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
             var scheduledOccurrence = handle.ScheduledOccurrence;
 
-            // Compute the next occurrence strictly after this one by anchoring the
-            // clock at the occurrence itself, not the wall clock. SafeComputeNextFire
-            // returns a discriminated outcome so Faulted vs Exhausted needs no racy
-            // secondary name lookup.
             var outcome = this.SafeComputeNextFire(
                 handle.JobName,
                 handle.RegistrationId,
@@ -1478,6 +1529,11 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// A discriminated <see cref="NextFireOutcome"/> distinguishing scheduled, exhausted,
     /// and faulted results.
     /// </returns>
+    /// <remarks>
+    /// When the <c>ComputeNextFire</c> of the cadence throws, the fault is isolated only for the
+    /// matching registration identity (<c>TryMarkJobFaulted</c>), so an older handle cannot fault a
+    /// replacement.
+    /// </remarks>
 #pragma warning disable CA1031 // A throwing cadence must be isolated, not allowed to crash the loop.
     private NextFireOutcome SafeComputeNextFire(
         string jobName,
@@ -1496,8 +1552,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         }
         catch (Exception ex)
         {
-            // The cadence's ComputeNextFire threw: isolate the fault only for the
-            // matching registration identity so an older handle cannot fault a replacement.
             if (registrationId > 0 && this.registry.TryMarkJobFaulted(registrationId, jobName))
             {
                 this.eventSink.Publish(new Core.Events.JobFireFailedEvent(
@@ -1537,6 +1591,64 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// handoff and a dispatcher can resolve scoped services through
     /// <see cref="JobFireContext.Services"/> for the full duration of the fire.
     /// </para>
+    /// <para>
+    /// No live dispatcher (the job was removed mid-flight) surfaces as a failed fire and is not
+    /// silently dropped. The failed fire goes to the same health monitor that the post-dispatch path
+    /// uses (<c>InFlightTrackingDispatcher</c>), so a pre-dispatch failure is not missing from
+    /// <c>FailureRate</c> and <c>RecentFireCount</c>. The in-flight tracking dispatcher never runs on
+    /// this path, so this is the only place that records the outcome (no double-recording).
+    /// </para>
+    /// <para>
+    /// The handoff signal is published FIRST (core-1): a fast-failing dispatcher that publishes
+    /// <c>JobFireFailedEvent</c> must never precede this event for the same occurrence. The publish
+    /// runs before the in-flight count is incremented and before any scope is created. Thus, if the
+    /// publish itself faults the loop body, there is no in-flight leak and no orphaned scope. The
+    /// original order incremented in-flight first, which would strand the count and hang the idle
+    /// barrier when the publish threw.
+    /// </para>
+    /// <para>
+    /// Fire latency is the gap between the scheduled occurrence (the logical fire instant) and the
+    /// actual dispatch instant. A fire dispatched on time or early (a manual trigger) yields a
+    /// non-positive gap, which the metric clamps to zero. Time flows through the injected
+    /// <see cref="TimeProvider"/> (DR-7).
+    /// </para>
+    /// <para>
+    /// The per-fire DI scope (F2/M2) opens after the handoff signal is published. When no root
+    /// provider was supplied, the scope is <see langword="null"/> and the fire falls back to the no-op
+    /// provider, so scoped resolution returns <see langword="null"/> and does not throw. Scope creation
+    /// can fault only when the root provider is already disposed (for example mid-shutdown). The
+    /// handoff <see cref="JobFiredEvent"/> was already published, so the method publishes a
+    /// compensating <c>JobFireFailedEvent</c>. This keeps the <c>(JobName, FireTime)</c> timeline
+    /// complete (Fired then Failed) and leaves no orphan Fired event without an outcome. No scope or
+    /// in-flight count exists yet, so nothing needs to be unwound, and an otherwise-benign shutdown
+    /// race does not fault the loop. A scope-creation fault is a failed fire, not a loop fault, which
+    /// is why CA1031 is suppressed on that <c>catch</c>. As on the no-dispatcher path, the failed fire
+    /// is recorded in the health monitor here, because no tracking dispatcher runs on this path (no
+    /// double-recording).
+    /// </para>
+    /// <para>
+    /// The dispatch counts as in-flight before the router gets it, and the count clears when the
+    /// wrapped dispatcher completes (success or throw). The router runs the dispatch on the pool. The
+    /// <c>finally</c> of the decorator still runs when the router catches a throwing dispatcher, so the
+    /// count is exact and the per-fire scope is disposed exactly once after the fire finishes. The
+    /// increment is paired with the handoff. If the handoff itself throws (it does not in practice),
+    /// the <c>catch</c> undoes the count and disposes the scope, so the idle barrier can never strand.
+    /// </para>
+    /// <para>
+    /// If the handoff faults, the wrapped dispatcher can fail to run its <c>finally</c>. Thus the
+    /// <c>catch</c> completes the fire, to keep the in-flight bookkeeping exact and the idle barrier
+    /// unstranded, then throws again so the fault recovery of the loop still sees the fault.
+    /// <c>CompleteFromHandoffFault</c> shares the single-shot guard of the decorator, so even a
+    /// non-conforming router that both started the dispatch AND threw cannot decrement the count
+    /// twice. A throw is not an acknowledgement, so there is no checkpoint. The <c>catch</c> undoes the
+    /// in-flight bookkeeping on any handoff fault, which is why CA1031 is suppressed on it.
+    /// </para>
+    /// <para>
+    /// A synchronous router has already run the dispatcher when <c>router.Dispatch</c> returns. The
+    /// checkpoint (<c>Commit</c>) runs only after that call returns, so a throw cannot claim the
+    /// occurrence. An asynchronous router returns first, and the wrapper checkpoints when the
+    /// dispatcher later acknowledges the fire.
+    /// </para>
     /// </remarks>
     /// <param name="jobName">The job firing.</param>
     /// <param name="scheduledOccurrence">The occurrence's logical instant.</param>
@@ -1557,8 +1669,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         var dispatcher = resolution.Dispatcher;
         if (dispatcher is null)
         {
-            // No live dispatcher (job removed mid-flight): surface as a failed fire
-            // rather than silently dropping it.
             this.eventSink.Publish(new JobFireFailedEvent(
                 jobName,
                 scheduledOccurrence,
@@ -1566,59 +1676,28 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 Reason: "No dispatcher is registered for the job."));
             this.metrics.RecordDispatchFailure(jobName, NoDispatcherFailureType);
 
-            // Record the failed fire in the same health monitor the post-dispatch path
-            // uses (InFlightTrackingDispatcher), so a pre-dispatch failure here is not
-            // missing from FailureRate/RecentFireCount. The in-flight tracking dispatcher
-            // never runs on this path, so this is the only place the outcome is recorded
-            // (no double-recording).
             this.healthMonitor.RecordFireOutcome(success: false);
             this.BlockLaterCheckpoints(jobName, scheduledOccurrence);
             return;
         }
 
-        // Publish the handoff signal FIRST (core-1): a fast-failing dispatcher publishing
-        // JobFireFailedEvent must never precede this event for the same occurrence. This
-        // runs before the in-flight count is incremented and before any scope is created,
-        // so if the publish itself faults the loop body there is no in-flight leak and no
-        // orphaned scope (the original ordering incremented in-flight first, which would
-        // strand the count and hang the idle barrier when the publish threw).
         this.eventSink.Publish(new JobFiredEvent(jobName, scheduledOccurrence, nextFireAt));
 
-        // Fire latency is the gap between the scheduled occurrence (the logical fire
-        // instant) and the actual dispatch instant. A fire dispatched on time or
-        // early (a manual trigger) yields a non-positive gap the metric clamps to
-        // zero. Time flows through the injected TimeProvider (DR-7).
         var dispatchedAt = this.timeProvider.GetUtcNow();
         this.metrics.RecordFired(jobName, dispatchedAt - scheduledOccurrence);
 
-        // Open a per-fire DI scope (F2/M2), now that the handoff signal has been
-        // published. When no root provider was supplied the scope is null and the fire
-        // falls back to the no-op provider, so scoped resolution returns null rather
-        // than throwing. The scope is disposed by the tracking decorator after the
-        // pool-thread dispatch completes (see InFlightTrackingDispatcher).
         IServiceScope? scope;
         try
         {
             scope = this.scopeFactory?.CreateScope();
         }
-#pragma warning disable CA1031 // A scope-creation fault is surfaced as a failed fire, not a loop fault.
+#pragma warning disable CA1031
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            // Scope creation can fault only when the root provider is already disposed
-            // (e.g. mid-shutdown). The handoff JobFiredEvent was already published, so
-            // publish a compensating JobFireFailedEvent to keep the (JobName, FireTime)
-            // timeline complete — Fired then Failed — rather than leaving an orphan Fired
-            // with no outcome. No scope or in-flight count exists yet, so nothing to unwind,
-            // and the loop is not faulted by an otherwise-benign shutdown race.
             this.eventSink.Publish(new JobFireFailedEvent(jobName, scheduledOccurrence, ex));
             this.metrics.RecordDispatchFailure(jobName, ex.GetType().Name);
 
-            // Record the failed fire in the same health monitor the post-dispatch path
-            // uses (InFlightTrackingDispatcher): the scope-creation fault happens before
-            // the tracking dispatcher runs, so without this the failed fire would be
-            // missing from FailureRate/RecentFireCount. No tracking dispatcher runs on
-            // this path, so this is the only recording (no double-recording).
             this.healthMonitor.RecordFireOutcome(success: false);
             this.BlockLaterCheckpoints(jobName, scheduledOccurrence);
             return;
@@ -1632,14 +1711,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             nextFireAt,
             services);
 
-        // Track the dispatch as in-flight before handing it to the router, and clear
-        // the count when the wrapped dispatcher completes (success or throw). The
-        // router runs the dispatch on the pool; the decorator's finally still runs
-        // even when the router catches a throwing dispatcher, so the count is exact and
-        // the per-fire scope is disposed exactly once after the fire finishes. The
-        // increment is paired with the handoff: if the handoff itself were to throw
-        // (it does not in practice), the catch undoes the count and disposes the scope
-        // so the idle barrier can never strand.
         Interlocked.Increment(ref this.inFlightDispatches);
         var expected = this.registry.TryGetRecord(jobName);
         var pending = this.TrackFire(jobName, scheduledOccurrence, nextFireAt, expected, registrationId);
@@ -1648,27 +1719,16 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             this.router.Dispatch(tracked, context, this.dispatchLifetime.Token);
         }
-#pragma warning disable CA1031 // Undo the in-flight bookkeeping on any handoff fault.
+#pragma warning disable CA1031
         catch
 #pragma warning restore CA1031
         {
-            // The router never throws in practice, but if the handoff faults the wrapped
-            // dispatcher may never run its finally, so complete the fire here to keep the
-            // in-flight bookkeeping exact and the idle barrier unstranded, then re-raise so
-            // the loop's fault recovery still sees it. CompleteFromHandoffFault shares the
-            // decorator's single-shot guard, so even a non-conforming router that both
-            // started the dispatch AND threw cannot double-decrement the count.
-            // A throw is not an acknowledgement: do not checkpoint.
             tracked.MarkHandoffFaulted();
             tracked.CompleteFromHandoffFault(jobName);
             this.SettleFire(pending, acknowledged: false);
             throw;
         }
 
-        // A synchronous router has already run the dispatcher. Checkpoint only after
-        // that call returns, so a throw above cannot claim the occurrence. An
-        // asynchronous router returns first; the wrapper checkpoints when the
-        // dispatcher later acknowledges the fire.
         if (tracked.TryMarkHandoffReturned())
         {
             tracked.Commit();
@@ -1826,6 +1886,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="firedAt">The occurrence the dispatcher acknowledged.</param>
     /// <param name="nextFireAt">The next occurrence captured with that acknowledgement.</param>
     /// <param name="registrationId">The registration that acknowledged the fire.</param>
+    /// <remarks>
+    /// Best-effort: a synchronous store throw must not fault the loop, which is why CA1031 is
+    /// suppressed on the <c>catch</c>. A checkpoint that is in flight (or already faulted) is
+    /// observed off the tick thread by <c>ObserveCheckpointAsync</c>. Thus an async store fault is
+    /// logged and not left unobserved, and a slow store never blocks scheduling.
+    /// </remarks>
     [SuppressMessage(
         "Usage",
         "VSTHRD110:Observe result of async calls",
@@ -1843,7 +1909,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             checkpoint = this.registry.CheckpointAsync(record, firedAt, nextFireAt, registrationId);
         }
-#pragma warning disable CA1031 // Best-effort: a synchronous store throw must not fault the loop.
+#pragma warning disable CA1031
         catch (Exception ex)
 #pragma warning restore CA1031
         {
@@ -1856,9 +1922,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             return;
         }
 
-        // The checkpoint is in flight (or already faulted): observe it off the tick
-        // thread so an async store fault is logged rather than left unobserved, and a
-        // slow store never blocks scheduling.
         _ = this.ObserveCheckpointAsync(jobName, checkpoint);
     }
 
@@ -1869,13 +1932,17 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// <param name="jobName">The job whose checkpoint is observed.</param>
     /// <param name="checkpoint">The in-flight checkpoint task.</param>
     /// <returns>A task that always completes successfully.</returns>
+    /// <remarks>
+    /// Best-effort: an async store fault must not propagate, which is why CA1031 is suppressed on the
+    /// <c>catch</c>.
+    /// </remarks>
     private async Task ObserveCheckpointAsync(string jobName, ValueTask checkpoint)
     {
         try
         {
             await checkpoint.ConfigureAwait(false);
         }
-#pragma warning disable CA1031 // Best-effort: an async store fault must not propagate.
+#pragma warning disable CA1031
         catch (Exception ex)
 #pragma warning restore CA1031
         {
@@ -1934,6 +2001,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// armed job remains.
     /// </summary>
     /// <returns>The nearest valid fire instant, or <see langword="null"/>.</returns>
+    /// <remarks>
+    /// Each stale entry is dequeued, and the loop then looks at the next entry.
+    /// </remarks>
     private DateTimeOffset? PeekNextValidFire()
     {
         while (this.heap.TryPeek(out var handle, out var occurrence))
@@ -1943,7 +2013,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 return occurrence;
             }
 
-            // Drop the stale entry and look at the next.
             this.heap.Dequeue();
         }
 
@@ -1963,6 +2032,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// store but absent from the registry has no dispatcher and is skipped. A job
     /// registered live this process (no prior fires, no durable record) is seeded
     /// from its registry record by <see cref="Arm"/> via the pre-start command drain.
+    /// <para>
+    /// Only running jobs with a live dispatcher are seedable from durable state. After the durable
+    /// records, the method drains any commands posted before the loop started (live registrations
+    /// made during host construction). It then arms any registered running job that the store did
+    /// not already cover.
+    /// </para>
     /// </remarks>
     /// <param name="stoppingToken">The loop's stopping token.</param>
     /// <returns>A task that completes when seeding is done.</returns>
@@ -1974,7 +2049,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         var seeded = new HashSet<string>(StringComparer.Ordinal);
         foreach (var record in persisted)
         {
-            // Only running jobs with a live dispatcher are seedable from durable state.
             if (record.State != JobState.Running || this.registry.TryGetDispatcher(record.Name) is null)
             {
                 continue;
@@ -1985,9 +2059,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             seeded.Add(record.Name);
         }
 
-        // Drain any commands posted before the loop started (live registrations made
-        // during host construction) and arm any registered running job the store did
-        // not already cover.
         this.DrainCommands();
         foreach (var record in this.registry.SnapshotRecords())
         {
@@ -2007,17 +2078,25 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     /// <param name="record">The durable record carrying the job's last-fired instant.</param>
     /// <param name="now">The startup instant (DR-7).</param>
+    /// <remarks>
+    /// <para>
+    /// <c>catchUp</c> holds the catch-up occurrences that are actually dispatched, per the configured
+    /// policy: the full (capped) backlog for <see cref="MissedFirePolicy.FireAllMissed"/>, a single
+    /// coalesced fire for <see cref="MissedFirePolicy.Coalesce"/>, and none for
+    /// <see cref="MissedFirePolicy.SkipMissed"/>. <c>missedCount</c> is the true number of missed
+    /// occurrences, independent of how the policy reconciles them. Thus the event reports "5 missed,
+    /// coalesced" and not the single dispatched fire.
+    /// </para>
+    /// <para>
+    /// Each job gets one <c>CatchUpCursor</c>. <c>DrainRetained</c> walks the occurrences in order, so
+    /// a blocked budget cannot retain one entry per missed fire.
+    /// </para>
+    /// </remarks>
     private void ApplyStartupMissedFirePolicies(JobRecord record, DateTimeOffset now)
     {
-        // The catch-up occurrences actually dispatched, per the configured policy:
-        // the full (capped) backlog for FireAllMissed, a single coalesced fire for
-        // Coalesce, and none for SkipMissed.
         var catchUp = MissedFirePolicyApplier.ComputeMissedFires(
             record.Cadence, record.LastFiredAt, now, record.MissedFirePolicy);
 
-        // The true number of occurrences missed, independent of how the policy
-        // reconciles them — so the event reports "5 missed, coalesced" rather than the
-        // single dispatched fire.
         var missedCount = MissedFirePolicyApplier.ComputeMissedFires(
             record.Cadence, record.LastFiredAt, now, MissedFirePolicy.FireAllMissed).Count;
 
@@ -2034,8 +2113,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         this.eventSink.Publish(new JobMissedFireEvent(record.Name, missedCount, record.MissedFirePolicy));
         this.metrics.RecordMissedFires(record.Name, missedCount, record.MissedFirePolicy);
 
-        // One cursor per job. DrainRetained walks the occurrences in order, so a
-        // blocked budget cannot retain one entry per missed fire.
         if (catchUp.Count == 0 || this.catchUps.ContainsKey(record.Name))
         {
             return;
@@ -2057,11 +2134,14 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     /// <param name="record">The durable record.</param>
     /// <param name="now">The startup instant (DR-7).</param>
+    /// <remarks>
+    /// A next fire at or before <paramref name="now"/> is dropped too. The missed-fire policy already
+    /// handled past occurrences. An arm of one here would bypass
+    /// <see cref="MissedFirePolicy.SkipMissed"/>, or duplicate a fire before its checkpoint lands.
+    /// </remarks>
     private void ArmFromRecord(JobRecord record, DateTimeOffset now)
     {
         var nextFire = record.Cadence.ComputeNextFire(record.LastFiredAt, now);
-        // Past occurrences were already handled by the missed-fire policy. Re-arming
-        // one here bypasses SkipMissed or duplicates a fire before its checkpoint lands.
         if (nextFire is null || nextFire <= now)
         {
             this.scheduled.Remove(record.Name);
@@ -2231,6 +2311,16 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             owner.SettleFire(pending, acknowledged: true);
         }
 
+        // The outcome fields (fire, rejected) are published before the CompareExchange on phase, so
+        // the caller that observes CompletedDuringHandoff also observes these fields. A throwing
+        // dispatcher is isolated as a failed-fire event, which is why CA1031 is suppressed on that
+        // catch.
+        //
+        // The finally block disposes the per-fire scope first, so scoped IAsyncDisposable and
+        // IDisposable services are released before the fire is reported drained. Then it clears
+        // the in-flight count. A scope dispose must never crash the fire path. The completed guard
+        // makes completion run exactly once across this finally block and the handoff-fault path
+        // (see the field comment).
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
             try
@@ -2244,8 +2334,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                             await inner.DispatchAsync(context, ct).ConfigureAwait(false);
                         }
 
-                        // Publish the outcome before the phase swap so the caller that
-                        // observes CompletedDuringHandoff also observes these fields.
                         this.fire = context;
                         this.rejected = outcome.Rejected;
                         var seen = Interlocked.CompareExchange(ref this.phase, CompletedDuringHandoff, InHandoff);
@@ -2254,7 +2342,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                             this.Commit();
                         }
                     }
-#pragma warning disable CA1031 // A throwing dispatcher is isolated as a failed-fire event.
+#pragma warning disable CA1031
                     catch (Exception ex)
 #pragma warning restore CA1031
                     {
@@ -2270,11 +2358,6 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             }
             finally
             {
-                // Dispose the per-fire scope first so scoped IAsyncDisposable/IDisposable
-                // services are released before the fire is reported drained, then clear
-                // the in-flight count. A scope dispose must never crash the fire path.
-                // Guarded so completion runs exactly once across this finally and the
-                // handoff-fault path (see the field comment).
                 if (Interlocked.Exchange(ref this.completed, 1) == 0)
                 {
                     await this.DisposeScopeAsync(context.JobName).ConfigureAwait(false);
@@ -2290,6 +2373,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         /// non-conforming router throws after starting it). Idempotent with the
         /// pool-thread <c>finally</c> via the single-shot guard, so the count is
         /// decremented exactly once regardless of which path observes completion first.
+        /// A scope-dispose fault must not mask the handoff fault, which is why CA1031 is suppressed on
+        /// the <c>catch</c>.
         /// </summary>
         /// <param name="jobName">The job whose fire is being completed.</param>
         public void CompleteFromHandoffFault(string jobName)
@@ -2303,7 +2388,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             {
                 scope?.Dispose();
             }
-#pragma warning disable CA1031 // A scope-dispose fault must not mask the handoff fault.
+#pragma warning disable CA1031
             catch (Exception ex)
 #pragma warning restore CA1031
             {
@@ -2316,7 +2401,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         /// <summary>
         /// Disposes the per-fire scope, preferring async disposal so a scoped
         /// <see cref="IAsyncDisposable"/> service releases cleanly. A dispose fault is
-        /// logged and swallowed so cleanup never crashes the isolated fire path.
+        /// logged and swallowed so cleanup never crashes the isolated fire path, which is why CA1031
+        /// is suppressed on the <c>catch</c>.
         /// </summary>
         /// <param name="jobName">The job whose fire scope is being disposed.</param>
         /// <returns>A task that completes when the scope is disposed.</returns>
@@ -2333,7 +2419,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                     scope?.Dispose();
                 }
             }
-#pragma warning disable CA1031 // A scope-dispose fault must not crash the isolated fire path.
+#pragma warning disable CA1031
             catch (Exception ex)
 #pragma warning restore CA1031
             {

@@ -54,8 +54,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 sum += t.VolatileCount;
             }
 
-            // Clamp at zero: the unlocked stripe reads can interleave with concurrent pops, so a
-            // transient view must never surface a negative count.
             return sum < 0 ? 0 : (int)sum;
         }
     }

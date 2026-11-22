@@ -62,6 +62,12 @@ public sealed class SchedulerEventStream : ISchedulerEventSink, IDisposable
     /// </summary>
     /// <typeparam name="TEvent">The scheduler event type.</typeparam>
     /// <param name="schedulerEvent">The event to publish.</param>
+    /// <remarks>
+    /// The event is boxed once into the shared object channel, and the typed <c>Subscribe</c> path
+    /// unboxes it by pattern match. A scheduler event is published at human cadence, so this single
+    /// box per publish is not a hot-path concern. Each write is non-blocking: the
+    /// <c>DropOldest</c> mode makes sure that a slow subscriber never blocks a fire.
+    /// </remarks>
     public void Publish<TEvent>(in TEvent schedulerEvent)
         where TEvent : struct
     {
@@ -70,13 +76,9 @@ public sealed class SchedulerEventStream : ISchedulerEventSink, IDisposable
             return;
         }
 
-        // Box once into the shared object channel; the typed Subscribe path unboxes
-        // by pattern match. A scheduler event is published at human cadence, so this
-        // single box per publish is not a hot-path concern.
         object boxed = schedulerEvent;
         foreach (var subscriber in this.subscribers.Values)
         {
-            // Non-blocking: DropOldest guarantees a slow subscriber never blocks a fire.
             subscriber.Writer.TryWrite(boxed);
         }
     }
@@ -94,7 +96,10 @@ public sealed class SchedulerEventStream : ISchedulerEventSink, IDisposable
     /// that <see cref="Dispose"/> will never complete. The disposed check and the add
     /// into the live set happen under the same lock <see cref="Dispose"/> takes, so a
     /// subscription can never be added after dispose has completed and cleared the
-    /// existing ones (which would strand an orphan channel forever).
+    /// existing ones (which would strand an orphan channel forever). A subscriber that lost the race
+    /// against <see cref="Dispose"/> is not added to the live set, because <see cref="Dispose"/> has
+    /// already completed and cleared it. Its channel writer is completed instead, so the returned
+    /// stream finishes immediately and does not hang on a channel that nothing will ever complete.
     /// </remarks>
     public IAsyncEnumerable<TEvent> Subscribe<TEvent>(CancellationToken cancellationToken = default)
         where TEvent : struct
@@ -112,10 +117,6 @@ public sealed class SchedulerEventStream : ISchedulerEventSink, IDisposable
         {
             if (this.disposed)
             {
-                // Lost the race against Dispose: do not add to the live set (Dispose has
-                // already completed and cleared it). Complete the new channel's writer so
-                // the returned stream finishes immediately instead of hanging on a channel
-                // nothing will ever complete.
                 channel.Writer.TryComplete();
             }
             else
@@ -128,6 +129,11 @@ public sealed class SchedulerEventStream : ISchedulerEventSink, IDisposable
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The <c>disposed</c> flag is set under the lock. Thus a concurrent <c>Subscribe</c>
+    /// either adds before this method completes the live set, or sees <c>disposed</c> and completes
+    /// its own channel. It never adds an orphan after the clear.
+    /// </remarks>
     public void Dispose()
     {
         lock (this.gate)
@@ -137,9 +143,6 @@ public sealed class SchedulerEventStream : ISchedulerEventSink, IDisposable
                 return;
             }
 
-            // Set disposed under the lock so a concurrent Subscribe either adds before
-            // this completes the live set, or sees disposed and completes its own channel
-            // itself — never adds an orphan after the clear below.
             this.disposed = true;
 
             foreach (var subscriber in this.subscribers.Values)
@@ -151,6 +154,8 @@ public sealed class SchedulerEventStream : ISchedulerEventSink, IDisposable
         }
     }
 
+    // The finally block removes and completes the subscriber when the enumeration ends or is
+    // canceled, so a dropped consumer never receives further fan-out.
     private async IAsyncEnumerable<TEvent> ReadWithCleanup<TEvent>(
         Guid subscriberId,
         ChannelReader<object> reader,
@@ -169,8 +174,6 @@ public sealed class SchedulerEventStream : ISchedulerEventSink, IDisposable
         }
         finally
         {
-            // Remove and complete the subscriber on enumeration end or cancellation, so
-            // a dropped consumer never receives further fan-out.
             if (this.subscribers.TryRemove(subscriberId, out var channel))
             {
                 channel.Writer.TryComplete();

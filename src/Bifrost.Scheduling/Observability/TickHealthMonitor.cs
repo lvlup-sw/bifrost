@@ -146,6 +146,10 @@ internal sealed class TickHealthMonitor : ITickHealthMonitor
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// When the window is full, the oldest outcome at <c>head</c> is evicted (and removed from
+    /// <c>failureCount</c>) before the new outcome overwrites it.
+    /// </remarks>
     public void RecordFireOutcome(bool success)
     {
         var isFailure = !success;
@@ -153,7 +157,6 @@ internal sealed class TickHealthMonitor : ITickHealthMonitor
         {
             if (this.count == WindowSize)
             {
-                // Window full: evict the oldest outcome before overwriting it.
                 if (this.window[this.head])
                 {
                     this.failureCount--;

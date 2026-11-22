@@ -51,14 +51,15 @@ internal sealed class JobDispatcherRouter : IJobDispatcherRouter
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The work is handed off to a pool thread, so the calling (tick) thread never awaits user code.
+    /// The continuation is intentionally not awaited here, because this is fire-and-forget.
+    /// <see cref="RunAsync"/> handles all failures, so the returned task never faults unobserved.
+    /// </remarks>
     public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(dispatcher);
 
-        // Hand off to a pool thread so the calling (tick) thread never awaits
-        // user code. The continuation is intentionally not awaited here — this
-        // is fire-and-forget — and all failures are handled inside RunAsync, so
-        // the returned task never faults unobserved.
         _ = Task.Run(() => this.RunAsync(dispatcher, context, ct), CancellationToken.None);
     }
 
@@ -70,6 +71,23 @@ internal sealed class JobDispatcherRouter : IJobDispatcherRouter
     /// <param name="context">The fire context.</param>
     /// <param name="ct">The dispatch cancellation token.</param>
     /// <returns>A task that always completes successfully; failures are published.</returns>
+    /// <remarks>
+    /// <para>
+    /// The outer <c>catch</c> isolates the dispatcher: a throwing fire must never crash the tick
+    /// loop. It surfaces the failure as a failed fire that carries the exception. <c>FireTime</c> is
+    /// the logical instant of the occurrence at which the dispatch was attempted.
+    /// </para>
+    /// <para>
+    /// The publish itself is guarded. This method runs on a fire-and-forget pool task, so if the
+    /// <c>Publish</c> of the sink throws (a misbehaving subscriber fan-out), the task would fault
+    /// unobserved and dispatcher-failure isolation would break. The inner <c>catch</c> swallows a
+    /// publish fault, so the router always isolates the dispatcher failure and the returned task
+    /// never faults. A faulting sink must never break dispatcher-failure isolation, which is why
+    /// CA1031 is suppressed on that <c>catch</c>. No logger is in scope for this seam (the router
+    /// takes only an <see cref="ISchedulerEventSink"/>), so the publish fault is swallowed silently
+    /// and not logged.
+    /// </para>
+    /// </remarks>
     private async Task RunAsync(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)
     {
         try
@@ -78,17 +96,6 @@ internal sealed class JobDispatcherRouter : IJobDispatcherRouter
         }
         catch (Exception ex)
         {
-            // Isolate the dispatcher: a throwing fire must never crash the tick
-            // loop. Surface it as a failed fire carrying the exception. FireTime
-            // is the occurrence's logical instant the dispatch was attempted at.
-            //
-            // Guard the publish itself: this RunAsync runs on a fire-and-forget pool
-            // task, so if the sink's Publish throws (a misbehaving subscriber fan-out)
-            // the task would fault unobserved and dispatcher-failure isolation would
-            // break. Swallow a publish fault here so the router always isolates the
-            // dispatcher failure and the returned task never faults. No logger is in
-            // scope for this seam (the router takes only an ISchedulerEventSink), so the
-            // publish fault is swallowed silently rather than logged.
             try
             {
                 this.eventSink.Publish(new JobFireFailedEvent(
@@ -96,12 +103,10 @@ internal sealed class JobDispatcherRouter : IJobDispatcherRouter
                     context.FireTime,
                     ex));
             }
-#pragma warning disable CA1031 // A faulting sink must never break dispatcher-failure isolation.
+#pragma warning disable CA1031
             catch
 #pragma warning restore CA1031
             {
-                // Intentionally swallowed: a broken sink must not fault the fire-and-forget
-                // pool task or defeat the dispatcher isolation this catch provides.
             }
         }
     }

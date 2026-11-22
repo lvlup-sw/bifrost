@@ -30,7 +30,9 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <see cref="InvalidOperationException"/> when the queue is full; use
     /// <see cref="TryEnqueue"/> for the non-throwing variant. The bounded-capacity gate
     /// reserves a slot atomically before any sub-queue is touched, so a full queue is rejected
-    /// without mutating any stripe.
+    /// without mutating any stripe. The throw is reachable only on a bounded, full queue. On an
+    /// unbounded queue <see cref="TryEnqueue"/> always returns <see langword="true"/>, so this method
+    /// never throws for capacity.
     /// </para>
     /// <para>
     /// <b>Thread Safety:</b> This method is thread-safe and may be called concurrently from
@@ -45,8 +47,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     {
         if (!TryEnqueue(element, priority))
         {
-            // Reachable only on a bounded, full queue: the reservation gate rejected the element.
-            // On an unbounded queue TryEnqueue always returns true and this never throws.
             throw new InvalidOperationException("The queue is full and cannot accept additional elements.");
         }
     }
@@ -107,17 +107,29 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <see cref="System.Threading.Interlocked"/> instruction against the shared gate and the loop
     /// is unchanged from the unbounded design.
     /// </para>
+    /// <para>
+    /// <c>ThreadHandle.Current</c> is resolved before the reservation. Thus an initialization failure
+    /// cannot leak a reservation, and the retry loop does not need initialization inside its
+    /// <c>try</c>.
+    /// </para>
+    /// <para>
+    /// A failed <c>TryLockedPush</c> means contention. The call to <c>ResetStickyEnqueue</c> ends the
+    /// sticky period, so the next iteration draws a fresh random index. This retry loop has no
+    /// per-operation progress bound.
+    /// </para>
+    /// <para>
+    /// The <c>catch</c> block covers a reservation that was taken when the element never landed in a
+    /// sub-queue, for example a comparer or heap-path throw inside <c>TryLockedPush</c>. It releases
+    /// the reservation, so a transient failure cannot permanently shrink the usable capacity of a
+    /// bounded queue by leaking <c>_boundedCount</c>.
+    /// </para>
     /// </remarks>
     private bool EnqueueCore(TElement element, TPriority priority)
     {
-        // Resolve thread-local state before reserving capacity: initialization failure cannot
-        // leak a reservation, and the retry loop does not need initialization inside its try.
         ThreadHandle handle = ThreadHandle.Current;
         SubQueue<TElement, TPriority>[] queues = _queues;
         bool reserved = false;
 
-        // Bounded-capacity reservation, taken atomically ahead of the resample loop. Guarded
-        // by `_boundedCapacity > 0` so the unbounded path executes no Interlocked instruction at all.
         if (_boundedCapacity > 0)
         {
             int count;
@@ -142,16 +154,11 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                     return true;
                 }
 
-                // Contention ends the sticky period and draws a fresh random index.
-                // This retry loop has no per-operation progress bound.
                 handle.ResetStickyEnqueue();
             }
         }
         catch
         {
-            // A reservation was taken but the element never landed in a sub-queue (e.g. a comparer or
-            // heap-path throw inside TryLockedPush). Release it so a transient failure can't permanently
-            // shrink a bounded queue's usable capacity by leaking `_boundedCount`.
             if (reserved)
             {
                 Interlocked.Decrement(ref _boundedCount);

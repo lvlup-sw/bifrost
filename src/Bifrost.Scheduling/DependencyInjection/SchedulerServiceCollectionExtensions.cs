@@ -68,6 +68,44 @@ public static class SchedulerServiceCollectionExtensions
     /// throws <see cref="InvalidOperationException"/> — use the <paramref name="configure"/>
     /// callback to add additional jobs or swap the store (NCronJob#138).
     /// </para>
+    /// <para>
+    /// <strong>Registration notes.</strong> A double registration is a configuration error that
+    /// hides conflicts and produces undefined behavior (NCronJob#138, R10). The
+    /// <c>SchedulerRegisteredMarker</c> is a private sealed class, so code outside this method cannot
+    /// register it by accident. The defaults use <c>TryAdd</c>, so a caller-supplied
+    /// <see cref="TimeProvider"/> is kept and <c>UseStore</c> can replace the default store.
+    /// </para>
+    /// <para>
+    /// The event stream is resolvable as its concrete type (for typed subscription) and as
+    /// <see cref="ISchedulerEventSink"/> (for the publish path). The registry, tick loop, and router
+    /// all use it. The router carries the shared sink, so a throwing dispatcher surfaces on the same
+    /// timeline as fires. The concrete <see cref="ScheduleRegistry"/> is resolvable as itself (the
+    /// inspector reads its job snapshot) and as <see cref="IScheduleRegistry"/>. It gets the shared
+    /// metrics and sink, so its lifecycle events join the unified timeline. The inspector reads the
+    /// jobs of the registry and the recent fire count of the shared health monitor.
+    /// </para>
+    /// <para>
+    /// The tick loop is a single instance that is resolvable as itself, as the hosted service, and as
+    /// the fault source that the health check reads. Its factory passes the root provider
+    /// (<c>serviceProvider: sp</c>), so each fire opens a real per-fire <c>IServiceScope</c> and a
+    /// dispatcher can resolve scoped work through <c>JobFireContext.Services</c> (F2/M2). The health
+    /// check uses a factory, because its constructor is internal and takes the expected interval.
+    /// </para>
+    /// <para>
+    /// The <paramref name="configure"/> callback runs after the defaults are in place. Thus
+    /// <c>UseStore</c> can replace the default store, <c>AddJob</c> and <c>AddInlineJob</c>
+    /// accumulate definitions, and <c>ConfigureOptions</c> accumulates the
+    /// <see cref="SchedulerOptions"/> tuning. The validated options are registered after the callback.
+    /// Every consumer (notably the tick loop factory) resolves <see cref="SchedulerOptions"/> lazily,
+    /// so this post-configure registration honors the <c>ConfigureOptions</c> of the consumer.
+    /// <c>BuildOptions</c> throws at this point on an unsatisfiable configuration. The DI-time job
+    /// definitions are materialized once, also after the callback.
+    /// </para>
+    /// <para>
+    /// The order of the hosted services matters. <c>SchedulerJobRegistrationService</c> starts before
+    /// the tick loop, so the jobs are registered before the loop dispatches. The tick loop singleton
+    /// is shared with the fault source and health check registrations.
+    /// </para>
     /// </remarks>
     /// <param name="services">The service collection to add to.</param>
     /// <param name="configure">
@@ -85,10 +123,6 @@ public static class SchedulerServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Guard against double registration: calling AddScheduler twice on the same
-        // IServiceCollection is a configuration error that hides conflicts and
-        // produces undefined behavior (NCronJob#138, R10). The marker is a private
-        // sealed class so it cannot be registered by accident from outside this method.
         if (services.Any(static sd => sd.ServiceType == typeof(SchedulerRegisteredMarker)))
         {
             throw new InvalidOperationException(
@@ -99,14 +133,9 @@ public static class SchedulerServiceCollectionExtensions
 
         services.AddSingleton<SchedulerRegisteredMarker>();
 
-        // Defaults registered with TryAdd so a caller-supplied TimeProvider is kept
-        // and UseStore can replace the default store.
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IScheduleStore, InMemoryScheduleStore>();
 
-        // The single shared observability set. The event stream is resolvable as both
-        // its concrete type (for typed subscription) and ISchedulerEventSink (for the
-        // publish path); the registry, tick loop, and router are all wired to it.
         services.TryAddSingleton<SchedulerEventStream>();
         services.TryAddSingleton<ISchedulerEventSink>(
             static sp => sp.GetRequiredService<SchedulerEventStream>());
@@ -115,15 +144,9 @@ public static class SchedulerServiceCollectionExtensions
         services.TryAddSingleton<ITickHealthMonitor>(
             static sp => sp.GetRequiredService<TickHealthMonitor>());
 
-        // The router carries the shared sink so a throwing dispatcher surfaces on the
-        // same timeline as fires.
         services.TryAddSingleton<IJobDispatcherRouter>(
             static sp => new JobDispatcherRouter(sp.GetRequiredService<ISchedulerEventSink>()));
 
-        // The live registry: the concrete ScheduleRegistry is resolvable both as
-        // itself (the inspector reads its job snapshot) and as IScheduleRegistry,
-        // passing the shared metrics and sink so its lifecycle events join the
-        // unified timeline.
         services.TryAddSingleton(static sp => new ScheduleRegistry(
             sp.GetRequiredService<IScheduleStore>(),
             sp.GetRequiredService<TimeProvider>(),
@@ -132,15 +155,10 @@ public static class SchedulerServiceCollectionExtensions
         services.TryAddSingleton<IScheduleRegistry>(
             static sp => sp.GetRequiredService<ScheduleRegistry>());
 
-        // The read-only inspection surface, reading the registry's jobs and the
-        // shared health monitor's recent fire count.
         services.TryAddSingleton<IBifrostScheduleInspector>(static sp => new ScheduleInspector(
             sp.GetRequiredService<ScheduleRegistry>(),
             sp.GetRequiredService<TickHealthMonitor>()));
 
-        // The tick loop: a single instance resolvable as itself, the hosted service,
-        // and the fault source the health check reads. Construct it with the shared
-        // store, time, router, sink, options, metrics, and health monitor.
         services.TryAddSingleton(static sp => new ScheduleTickLoop(
             sp.GetRequiredService<ScheduleRegistry>(),
             sp.GetRequiredService<IScheduleStore>(),
@@ -151,14 +169,10 @@ public static class SchedulerServiceCollectionExtensions
             sp.GetRequiredService<SchedulerOptions>(),
             sp.GetRequiredService<SchedulerMetrics>(),
             sp.GetRequiredService<TickHealthMonitor>(),
-            // Pass the root provider so each fire opens a real per-fire IServiceScope and
-            // a dispatcher can resolve scoped work via JobFireContext.Services (F2/M2).
             serviceProvider: sp));
         services.TryAddSingleton<ISchedulerFaultSource>(
             static sp => sp.GetRequiredService<ScheduleTickLoop>());
 
-        // The health check, constructed via a factory because its constructor is
-        // internal and takes the expected interval. The tick loop is the fault source.
         services.AddHealthChecks()
             .Add(new HealthCheckRegistration(
                 HealthCheckName,
@@ -170,26 +184,13 @@ public static class SchedulerServiceCollectionExtensions
                 failureStatus: HealthStatus.Unhealthy,
                 tags: ["scheduling"]));
 
-        // Run the configure callback after the defaults are in place so UseStore can
-        // replace the default store, AddJob/AddInlineJob accumulate definitions, and
-        // ConfigureOptions accumulates the SchedulerOptions tuning.
         var builder = new SchedulerBuilder(services);
         configure?.Invoke(builder);
 
-        // Register the configured, validated tick-loop options now that the callback
-        // has run. Every consumer (notably the tick loop factory above) resolves
-        // SchedulerOptions lazily, so post-configure registration honors the consumer's
-        // ConfigureOptions; BuildOptions throws here on an unsatisfiable configuration.
         services.AddSingleton(builder.BuildOptions());
 
-        // Materialize the DI-time job definitions once, now that the callback has run,
-        // and register the startup hosted service that wires them into the registry.
         services.AddSingleton(new SchedulerJobDefinitions(builder.Definitions));
 
-        // Order matters: the registration service starts before the tick loop so the
-        // jobs are registered before the loop dispatches. Both are added as hosted
-        // services; the tick loop singleton is shared with the fault source and health
-        // check registrations above.
         services.AddSingleton<IHostedService>(
             static sp => ActivatorUtilities.CreateInstance<SchedulerJobRegistrationService>(sp));
         services.AddSingleton<IHostedService>(static sp => sp.GetRequiredService<ScheduleTickLoop>());

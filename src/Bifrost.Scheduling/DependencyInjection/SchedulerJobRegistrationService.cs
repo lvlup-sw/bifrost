@@ -61,10 +61,13 @@ internal sealed class SchedulerJobRegistrationService : IHostedService
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The saved records are loaded before any new registration, so durable progress and lifecycle
+    /// state are kept and a new registration cannot overwrite them. Dispatchers come only from
+    /// configured code (<c>DispatcherFactory</c>), never from stored type names.
+    /// </remarks>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        // Preserve durable progress and lifecycle state before new registrations can
-        // overwrite it. Resolve dispatchers only from configured code, never stored type names.
         var saved = this.registry is ScheduleRegistry
             ? (await this.store.LoadAllAsync(cancellationToken).ConfigureAwait(false))
                 .ToDictionary(static record => record.Name, StringComparer.Ordinal)

@@ -71,6 +71,13 @@ public sealed class SchedulerHealthCheck : IHealthCheck
     /// The dispatch-failure-rate threshold above which the scheduler is unhealthy;
     /// defaults to <see cref="DefaultFailureRateThreshold"/>.
     /// </param>
+    /// <remarks>
+    /// The constructor rejects a non-positive <paramref name="expectedInterval"/>, because it makes
+    /// the staleness window (three times the interval) meaningless. It also rejects a
+    /// <paramref name="failureRateThreshold"/> outside <c>[0, 1]</c>, because a failure rate is a
+    /// fraction. Rejection at construction is better than a silently degraded health signal at
+    /// evaluation time.
+    /// </remarks>
     internal SchedulerHealthCheck(
         ITickHealthMonitor monitor,
         ISchedulerFaultSource faultSource,
@@ -82,9 +89,6 @@ public sealed class SchedulerHealthCheck : IHealthCheck
         ArgumentNullException.ThrowIfNull(faultSource);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        // A non-positive interval makes the staleness window (3x the interval)
-        // meaningless, and a failure rate is a fraction — reject both at construction
-        // rather than silently degrading the health signal at evaluation time.
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(expectedInterval, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegative(failureRateThreshold);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(failureRateThreshold, 1.0);

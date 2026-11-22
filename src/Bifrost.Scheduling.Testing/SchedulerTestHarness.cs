@@ -78,23 +78,27 @@ public sealed class SchedulerTestHarness : ISchedulerTestHarness
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The advance of the fake clock fires the internal timers of the
+    /// <see cref="FakeTimeProvider"/>. These timers wake the <c>Task.Delay</c> calls in the tick loop
+    /// that wait on the fake clock, and the loop then dispatches any jobs that are now due. The
+    /// method then waits until the loop has drained all commands, dispatched every due job, and
+    /// completed all in-flight dispatches.
+    /// </remarks>
     public async Task AdvanceAsync(TimeSpan duration)
     {
-        // Advance the fake clock. This fires the FakeTimeProvider's internal timers,
-        // which wakes Task.Delay calls inside the tick loop that are waiting on the
-        // fake clock, causing the loop to dispatch any jobs that are now due.
         this.fakeTime.Advance(duration);
 
-        // Wait until the loop has drained all commands, dispatched every due job, and
-        // all in-flight dispatches have completed.
         await this.loop.WaitForIdleAsync(DefaultIdleTimeout).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// An advance by zero wakes the tick loop without a clock change. The loop then evaluates again
+    /// which jobs are due at the current instant and dispatches them.
+    /// </remarks>
     public async Task FireDueJobsAsync()
     {
-        // Advance by zero to wake the tick loop without moving the clock, causing it
-        // to re-evaluate which jobs are due at the current instant and dispatch them.
         this.fakeTime.Advance(TimeSpan.Zero);
 
         await this.loop.WaitForIdleAsync(DefaultIdleTimeout).ConfigureAwait(false);

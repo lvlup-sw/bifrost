@@ -30,6 +30,5 @@ internal sealed class NullSchedulerEventSink : ISchedulerEventSink
     public void Publish<TEvent>(in TEvent schedulerEvent)
         where TEvent : struct
     {
-        // Intentionally discards the event.
     }
 }

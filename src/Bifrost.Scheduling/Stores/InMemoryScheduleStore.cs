@@ -42,6 +42,22 @@ public sealed class InMemoryScheduleStore : IScheduleStore
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// The update is an atomic compare-and-swap retry loop. A naive TryGetValue-then-indexer-assign
+    /// is a non-atomic read-modify-write: the stale snapshot would silently clobber a concurrent
+    /// <see cref="SaveAsync"/> (or another <see cref="RecordFiredAsync"/>) that lands between the read
+    /// and the write. <c>TryUpdate</c> commits only when the stored record is still the one that was
+    /// read (value equality on the record). On contention, another writer replaced the record between
+    /// the read and the CAS, so the loop reads the freshest record again and applies the fire stamp
+    /// again. Thus no concurrent update is lost.
+    /// </para>
+    /// <para>
+    /// When the job is absent, this method does nothing: a record-fired call for an unknown job is
+    /// ignored and does not re-create a phantom record. The loop exits immediately when
+    /// <c>TryGetValue</c> returns <see langword="false"/>.
+    /// </para>
+    /// </remarks>
     public ValueTask RecordFiredAsync(
         string jobName,
         DateTimeOffset firedAt,
@@ -50,13 +66,6 @@ public sealed class InMemoryScheduleStore : IScheduleStore
     {
         ArgumentNullException.ThrowIfNull(jobName);
 
-        // Atomic compare-and-swap retry loop. A naive TryGetValue-then-indexer-assign is
-        // a non-atomic read-modify-write: a concurrent SaveAsync (or another
-        // RecordFiredAsync) landing between the read and the write would be silently
-        // clobbered by the stale snapshot we read. TryUpdate only commits when the stored
-        // record is still the one we read (value equality on the record); on contention
-        // we re-read the freshest record and re-apply the fire stamp, so no concurrent
-        // update is lost.
         while (this.jobs.TryGetValue(jobName, out var existing))
         {
             var updated = existing with
@@ -69,14 +78,8 @@ public sealed class InMemoryScheduleStore : IScheduleStore
             {
                 break;
             }
-
-            // Contended: another writer replaced the record between our read and our
-            // CAS. Re-read and retry against the freshest record.
         }
 
-        // No-op when the job is absent: a record-fired for an unknown job is ignored
-        // rather than re-creating a phantom record. (The loop exits immediately when
-        // TryGetValue returns false.)
         return ValueTask.CompletedTask;
     }
 

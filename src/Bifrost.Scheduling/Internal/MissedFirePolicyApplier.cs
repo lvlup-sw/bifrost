@@ -36,6 +36,7 @@ internal static class MissedFirePolicyApplier
     /// <see cref="MissedFirePolicy.Coalesce"/>, the full (capped) backlog for
     /// <see cref="MissedFirePolicy.FireAllMissed"/>, and an empty list for
     /// <see cref="MissedFirePolicy.SkipMissed"/> or when nothing was missed.
+    /// <see cref="MissedFirePolicy.SkipMissed"/> discards the whole backlog without enumerating it.
     /// </returns>
     internal static IReadOnlyList<DateTimeOffset> ComputeMissedFires(
         Cadence cadence,
@@ -46,7 +47,6 @@ internal static class MissedFirePolicyApplier
     {
         ArgumentNullException.ThrowIfNull(cadence);
 
-        // SkipMissed discards the whole backlog without enumerating it.
         if (policy == MissedFirePolicy.SkipMissed)
         {
             return [];
@@ -121,6 +121,13 @@ internal static class MissedFirePolicyApplier
     /// <see cref="Cadence.ComputeNextFire"/> is the previous occurrence, so each call
     /// yields the next occurrence strictly after it.
     /// </summary>
+    /// <remarks>
+    /// The clock argument is anchored at the cursor, so <see cref="Cadence.ComputeNextFire"/> yields
+    /// the next occurrence strictly after the previous one. With the real <c>now</c>, an interval
+    /// cadence would skip past <c>now</c>. The walk stops when there is no further occurrence (for
+    /// example a one-shot that already fired), when the next occurrence is in the future (the backlog
+    /// is exhausted), or when the cadence does not advance (a guard against an infinite loop).
+    /// </remarks>
     /// <param name="cadence">The cadence to enumerate.</param>
     /// <param name="lastFiredAt">The last fire instant, or <see langword="null"/>.</param>
     /// <param name="now">The inclusive upper bound.</param>
@@ -137,25 +144,19 @@ internal static class MissedFirePolicyApplier
 
         while (result.Count < maxCatchUpCount)
         {
-            // Anchor the clock argument at the cursor so ComputeNextFire yields the
-            // next occurrence strictly after the previous one rather than skipping
-            // past now (which is what passing the real now would do for intervals).
             var clock = cursor ?? now;
             var next = cadence.ComputeNextFire(cursor, clock);
 
-            // No further occurrence (for example a one-shot that already fired).
             if (next is null)
             {
                 break;
             }
 
-            // The next occurrence is in the future: the backlog is exhausted.
             if (next.Value > now)
             {
                 break;
             }
 
-            // Guard against a non-advancing cadence to avoid an infinite loop.
             if (cursor is not null && next.Value <= cursor.Value)
             {
                 break;
