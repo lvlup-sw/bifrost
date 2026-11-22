@@ -36,12 +36,14 @@ public sealed class RelativeOneShotResolutionTests
     /// <see cref="DateTimeOffset.UtcNow"/> (R1). The factory's only observable
     /// effect is capturing the delay in the returned record.
     /// </summary>
+    /// <remarks>
+    /// The test can only observe that <c>Cadence.After</c> returns a <see
+    /// cref="RelativeOneShotCadence"/> and keeps the delay unchanged.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Cadence_After_PerformsNoClockAccess()
     {
-        // Cadence.After must not call any clock: it just captures the delay.
-        // We verify the return type and that the delay is preserved unchanged.
         var cadence = Cadence.After(Delay);
 
         await Assert.That(cadence).IsTypeOf<RelativeOneShotCadence>();
@@ -53,6 +55,9 @@ public sealed class RelativeOneShotResolutionTests
     /// a <see cref="FakeTimeProvider"/> at T0, the registry resolves it to an
     /// absolute <see cref="OneShotCadence"/> with <c>FireAt == T0 + Delay</c>.
     /// </summary>
+    /// <remarks>
+    /// The cadence that the stored record holds must be an absolute <see cref="OneShotCadence"/>.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task RegisterAsync_RelativeOneShot_ResolvesToAbsoluteOneShot_ViaInjectedTimeProvider()
@@ -66,7 +71,6 @@ public sealed class RelativeOneShotResolutionTests
 
         var job = registry.GetJob("rel-job");
         await Assert.That(job).IsNotNull();
-        // The cadence stored in the record must be an absolute OneShotCadence.
         await Assert.That(job!.Value.Cadence).IsTypeOf<OneShotCadence>();
         var oneShot = (OneShotCadence)job.Value.Cadence;
         await Assert.That(oneShot.FireAt).IsEqualTo(T0 + Delay);
@@ -77,12 +81,15 @@ public sealed class RelativeOneShotResolutionTests
     /// of registration: if the clock is at T1 when <c>RegisterAsync</c> is called,
     /// the resolved instant is <c>T1 + Delay</c>, not <c>T0 + Delay</c>.
     /// </summary>
+    /// <remarks>
+    /// The test advances the clock to T1 before it registers the job, so the resolution must use
+    /// T1, not T0.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task RegisterAsync_Resolution_TracksFakeClock_NotSystemClock()
     {
         var fakeTime = new FakeTimeProvider(T0);
-        // Advance to T1 before registering; resolution must use T1, not T0.
         fakeTime.Advance(T1 - T0);
         var registry = new ScheduleRegistry(new InMemoryScheduleStore(), fakeTime);
 

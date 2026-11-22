@@ -44,19 +44,37 @@ public sealed class PrFixRegistryConsistencyTests
     /// loser's blind upsert can leave loser data in the store; the fix claims the
     /// in-memory slot first so the loser never reaches the store.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>GatingStore.SaveAsync</c> blocks on a gate, so under the buggy persist-first ordering
+    /// both registrants are in <c>SaveAsync</c> at the same time. The store records every record
+    /// that it actually persists, so the test can prove that the loser never wrote.
+    /// </para>
+    /// <para>
+    /// The two payloads differ by their interval. The winner is whichever <c>TryAdd</c> succeeds,
+    /// and the test does not presume which.
+    /// </para>
+    /// <para>
+    /// <c>ReleaseAfterArrivalGraceAsync</c> releases the gate after both registrants have either
+    /// entered <c>SaveAsync</c> or bailed out before it. With the fix, only the winner reaches the
+    /// gate. With the bug, both do. The release comes after a short bounded grace, so the test
+    /// never wedges if only one registrant arrives.
+    /// </para>
+    /// <para>
+    /// The test requires exactly one winner and one loser, and the in-memory registry must hold the
+    /// payload of the winner. The core FIX A1 assertion is that the store holds the payload of the
+    /// winner, not of the loser. Only the winner may call <c>SaveAsync</c> (<c>SaveCount</c> = 1):
+    /// the loser claimed the slot, failed, and did not touch the store. The buggy persist-first
+    /// ordering produces two saves.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Register_ConcurrentSameNameDifferentPayloads_LoserNeverWritesStore()
     {
-        // A gating store: SaveAsync blocks on a barrier so BOTH registrants would be
-        // mid-Save simultaneously under the buggy persist-first ordering. It records
-        // every (name -> cadence) that is actually persisted, so we can prove the
-        // loser never wrote.
         var store = new GatingStore();
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
 
-        // Two distinct payloads, distinguished by their interval. The "winner" is
-        // whichever TryAdd succeeds; the test does not presume which.
         var cadenceA = new IntervalCadence(TimeSpan.FromHours(1));
         var cadenceB = new IntervalCadence(TimeSpan.FromHours(2));
 
@@ -88,15 +106,10 @@ public sealed class PrFixRegistryConsistencyTests
             }
         });
 
-        // Release the SaveAsync gate once both registrants have either entered Save or
-        // bailed out before it. With the fix, only the winner reaches the gate; with
-        // the bug, both do. The gate releases after a short bounded grace so the test
-        // never wedges if only one registrant ever arrives.
         await store.ReleaseAfterArrivalGraceAsync().ConfigureAwait(false);
 
         var results = await Task.WhenAll(taskA, taskB).ConfigureAwait(false);
 
-        // Exactly one winner, one loser.
         var winners = results.Where(r => r.Won).ToList();
         var losers = results.Where(r => !r.Won).ToList();
         await Assert.That(winners).HasCount(1);
@@ -104,19 +117,14 @@ public sealed class PrFixRegistryConsistencyTests
 
         var winnerCadence = winners[0].Cadence;
 
-        // In-memory registry holds the winner's payload.
         var job = registry.GetJob("daily-report");
         await Assert.That(job).IsNotNull();
         await Assert.That(job!.Value.Cadence).IsEqualTo(winnerCadence);
 
-        // The store holds the winner's payload — NOT the loser's. This is the core
-        // FIX A1 assertion: a losing registrant must never have written the store.
         var persisted = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
         await Assert.That(persisted).HasCount(1);
         await Assert.That(persisted[0].Cadence).IsEqualTo(winnerCadence);
 
-        // Only the winner ever called SaveAsync: the loser claimed-and-failed without
-        // touching the store. (Buggy persist-first ordering produces two saves.)
         await Assert.That(store.SaveCount).IsEqualTo(1);
     }
 
@@ -126,15 +134,19 @@ public sealed class PrFixRegistryConsistencyTests
     /// caller cancels their token immediately after <c>SaveAsync</c> commits; the wake
     /// command must still land on the registry's command channel.
     /// </summary>
+    /// <remarks>
+    /// <c>CancelOnSaveStore.SaveAsync</c> cancels the caller token the instant the commit happens.
+    /// This models a caller cancellation that races in after the durable state is committed but
+    /// before the post-commit wake is posted. The commit succeeded (store and in-memory), so the
+    /// wake command must be on the channel even though the caller token was canceled at the
+    /// post-commit point.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Register_CallerCancelsAfterCommit_WakeCommandStillPosted()
     {
         using var cts = new CancellationTokenSource();
 
-        // A store whose SaveAsync cancels the caller's token the instant the commit
-        // happens — modelling a caller cancellation that races in right after durable
-        // state is committed but before the post-commit wake is posted.
         var store = new CancelOnSaveStore(cts);
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
 
@@ -146,8 +158,6 @@ public sealed class PrFixRegistryConsistencyTests
                 cts.Token)
             .ConfigureAwait(false);
 
-        // The commit succeeded (store + in-memory), so the wake command MUST be on the
-        // channel despite the caller token being canceled at the post-commit point.
         var read = registry.Commands.TryRead(out var command);
         await Assert.That(read).IsTrue();
         await Assert.That(command.Kind).IsEqualTo(RegistryCommandKind.Register);
@@ -176,11 +186,12 @@ public sealed class PrFixRegistryConsistencyTests
 
         public int Arrivals => Volatile.Read(ref this.arrivals);
 
+        // Counts each arrival in arrivals before it waits on the gate, so that a test can
+        // coordinate the gate release.
         public async ValueTask SaveAsync(JobRecord job, CancellationToken ct)
         {
             ArgumentNullException.ThrowIfNull(job);
 
-            // Count arrival so the test can coordinate the gate release.
             Interlocked.Increment(ref this.arrivals);
 
             await this.gate.WaitAsync(ct).ConfigureAwait(false);
@@ -210,13 +221,15 @@ public sealed class PrFixRegistryConsistencyTests
         /// the fix; both registrants under the bug). Releases generously so no
         /// registrant blocks. The grace is bounded so the test never wedges.
         /// </summary>
+        /// <remarks>
+        /// The grace is 250 ms, which gives registrants time to reach <c>SaveAsync</c> or bail out
+        /// before it. Then the method releases 8 permits: enough to unblock any waiter (1 under the
+        /// fix, 2 under the bug), plus slack.
+        /// </remarks>
         public async Task ReleaseAfterArrivalGraceAsync()
         {
-            // Short bounded grace for registrants to reach (or bail before) SaveAsync.
             await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
 
-            // Release enough permits to unblock any waiter (1 under the fix, 2 under the
-            // bug) plus slack.
             this.gate.Release(8);
         }
     }
@@ -230,17 +243,17 @@ public sealed class PrFixRegistryConsistencyTests
     {
         private readonly ConcurrentDictionary<string, JobRecord> jobs = new(StringComparer.Ordinal);
 
+        // After the commit, the method cancels the caller token at once. The post-commit wake must
+        // not observe this cancellation, because FIX A2 passes CancellationToken.None there. The
+        // synchronous Cancel blocks (VSTHRD103) and is intentional: this deterministic test seam
+        // fires the cancellation exactly at the post-commit boundary.
         public ValueTask SaveAsync(JobRecord job, CancellationToken ct)
         {
             ArgumentNullException.ThrowIfNull(job);
 
             this.jobs[job.Name] = job;
 
-            // Commit done: cancel the caller token now. The post-commit wake must not
-            // observe this cancellation (FIX A2 passes CancellationToken.None there).
-            // Synchronous Cancel is intentional here — this is a deterministic test seam
-            // that fires the cancellation exactly at the post-commit boundary.
-#pragma warning disable VSTHRD103 // Cancel synchronously blocks
+#pragma warning disable VSTHRD103
             cts.Cancel();
 #pragma warning restore VSTHRD103
             return ValueTask.CompletedTask;

@@ -49,12 +49,14 @@ public sealed class EnumsTests
     /// Verifies that <see cref="MissedFirePolicy.Coalesce"/> is the default
     /// (numeric value 0), so an unset policy field coalesces missed fires.
     /// </summary>
+    /// <remarks>
+    /// The test puts the default into locals so that the analyzer does not see a compile-time
+    /// constant in the assertion (TUnitAssertions0005).
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task MissedFirePolicy_CoalesceIsDefault()
     {
-        // Materialize the default into locals so the analyzer does not see a
-        // compile-time constant being asserted (TUnitAssertions0005).
         var unset = default(MissedFirePolicy);
         var coalesceNumericValue = (int)MissedFirePolicy.Coalesce;
 

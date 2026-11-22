@@ -32,6 +32,28 @@ public sealed class PrFixRouterPublishGuardTests
     /// unobserved/faulted task surfaces, the router is still usable, and a later
     /// dispatch with a working code path still completes (its dispatcher runs).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The test registers a <c>TaskScheduler.UnobservedTaskException</c> handler, so any
+    /// fire-and-forget task fault that escapes becomes an observed test failure. The broken sink
+    /// must not cause an unhandled or faulted task from the router.
+    /// </para>
+    /// <para>
+    /// The first dispatcher throws. The router catches the exception and calls <c>sink.Publish</c>,
+    /// which also throws. The fix wraps that <c>Publish</c> call in its own swallow.
+    /// </para>
+    /// <para>
+    /// If the <c>Publish</c> throw at catch time had escaped, the pool task would have faulted. The
+    /// router instance is stateless, so the proof that it remains usable is that a new dispatch
+    /// (<c>working</c>) still runs to completion.
+    /// </para>
+    /// <para>
+    /// The <c>GC.Collect</c>, <c>GC.WaitForPendingFinalizers</c>, <c>GC.Collect</c> sequence forces
+    /// the runtime to collect any faulted but unobserved task and raise its event. The finalizer
+    /// gets a short grace window (250 ms). No unobserved task exception must come from the
+    /// fire-and-forget path of the router.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ThrowingSink_DispatcherFailure_DoesNotFault_RouterRemainsUsable()
@@ -39,8 +61,6 @@ public sealed class PrFixRouterPublishGuardTests
         var sink = new ThrowingSink();
         var router = new JobDispatcherRouter(sink);
 
-        // Surface any escaped fire-and-forget task fault as an observed test failure:
-        // the broken sink must NOT produce an unhandled/faulted task from the router.
         var unobserved = new TaskCompletionSource();
         EventHandler<UnobservedTaskExceptionEventArgs> handler = (_, e) =>
         {
@@ -51,8 +71,6 @@ public sealed class PrFixRouterPublishGuardTests
 
         try
         {
-            // A dispatcher that throws: the router catches it and calls sink.Publish,
-            // which itself throws. The fix wraps that Publish in its own swallow.
             var firstRan = new TaskCompletionSource();
             var throwing = new DelegateDispatcher(_ =>
             {
@@ -63,22 +81,15 @@ public sealed class PrFixRouterPublishGuardTests
             router.Dispatch(throwing, Context("first"), CancellationToken.None);
             await firstRan.Task.WaitAsync(TestTimeout).ConfigureAwait(false);
 
-            // The router is still usable: a subsequent dispatch's dispatcher runs to
-            // completion. If the catch-time Publish throw had escaped, the pool task
-            // would have faulted; the router instance itself is stateless, so the proof
-            // of "remains usable" is that a fresh dispatch still works end to end.
             var secondRan = new TaskCompletionSource();
             var working = new DelegateDispatcher(_ => secondRan.TrySetResult());
             router.Dispatch(working, Context("second"), CancellationToken.None);
             await secondRan.Task.WaitAsync(TestTimeout).ConfigureAwait(false);
 
-            // Force any faulted-but-unobserved task to be collected and its event raised.
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
 
-            // No unobserved task exception should have been raised by the router's
-            // fire-and-forget path. (Give the finalizer a brief grace window.)
             var raised = await Task.WhenAny(unobserved.Task, Task.Delay(TimeSpan.FromMilliseconds(250)))
                 .ConfigureAwait(false);
             await Assert.That(raised == unobserved.Task).IsFalse();

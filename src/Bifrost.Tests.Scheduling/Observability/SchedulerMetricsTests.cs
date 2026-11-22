@@ -97,6 +97,18 @@ public sealed class SchedulerMetricsTests
     /// scheduled fire 1 interval late. The recorded latency must be positive (not
     /// clamped-to-zero) and within a generous tolerance of the expected gap.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The job has a 1-hour interval, so it becomes due at Start + 1 h. The test advances the clock
+    /// by 2 intervals to Start + 2 h. The job fires at Start + 2 h, but its scheduled occurrence
+    /// was Start + 1 h, so the expected latency is about 1 h (3,600,000 ms).
+    /// </para>
+    /// <para>
+    /// The recorded value must be strictly positive. This separates a correct measurement from a
+    /// bug that always returns 0. The test allows a tolerance of ±1 second (<c>toleranceMs</c>)
+    /// around <c>expectedMs</c> for internal timing imprecision.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task FireLatency_RecordsLatencyBetweenScheduledAndActualDispatch()
@@ -106,28 +118,20 @@ public sealed class SchedulerMetricsTests
             metrics.Meter, "bifrost.scheduling.jobs.fire_latency");
         await using var fx = await Fixture.StartAsync(metrics).ConfigureAwait(false);
 
-        // Register with a 1-hour interval: the job becomes due at Start + 1h.
         var interval = TimeSpan.FromHours(1);
         await fx.RegisterAsync("late", new IntervalCadence(interval)).ConfigureAwait(false);
 
-        // Advance by 2× the interval: clock is now at Start + 2h.
-        // The job fires at Start + 2h; its scheduled occurrence was Start + 1h.
-        // Expected latency ≈ 1h = 3,600,000 ms.
         fx.Time.Advance(interval + interval);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
         var measurements = collector.GetMeasurementSnapshot();
         await Assert.That(measurements).IsNotEmpty();
 
-        // The recorded value must be strictly positive — not clamped-to-zero — so
-        // we distinguish a correct measurement from a bug that always returns 0.
         var latencyMs = measurements.Max(m => m.Value);
         await Assert.That(latencyMs).IsGreaterThan(0.0);
 
-        // Approximate check: latency should be close to 1 hour (3,600,000 ms).
-        // Allow ±1 second of tolerance for any internal timing imprecision.
-        const double expectedMs = 3_600_000.0; // 1 hour in milliseconds
-        const double toleranceMs = 1_000.0;    // 1 second tolerance
+        const double expectedMs = 3_600_000.0;
+        const double toleranceMs = 1_000.0;
         await Assert.That(latencyMs).IsGreaterThan(expectedMs - toleranceMs);
         await Assert.That(latencyMs).IsLessThan(expectedMs + toleranceMs);
     }
@@ -136,6 +140,12 @@ public sealed class SchedulerMetricsTests
     /// Verifies the missed-fires counter increments at startup reconciliation, tagged
     /// with <c>job.name</c> and <c>policy</c>.
     /// </summary>
+    /// <remarks>
+    /// The test registers the job first, so a live dispatcher is attached and a record exists. Then
+    /// it overwrites <c>LastFiredAt</c> in the durable record to simulate fires that happened
+    /// before this process started, and the loop reconciles the gap at startup. Five hours pass
+    /// before the loop starts, so the hourly job missed about 5 fires.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task MissedFires_IncrementsAtStartup_TaggedByJobNameAndPolicy()
@@ -150,9 +160,6 @@ public sealed class SchedulerMetricsTests
 
         var registry = new ScheduleRegistry(store, time, metrics);
 
-        // Register first so a live dispatcher is attached and a record exists, then
-        // overwrite the durable record's LastFiredAt to simulate fires that happened
-        // before this process started — the loop reconciles the gap at startup.
         await registry.RegisterAsync("stale", cadence, MissedFirePolicy.Coalesce, new NoopDispatcher())
             .ConfigureAwait(false);
         await store.SaveAsync(
@@ -163,7 +170,6 @@ public sealed class SchedulerMetricsTests
                 Metadata: new Dictionary<string, string>()),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Five hours pass before the loop starts, so an hourly job missed ~5 fires.
         time.Advance(TimeSpan.FromHours(5));
 
         var sink = new RecordingSchedulerEventSink();

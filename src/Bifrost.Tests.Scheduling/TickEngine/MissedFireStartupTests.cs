@@ -63,6 +63,9 @@ public sealed class MissedFireStartupTests
     /// Verifies <see cref="MissedFirePolicy.Coalesce"/> collapses a 5-occurrence
     /// backlog into exactly one catch-up dispatch, then schedules the next fire.
     /// </summary>
+    /// <remarks>
+    /// After the catch-up, the next fire is one interval out from now.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Coalesce_FivePastIntervals_FiresOnceThenNormal()
@@ -77,7 +80,6 @@ public sealed class MissedFireStartupTests
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
-        // Next fire is one interval out from now.
         fx.Time.Advance(TimeSpan.FromMinutes(1));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(dispatcher.FireCount).IsEqualTo(2);
@@ -133,6 +135,9 @@ public sealed class MissedFireStartupTests
     /// Verifies a missed backlog exceeding the catch-up cap is capped at 100 under
     /// <see cref="MissedFirePolicy.FireAllMissed"/>.
     /// </summary>
+    /// <remarks>
+    /// A <see cref="JobMissedFireEvent"/> reports the capped count and the policy.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task FireAllMissed_ExceedingCap_CapsAt100()
@@ -147,7 +152,6 @@ public sealed class MissedFireStartupTests
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(100);
 
-        // A JobMissedFireEvent reports the capped count and the policy.
         var missed = fx.Events.OfType<JobMissedFireEvent>().Single();
         await Assert.That(missed.MissedCount).IsEqualTo(100);
         await Assert.That(missed.Policy).IsEqualTo(MissedFirePolicy.FireAllMissed);
@@ -219,6 +223,10 @@ public sealed class MissedFireStartupTests
 
         public IReadOnlyList<object> Events => this.sink.Published;
 
+        // Registers the job first, so a live dispatcher is attached and a record exists. Then it
+        // pre-seeds the durable LastFiredAt into the store to simulate fires that happened before
+        // this process started. The loop ignores the next fire recorded here and computes it again
+        // from the cadence.
         public static async Task<Fixture> StartWithSeededJobAsync(
             string name,
             Cadence cadence,
@@ -230,12 +238,8 @@ public sealed class MissedFireStartupTests
             var store = new InMemoryScheduleStore();
             var registry = new ScheduleRegistry(store, time);
 
-            // Register so a live dispatcher is attached and a record exists.
             await registry.RegisterAsync(name, cadence, policy, dispatcher).ConfigureAwait(false);
 
-            // Pre-seed durable LastFiredAt into the store to simulate fires that
-            // happened before this process started. The next fire recorded here is
-            // ignored by the loop, which recomputes it from the cadence.
             await store.SaveAsync(
                 new JobRecord(
                     name, cadence, policy, JobState.Running, lastFiredAt, NextFireAt: null,

@@ -23,20 +23,22 @@ public sealed class MissedFirePolicyApplierTests
     /// Verifies <see cref="MissedFirePolicy.Coalesce"/> collapses multiple missed
     /// occurrences into a single catch-up instant — the most recent missed fire.
     /// </summary>
+    /// <remarks>
+    /// The last fire was 17 minutes ago, so the missed occurrences are at -12, -7 and -2 minutes
+    /// from now. The single catch-up is the most recent missed occurrence (-2 minutes).
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Coalesce_WithMultipleMissedFires_ReturnsSingleCatchUpInstant()
     {
         var interval = TimeSpan.FromMinutes(5);
         var cadence = new IntervalCadence(interval);
-        // Last fired 17 minutes ago: missed occurrences at -12, -7, -2 minutes from now.
         var lastFired = Now - TimeSpan.FromMinutes(17);
 
         var missed = MissedFirePolicyApplier.ComputeMissedFires(
             cadence, lastFired, Now, MissedFirePolicy.Coalesce);
 
         await Assert.That(missed).HasCount(1);
-        // The single catch-up is the most recent missed occurrence (-2 minutes).
         await Assert.That(missed[0]).IsEqualTo(lastFired + (3 * interval));
     }
 
@@ -44,13 +46,16 @@ public sealed class MissedFirePolicyApplierTests
     /// Verifies <see cref="MissedFirePolicy.FireAllMissed"/> returns every missed
     /// occurrence in chronological order.
     /// </summary>
+    /// <remarks>
+    /// The last fire was 17 minutes ago, so the missed occurrences are at -12, -7 and -2 minutes
+    /// from now.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task FireAllMissed_ReturnsAllMissedInstantsInOrder()
     {
         var interval = TimeSpan.FromMinutes(5);
         var cadence = new IntervalCadence(interval);
-        // Last fired 17 minutes ago: missed occurrences at -12, -7, -2 minutes from now.
         var lastFired = Now - TimeSpan.FromMinutes(17);
 
         var missed = MissedFirePolicyApplier.ComputeMissedFires(
@@ -84,13 +89,15 @@ public sealed class MissedFirePolicyApplierTests
     /// Verifies that when no occurrence falls in the missed window
     /// (<c>lastFired + interval &gt; now</c>) the result is empty regardless of policy.
     /// </summary>
+    /// <remarks>
+    /// The last fire was 1 minute ago, so the next occurrence is +4 minutes, strictly after now.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task NoMissedFires_ReturnsEmpty()
     {
         var interval = TimeSpan.FromMinutes(5);
         var cadence = new IntervalCadence(interval);
-        // Last fired 1 minute ago: next occurrence is +4 minutes, strictly after now.
         var lastFired = Now - TimeSpan.FromMinutes(1);
 
         var missed = MissedFirePolicyApplier.ComputeMissedFires(
@@ -103,13 +110,15 @@ public sealed class MissedFirePolicyApplierTests
     /// Verifies a one-shot cadence has no missed-fire concept: an already-fired
     /// one-shot produces no further occurrences, so the result is empty.
     /// </summary>
+    /// <remarks>
+    /// The one-shot has already fired (<c>lastFired</c> is set), so no occurrence remains.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task OneShotCadence_AlreadyFired_ReturnsEmpty()
     {
         var fireAt = Now - TimeSpan.FromMinutes(5);
         var cadence = new OneShotCadence(fireAt);
-        // The one-shot has already fired (lastFiredAt set), so no occurrence remains.
         var lastFired = fireAt;
 
         var missed = MissedFirePolicyApplier.ComputeMissedFires(
@@ -122,13 +131,16 @@ public sealed class MissedFirePolicyApplierTests
     /// Verifies <see cref="MissedFirePolicy.FireAllMissed"/> caps the backlog at
     /// <c>maxCatchUpCount</c> when the number of missed occurrences exceeds it.
     /// </summary>
+    /// <remarks>
+    /// The last fire was 500 minutes ago, so about 500 occurrences were missed. This is far more
+    /// than the default cap of 100.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task FireAllMissed_ExceedingCap_IsCappedAtMaxCatchUpCount()
     {
         var interval = TimeSpan.FromMinutes(1);
         var cadence = new IntervalCadence(interval);
-        // Last fired 500 minutes ago: ~500 missed occurrences, far beyond the default cap.
         var lastFired = Now - TimeSpan.FromMinutes(500);
 
         var missed = MissedFirePolicyApplier.ComputeMissedFires(

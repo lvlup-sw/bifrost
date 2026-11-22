@@ -156,7 +156,6 @@ public sealed class RegistryCorrectnessTests
         }
         catch (ObjectDisposedException)
         {
-            // Expected: in-flight registration failed cleanly on disposal.
         }
 
         await Assert.That(registry.GetJob("job")).IsNull();
@@ -198,7 +197,6 @@ public sealed class RegistryCorrectnessTests
         }
         catch (ObjectDisposedException)
         {
-            // Expected: in-flight pause failed cleanly on disposal.
         }
 
         await Assert.That(registry.GetJob("job")!.Value.State).IsEqualTo(JobState.Running);

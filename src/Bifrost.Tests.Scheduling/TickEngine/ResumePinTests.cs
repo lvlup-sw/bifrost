@@ -43,6 +43,23 @@ public sealed class ResumePinTests
     /// occurrence of the cadence relative to now (DR-10: resume does not apply
     /// missed-fire policies, only startup-from-store recovery does).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The test pauses the job before any occurrence and advances past 5 occurrences (25 min) while
+    /// it is paused. Nothing may fire while the job is paused, and no missed-fire event may be
+    /// published, because there is no startup recovery here.
+    /// </para>
+    /// <para>
+    /// After the resume, zero catch-up fires are expected. Immediately after the resume the count
+    /// is still zero, because the next occurrence is in the future, and the resume path publishes
+    /// no missed-fire event.
+    /// </para>
+    /// <para>
+    /// After the resume at Start + 25 min, the next natural occurrence is Start + 30 min. The test
+    /// advances only 5 minutes, so it crosses exactly that one future occurrence and not more.
+    /// Exactly one fire must occur: the next natural occurrence, not a catch-up backlog.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Resume_AfterNMissedOccurrences_FiresNothing_NextFireIsNaturalOccurrence()
@@ -51,37 +68,26 @@ public sealed class ResumePinTests
         var dispatcher = await fx.RegisterAsync("five-min", Cadence.Interval(TimeSpan.FromMinutes(5)))
             .ConfigureAwait(false);
 
-        // Pause the job before any occurrence.
         await fx.Registry.PauseAsync("five-min").ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Advance past 5 occurrences while paused.
         fx.Time.Advance(TimeSpan.FromMinutes(25));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Nothing should have fired while paused.
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
 
-        // No missed-fire events should have been published (no startup recovery here).
         await Assert.That(fx.Events.OfType<JobMissedFireEvent>().Any()).IsFalse();
 
-        // Resume: zero catch-up fires expected.
         await fx.Registry.ResumeAsync("five-min").ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Immediately after resume: still zero fires (the next occurrence is in the future).
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
 
-        // No missed-fire events should have been published by the resume path.
         await Assert.That(fx.Events.OfType<JobMissedFireEvent>().Any()).IsFalse();
 
-        // Advance to exactly the next natural occurrence (Start + 30 min). After
-        // resuming at Start + 25 min, the next fire is Start + 30 min. We advance only
-        // 5 minutes so we cross exactly that one future occurrence — not multiple.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Exactly one fire: the next natural occurrence, not a catch-up backlog.
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
     }
 

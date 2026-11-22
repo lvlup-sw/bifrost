@@ -44,22 +44,24 @@ public sealed class DisposeWhileRunningTests
     /// returns synchronously over the completed channel and the loop re-parks instantly in
     /// a hot spin, so <c>ExecuteTask</c> never completes and the bounded wait times out.
     /// </summary>
+    /// <remarks>
+    /// The loop is parked idle on an empty heap (no jobs, no cancel of the stopping token).
+    /// Disposing the registry completes its command-channel writer, and the loop must treat that as
+    /// a clean stop. With the fix the loop exits promptly. Without it, <c>ExecuteTask</c> never
+    /// completes (hot spin), and the bounded wait throws <see cref="TimeoutException"/>, which
+    /// fails the test.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DisposeRegistry_EmptyHeap_WithoutCancel_StopsLoop()
     {
         var (loop, registry) = await StartLoopAsync().ConfigureAwait(false);
 
-        // The loop is parked idle on an empty heap (no jobs, no stopping-token cancel).
-        // Dispose the registry: its command-channel writer completes, which the loop must
-        // treat as a clean stop.
         await registry.DisposeAsync().ConfigureAwait(false);
 
         var executeTask = ((BackgroundService)loop).ExecuteTask;
         await Assert.That(executeTask is not null).IsTrue();
 
-        // With the fix the loop exits promptly; without it ExecuteTask never completes
-        // (hot spin) and this bounded wait throws TimeoutException, failing the test.
         await Assert.That(async () => await executeTask!.WaitAsync(TestTimeout).ConfigureAwait(false))
             .ThrowsNothing();
         await Assert.That(executeTask!.IsCompleted).IsTrue();
@@ -73,13 +75,16 @@ public sealed class DisposeWhileRunningTests
     /// loop. This guards that the completion stop-condition is checked on the timed-wait
     /// path too, not only the empty-heap path.
     /// </summary>
+    /// <remarks>
+    /// The test arms a job far in the future so that it never fires, and the loop parks on its
+    /// timer.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DisposeRegistry_WithArmedJob_WithoutCancel_StopsLoop()
     {
         var (loop, registry) = await StartLoopAsync().ConfigureAwait(false);
 
-        // Arm a job far in the future so it never fires; the loop parks on its timer.
         await registry.RegisterAsync(
                 "future", Cadence.Interval(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new NoopDispatcher())
             .ConfigureAwait(false);

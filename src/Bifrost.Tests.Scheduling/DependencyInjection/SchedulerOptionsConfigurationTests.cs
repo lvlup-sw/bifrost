@@ -63,6 +63,10 @@ public sealed class SchedulerOptionsConfigurationTests
     /// Verifies multiple <see cref="ISchedulerBuilder.ConfigureOptions"/> calls compose
     /// in order — a later call sees and overrides the values an earlier one set.
     /// </summary>
+    /// <remarks>
+    /// The <c>RestartBackoff</c> of the first call survives, and the second call overrides
+    /// <c>MaxRestartsInWindow</c>.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ConfigureOptions_CalledTwice_ComposesInOrder()
@@ -81,7 +85,6 @@ public sealed class SchedulerOptionsConfigurationTests
 
         var options = provider.GetRequiredService<SchedulerOptions>();
 
-        // The first call's RestartBackoff survives; the second call overrides MaxRestartsInWindow.
         await Assert.That(options.RestartBackoff).IsEqualTo(TimeSpan.FromSeconds(2));
         await Assert.That(options.MaxRestartsInWindow).IsEqualTo(7);
     }
@@ -120,6 +123,10 @@ public sealed class SchedulerOptionsConfigurationTests
     /// <c>AddScheduler</c>: a backoff × restart budget that meets or exceeds the window
     /// throws a helpful exception naming the offending properties.
     /// </summary>
+    /// <remarks>
+    /// The budget is 10 s × 6 = 60 s, which meets the 60 s window, so faults slide out of the
+    /// window faster than they accumulate.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task AddScheduler_BackoffTimesMaxRestartsExceedsWindow_Throws()
@@ -127,7 +134,6 @@ public sealed class SchedulerOptionsConfigurationTests
         var act = () => new ServiceCollection().AddScheduler(builder =>
             builder.ConfigureOptions(options =>
             {
-                // 10s × 6 = 60s >= 60s window: faults slide out faster than they accumulate.
                 options.RestartBackoff = TimeSpan.FromSeconds(10);
                 options.MaxRestartsInWindow = 6;
                 options.RestartWindow = TimeSpan.FromSeconds(60);

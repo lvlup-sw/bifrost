@@ -52,6 +52,10 @@ public sealed class SchedulerHealthCheckTests
     /// Verifies the check is unhealthy when no tick has occurred for more than three
     /// times the expected interval.
     /// </summary>
+    /// <remarks>
+    /// The test advances the clock past 3 times the expected interval (by one tick) and records no
+    /// further tick.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task NoTickInThreeIntervals_IsUnhealthy()
@@ -62,7 +66,6 @@ public sealed class SchedulerHealthCheckTests
 
         var check = NewCheck(monitor, faulted: false, time);
 
-        // Advance past 3x the expected interval with no further tick recorded.
         time.Advance(TimeSpan.FromTicks((ExpectedInterval.Ticks * 3) + 1));
 
         var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
@@ -112,6 +115,10 @@ public sealed class SchedulerHealthCheckTests
     /// Verifies the check is unhealthy when the dispatch-failure rate over the rolling
     /// window of the last 100 fires exceeds 50%.
     /// </summary>
+    /// <remarks>
+    /// The monitor records 60 failures and 40 successes over the last 100 fires, so the failure
+    /// rate is 60%, which is more than 50%.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DispatchFailureRateOverHalf_IsUnhealthy()
@@ -120,7 +127,6 @@ public sealed class SchedulerHealthCheckTests
         var monitor = new TickHealthMonitor();
         monitor.RecordTick(time.GetUtcNow());
 
-        // 60 failures, 40 successes over the last 100 fires => 60% > 50%.
         for (var i = 0; i < 60; i++)
         {
             monitor.RecordFireOutcome(success: false);
@@ -142,6 +148,10 @@ public sealed class SchedulerHealthCheckTests
     /// Verifies the check reports the rolling window as the last 100 fires only: an
     /// early burst of failures rolls out of the window once 100 later successes arrive.
     /// </summary>
+    /// <remarks>
+    /// The monitor records 100 failures and then 100 successes. The window holds only the last 100
+    /// fires, which are all successes, so the failure rate is 0%.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task FailuresOlderThanWindow_DoNotCountAgainstHealth()
@@ -150,8 +160,6 @@ public sealed class SchedulerHealthCheckTests
         var monitor = new TickHealthMonitor();
         monitor.RecordTick(time.GetUtcNow());
 
-        // 100 failures, then 100 successes: the window holds only the last 100, all
-        // successes, so the failure rate is 0%.
         for (var i = 0; i < 100; i++)
         {
             monitor.RecordFireOutcome(success: false);

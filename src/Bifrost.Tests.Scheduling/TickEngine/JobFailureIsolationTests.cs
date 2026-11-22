@@ -45,15 +45,19 @@ public sealed class JobFailureIsolationTests
     /// <see cref="JobFireFailedEvent"/> is published — without crashing the loop
     /// (Hangfire#529/#530).
     /// </summary>
+    /// <remarks>
+    /// The cadence of the job throws on the second <c>ComputeNextFire</c> call. The first call
+    /// gives a valid fire instant. The second call, which <c>DispatchDueJobs</c> makes to project
+    /// the next occurrence, throws. The advance triggers the first fire, and the loop must publish
+    /// a <see cref="JobFireFailedEvent"/> for the faulting job. The loop must not crash
+    /// (<c>IsFaulted</c> refers to the loop, not to the job).
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ComputeNextFire_Throws_JobMarkedFaulted_PublishesJobFireFailedEvent()
     {
         await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
 
-        // Register a job whose cadence throws on the SECOND ComputeNextFire call
-        // (the first gives a valid fire instant; the second — called inside
-        // DispatchDueJobs to project the next occurrence — throws).
         var failingCadence = new FailOnNextFireCadence(
             FirstNextFire: Start.AddMinutes(5),
             ThrowOnSubsequentCalls: true);
@@ -63,17 +67,13 @@ public sealed class JobFailureIsolationTests
             .ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Advance to trigger the first fire (DispatchDueJobs will call
-        // ComputeNextFire to get the next occurrence — that call throws).
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // A JobFireFailedEvent must have been published for the faulting job.
         var failedEvents = fx.Events.OfType<JobFireFailedEvent>().ToList();
         await Assert.That(failedEvents.Count).IsGreaterThanOrEqualTo(1);
         await Assert.That(failedEvents.Any(e => e.JobName == "faulting-job")).IsTrue();
 
-        // The loop must NOT have crashed (IsFaulted refers to the loop, not the job).
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
     }
 
@@ -81,13 +81,18 @@ public sealed class JobFailureIsolationTests
     /// Verifies that a job whose cadence throws in <c>ComputeNextFire</c> does not
     /// prevent other jobs from firing (Hangfire#537).
     /// </summary>
+    /// <remarks>
+    /// The cadence of the faulting job throws on the second <c>ComputeNextFire</c> call. The
+    /// healthy job fires on the same interval with a different name. Both jobs are due at Start + 5
+    /// min. The healthy job must fire exactly once, and the loop must still run (not globally
+    /// faulted). On the next advance, the healthy job keeps firing.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ComputeNextFire_Throws_OtherJobsKeepFiring()
     {
         await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
 
-        // Faulting job: cadence throws on the second ComputeNextFire call.
         var failingCadence = new FailOnNextFireCadence(
             FirstNextFire: Start.AddMinutes(5),
             ThrowOnSubsequentCalls: true);
@@ -96,24 +101,19 @@ public sealed class JobFailureIsolationTests
             .ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Healthy job: fires on the same interval with a different name.
         var healthy = new CountingDispatcher();
         await fx.Registry.RegisterAsync(
             "healthy-job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, healthy)
             .ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Both jobs are due at Start + 5 min. Advance there.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // The healthy job must have fired exactly once.
         await Assert.That(healthy.FireCount).IsEqualTo(1);
 
-        // The loop must still be running (not globally faulted).
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
 
-        // Advance again: the healthy job keeps firing.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(healthy.FireCount).IsEqualTo(2);
@@ -180,17 +180,17 @@ public sealed class JobFailureIsolationTests
     {
         private int callCount;
 
+        // The first call returns the initial fire instant, which Arm and registration use. Later
+        // calls throw to simulate a broken cadence.
         public override DateTimeOffset? ComputeNextFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)
         {
             var count = Interlocked.Increment(ref this.callCount);
 
-            // First call: return the initial fire instant (used by Arm/registration).
             if (count == 1)
             {
                 return FirstNextFire;
             }
 
-            // Subsequent calls: throw to simulate a broken cadence.
             if (ThrowOnSubsequentCalls)
             {
                 throw new InvalidOperationException("Cadence ComputeNextFire intentionally failed.");

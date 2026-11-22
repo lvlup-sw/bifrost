@@ -41,6 +41,21 @@ public sealed class EventOrderingTests
     /// is still observed FIRST on the timeline — the failure cannot precede the handoff
     /// for the same occurrence.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>InlineRouter</c> runs the dispatch inline (synchronously) within <c>Dispatch</c>, so the
+    /// order is deterministic and not subject to a pool-thread scheduling race. A synchronous
+    /// failure is published while the loop is still inside <c>router.Dispatch</c>. With the buggy
+    /// order (<c>router.Dispatch</c> before the <see cref="JobFiredEvent"/> publish), this
+    /// guarantees that the failure precedes the handoff. The fix publishes <see
+    /// cref="JobFiredEvent"/> first.
+    /// </para>
+    /// <para>
+    /// <c>SyncFailingDispatcher</c> publishes a <see cref="JobFireFailedEvent"/> synchronously, as
+    /// the orchestrator does on an admission rejection, with no throw and no await. The handoff
+    /// signal must come first on the timeline.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task SynchronousFailure_JobFiredEvent_PrecedesJobFireFailedEvent()
@@ -50,11 +65,6 @@ public sealed class EventOrderingTests
         var registry = new ScheduleRegistry(store, time);
         var sink = new OrderRecordingSink();
 
-        // A router that runs the dispatch INLINE (synchronously) within Dispatch, so the
-        // ordering is deterministic and not subject to a pool-thread scheduling race: a
-        // synchronous failure is published while still inside router.Dispatch. With the
-        // buggy order (router.Dispatch before the JobFiredEvent publish) this guarantees
-        // the failure precedes the handoff; the fix publishes JobFiredEvent first.
         var router = new InlineRouter();
         var services = new ServiceCollection().BuildServiceProvider();
         var loop = new ScheduleTickLoop(
@@ -67,8 +77,6 @@ public sealed class EventOrderingTests
             await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // A dispatcher that publishes a JobFireFailedEvent synchronously (as the
-            // orchestrator does on an admission rejection) — no throw, no await.
             var dispatcher = new SyncFailingDispatcher(sink);
             await registry.RegisterAsync(
                 "job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, dispatcher)
@@ -84,7 +92,6 @@ public sealed class EventOrderingTests
             await Assert.That(firedIndex).IsGreaterThanOrEqualTo(0);
             await Assert.That(failedIndex).IsGreaterThanOrEqualTo(0);
 
-            // The handoff signal must come first on the timeline.
             await Assert.That(firedIndex).IsLessThan(failedIndex);
         }
         finally
@@ -104,15 +111,15 @@ public sealed class EventOrderingTests
     /// </summary>
     private sealed class InlineRouter : IJobDispatcherRouter
     {
+        // The dispatcher under test completes synchronously, so the fire (and its synchronous
+        // failure publication) is fully observed by the time Dispatch returns, and no blocking wait
+        // is necessary. The throw on a dispatch that did not complete synchronously is defensive: a
+        // synchronous test dispatcher never reaches it.
         public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)
         {
-            // The dispatcher under test completes synchronously, so the fire (and its
-            // synchronous failure publication) is fully observed by the time Dispatch
-            // returns — no blocking wait is needed.
             var pending = dispatcher.DispatchAsync(context, ct);
             if (!pending.IsCompletedSuccessfully)
             {
-                // Defensive: a synchronous test dispatcher should never reach here.
                 throw new InvalidOperationException(
                     "InlineRouter expected the dispatch to complete synchronously.");
             }

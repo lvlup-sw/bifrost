@@ -34,6 +34,12 @@ public sealed class PrFixJitterClampTests
     /// any negative jitter draw subtracts more than one tick and lands the un-clamped
     /// result at or before <c>now</c>; the clamp must keep every draw strictly future.
     /// </summary>
+    /// <remarks>
+    /// The test drives the un-jittered base fire to exactly now + 1 tick. With <c>lastFired</c> =
+    /// now - (interval - 1 tick), the next aligned occurrence is <c>lastFired</c> + interval = now
+    /// + 1 tick. Maximum jitter can then subtract up to a full interval, so about half of all draws
+    /// land at or before now without the clamp.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ComputeNextFire_AlmostDueBaseFire_WithMaxJitter_NeverFiresAtOrBeforeNow()
@@ -41,10 +47,6 @@ public sealed class PrFixJitterClampTests
         var interval = TimeSpan.FromMinutes(5);
         var cadence = new IntervalCadence(interval).WithJitter(1.0);
 
-        // Drive the un-jittered base fire to exactly now + 1 tick: with
-        // lastFired = now - (interval - 1 tick), the next aligned occurrence is
-        // lastFired + interval = now + 1 tick. Max jitter can then subtract up to a
-        // full interval, so ~half of all draws would land <= now without the clamp.
         var lastFired = Now - (interval - TimeSpan.FromTicks(1));
 
         for (var i = 0; i < 5000; i++)
@@ -61,6 +63,12 @@ public sealed class PrFixJitterClampTests
     /// clamp must never produce a value earlier than the un-jittered base fire when it
     /// rescues a draw — the base fire is the strictly-future fallback.
     /// </summary>
+    /// <remarks>
+    /// Every result must be strictly future. When the clamp engages, it returns the un-jittered
+    /// base fire, which is strictly future. It never returns a value between now and the base fire,
+    /// because such a value brings back the churn risk. A downward jitter draw that the clamp did
+    /// not engage on (<c>next</c> &lt; <c>baseFire</c>) must still be later than now.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ComputeNextFire_WhenClamped_NeverEarlierThanUnjitteredBaseFire()
@@ -76,13 +84,9 @@ public sealed class PrFixJitterClampTests
         {
             var next = jittered.ComputeNextFire(lastFiredAt: lastFired, now: Now)!.Value;
 
-            // Every result is strictly future, and whenever the clamp engaged it
-            // returned the un-jittered base fire (strictly future), never something
-            // between now and the base fire that re-introduces churn risk.
             await Assert.That(next).IsGreaterThan(Now);
             if (next < baseFire)
             {
-                // A downward jitter draw that was NOT clamped must still be > now.
                 await Assert.That(next).IsGreaterThan(Now);
             }
         }

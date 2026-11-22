@@ -58,6 +58,11 @@ public sealed class RegistrationErgonomicsTests
     /// unregister + re-register) causes ZERO dispatches before the next legitimate
     /// occurrence, not an immediate fire (quartznet#1545).
     /// </summary>
+    /// <remarks>
+    /// The test registers the job, then unregisters it and registers it again with the same cadence
+    /// (an unchanged schedule). No fire may occur yet, because the next legitimate fire is at
+    /// T+10m.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ReRegister_UnchangedSchedule_NeverFiresImmediately()
@@ -66,19 +71,16 @@ public sealed class RegistrationErgonomicsTests
         await using var fx = await Fixture.StartAsync(fakeTime).ConfigureAwait(false);
         var cadence = Cadence.At(Now.AddMinutes(10));
 
-        // Register the job initially.
         var dispatcher = new CountingDispatcher();
         await fx.Registry.RegisterAsync("reregister-job", cadence, MissedFirePolicy.Coalesce, dispatcher)
             .ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Unregister then re-register with the same cadence (unchanged schedule).
         await fx.Registry.UnregisterAsync("reregister-job").ConfigureAwait(false);
         await fx.Registry.RegisterAsync("reregister-job", cadence, MissedFirePolicy.Coalesce, dispatcher)
             .ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // No fires should have occurred yet — the next legitimate fire is at T+10m.
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
     }
 
@@ -88,6 +90,10 @@ public sealed class RegistrationErgonomicsTests
     /// <see cref="IScheduleRegistry.TriggerAsync"/> is the ONLY fire-on-demand API
     /// (R10).
     /// </summary>
+    /// <remarks>
+    /// The update to a future cadence must not fire immediately. No fire may occur, because the
+    /// updated cadence fires at T+30m.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Update_FutureSchedule_NeverFiresImmediately()
@@ -102,12 +108,10 @@ public sealed class RegistrationErgonomicsTests
             .ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Update to a future cadence — must not fire immediately.
         await fx.Registry.UpdateAsync("update-job", futureCadence, MissedFirePolicy.Coalesce)
             .ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // No fires should have occurred — the updated cadence fires at T+30m.
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
     }
 

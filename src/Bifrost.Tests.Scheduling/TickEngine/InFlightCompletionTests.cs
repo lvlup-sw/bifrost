@@ -56,6 +56,30 @@ public sealed class InFlightCompletionTests
     /// the second <see cref="ScheduleTickLoop.WaitForIdleAsync"/> returning is the
     /// no-underflow proof.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The first fire goes through the non-conforming router (complete, then throw). After the
+    /// fault recovery of the loop restarts it, the router routes normally, so the second fire can
+    /// drain. Both fires exercise the same <c>InFlightTrackingDispatcher</c> completion path.
+    /// </para>
+    /// <para>
+    /// On fire #1, the router runs the dispatch (the <c>finally</c> of the decorator completes the
+    /// fire, in-flight goes to 0) and then throws (the handoff-fault path attempts a second
+    /// completion). The single-shot guard makes the second completion a no-op, so the count is 0,
+    /// not -1. The loop faults on the router throw, restarts, and reaches idle.
+    /// </para>
+    /// <para>
+    /// Fire #2 is routed normally. If fire #1 had underflowed the count to -1, this increment and
+    /// decrement would settle at -1. The idle barrier of the loop releases only when in-flight ==
+    /// 0, so it would never complete, and this <c>WaitForIdleAsync</c> would time out. Its return
+    /// is the exact-once, no-underflow proof.
+    /// </para>
+    /// <para>
+    /// Both fires published their handoff signal. The faulted first fire is also observable. The
+    /// dispatcher itself does not throw, so the dispatch publishes no <see
+    /// cref="JobFireFailedEvent"/>: the fault is the synchronous throw of the router.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task RouterCompletesThenThrows_InFlightReturnsToZeroExactlyOnce_SubsequentFireDrains()
@@ -65,9 +89,6 @@ public sealed class InFlightCompletionTests
         var registry = new ScheduleRegistry(store, time);
         var sink = new RecordingSchedulerEventSink();
 
-        // First fire goes through the non-conforming router (complete-then-throw); after the
-        // loop's fault recovery restarts, the router routes normally so the second fire can
-        // drain. Both fires exercise the SAME InFlightTrackingDispatcher completion path.
         var router = new CompleteThenThrowOnceRouter(new JobDispatcherRouter(sink));
         var dispatcher = new CountingDispatcher();
         var loop = new ScheduleTickLoop(
@@ -84,27 +105,16 @@ public sealed class InFlightCompletionTests
                 .ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Fire #1: the router runs the dispatch (decorator finally completes the fire,
-            // in-flight -> 0) then throws (handoff-fault path attempts a second completion).
-            // The single-shot guard makes the second completion a no-op, so the count is 0,
-            // not -1. The loop faults on the router throw, restarts, and reaches idle.
             time.Advance(TimeSpan.FromMinutes(1));
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
             await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
-            // Fire #2: routed normally now. If fire #1 had underflowed the count to -1, this
-            // increment+decrement would settle at -1 and the loop's idle barrier (which only
-            // releases when in-flight == 0) would never complete -> this WaitForIdleAsync
-            // would time out. Its return is the exact-once / no-underflow proof.
             time.Advance(TimeSpan.FromMinutes(1));
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
             await Assert.That(dispatcher.FireCount).IsEqualTo(2);
 
-            // Both fires published their handoff signal; the faulted first fire is also
-            // observable (the dispatcher itself does not throw, so no JobFireFailedEvent
-            // from the dispatch — the fault is the router's synchronous throw).
             await Assert.That(sink.Published.OfType<JobFiredEvent>().Count()).IsEqualTo(2);
         }
         finally
@@ -126,6 +136,10 @@ public sealed class InFlightCompletionTests
     {
         private int dispatchCount;
 
+        // On the first fire, drives the synchronous dispatch to completion, so the finally of the
+        // decorator runs its completion, and then throws, so the catch of the loop attempts a
+        // second completion. The test dispatcher completes synchronously, so the sync wait
+        // (VSTHRD002, intentional) never blocks.
         public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)
         {
             if (Interlocked.Increment(ref this.dispatchCount) > 1)
@@ -134,10 +148,7 @@ public sealed class InFlightCompletionTests
                 return;
             }
 
-            // First fire: drive the (synchronous) dispatch to completion so the decorator's
-            // finally runs its completion, then throw so the loop's catch attempts a second
-            // one. The test dispatcher completes synchronously, so this never blocks.
-#pragma warning disable VSTHRD002 // Intentional sync wait: the test dispatcher is synchronous.
+#pragma warning disable VSTHRD002
             dispatcher.DispatchAsync(context, ct).AsTask().GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
             throw new InvalidOperationException("Router threw after starting the dispatch (test).");

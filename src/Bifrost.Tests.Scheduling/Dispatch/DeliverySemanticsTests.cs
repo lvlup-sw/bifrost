@@ -50,6 +50,12 @@ public sealed class DeliverySemanticsTests
     /// scheduled occurrence instant — never the wall-clock instant the dispatch
     /// actually ran (DR-12).
     /// </summary>
+    /// <remarks>
+    /// The scheduled occurrence is Start + 60 s. The test simulates a late wake of 20 ms: it
+    /// advances the clock to Start + 60 s + 20 ms, and the loop dispatches the job. <c>FireTime</c>
+    /// must be the scheduled occurrence (Start + 60 s), not the dispatch instant (Start + 60.020
+    /// s).
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task JobFireContext_FireTime_IsScheduledOccurrenceTime_NotWallClock()
@@ -58,16 +64,11 @@ public sealed class DeliverySemanticsTests
         var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)))
             .ConfigureAwait(false);
 
-        // Scheduled occurrence: Start + 60 s.
-        // Simulate a 20 ms late wake by advancing to Start + 60 s + 20 ms.
-        // The loop will dispatch the job; the scheduled occurrence is Start + 60 s.
         fx.Time.Advance(TimeSpan.FromSeconds(60).Add(TimeSpan.FromMilliseconds(20)));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
-        // FireTime must be the scheduled occurrence (Start + 60 s), not the
-        // dispatch instant (Start + 60.020 s).
         var expectedOccurrence = Start.AddSeconds(60);
         await Assert.That(dispatcher.LastFireContext!.Value.FireTime).IsEqualTo(expectedOccurrence);
     }
@@ -85,22 +86,29 @@ public sealed class DeliverySemanticsTests
     /// test uses a <see cref="SeedingStore"/> that returns a pre-seeded record from
     /// <c>LoadAllAsync</c> (representing the stale durable state after the crash)
     /// while delegating all writes to an inner <see cref="InMemoryScheduleStore"/>.
+    /// <para>
+    /// The seeded record says that the job last fired at Start - 2 min and that the next occurrence
+    /// was exactly Start. The process crashed before <c>RecordFiredAsync</c> ran, so the store
+    /// still shows <c>lastFiredAt</c> = Start - 2 min. At restart, the loop detects the missed
+    /// occurrence and re-fires it with Coalesce.
+    /// </para>
+    /// <para>
+    /// The test calls <c>RegisterAsync</c> so that the loop can resolve the dispatcher at dispatch
+    /// time. <c>SeedingStore</c> ignores that <c>SaveAsync</c> call and keeps the stale record for
+    /// <c>LoadAllAsync</c>, so <c>SeedAsync</c> sees the pre-crash <c>LastFiredAt</c>. The Coalesce
+    /// re-fire must use the original missed occurrence as <c>FireTime</c>, so the <c>(JobName,
+    /// FireTime)</c> pair is stable across a re-fire.
+    /// </para>
     /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task JobFireContext_FireTime_StableAcrossReFire()
     {
-        // Simulate: job last fired at Start - 2 min, next occurrence was Start (exact).
-        // The process crashed before RecordFiredAsync ran, so the store still shows
-        // lastFiredAt = Start - 2 min. On restart, the loop detects the missed
-        // occurrence and re-fires it via Coalesce.
         var missedOccurrence = Start;
         var lastFiredAt = Start.AddMinutes(-2);
 
         var dispatcher = new RecordingDispatcher();
 
-        // Use a seeding store that returns the pre-crash durable state from
-        // LoadAllAsync, regardless of in-process RegisterAsync saves.
         var staleDurableRecord = new JobRecord(
             Name: "job",
             Cadence: Cadence.Interval(TimeSpan.FromMinutes(2)),
@@ -123,9 +131,6 @@ public sealed class DeliverySemanticsTests
             NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
             serviceProvider: Services);
 
-        // Register the dispatcher so the loop can resolve it at dispatch time.
-        // The SeedingStore ignores the SaveAsync call and preserves the stale record
-        // for LoadAllAsync, so SeedAsync sees the pre-crash LastFiredAt.
         await registry.RegisterAsync(
             "job",
             Cadence.Interval(TimeSpan.FromMinutes(2)),
@@ -138,11 +143,8 @@ public sealed class DeliverySemanticsTests
         await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
         loop.Dispose();
 
-        // The Coalesce re-fire must have occurred with the original occurrence time.
         await Assert.That(dispatcher.FireCount).IsGreaterThanOrEqualTo(1);
 
-        // FireTime of the re-fire must equal the original missed occurrence instant —
-        // the (JobName, FireTime) pair is stable across a re-fire.
         var context = dispatcher.LastFireContext!.Value;
         await Assert.That(context.JobName).IsEqualTo("job");
         await Assert.That(context.FireTime).IsEqualTo(missedOccurrence);
@@ -175,6 +177,12 @@ public sealed class DeliverySemanticsTests
     /// use the trigger instant as <c>FireTime</c>, since no scheduled occurrence exists
     /// for the fire (DR-12).
     /// </summary>
+    /// <remarks>
+    /// The test advances the clock 30 minutes to a specific trigger instant. Then it triggers the
+    /// job out of band, before the schedule makes it due. <c>FireTime</c> must be the trigger
+    /// instant (now, when <c>TriggerAsync</c> fired), not the next scheduled occurrence, which is
+    /// 30 minutes in the future.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task TriggerAsync_FireTime_IsTriggerInstant()
@@ -183,18 +191,14 @@ public sealed class DeliverySemanticsTests
         var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromHours(1)))
             .ConfigureAwait(false);
 
-        // Advance the clock by 30 minutes to a specific trigger instant.
         var triggerInstant = Start.AddMinutes(30);
         fx.Time.Advance(TimeSpan.FromMinutes(30));
 
-        // Trigger the job out of band (not due by schedule yet).
         await fx.Registry.TriggerAsync("job").ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
-        // FireTime must be the trigger instant (now when TriggerAsync fired),
-        // not the next scheduled occurrence (which is 30 min in the future).
         await Assert.That(dispatcher.LastFireContext!.Value.FireTime).IsEqualTo(triggerInstant);
     }
 

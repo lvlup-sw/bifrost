@@ -37,6 +37,9 @@ public sealed class IntervalCadenceTests
     /// Verifies a subsequent occurrence is one interval after the last fire when
     /// that lands in the future.
     /// </summary>
+    /// <remarks>
+    /// <c>lastFired</c> + 5 minutes is now + 4 minutes, which is already strictly after now.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ComputeNextFire_SubsequentRun_ReturnsLastFiredPlusInterval()
@@ -47,7 +50,6 @@ public sealed class IntervalCadenceTests
 
         var next = cadence.ComputeNextFire(lastFiredAt: lastFired, now: Now);
 
-        // lastFired + 5m = now + 4m, already strictly after now.
         await Assert.That(next).IsEqualTo(lastFired + interval);
     }
 
@@ -56,18 +58,21 @@ public sealed class IntervalCadenceTests
     /// intervals were missed, the cadence advances to the next aligned occurrence
     /// strictly after now (not merely <c>lastFired + interval</c>, which is in the past).
     /// </summary>
+    /// <remarks>
+    /// The last fire was 12 minutes ago, so <c>lastFired</c> + 5 minutes and + 10 minutes are both
+    /// at or before now. The aligned occurrences are -12, -7, -2 and +3 minutes from now, so the
+    /// first strictly future occurrence is +3 minutes.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ComputeNextFire_WhenIntervalsMissed_AdvancesToStrictlyFutureAlignedOccurrence()
     {
         var interval = TimeSpan.FromMinutes(5);
-        // Last fired 12 minutes ago: lastFired + 5m and + 10m are both <= now.
         var lastFired = Now - TimeSpan.FromMinutes(12);
         var cadence = new IntervalCadence(interval);
 
         var next = cadence.ComputeNextFire(lastFiredAt: lastFired, now: Now);
 
-        // Aligned occurrences: -12, -7, -2, +3 minutes from now. First strict-future is +3m.
         await Assert.That(next).IsEqualTo(lastFired + (3 * interval));
         await Assert.That(next!.Value).IsGreaterThan(Now);
     }
@@ -76,12 +81,14 @@ public sealed class IntervalCadenceTests
     /// Verifies that when an aligned occurrence lands exactly on now, the cadence
     /// advances past it (the result is strictly greater than now).
     /// </summary>
+    /// <remarks>
+    /// The last fire was exactly 10 minutes ago, so <c>lastFired</c> + 10 minutes equals now.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ComputeNextFire_WhenAlignedOccurrenceEqualsNow_AdvancesPastIt()
     {
         var interval = TimeSpan.FromMinutes(5);
-        // Last fired exactly 10 minutes ago: lastFired + 10m == now.
         var lastFired = Now - TimeSpan.FromMinutes(10);
         var cadence = new IntervalCadence(interval);
 

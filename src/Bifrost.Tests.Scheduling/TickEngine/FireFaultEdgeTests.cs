@@ -44,6 +44,12 @@ public sealed class FireFaultEdgeTests
     /// Fired — the dispatcher is never invoked, and the loop reaches idle (no hang, no
     /// stranded in-flight count, no loop fault).
     /// </summary>
+    /// <remarks>
+    /// The test makes the job due, and the per-fire scope creation faults. This must not hang. The
+    /// loop publishes the handoff Fired event and then a compensating Failed event, which gives a
+    /// complete timeline and not an orphan Fired. The dispatcher never runs, because the scope
+    /// failed before the handoff.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task CreateScopeThrows_PublishesFiredThenFailed_DispatcherNotRun_LoopContinues()
@@ -69,16 +75,12 @@ public sealed class FireFaultEdgeTests
                 .ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Make the job due; the per-fire scope creation faults. This must NOT hang.
             time.Advance(TimeSpan.FromMinutes(1));
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // The handoff Fired event was published, then a compensating Failed event —
-            // a complete timeline rather than an orphan Fired.
             await Assert.That(sink.Published.OfType<JobFiredEvent>().Count()).IsEqualTo(1);
             await Assert.That(sink.Published.OfType<JobFireFailedEvent>().Count()).IsEqualTo(1);
 
-            // The dispatcher never ran (the scope failed before the handoff).
             await Assert.That(dispatcher.FireCount).IsEqualTo(0);
         }
         finally
@@ -96,6 +98,12 @@ public sealed class FireFaultEdgeTests
     /// missing the count would underflow to -1 and the idle barrier would never release,
     /// so the loop reaching idle is the assertion.
     /// </summary>
+    /// <remarks>
+    /// On the one due fire, the router runs the dispatch (in-flight, then the <c>finally</c>
+    /// completes it) and then throws, so the handoff-fault path attempts a second completion. The
+    /// loop faults and restarts. It must reach idle again, which requires the in-flight count to be
+    /// exactly zero, not -1. The dispatch must run exactly once.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task RouterCompletesDispatchThenThrows_InFlightBalanced_LoopRecoversToIdle()
@@ -119,14 +127,9 @@ public sealed class FireFaultEdgeTests
                 .ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // One due fire: the router runs the dispatch (in-flight -> finally completes)
-            // then throws (handoff-fault path attempts a second completion). The loop
-            // faults and restarts; it must reach idle again — which requires the in-flight
-            // count to be exactly zero, not -1.
             time.Advance(TimeSpan.FromMinutes(1));
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // The dispatch actually ran exactly once.
             await Assert.That(dispatcher.FireCount).IsEqualTo(1);
         }
         finally
@@ -157,12 +160,13 @@ public sealed class FireFaultEdgeTests
     /// </summary>
     private sealed class CompleteThenThrowRouter : IJobDispatcherRouter
     {
+        // Drives the synchronous dispatch to completion, so the finally of the decorator runs its
+        // completion, and then throws, so the catch of the loop attempts a second completion. The
+        // test dispatcher completes synchronously, so the sync wait (VSTHRD002, intentional) never
+        // actually blocks.
         public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)
         {
-            // Drive the (synchronous) dispatch to completion so the decorator's finally
-            // runs its completion, then throw so the loop's catch attempts a second one.
-            // The test dispatcher completes synchronously, so this never actually blocks.
-#pragma warning disable VSTHRD002 // Intentional sync wait: the test dispatcher is synchronous.
+#pragma warning disable VSTHRD002
             dispatcher.DispatchAsync(context, ct).AsTask().GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
             throw new InvalidOperationException("Router threw after starting the dispatch (test).");

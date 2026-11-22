@@ -97,23 +97,32 @@ public sealed class IntervalCadenceJitterTests
     /// pairs and base fires, the jittered fire never deviates from the un-jittered
     /// fire by more than <c>Interval × Jitter</c>.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The input sweep uses a fixed seed (1234), not <c>Random.Shared</c>, so the test is
+    /// reproducible. This RNG only varies the inputs: the interval, the jitter in [0, 1), and the
+    /// last fire. The assertion is a bound that must hold for every RNG draw inside
+    /// <c>ComputeNextFire</c>.
+    /// </para>
+    /// <para>
+    /// <c>unjittered</c> has jitter 0, so it gives the exact base fire. The bound allows one tick
+    /// of slack for the truncation of the cast to <c>long</c> in the offset math.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task WithJitter_DeviationNeverExceedsIntervalTimesJitter()
     {
-        // Deterministic input sweep (fixed seed) — NOT Random.Shared — so the test
-        // is reproducible. The RNG here only varies the inputs; the assertion is a
-        // bound that must hold for every RNG draw inside ComputeNextFire.
         var rng = new Random(Seed: 1234);
 
         for (var trial = 0; trial < 500; trial++)
         {
             var intervalMinutes = rng.Next(1, 240);
             var interval = TimeSpan.FromMinutes(intervalMinutes);
-            var jitter = rng.NextDouble(); // [0, 1)
+            var jitter = rng.NextDouble();
 
             var jittered = new IntervalCadence(interval).WithJitter(jitter);
-            var unjittered = new IntervalCadence(interval); // jitter 0 → exact base
+            var unjittered = new IntervalCadence(interval);
 
             var lastFired = Now - TimeSpan.FromMinutes(rng.Next(0, 60));
 
@@ -123,7 +132,6 @@ public sealed class IntervalCadenceJitterTests
             var deviation = (actual!.Value - baseFire!.Value).Duration();
             var maxDeviation = interval * jitter;
 
-            // Allow one tick of slack for the long-cast truncation in offset math.
             await Assert.That(deviation)
                 .IsLessThanOrEqualTo(maxDeviation + TimeSpan.FromTicks(1));
         }

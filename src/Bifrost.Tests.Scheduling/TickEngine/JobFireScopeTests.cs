@@ -38,6 +38,11 @@ public sealed class JobFireScopeTests
     /// distinct per-fire instances, and that each per-fire scope is disposed after the
     /// fire completes (the scoped service's disposal is recorded).
     /// </summary>
+    /// <remarks>
+    /// After two fires, the dispatcher must have resolved a non-null scoped probe on each fire.
+    /// Each fire must get a distinct per-fire instance (scoped, not singleton), and both per-fire
+    /// scopes must be disposed after their fire completed.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Fire_ResolvesScopedService_PerFireInstance_AndDisposesScope()
@@ -69,24 +74,19 @@ public sealed class JobFireScopeTests
                 .ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // First fire.
             time.Advance(TimeSpan.FromMinutes(1));
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Second fire.
             time.Advance(TimeSpan.FromMinutes(1));
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
             await Assert.That(dispatcher.FireCount).IsEqualTo(2);
 
-            // The dispatcher resolved a non-null scoped probe on each fire.
             await Assert.That(dispatcher.ResolvedNonNullCount).IsEqualTo(2);
 
-            // Each fire got a distinct per-fire instance (scoped, not singleton).
             await Assert.That(tracker.CreatedCount).IsEqualTo(2);
             await Assert.That(dispatcher.DistinctInstanceCount).IsEqualTo(2);
 
-            // Both per-fire scopes were disposed after their fire completed.
             await Assert.That(tracker.DisposedCount).IsEqualTo(2);
         }
         finally

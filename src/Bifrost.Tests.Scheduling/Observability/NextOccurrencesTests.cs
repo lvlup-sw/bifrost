@@ -37,6 +37,10 @@ public sealed class NextOccurrencesTests
     /// Verifies that <see cref="IBifrostScheduleInspector.GetNextOccurrences"/> returns
     /// exactly <c>count</c> distinct, ordered future instants for an interval cadence.
     /// </summary>
+    /// <remarks>
+    /// All occurrences must be in the future and in strictly ascending order. The first occurrence
+    /// is Start + 5 min, the second is Start + 10 min, and the third is Start + 15 min.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task GetNextOccurrences_ReturnsNFutureInstants_Ordered()
@@ -55,19 +59,16 @@ public sealed class NextOccurrencesTests
         var occurrences = inspector.GetNextOccurrences("interval-job", count: 3);
 
         await Assert.That(occurrences).HasCount(3);
-        // All occurrences must be in the future.
         foreach (var occurrence in occurrences)
         {
             await Assert.That(occurrence).IsGreaterThan(Start);
         }
 
-        // All occurrences must be strictly ordered (ascending).
         for (int i = 1; i < occurrences.Count; i++)
         {
             await Assert.That(occurrences[i]).IsGreaterThan(occurrences[i - 1]);
         }
 
-        // First occurrence is Start + 5min, second is Start + 10min, etc.
         await Assert.That(occurrences[0]).IsEqualTo(Start.AddMinutes(5));
         await Assert.That(occurrences[1]).IsEqualTo(Start.AddMinutes(10));
         await Assert.That(occurrences[2]).IsEqualTo(Start.AddMinutes(15));
@@ -79,6 +80,11 @@ public sealed class NextOccurrencesTests
     /// instants the tick engine fires for (same cadence engine for preview and firing —
     /// coravel#250, Hangfire#899).
     /// </summary>
+    /// <remarks>
+    /// The test previews the next 3 occurrences before it advances time. Then it advances through
+    /// all 3 intervals with the harness. The actual fire times must equal the previewed instants
+    /// exactly.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task GetNextOccurrences_MatchesActualFires()
@@ -113,17 +119,14 @@ public sealed class NextOccurrencesTests
                 .ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Preview the next 3 occurrences BEFORE advancing time.
             var previewed = inspector.GetNextOccurrences("match-job", count: 3);
             await Assert.That(previewed).HasCount(3);
 
-            // Advance through all 3 intervals using the harness.
             var harness = new SchedulerTestHarness(loop, fakeTime);
             await harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
             await harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
             await harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
 
-            // The actual fire times must equal the previewed instants exactly.
             await Assert.That(dispatcher.FireTimes).HasCount(3);
             for (int i = 0; i < 3; i++)
             {

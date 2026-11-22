@@ -42,6 +42,14 @@ public sealed class SaturationTests
     /// Verifies that 1,000+ jobs all due at the same instant are all dispatched (or
     /// carried into immediately-following iterations) with no losses (Hangfire#751).
     /// </summary>
+    /// <remarks>
+    /// The test registers <c>JobCount</c> one-shot jobs, all due at the same instant (Start + 1
+    /// min), and lets the loop absorb all registration commands. Then it advances to the fire
+    /// instant, so all 1,000 jobs become due at the same time. The loop drains the heap in
+    /// <c>DispatchDueJobs</c>. If entries are left, the immediately following iteration must pick
+    /// them up, because the re-arm delay is zero once <c>NextFireAt</c> ≤ now. Every job must fire
+    /// exactly once.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Saturation_1000PlusJobsDueSameInstant_AllDispatched_NoneLost()
@@ -59,7 +67,6 @@ public sealed class SaturationTests
         await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
         await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Register JobCount one-shot jobs all due at the same instant (Start + 1 min).
         var dispatchers = new CountingDispatcher[JobCount];
         var fireAt = Start.AddMinutes(1);
         for (var i = 0; i < JobCount; i++)
@@ -70,22 +77,15 @@ public sealed class SaturationTests
                 .ConfigureAwait(false);
         }
 
-        // Let the loop absorb all registration commands.
         await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Advance to the fire instant — all 1,000 jobs become due simultaneously.
         time.Advance(TimeSpan.FromMinutes(1));
 
-        // Allow enough wait cycles for all jobs to be dispatched. The loop drains
-        // the heap in DispatchDueJobs; if any entries are left they must be picked
-        // up in the immediately-following iteration (the re-arm delay is zero once
-        // NextFireAt ≤ now).
         await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
         await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
         loop.Dispose();
 
-        // Every job must have fired exactly once.
         var totalFires = dispatchers.Sum(d => d.FireCount);
         await Assert.That(totalFires).IsEqualTo(JobCount);
 
