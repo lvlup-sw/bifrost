@@ -244,8 +244,8 @@ public class ThreadChurnTests
     /// the awaits stay bare by necessity and by intent.
     /// </para>
     /// <para>
-    /// The calibration floor is deterministic. Otherwise, the scheduler chooses whether the
-    /// <c>Task.Yield()</c> continuations land on distinct pool threads. Under <c>--coverage</c> on a
+    /// The calibration floor is deterministic. Without the forced floor, the scheduler chooses whether
+    /// the <c>Task.Yield()</c> continuations land on distinct pool threads. Under <c>--coverage</c> on a
     /// few-core runner, a starved pool can serialize every continuation onto ONE thread. Then only one
     /// handle is observed, and the calibration flakes (issue #44). The test forces the floor and does not
     /// hope for it: the first two tasks to start rendezvous through <c>pairArrived</c>. The first task
@@ -363,10 +363,10 @@ public class ThreadChurnTests
     /// <b>Producers.</b> The test starts the observer, then runs 8 batches of 8 short-lived producers.
     /// Each producer makes 200 <c>TryEnqueue</c> attempts, far more than capacity, so the gate is
     /// repeatedly saturated and many failures occur. The consumers start only AFTER the first batch has
-    /// hammered the queue that nothing drains yet. With no drain, 8 producers × 200 attempts against the
-    /// 32-slot gate guarantee saturation (about 1568 rejections) for any scheduler timing. Under coverage
-    /// on a few-core CI runner, the two consumers could otherwise keep pace and leave
-    /// <c>failedEnqueues</c> at 0, so the bound would never be exercised. Batches 1–7 then run while the
+    /// hammered the queue while nothing drains it. With no drain, 8 producers × 200 attempts against the
+    /// 32-slot gate guarantee saturation (about 1568 rejections) for any scheduler timing. Without this
+    /// delay, under coverage on a few-core CI runner, the two consumers can keep pace and leave
+    /// <c>failedEnqueues</c> at 0. Then the test never exercises the bound. Batches 1–7 then run while the
     /// consumers drain, which produces the concurrent boundary churn that the overshoot assertions need.
     /// The maximum in-flight gate overshoot of batch 0 (≤ <c>BatchSize</c> = 8) stays within
     /// <c>TransientOvershootAllowance</c> (10), so the overshoot assertions still hold.

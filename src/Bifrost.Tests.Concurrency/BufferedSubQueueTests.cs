@@ -127,9 +127,9 @@ public class BufferedSubQueueTests
     /// <remarks>
     /// The 500 pushes go well past the cap, so <c>I</c> flushes to the heap many times. The test then
     /// proves that buffering is genuinely engaged. The deletion buffer holds the published front
-    /// (<c>D</c> is non-empty), and the heap holds fewer than all elements. The unbuffered queue keeps
-    /// ALL elements in the heap. A <c>bufferCapacity</c> that did nothing would leave <c>D</c> empty and
-    /// the heap holding all n elements.
+    /// (<c>D</c> is non-empty), and the heap holds at most a flush short of all elements, so fewer than
+    /// <c>n</c>. The unbuffered queue keeps ALL elements in the heap. A <c>bufferCapacity</c> that did
+    /// nothing would leave <c>D</c> empty and the heap holding all <c>n</c> elements.
     /// </remarks>
     [Test]
     public async Task Push_Buffered_MatchesUnbufferedOrder_InsertOnly()

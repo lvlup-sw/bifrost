@@ -56,8 +56,9 @@ public class OccupancyBitmaskTests
     /// </summary>
     /// <remarks>
     /// With <c>n = 32</c> there is one word, and on a fresh queue every live and unused bit is zero.
-    /// <c>n = 64</c> is the boundary and gives exactly one word. <c>n = 65</c> rounds up internally to
-    /// 128 sub-queues (a power of two), which gives two words. <c>n = 256</c> gives four words.
+    /// <c>n = 64</c> is the boundary and gives exactly one word. <c>n = 256</c> gives four words. The test
+    /// does not build <c>n = 65</c>. That count rounds up internally to 128 sub-queues (a power of two),
+    /// which gives two words.
     /// </remarks>
     [Test]
     public async Task OccupancyBitmask_SizedForSubQueueCount_MasksUnusedHighBits()
