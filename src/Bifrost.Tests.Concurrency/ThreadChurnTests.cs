@@ -106,21 +106,36 @@ public class ThreadChurnTests
     /// <c>[ThreadStatic]</c> handle, enqueue unique values, dequeue a few, and die; exact multiset
     /// conservation across all lifetimes proves correctness never depends on thread identity.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The queue is unbounded, and the test keeps produced/consumed reconciliation bags plus the handle
+    /// calibration side-channel. Every value is globally unique, so both duplicates and losses show up in
+    /// the multiset comparison. Thread <c>threadIndex</c> mints <c>threadIndex * ItemsPerThread + k</c> for
+    /// <c>k</c> in <c>[0, ItemsPerThread)</c>, so no two threads mint the same value. The handle of the main
+    /// thread is one observed lifetime, so the test records it first.
+    /// </para>
+    /// <para>
+    /// The 200 short-lived dedicated threads run in batches of 8, so at most 8 exist at once. Each thread
+    /// re-fetches its own <c>[ThreadStatic]</c> handle and records its identity. Each thread then dequeues a
+    /// few entries. Items of any thread can surface, because the queue is shared. The final single-threaded
+    /// drain also exercises the handle of the main thread.
+    /// </para>
+    /// <para>
+    /// The calibration proves that the stress spanned many handle lifetimes (about 200 worker threads plus
+    /// the main thread). New OS threads always get a fresh <c>[ThreadStatic]</c> handle, so the floor is
+    /// conservative, but it proves that the suite is non-vacuous. Conservation requires exact multiset
+    /// equality between produced and consumed-plus-drained values, with no duplicates and no losses.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task Operations_AcrossManyShortLivedThreads_ConserveElements()
     {
-        // Arrange — an unbounded queue plus produced/consumed reconciliation bags and the handle
-        // calibration side-channel. Every value is globally unique (thread-tagged), so duplicates
-        // and losses are both detectable by multiset comparison.
         var queue = new ConcurrentPriorityQueue<long, long>();
         var produced = new ConcurrentBag<long>();
         var consumed = new ConcurrentBag<long>();
         var observedHandles = new ConcurrentDictionary<int, byte>();
-
-        // The main thread's handle is one observed lifetime; record it up front.
         ObserveCurrentHandle(observedHandles);
 
-        // Act — 200 short-lived dedicated threads, run in batches of 8 so at most 8 exist at once.
         for (int batchStart = 0; batchStart < TotalShortLivedThreads; batchStart += BatchSize)
         {
             int batchCount = Math.Min(BatchSize, TotalShortLivedThreads - batchStart);
@@ -131,11 +146,8 @@ public class ThreadChurnTests
                 int threadIndex = batchStart + b;
                 batch[b] = new Thread(() =>
                 {
-                    // Each thread re-fetches its own [ThreadStatic] handle; record its identity.
                     ObserveCurrentHandle(observedHandles);
 
-                    // Globally unique, thread-tagged values: threadIndex occupies the high bits so
-                    // no two threads ever mint the same value.
                     long baseValue = (long)threadIndex * ItemsPerThread;
                     for (int k = 0; k < ItemsPerThread; k++)
                     {
@@ -144,7 +156,6 @@ public class ThreadChurnTests
                         produced.Add(value);
                     }
 
-                    // Dequeue a few entries (any thread's items may surface — the queue is shared).
                     for (int k = 0; k < DequeuesPerThread; k++)
                     {
                         if (queue.TryDequeue(out long element, out _))
@@ -167,22 +178,16 @@ public class ThreadChurnTests
             }
         }
 
-        // Drain whatever remains single-threaded (this also exercises the main thread's handle).
         while (queue.TryDequeue(out long element, out _))
         {
             consumed.Add(element);
         }
 
-        // Assert — calibration: the stress genuinely spanned many handle lifetimes (≈ 200 worker
-        // threads + the main thread). New OS threads always get a fresh [ThreadStatic] handle, so
-        // the floor is conservative but proves the suite is non-vacuous.
         int distinctHandles = observedHandles.Count;
         await Assert.That(distinctHandles).IsGreaterThan(1).Because(
             $"the churn must exercise more than one ThreadHandle lifetime or it proves nothing; " +
             $"observed {distinctHandles} distinct handles");
 
-        // Conservation: exact multiset equality between produced and consumed-plus-drained, with no
-        // duplicates and no losses.
         var producedList = produced.ToList();
         var consumedList = consumed.ToList();
 
@@ -225,29 +230,42 @@ public class ThreadChurnTests
     /// <paramref name="queue"/> so the identical pool-task race and conservation reconciliation run
     /// against both the default (<c>s = 1</c>) and a stickiness-enabled queue.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Each of the 64 pool tasks does enqueue, await, enqueue, await, and then two dequeues with yields.
+    /// The pre-await and post-await operations of a task can resume on DIFFERENT pool threads. The handle,
+    /// and any stuck stickiness state, must be re-fetched internally per operation. The caller does nothing
+    /// special. Each task mints two unique values, <c>taskIndex * 2</c> and <c>taskIndex * 2 + 1</c>, and
+    /// records the handle again after each yield.
+    /// </para>
+    /// <para>
+    /// The <c>Task.Yield()</c> awaits are the mechanism under test (a port note). They allow continuations
+    /// to land on different pool threads on purpose. <c>YieldAwaitable</c> has no <c>ConfigureAwait</c>, so
+    /// the awaits stay bare by necessity and by intent.
+    /// </para>
+    /// <para>
+    /// The calibration floor is deterministic. Otherwise, the scheduler chooses whether the
+    /// <c>Task.Yield()</c> continuations land on distinct pool threads. Under <c>--coverage</c> on a
+    /// few-core runner, a starved pool can serialize every continuation onto ONE thread. Then only one
+    /// handle is observed, and the calibration flakes (issue #44). The test forces the floor and does not
+    /// hope for it: the first two tasks to start rendezvous through <c>pairArrived</c>. The first task
+    /// blocks until the second arrives, so two tasks are provably alive on two distinct pool threads and
+    /// record two distinct handles. The other tasks continue without a wait. Only two tasks gate, and the
+    /// pre-seeded pool floor supplies many more threads, so this cannot stall. The 10-second timeout is a
+    /// fallback that degrades to the old probabilistic behavior, never a hang.
+    /// </para>
+    /// <para>
+    /// After the tasks complete, the test drains the remainder single-threaded. Every task produces
+    /// exactly two values, and all must be consumed exactly once.
+    /// </para>
+    /// </remarks>
     /// <param name="queue">The queue under test (default or stickiness-configured).</param>
     private static async Task AssertAsyncYieldChurnConserves(ConcurrentPriorityQueue<long, long> queue)
     {
-        // Arrange — reconciliation bags. Each pool task yields between operations so its pre/post-await
-        // operations may resume on DIFFERENT pool threads; the handle (and any stuck stickiness state)
-        // must be re-fetched internally per operation (the caller does nothing special).
         var produced = new ConcurrentBag<long>();
         var consumed = new ConcurrentBag<long>();
         var observedHandles = new ConcurrentDictionary<int, byte>();
 
-        // Act — 64 thread-pool tasks, each enqueue/await/enqueue/await then two dequeues with yields.
-        // NOTE (port): the Task.Yield() awaits below are the mechanism under test — they deliberately
-        // allow continuations to land on different pool threads. YieldAwaitable exposes no
-        // ConfigureAwait, so the awaits stay bare by necessity and by intent.
-        // Deterministic calibration floor — see the distinctHandles assertion below. Whether the
-        // Task.Yield() continuations land on distinct pool threads is otherwise the scheduler's
-        // choice, and under --coverage on a few-core runner a starved pool can serialize every
-        // continuation onto ONE thread, so only one handle is observed and the calibration flakes
-        // (issue #44). Force the floor rather than hope for it: the first two tasks to start
-        // rendezvous — the first blocks until the second arrives — so two tasks are provably alive on
-        // two distinct pool threads and record two distinct handles. Only two tasks gate and the
-        // pre-seeded pool floor supplies many more threads, so this cannot stall; the timeout is a
-        // fallback that degrades to the old probabilistic behaviour, never a hang.
         using var pairArrived = new ManualResetEventSlim(false);
         int pairArrivals = 0;
 
@@ -257,14 +275,10 @@ public class ThreadChurnTests
             int taskIndex = t;
             tasks[t] = Task.Run(async () =>
             {
-                // Task-tagged unique values: two per task, in disjoint high-bit ranges.
                 long first = (long)taskIndex * 2;
                 long second = first + 1;
 
                 ObserveCurrentHandle(observedHandles);
-
-                // Pair-rendezvous (see above): the first two arrivals pin themselves on distinct pool
-                // threads so the calibration observes >1 handle deterministically; the rest fall through.
                 int ticket = Interlocked.Increment(ref pairArrivals);
                 if (ticket == 1)
                 {
@@ -280,7 +294,6 @@ public class ThreadChurnTests
 
                 await Task.Yield();
 
-                // After the yield we may be on a different pool thread — record again.
                 ObserveCurrentHandle(observedHandles);
                 queue.Enqueue(second, second);
                 produced.Add(second);
@@ -304,21 +317,15 @@ public class ThreadChurnTests
         }
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
-
-        // Drain the remainder single-threaded.
         while (queue.TryDequeue(out long element, out _))
         {
             consumed.Add(element);
         }
 
-        // Assert — calibration: pool tasks ran across more than one handle lifetime (guaranteed by
-        // the pair-rendezvous above, not left to scheduler luck).
         int distinctHandles = observedHandles.Count;
         await Assert.That(distinctHandles).IsGreaterThan(1).Because(
             $"async yields must span more than one pool-thread ThreadHandle or the re-fetch path is " +
             $"untested; observed {distinctHandles} distinct handles");
-
-        // Conservation: every task produces exactly two values; all must be consumed exactly once.
         var producedList = produced.ToList();
         var consumedList = consumed.ToList();
 
@@ -342,15 +349,62 @@ public class ThreadChurnTests
     /// the reservation gate. Both sampled metrics must stay within the bounded transient-overshoot
     /// allowance, and at quiescence the gate must unwind to exactly zero (DR-13).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Setup.</b> Short-lived producer threads hammer the bounded queue (capacity 32) while two
+    /// consumers drain. An independent observer loop samples the public <c>Count</c> and the internal
+    /// reservation gate as fast as it can until the producers and consumers finish. It records the
+    /// running maxima, so an overshoot anywhere is caught. It takes one final sample after the
+    /// cancellation, in case the peak landed at the very end. The consumers drain continuously, so the
+    /// producers keep finding room (and failing). This produces the steady-state churn around the capacity
+    /// boundary.
+    /// </para>
+    /// <para>
+    /// <b>Producers.</b> The test starts the observer, then runs 8 batches of 8 short-lived producers.
+    /// Each producer makes 200 <c>TryEnqueue</c> attempts, far more than capacity, so the gate is
+    /// repeatedly saturated and many failures occur. The consumers start only AFTER the first batch has
+    /// hammered the queue that nothing drains yet. With no drain, 8 producers × 200 attempts against the
+    /// 32-slot gate guarantee saturation (about 1568 rejections) for any scheduler timing. Under coverage
+    /// on a few-core CI runner, the two consumers could otherwise keep pace and leave
+    /// <c>failedEnqueues</c> at 0, so the bound would never be exercised. Batches 1–7 then run while the
+    /// consumers drain, which produces the concurrent boundary churn that the overshoot assertions need.
+    /// The maximum in-flight gate overshoot of batch 0 (≤ <c>BatchSize</c> = 8) stays within
+    /// <c>TransientOvershootAllowance</c> (10), so the overshoot assertions still hold.
+    /// </para>
+    /// <para>
+    /// <b>Shutdown.</b> After the producers finish, the test stops and joins the consumers and the
+    /// observer. Then a final single-threaded drain lets the gate fully unwind. The port uses
+    /// <c>CancelAsync</c> instead of <c>Cancel</c> for VSTHRD103. The semantics are identical here, because
+    /// no callbacks are registered on the token, and the workers only poll
+    /// <c>IsCancellationRequested</c>.
+    /// </para>
+    /// <para>
+    /// <b>Bounded transient overshoot.</b> Neither continuously sampled metric is a tight ≤ capacity
+    /// oracle under concurrent churn. The public <c>Count</c> (<c>Count.cs</c>) is a lock-free per-stripe
+    /// snapshot, summed one stripe at a time. Thus an element that moves between stripes mid-scan can be
+    /// counted twice. This is the same interleaving that the implementation already clamps at zero for
+    /// the symmetric undercount. The reservation gate (DR-13) increments the shared atomic FIRST, then
+    /// checks the bound, and rolls the increment back on overshoot. Thus producers in that window inflate
+    /// the gate snapshot without inserting an element. Both overshoots are transient and bounded by the
+    /// number of operations in flight at once, so the test asserts that each stays within
+    /// <c>TransientOvershootAllowance</c> of capacity. A larger excursion would mean a genuine leak or
+    /// runaway accumulation.
+    /// </para>
+    /// <para>
+    /// <b>Hard guarantee.</b> The test checks at quiescence, after all producers and consumers have joined
+    /// and the final drain is complete, that the queue never actually retains more than
+    /// <c>boundedCapacity</c> elements. The reservation gate must unwind to EXACTLY zero, which proves
+    /// that every one of the thousands of reservations was released and none leaked, and the queue must
+    /// be empty.
+    /// </para>
+    /// <para>
+    /// <b>Non-vacuousness.</b> The observer must have sampled, and the churn must have hit the boundary
+    /// across multiple handle lifetimes. Failures occur only when the gate was saturated.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task BoundedQueue_UnderChurn_NeverExceedsCapacity()
     {
-        // Arrange — a bounded queue (capacity 32) hammered by short-lived producer threads while
-        // two consumers drain. An independent observer loop samples both the public Count and the
-        // internal reservation gate continuously. Both may transiently overshoot capacity by a small,
-        // bounded amount under churn for principled by-design reasons (lock-free snapshot Count;
-        // increment-then-rollback gate) — see TransientOvershootAllowance and the assertions below.
-        // The hard guarantee (gate unwinds to exactly zero, queue empty) is checked at quiescence.
         var queue = new ConcurrentPriorityQueue<long, long>(boundedCapacity: BoundedCapacity);
         var observedHandles = new ConcurrentDictionary<int, byte>();
         ObserveCurrentHandle(observedHandles);
@@ -361,9 +415,6 @@ public class ThreadChurnTests
         long sampleCount = 0;
         long successfulEnqueues = 0;
         long failedEnqueues = 0;
-
-        // Observer — samples Count and the reservation gate as fast as it can until producers and
-        // consumers are finished. Records the running maxima so an overshoot anywhere is caught.
         var observer = new Thread(() =>
         {
             int localMaxCount = 0;
@@ -387,7 +438,6 @@ public class ThreadChurnTests
                 localSamples++;
             }
 
-            // One final post-cancellation sample, in case the peak landed at the very end.
             localMaxCount = Math.Max(localMaxCount, queue.Count);
             localMaxBounded = Math.Max(localMaxBounded, queue.DebugBoundedCountForTest);
 
@@ -396,9 +446,6 @@ public class ThreadChurnTests
             Interlocked.Add(ref sampleCount, localSamples);
         })
         { IsBackground = true, Name = "bounded-observer" };
-
-        // Two consumers drain continuously so producers keep finding room (and failing) — this is
-        // what produces the steady-state churn around the capacity boundary.
         var consumers = new Thread[BoundedConsumerCount];
         for (int c = 0; c < consumers.Length; c++)
         {
@@ -413,8 +460,6 @@ public class ThreadChurnTests
             { IsBackground = true, Name = $"bounded-consumer-{c}" };
         }
 
-        // Act — start the observer and consumers, then run 8 batches of 8 short-lived producers that
-        // hammer TryEnqueue (many failures expected once the gate is saturated).
         observer.Start();
 
         for (int batch = 0; batch < 8; batch++)
@@ -428,8 +473,6 @@ public class ThreadChurnTests
                     ObserveCurrentHandle(observedHandles);
                     long localSuccess = 0;
                     long localFail = 0;
-
-                    // 200 attempts each: far more than capacity, so the gate is repeatedly saturated.
                     for (int k = 0; k < 200; k++)
                     {
                         long value = ((long)producerIndex << 16) + k;
@@ -461,14 +504,6 @@ public class ThreadChurnTests
 
             if (batch == 0)
             {
-                // Start the consumers only AFTER the first batch has hammered the still-undrained
-                // queue. With no draining, 8 producers × 200 attempts against the 32-slot gate
-                // guarantee saturation (≈1568 rejections) regardless of scheduler timing — under
-                // coverage on a few-core CI runner the two consumers could otherwise keep pace and
-                // leave failedEnqueues at 0, never exercising the bound. Batches 1–7 then run with
-                // consumers draining, producing the concurrent boundary churn the overshoot
-                // assertions need. Batch 0's max in-flight gate overshoot (≤ BatchSize = 8) stays
-                // within TransientOvershootAllowance (10), so the overshoot assertions still hold.
                 foreach (var consumer in consumers)
                 {
                     consumer.Start();
@@ -476,9 +511,6 @@ public class ThreadChurnTests
             }
         }
 
-        // Producers done — stop consumers and the observer, then join them. (Port adaptation:
-        // CancelAsync instead of Cancel for VSTHRD103 — identical semantics here because no
-        // callbacks are registered on the token; workers only poll IsCancellationRequested.)
         await done.CancelAsync().ConfigureAwait(false);
         foreach (var consumer in consumers)
         {
@@ -486,26 +518,10 @@ public class ThreadChurnTests
         }
 
         observer.Join();
-
-        // Final single-threaded drain so the gate fully unwinds.
         while (queue.TryDequeue(out _, out _))
         {
         }
 
-        // Assert — bounded transient overshoot on BOTH continuously sampled metrics. Neither the
-        // public Count nor the reservation gate is a tight ≤ capacity oracle under concurrent churn:
-        //
-        //   * The public Count (Count.cs) is a lock-free per-stripe snapshot summed one stripe at a
-        //     time, so an element migrating between stripes mid-scan can be counted twice — the same
-        //     interleaving that the implementation already clamps at zero for the symmetric undercount.
-        //   * The reservation gate (DR-13) increments the shared atomic FIRST and only then checks the
-        //     bound, rolling the increment back on overshoot — so producers in that window inflate the
-        //     gate snapshot without ever inserting an element.
-        //
-        // Both overshoots are transient and bounded by how many operations are in flight at once, so we
-        // assert each stays within `TransientOvershootAllowance` of capacity. A larger excursion would
-        // mean a genuine leak or runaway accumulation. The HARD guarantee — that the queue never
-        // actually retains more than `boundedCapacity` elements — is verified at quiescence below.
         await Assert.That(Volatile.Read(ref maxCountObserved)).IsLessThanOrEqualTo(BoundedCapacity + TransientOvershootAllowance).Because(
             $"the lock-free per-stripe Count snapshot may transiently double-count a migrating element, " +
             $"but only within {TransientOvershootAllowance} of the {BoundedCapacity} bound — a larger " +
@@ -514,16 +530,9 @@ public class ThreadChurnTests
             $"the reservation gate may transiently overshoot {BoundedCapacity} during its " +
             $"increment-then-rollback window, but only by at most the {TransientOvershootAllowance} " +
             $"in-flight operations — a larger overshoot would mean a reservation leaked instead of rolling back");
-
-        // Assert — the HARD capacity guarantee, checked at quiescence (all producers/consumers joined,
-        // final drain complete): the reservation gate must have unwound to EXACTLY zero, proving every
-        // one of the thousands of reservations was released and none leaked, and the queue is empty.
         await Assert.That(queue.DebugBoundedCountForTest).IsEqualTo(0).Because(
             "every reservation must be released after the queue is fully drained");
         await Assert.That(queue.IsEmpty).IsTrue();
-
-        // Non-vacuousness: the observer actually sampled, and the churn actually hit the boundary
-        // (failures only occur when the gate was saturated) across multiple handle lifetimes.
         await Assert.That(Interlocked.Read(ref sampleCount)).IsGreaterThan(0).Because(
             "the observer must have sampled at least once or the bound was never checked");
         await Assert.That(Interlocked.Read(ref failedEnqueues)).IsGreaterThan(0).Because(

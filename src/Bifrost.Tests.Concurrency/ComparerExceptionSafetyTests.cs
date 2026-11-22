@@ -115,12 +115,12 @@ public class ComparerExceptionSafetyTests
         Check(stripe.VolatileCount == 0, "refill rollback final count");
     }
 
+    // The method rebuilds identical prefixes and throws at every comparison in the next operation.
+    // The ascending fills, the descending eviction cascades, and a full drain exercise I, D and the heap.
     private static void VerifyFailures<TElement, TPriority>(int bufferCapacity, bool bounded,
         Func<InjectedComparer, IComparer<TPriority>>? createComparer,
         Func<int, InjectedComparer, TPriority> createPriority, Func<int, TElement> createElement)
     {
-        // Rebuild identical prefixes and throw at every comparison in the next operation.
-        // Ascending fills, descending eviction cascades, and a full drain exercise I, D and heap.
         var operations = Enumerable.Range(0, 96).Select(i => (Push: true, Key: i))
             .Concat(Enumerable.Range(0, 32).Select(i => (Push: true, Key: -i - 1)))
             .Concat(Enumerable.Range(0, 128).Select(i => (Push: false, Key: i))).ToArray();

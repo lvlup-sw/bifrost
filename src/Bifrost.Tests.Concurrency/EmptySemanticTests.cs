@@ -112,34 +112,71 @@ public class EmptySemanticTests
     /// <see langword="false"/> from any consumer while the queue's own <c>Count</c> is still positive
     /// — with production quiescent — is an unambiguous DR-9 violation regardless of the stickiness dial.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Phase 1.</b> The method enqueues every element single-threaded and lets the fill FULLY complete
+    /// before any consumer runs. This hard barrier is the heart of the test. After production is done,
+    /// no in-flight producer can excuse a stale "observed empty" window, so a false-while-non-empty has
+    /// no honest explanation.
+    /// </para>
+    /// <para>
+    /// <b>Drain accounting.</b> <c>remaining</c> starts at the full element count, and each successful pop
+    /// decrements it once. It is ONLY the drain-termination signal and the conservation tally. It is NOT
+    /// the violation witness. The decrement occurs <i>after</i> <c>TryDequeue</c> returns, so
+    /// <c>remaining</c> lags the real pop by the count of in-flight (popped but not yet decremented)
+    /// elements. A witness based on that lagging external counter produces spurious "violations" of
+    /// magnitude ≤ <c>ConsumerCount</c>: a consumer can read a false right as another consumer pops the
+    /// last element but has not yet decremented.
+    /// </para>
+    /// <para>
+    /// <b>Phase 2.</b> Six consumers drain concurrently. A consumer exits when the queue is drained
+    /// (<c>remaining == 0</c>) or at the instant it witnesses an unambiguous violation. Thus a broken
+    /// implementation fails fast instead of spinning. There is no need to keep draining after the first
+    /// witnessed violation, because the contract is already broken.
+    /// </para>
+    /// <para>
+    /// <b>The violation witness.</b> After a false, the witness is the OWN <c>Count</c> of the queue, read
+    /// AFTER the false. This check order is load-bearing. <c>Count</c> is the authoritative measure of the
+    /// elements still present: <c>SubQueue.TryLockedPop</c> decrements the striped count under the
+    /// sub-queue lock before it releases the lock. With production quiescent, the per-stripe counts only
+    /// decrease.
+    /// </para>
+    /// <para>
+    /// False is legal only when the queue was observed empty at some point during the call. A false
+    /// produced while another consumer concurrently pops the very last element is in-contract, because
+    /// the queue reached empty. The witness must also be sound against a benign transient. A consumer
+    /// mid-pop publishes the seqlock empty flag of its sub-queue BEFORE it writes the striped
+    /// <c>Count = 0</c> (two ordered writes under the held lock). Thus the lock-free cheap route of the
+    /// scan can legitimately observe "empty" while <c>Count</c> still counts that element.
+    /// </para>
+    /// <para>
+    /// Up to <c>ConsumerCount</c> consumers can be mid-pop at once, so <c>Count</c> over-reports by at most
+    /// <c>ConsumerCount</c>. Only a <c>Count</c> that stays ABOVE that tolerance across a recheck spin
+    /// (<c>PersistentNonEmptyCount</c>) proves a genuinely resident element. That bound holds however long
+    /// a preempted consumer stalls. Such a persistent <c>Count</c> with production quiescent means that the
+    /// scan concluded emptiness while an element was resident and not removed: the observed-empty
+    /// violation. A read before the false would flag the legal last-element race. The read after the false,
+    /// together with the persistence requirement, makes a positive <c>Count</c> load-bearing.
+    /// </para>
+    /// <para>
+    /// <b>Assertions.</b> There must be zero contract violations, and conservation must hold: every
+    /// enqueued element was popped exactly once. The drain is complete only if no consumer stopped on a
+    /// violation.
+    /// </para>
+    /// </remarks>
     /// <param name="queue">The queue under test (default or stickiness-configured).</param>
     private static async Task AssertNoFalseEmptyWhileElementsRemain(ConcurrentPriorityQueue<int, int> queue)
     {
-        // Arrange — PHASE 1: enqueue every element single-threaded and let it FULLY complete before
-        // any consumer runs. This hard barrier is the heart of the test: once production is done
-        // there is no in-flight producer that could excuse a stale "observed empty" window, so a
-        // false-while-non-empty has no honest explanation.
         for (int i = 0; i < ElementCount; i++)
         {
             queue.Enqueue(i, i);
         }
 
-        // Shared drain accounting: `remaining` starts at the full element count and is decremented
-        // once per successful pop. It serves ONLY as the drain-termination signal and the
-        // conservation tally — it is NOT the violation witness, because the decrement happens
-        // *after* TryDequeue returns, so `remaining` lags the real pop by the count of in-flight
-        // (popped-but-not-yet-decremented) elements. Using that lagging external counter as the
-        // witness produces spurious "violations" of magnitude ≤ ConsumerCount when a consumer reads
-        // a false right as another pops the last element but has not yet decremented.
         long remaining = ElementCount;
         long totalPopped = 0;
         long violations = 0;
         long firstViolationCount = -1;
         object violationGate = new();
-
-        // PHASE 2: six consumers drain concurrently. A consumer exits when the queue is drained
-        // (remaining == 0) OR the instant it witnesses an unambiguous violation, so a broken
-        // implementation fails fast instead of spinning.
         var consumers = new Thread[ConsumerCount];
         for (int c = 0; c < ConsumerCount; c++)
         {
@@ -156,27 +193,6 @@ public class EmptySemanticTests
                         continue;
                     }
 
-                    // A false was returned. The violation witness is the queue's OWN Count read
-                    // AFTER the false (the check order is load-bearing). Count is the authoritative
-                    // measure of elements still present: SubQueue.TryLockedPop decrements the
-                    // striped count under the sub-queue lock before releasing it. With production
-                    // quiescent the per-stripe counts only ever decrease.
-                    //
-                    // False is legal only when the queue was observed empty at some point during the
-                    // call. A false produced while another consumer was concurrently popping the very
-                    // last element is in-contract: the queue reached empty. The witness must also be
-                    // sound against a benign transient. A consumer mid-pop publishes its sub-queue's
-                    // seqlock empty flag BEFORE it writes the striped Count = 0 (two ordered writes
-                    // under the held lock), so the scan's lock-free cheap route can legitimately
-                    // observe "empty" while Count still counts that being-removed element. Up to
-                    // ConsumerCount consumers can be mid-pop at once, so Count over-reports by at most
-                    // ConsumerCount; only a Count that stays ABOVE that tolerance across a recheck spin
-                    // (PersistentNonEmptyCount) proves a genuinely resident element, and that bound
-                    // holds however long a preempted consumer stalls. A persistent such Count with
-                    // production quiescent means the scan concluded emptiness while an element was
-                    // resident and unremoved: the observed-empty violation. (Reading before the false
-                    // would flag the legal last-element race; reading after, and requiring persistence,
-                    // is what makes a positive Count load-bearing.)
                     int observedCount = PersistentNonEmptyCount(queue, inFlightTolerance: ConsumerCount);
                     if (observedCount > 0)
                     {
@@ -189,9 +205,6 @@ public class EmptySemanticTests
                         }
 
                         Interlocked.Increment(ref violations);
-
-                        // Exit on the first witnessed violation: the contract is already broken, no
-                        // need to keep draining.
                         break;
                     }
                 }
@@ -201,7 +214,6 @@ public class EmptySemanticTests
             { IsBackground = true, Name = $"empty-drain-consumer-{c}" };
         }
 
-        // Act — start all consumers and join.
         foreach (var consumer in consumers)
         {
             consumer.Start();
@@ -212,8 +224,6 @@ public class EmptySemanticTests
             consumer.Join();
         }
 
-        // Assert — zero contract violations, and conservation: every enqueued element was popped
-        // exactly once (the drain is complete only if no consumer bailed out on a violation).
         await Assert.That(violations).IsEqualTo(0L).Because(
             "TryDequeue returned false while the queue's own Count was still positive and no " +
             $"producer was in flight — a DR-9 observed-empty violation; first violation saw Count={firstViolationCount:N0}");
@@ -227,11 +237,15 @@ public class EmptySemanticTests
     /// emptiness surfaces agree (<c>IsEmpty</c> true, <c>Count</c> zero, a quiescent
     /// <c>TryDequeue</c> false), and the queue stays fully functional for a subsequent enqueue.
     /// </summary>
+    /// <remarks>
+    /// The test fills and then drains the queue completely. This is a true drain-to-empty, with the
+    /// same single-threaded-fill / concurrent-drain shape as the observed-empty proof. The final
+    /// <c>TryDequeue</c> runs single-threaded on the quiescent queue. After the drain, one
+    /// <c>Enqueue</c> flips <c>IsEmpty</c> back to false, and the element is retrievable.
+    /// </remarks>
     [Test]
     public async Task IsEmpty_AfterTrueDrain_ConsistentWithTryDequeueFalse()
     {
-        // Arrange — enqueue then drain the queue completely (a true drain-to-empty, the same
-        // single-threaded-fill / concurrent-drain shape as test 1).
         var queue = new ConcurrentPriorityQueue<int, int>();
         for (int i = 0; i < ElementCount; i++)
         {
@@ -265,15 +279,10 @@ public class EmptySemanticTests
             consumer.Join();
         }
 
-        // Assert — after a true drain the three emptiness surfaces agree: IsEmpty is true, Count is
-        // zero, and a final (now single-threaded, quiescent) TryDequeue returns false.
         await Assert.That(queue.IsEmpty).IsTrue().Because("a fully drained queue reports IsEmpty == true");
         await Assert.That(queue.Count).IsEqualTo(0).Because("a fully drained queue reports Count == 0");
         await Assert.That(queue.TryDequeue(out _, out _)).IsFalse().Because(
             "a final TryDequeue on a quiescent, fully drained queue must return false");
-
-        // The queue remains fully functional after a drain-to-empty: one Enqueue flips IsEmpty back
-        // to false and the element is retrievable.
         queue.Enqueue(element: 7, priority: 7);
         await Assert.That(queue.IsEmpty).IsFalse().Because("a post-drain Enqueue flips IsEmpty back to false");
         await Assert.That(queue.TryDequeue(out int element, out int priority)).IsTrue().Because(

@@ -56,8 +56,6 @@ public class CollectionSurfaceTests
         (int Element, int Priority)[] snapshot = queue.ToArray();
 
         await Assert.That(snapshot.Length).IsEqualTo(n).Because("the snapshot has one entry per element");
-
-        // Exact multiset check: every priority 0..n-1 appears exactly once, element == priority.
         int[] sortedPriorities = snapshot.Select(t => t.Priority).OrderBy(p => p).ToArray();
         for (int i = 0; i < n; i++)
         {
@@ -117,6 +115,11 @@ public class CollectionSurfaceTests
     /// (bound by a direct <c>foreach</c>) iterates the full snapshot exactly once, and
     /// <c>Reset</c> rewinds it so a second pass yields the same multiset.
     /// </summary>
+    /// <remarks>
+    /// The first pass uses the value-type enumerator, so no boxing occurs. <c>Reset</c> rewinds the
+    /// enumerator to before the first entry. The final <c>Dispose</c> call does nothing, but it
+    /// exercises the <see cref="IDisposable"/> surface.
+    /// </remarks>
     [Test]
     public async Task Enumerator_ValueType_IteratesSnapshotAndResets()
     {
@@ -127,7 +130,6 @@ public class CollectionSurfaceTests
             queue.Enqueue(i, i);
         }
 
-        // First pass via the value-type enumerator (no boxing).
         var firstPass = new List<int>();
         var enumerator = queue.GetEnumerator();
         while (enumerator.MoveNext())
@@ -136,8 +138,6 @@ public class CollectionSurfaceTests
         }
 
         await Assert.That(firstPass.Count).IsEqualTo(n).Because("the enumerator yields every snapshot entry");
-
-        // Reset and re-iterate: the same multiset comes back, proving Reset rewinds to before-first.
         enumerator.Reset();
         var secondPass = new List<int>();
         while (enumerator.MoveNext())
@@ -149,7 +149,7 @@ public class CollectionSurfaceTests
         await Assert.That(firstPass.OrderBy(x => x).SequenceEqual(secondPass.OrderBy(x => x))).IsTrue().Because(
             "both passes iterate the identical captured snapshot");
 
-        enumerator.Dispose(); // no-op, but exercises the IDisposable surface.
+        enumerator.Dispose();
     }
 
     /// <summary>
@@ -157,6 +157,10 @@ public class CollectionSurfaceTests
     /// (<see cref="IEnumerable{T}.GetEnumerator"/> and the non-generic <see cref="IEnumerable.GetEnumerator"/>)
     /// both yield the same full snapshot, and the non-generic <c>Current</c> boxes each entry correctly.
     /// </summary>
+    /// <remarks>
+    /// The generic <c>IEnumerable&lt;T&gt;</c> path uses a boxed enumerator. The non-generic path drives
+    /// <c>IEnumerator.Current</c>, which is the boxing <see cref="object"/> accessor.
+    /// </remarks>
     [Test]
     public async Task Enumerator_InterfacePaths_IterateFullSnapshot()
     {
@@ -167,13 +171,10 @@ public class CollectionSurfaceTests
             queue.Enqueue(p, p);
         }
 
-        // Generic IEnumerable<T> path (boxed enumerator).
         IEnumerable<(int Element, int Priority)> generic = queue;
         var genericPriorities = generic.Select(t => t.Priority).OrderBy(x => x).ToArray();
         await Assert.That(genericPriorities.SequenceEqual([0, 1, 2, 3])).IsTrue().Because(
             "the generic IEnumerable<T> path yields the full snapshot");
-
-        // Non-generic IEnumerable path: drive IEnumerator.Current (the boxing object accessor).
         IEnumerable nonGeneric = queue;
         var boxed = new List<int>();
         IEnumerator e = nonGeneric.GetEnumerator();
@@ -210,8 +211,6 @@ public class CollectionSurfaceTests
         await Assert.That(queue.Count).IsEqualTo(0).Because("Count is zero after a quiescent Clear");
         await Assert.That(queue.ToArray().Length).IsEqualTo(0).Because("ToArray reflects the emptied queue");
         await Assert.That(queue.TryDequeue(out _, out _)).IsFalse().Because("nothing remains to dequeue after Clear");
-
-        // Still functional: a fresh enqueue is retrievable.
         queue.Enqueue(42, 42);
         await Assert.That(queue.TryDequeue(out int element, out int priority)).IsTrue();
         await Assert.That(element).IsEqualTo(42).Because("the queue is fully functional after Clear");
@@ -234,8 +233,6 @@ public class CollectionSurfaceTests
         }
 
         await Assert.That(queue.DebugBoundedCountForTest).IsEqualTo(50).Because("the bounded gate is fully reserved");
-
-        // The bound is reached: the next enqueue throws.
         await Assert.That(() => queue.Enqueue(999, 999)).Throws<InvalidOperationException>().Because(
             "a full bounded queue rejects further enqueues before the clear");
 
@@ -244,8 +241,6 @@ public class CollectionSurfaceTests
         await Assert.That(queue.IsEmpty).IsTrue().Because("Clear empties the bounded queue");
         await Assert.That(queue.DebugBoundedCountForTest).IsEqualTo(0).Because(
             "Clear released every cleared element's bounded reservation");
-
-        // Capacity is reusable up to the bound again — the reservation release was real, not cosmetic.
         for (int i = 0; i < 50; i++)
         {
             queue.Enqueue(i, i);
@@ -266,7 +261,7 @@ public class CollectionSurfaceTests
     {
         var queue = NewPinned(subQueueCount: 4);
 
-        queue.Clear(); // every stripe takes the removed <= 0 early return.
+        queue.Clear();
 
         await Assert.That(queue.IsEmpty).IsTrue().Because("clearing an empty queue leaves it empty");
         await Assert.That(queue.Count).IsEqualTo(0);

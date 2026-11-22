@@ -45,11 +45,14 @@ public class SubQueueEdgeTests
     /// <see cref="Array.MaxLength"/> is clamped exactly to <see cref="Array.MaxLength"/> rather than
     /// overflowing negative, while still strictly exceeding the current length so growth makes progress.
     /// </summary>
+    /// <remarks>
+    /// The input length is just over half of <see cref="Array.MaxLength"/>. Doubling it would exceed the
+    /// limit, so the result is clamped to exactly <see cref="Array.MaxLength"/>, which is still strictly
+    /// larger than the input.
+    /// </remarks>
     [Test]
     public async Task ComputeGrownCapacity_NearMaxLength_ClampsToArrayMaxLength()
     {
-        // A length just below half of Array.MaxLength: doubling it would exceed the limit, so the
-        // result is clamped to exactly Array.MaxLength (still strictly larger than the input).
         int justOverHalf = (Array.MaxLength / 2) + 10;
 
         int grown = SubQueue<int, int>.ComputeGrownCapacityForTest(justOverHalf);
@@ -65,10 +68,13 @@ public class SubQueueEdgeTests
     /// <c>currentLength + 4</c> floor is itself re-clamped to the limit, so the resize is valid and
     /// strictly increasing).
     /// </summary>
+    /// <remarks>
+    /// For <c>nearMax</c>, <c>currentLength + 4</c> exceeds <see cref="Array.MaxLength"/>.
+    /// </remarks>
     [Test]
     public async Task ComputeGrownCapacity_FloorNearBoundary_ReClampsToMaxLength()
     {
-        int nearMax = Array.MaxLength - 2; // currentLength + 4 would exceed Array.MaxLength.
+        int nearMax = Array.MaxLength - 2;
 
         int grown = SubQueue<int, int>.ComputeGrownCapacityForTest(nearMax);
 
@@ -95,11 +101,16 @@ public class SubQueueEdgeTests
     /// (well beyond the initial 16) keeps the min-heap correct, so a strict drain returns exact
     /// ascending order — proving <c>Grow</c> resizes without corrupting the heap.
     /// </summary>
+    /// <remarks>
+    /// The 5,000 pushes force many doublings past <c>InitialCapacity</c> = 16. The test drains under the
+    /// lock into a list, because <c>await</c> is illegal inside a lock body, and then asserts the order.
+    /// A min-heap drain returns non-decreasing priorities, and a corrupted grow would break that order.
+    /// </remarks>
     [Test]
     public async Task HeapPush_ManyElements_GrowsAndStaysSorted()
     {
         var subQueue = new SubQueue<int, int>(comparer: null, index: 0, occupancy: new ulong[1]);
-        const int n = 5_000; // forces many doublings past InitialCapacity = 16.
+        const int n = 5_000;
 
         var rng = new Random(0xABCD);
         for (int i = 0; i < n; i++)
@@ -109,8 +120,6 @@ public class SubQueueEdgeTests
         }
 
         await Assert.That(subQueue.HeapSize).IsEqualTo(n).Because("every push landed after the grows");
-
-        // Drain under the lock into a list (await is illegal inside the lock body), then assert order.
         var drained = new List<int>(n);
         lock (subQueue.SyncLock)
         {
@@ -121,8 +130,6 @@ public class SubQueueEdgeTests
         }
 
         await Assert.That(drained.Count).IsEqualTo(n).Because("the grown heap drains exactly the pushed count");
-
-        // A min-heap drain returns non-decreasing priorities; a corrupted grow would break the order.
         bool nonDecreasing = true;
         for (int i = 1; i < drained.Count; i++)
         {
@@ -149,17 +156,20 @@ public class SubQueueEdgeTests
     /// asserts only the bounded-retry "unknown" report — the branch under coverage — and does not
     /// expect recovery from that fabricated state. Recovery from a NORMAL even-version read is covered
     /// by the settled-read assertion below and across the other tests that read published tops.
+    /// <para>
+    /// A brand-new sub-queue starts at version 0 (even, "stable"). The test publishes a real value first,
+    /// so there IS a stable top to read on the settled, even-version path. Then
+    /// <c>DebugForceOddVersionForTest</c> creates a perpetual writer-in-progress. Every read attempt sees
+    /// the odd stamp and bails. After the bounded retry budget, the read reports unknown
+    /// (<see langword="false"/>) and never a torn value.
+    /// </para>
     /// </remarks>
     [Test]
     public async Task TryReadTop_WriterInProgress_ReportsUnknown()
     {
         var subQueue = new SubQueue<int, int>(comparer: null, index: 0, occupancy: new ulong[1]);
-
-        // A brand-new sub-queue starts at version 0 (even, "stable").
         await Assert.That(subQueue.DebugTopVersionForTest % 2u).IsEqualTo(0u).Because(
             "a fresh sub-queue starts at an even (settled) seqlock version");
-
-        // Publish a real value first so there IS a stable top to read (the settled, even-version path).
         subQueue.TryLockedPush(7, 7);
         await Assert.That(subQueue.DebugTopVersionForTest % 2u).IsEqualTo(0u).Because(
             "after a completed publish the seqlock version is even again (the writer re-stamped it)");
@@ -167,9 +177,6 @@ public class SubQueueEdgeTests
             "a settled (even-version) sub-queue reads a stable top");
         await Assert.That(stableEmpty).IsFalse();
         await Assert.That(stableTop).IsEqualTo(7).Because("the published top is the pushed priority");
-
-        // Force the version odd: a perpetual writer-in-progress. Every read attempt sees the odd stamp
-        // and bails; after the bounded retry budget the read reports unknown (false), never torn.
         subQueue.DebugForceOddVersionForTest();
 
         await Assert.That(subQueue.TryReadTop(out _, out _)).IsFalse().Because(
@@ -238,8 +245,6 @@ public class SubQueueEdgeTests
         await Assert.That(removed).IsEqualTo(8).Because("LockedClear returns how many entries it removed");
         await Assert.That(subQueue.HeapSize).IsEqualTo(0).Because("the heap is emptied");
         await Assert.That(subQueue.VolatileCount).IsEqualTo(0).Because("the striped count is zeroed");
-
-        // The empty state was republished: a read now reports empty.
         await Assert.That(subQueue.TryReadTop(out _, out bool empty)).IsTrue().Because("the cleared sub-queue reads a stable state");
         await Assert.That(empty).IsTrue().Because("LockedClear republished the empty flag");
     }
@@ -271,7 +276,7 @@ public class SubQueueEdgeTests
         await Assert.That(subQueue.TryHeapPeekRoot(out _, out _)).IsFalse().Because("an empty heap has no root");
 
         subQueue.TryLockedPush(40, 40);
-        subQueue.TryLockedPush(10, 10); // the new root
+        subQueue.TryLockedPush(10, 10);
         subQueue.TryLockedPush(20, 20);
 
         await Assert.That(subQueue.TryHeapPeekRoot(out int element, out int priority)).IsTrue().Because("a populated heap has a root");
@@ -287,14 +292,23 @@ public class SubQueueEdgeTests
     /// references. A deep heap also exercises the custom-comparer sift-down across multiple children.
     /// The drain still returns exact ascending order, proving the reference-type heap is correct.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The <see cref="string"/> priority contains references, so all the gated slot clears run. The custom
+    /// ordinal comparer forces the <c>MoveDown</c>/<c>MoveUpCustomComparer</c> paths. The 200 zero-padded
+    /// keys build a heap several levels deep, which exercises multi-child sift-down.
+    /// </para>
+    /// <para>
+    /// The test pops HALF the heap under the lock. This drives the reference-type popped-slot clear in
+    /// <c>TryHeapPop</c> and the deep custom sift-down. The popped half must come out in exact ascending
+    /// ordinal order, which proves custom-comparer correctness. Then <c>LockedClear</c> clears the rest and
+    /// drives its array clear.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task ReferenceTypePriority_PushPopClear_DrivesGcHygieneAndCustomSiftDown()
     {
-        // string priorities -> reference-containing -> the gated slot clears all run; a custom
-        // ordinal comparer forces the MoveDown/MoveUpCustomComparer paths.
         var subQueue = new SubQueue<string, string>(comparer: StringComparer.Ordinal, index: 0, occupancy: new ulong[1]);
-
-        // Enough zero-padded keys to build a heap several levels deep, exercising multi-child sift-down.
         const int n = 200;
         var keys = Enumerable.Range(0, n).Select(i => $"key-{i:D5}").ToList();
         var shuffled = new List<string>(keys);
@@ -310,8 +324,6 @@ public class SubQueueEdgeTests
             subQueue.TryLockedPush(k, k);
         }
 
-        // Pop HALF the heap under the lock (drives TryHeapPop's reference-type popped-slot clear and
-        // the deep custom sift-down), then clear the rest (drives LockedClear's array clear).
         var drained = new List<string>();
         lock (subQueue.SyncLock)
         {
@@ -322,7 +334,6 @@ public class SubQueueEdgeTests
             }
         }
 
-        // The popped half came out in exact ascending ordinal order (custom comparer correctness).
         bool sorted = true;
         for (int i = 1; i < drained.Count; i++)
         {
@@ -357,8 +368,6 @@ public class SubQueueEdgeTests
 
         await Assert.That(() => new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 1, bufferCapacity: 17))
             .Throws<ArgumentOutOfRangeException>().Because("a buffer capacity above the compile-time max of 16 is rejected");
-
-        // The message names the compile-time max so the caller learns the ceiling.
         ArgumentOutOfRangeException ex = Assert.Throws<ArgumentOutOfRangeException>(
             () => new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 1, bufferCapacity: 99));
         await Assert.That(ex.Message).Contains("16").Because("the validation message names the compile-time buffer-capacity max");
@@ -369,15 +378,17 @@ public class SubQueueEdgeTests
     /// <c>bufferCapacity</c> resolves to <c>0</c>, the bit-exact unbuffered path. Pinned through the
     /// internal <c>BufferCapacityForTest</c> accessor.
     /// </summary>
+    /// <remarks>
+    /// The trailing optional parameter of <c>SubQueue</c> defaults to 0. Every public queue overload
+    /// chains through with <c>bufferCapacity</c> 0 unless the caller opts in. An explicit opt-in threads
+    /// the value through to every sub-queue.
+    /// </remarks>
     [Test]
     public async Task Ctor_Default_BufferingDisabled()
     {
-        // The SubQueue trailing-optional defaults to 0.
         var defaultSubQueue = new SubQueue<int, int>(comparer: null, index: 0, occupancy: new ulong[1]);
         await Assert.That(defaultSubQueue.BufferCapacityForTest).IsEqualTo(0).Because(
             "a sub-queue constructed without bufferCapacity defaults to 0 (buffering off)");
-
-        // Every public queue overload chains through with bufferCapacity 0 unless explicitly opted in.
         var defaultQueue = new ConcurrentPriorityQueue<int, int>();
         foreach (var sq in defaultQueue.SubQueuesForTest)
         {
@@ -385,7 +396,6 @@ public class SubQueueEdgeTests
                 "the parameterless queue constructor leaves every sub-queue unbuffered");
         }
 
-        // An explicit opt-in threads the value through to every sub-queue.
         var bufferedQueue = new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 1, bufferCapacity: 16);
         foreach (var sq in bufferedQueue.SubQueuesForTest)
         {

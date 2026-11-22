@@ -28,18 +28,19 @@ public class OccupancyBitmaskTests
     /// <c>1UL &lt;&lt; (i &amp; 63)</c> (64 bits per word, no division), mirroring the
     /// <c>_subQueueMask</c> shift/mask discipline.
     /// </summary>
+    /// <remarks>
+    /// The word index is <c>i / 64</c> expressed as a shift. The bit mask is a single set bit at
+    /// <c>i mod 64</c>.
+    /// </remarks>
     [Test]
     public async Task OccupancyBitmask_WordAndBit_MapIndexCorrectly()
     {
-        // Word index is i / 64 expressed as a shift.
         await Assert.That(ConcurrentPriorityQueue<int, int>.OccupancyWordForTest(0)).IsEqualTo(0);
         await Assert.That(ConcurrentPriorityQueue<int, int>.OccupancyWordForTest(63)).IsEqualTo(0);
         await Assert.That(ConcurrentPriorityQueue<int, int>.OccupancyWordForTest(64)).IsEqualTo(1);
         await Assert.That(ConcurrentPriorityQueue<int, int>.OccupancyWordForTest(127)).IsEqualTo(1);
         await Assert.That(ConcurrentPriorityQueue<int, int>.OccupancyWordForTest(128)).IsEqualTo(2);
         await Assert.That(ConcurrentPriorityQueue<int, int>.OccupancyWordForTest(255)).IsEqualTo(3);
-
-        // Bit mask is a single set bit at (i mod 64).
         await Assert.That(ConcurrentPriorityQueue<int, int>.OccupancyBitForTest(0)).IsEqualTo(1UL);
         await Assert.That(ConcurrentPriorityQueue<int, int>.OccupancyBitForTest(1)).IsEqualTo(2UL);
         await Assert.That(ConcurrentPriorityQueue<int, int>.OccupancyBitForTest(63)).IsEqualTo(1UL << 63);
@@ -53,21 +54,20 @@ public class OccupancyBitmaskTests
     /// (e.g. 32) the single word's unused high bits stay zero and are never interpreted as occupied.
     /// The exact-collapse case (<c>n = 1</c>) is a single word as well.
     /// </summary>
+    /// <remarks>
+    /// With <c>n = 32</c> there is one word, and on a fresh queue every live and unused bit is zero.
+    /// <c>n = 64</c> is the boundary and gives exactly one word. <c>n = 65</c> rounds up internally to
+    /// 128 sub-queues (a power of two), which gives two words. <c>n = 256</c> gives four words.
+    /// </remarks>
     [Test]
     public async Task OccupancyBitmask_SizedForSubQueueCount_MasksUnusedHighBits()
     {
-        // n = 32: one word; on a fresh queue every (live and unused) bit is zero.
         var q32 = new ConcurrentPriorityQueue<int, int>(subQueueCount: 32, boundedCapacity: -1, comparer: null);
         ulong[] occ32 = q32.DebugOccupancyForTest;
         await Assert.That(occ32.Length).IsEqualTo(1).Because("ceil(32/64) == 1 word");
         await Assert.That(occ32[0]).IsEqualTo(0UL).Because("a fresh queue's unused high bits must be zero, never occupied");
-
-        // n = 1 (exact collapse): still one word.
         var q1 = new ConcurrentPriorityQueue<int, int>(subQueueCount: 1, boundedCapacity: -1, comparer: null);
         await Assert.That(q1.DebugOccupancyForTest.Length).IsEqualTo(1).Because("ceil(1/64) == 1 word");
-
-        // n = 64: exactly one word (boundary). n = 65 would round up to 128 sub-queues internally
-        // (power-of-two), giving two words; n = 256 gives four words.
         var q64 = new ConcurrentPriorityQueue<int, int>(subQueueCount: 64, boundedCapacity: -1, comparer: null);
         await Assert.That(q64.DebugOccupancyForTest.Length).IsEqualTo(1).Because("ceil(64/64) == 1 word");
 
@@ -99,13 +99,16 @@ public class OccupancyBitmaskTests
     /// position <c>i &amp; 63</c>. The chosen sub-queue index lands in word 1, so the test also
     /// exercises the multi-word addressing.
     /// </summary>
+    /// <remarks>
+    /// 256 sub-queues give 4 occupancy words. The test drives a specific sub-queue directly, so the
+    /// assertion is deterministic. The public <c>Enqueue</c> scatters across sub-queues. Index 70 is in
+    /// word 1 (<c>70 &gt;&gt; 6 == 1</c>) at bit 6 (<c>70 &amp; 63 == 6</c>).
+    /// </remarks>
     [Test]
     public async Task TryLockedPush_FirstItemIntoEmptySubQueue_SetsOccupancyBit()
     {
-        // 256 sub-queues → 4 occupancy words. Drive a specific sub-queue directly so the assertion
-        // is deterministic (the public Enqueue scatters across sub-queues).
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
-        const int targetIndex = 70; // word 1 (70 >> 6 == 1), bit 6 (70 & 63 == 6).
+        const int targetIndex = 70;
 
         bool pushed = queue.SubQueuesForTest[targetIndex].TryLockedPush(element: 42, priority: 42);
         await Assert.That(pushed).IsTrue().Because("an uncontended push into a fresh sub-queue succeeds");
@@ -122,15 +125,17 @@ public class OccupancyBitmaskTests
     /// occupancy bit. The pop funnels through <c>PopHeldRoot</c>, so this also covers
     /// <c>TryLockedPop</c>.
     /// </summary>
+    /// <remarks>
+    /// Index 70 is word 1, bit 6. The test pushes two items and pops one. The bit must STAY set, because
+    /// a non-last pop is not a boundary crossing. Then the test pops the last item, and the bit must clear.
+    /// </remarks>
     [Test]
     public async Task PopHeldRoot_LastItemRemoved_ClearsOccupancyBit()
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
-        const int targetIndex = 70; // word 1, bit 6.
+        const int targetIndex = 70;
         SubQueue<int, int> sub = queue.SubQueuesForTest[targetIndex];
 
-        // Push two, pop one (bit must STAY set, since a non-last pop is not a boundary crossing),
-        // then pop the last (bit must clear).
         await Assert.That(sub.TryLockedPush(element: 1, priority: 1)).IsTrue();
         await Assert.That(sub.TryLockedPush(element: 2, priority: 2)).IsTrue();
         await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(1UL << 6).Because("two items in: bit set");
@@ -150,11 +155,14 @@ public class OccupancyBitmaskTests
     /// Clearing a non-empty sub-queue via <c>LockedClear</c> (the <c>Clear()</c> path) clears its
     /// occupancy bit alongside the empty publish.
     /// </summary>
+    /// <remarks>
+    /// Index 70 is word 1, bit 6.
+    /// </remarks>
     [Test]
     public async Task LockedClear_NonEmptySubQueue_ClearsOccupancyBit()
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
-        const int targetIndex = 70; // word 1, bit 6.
+        const int targetIndex = 70;
         SubQueue<int, int> sub = queue.SubQueuesForTest[targetIndex];
 
         await Assert.That(sub.TryLockedPush(element: 1, priority: 1)).IsTrue();
@@ -173,31 +181,29 @@ public class OccupancyBitmaskTests
     /// word. The instrumented per-sub-queue transition-write counter verifies this. That counter is
     /// the mechanism that keeps the bitmask dormant on the dense hot path.
     /// </summary>
+    /// <remarks>
+    /// The first push is a boundary crossing and makes one write (the set). The next pushes onto the
+    /// populated sub-queue are NOT boundary crossings, so the counter stays frozen. The non-last pops
+    /// (3 in, pop 2, leaving 1) are also NOT boundary crossings. The last pop IS a boundary crossing and
+    /// makes one more write (the clear).
+    /// </remarks>
     [Test]
     public async Task Occupancy_PushToPopulatedAndNonLastPop_PerformsNoBitmaskWrite()
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
         const int targetIndex = 70;
         SubQueue<int, int> sub = queue.SubQueuesForTest[targetIndex];
-
-        // First push is a boundary crossing: one write (the set).
         await Assert.That(sub.TryLockedPush(element: 5, priority: 5)).IsTrue();
         await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(1L).Because(
             "the empty→non-empty push is the only boundary crossing so far");
-
-        // Subsequent pushes onto the populated sub-queue are NOT boundary crossings: counter frozen.
         await Assert.That(sub.TryLockedPush(element: 6, priority: 6)).IsTrue();
         await Assert.That(sub.TryLockedPush(element: 7, priority: 7)).IsTrue();
         await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(1L).Because(
             "pushes onto a populated sub-queue must not touch the bitmask");
-
-        // Non-last pops (3 in → pop 2, leaving 1) are NOT boundary crossings: counter frozen.
         await Assert.That(sub.TryLockedPop(out _, out _)).IsEqualTo(SubQueuePopStatus.Success);
         await Assert.That(sub.TryLockedPop(out _, out _)).IsEqualTo(SubQueuePopStatus.Success);
         await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(1L).Because(
             "non-last pops leave entries behind and must not touch the bitmask");
-
-        // The last pop IS a boundary crossing: one more write (the clear).
         await Assert.That(sub.TryLockedPop(out _, out _)).IsEqualTo(SubQueuePopStatus.Success);
         await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(2L).Because(
             "the non-empty→empty last pop is the second and only other boundary crossing");
@@ -209,14 +215,17 @@ public class OccupancyBitmaskTests
     /// minimum (no relaxation when there is only one sub-queue), and a drained queue reports honest
     /// emptiness. The bitmask is additive: it must not perturb the collapsed exact-ordering case.
     /// </summary>
+    /// <remarks>
+    /// The test enqueues out of priority order. With one sub-queue the dequeue is exact and returns the
+    /// true minimum. After the drain, the single bit mirrors <c>EmptyFlag = 1</c> again, and
+    /// <c>TryDequeue</c> is honestly empty.
+    /// </remarks>
     [Test]
     public async Task TryDequeue_SingleSubQueue_ReturnsExactMinAndHonestEmpty()
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 1, boundedCapacity: -1, comparer: null);
         await Assert.That(queue.DebugOccupancyForTest.Length).IsEqualTo(1).Because("n = 1 → one occupancy word");
         await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(0UL).Because("fresh single sub-queue: bit clear");
-
-        // Enqueue out of priority order; with one sub-queue the dequeue is exact (the true minimum).
         queue.Enqueue(element: 30, priority: 30);
         queue.Enqueue(element: 10, priority: 10);
         queue.Enqueue(element: 20, priority: 20);
@@ -234,8 +243,6 @@ public class OccupancyBitmaskTests
 
         await Assert.That(queue.TryDequeue(out _, out int p3)).IsTrue();
         await Assert.That(p3).IsEqualTo(30);
-
-        // Drained: the single bit mirrors EmptyFlag = 1 again, and TryDequeue is honestly empty.
         await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(0UL).Because(
             "the drained single sub-queue's bit clears, mirroring EmptyFlag = 1");
         await Assert.That(queue.TryDequeue(out _, out _)).IsFalse().Because("a drained queue is honestly empty");
@@ -249,38 +256,41 @@ public class OccupancyBitmaskTests
     /// and clears only once <c>D</c> drains to empty. The sparse-routing path therefore still finds a
     /// buffered sub-queue whose population is entirely buffer-resident.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The queue has a single buffered sub-queue, so the occupancy word collapses to one bit and the
+    /// assertions read word 0 directly. A buffer of 16 with a tiny population keeps everything in
+    /// <c>D</c>, and the heap stays empty.
+    /// </para>
+    /// <para>
+    /// The first push seeds <c>D</c> and does not touch the heap. <c>D</c> is non-empty, so the bit is
+    /// set. A second (non-front) push keeps <c>D</c> non-empty, so there is still only one boundary
+    /// write. A pop that leaves <c>D</c> non-empty keeps the bit set and makes no boundary write. The
+    /// last pop drains <c>D</c> to empty, and that non-empty-to-empty crossing clears the bit.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task Occupancy_Buffered_ReflectsDeletionBufferState()
     {
-        // A single buffered sub-queue: the occupancy word collapses to one bit, so the assertions read
-        // word 0 directly. Buffering 16 with a tiny population keeps everything in D (heap stays empty).
         var queue = new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 1, bufferCapacity: 16);
         SubQueue<int, int> sub = queue.SubQueuesForTest[0];
 
         await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(0UL).Because("a fresh buffered sub-queue is empty");
-
-        // First push seeds D (heap untouched): D non-empty => bit set.
         await Assert.That(sub.TryLockedPush(element: 5, priority: 5)).IsTrue();
         await Assert.That(sub.DeletionCountForTest).IsGreaterThan(0).Because("the push routed into D");
         await Assert.That(sub.HeapSize).IsEqualTo(0).Because("a tiny buffered push never touches the heap");
         await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(1UL).Because(
             "the bit is set because D is non-empty, even though the heap is empty (D-boundary occupancy)");
-
-        // A second (non-front) push keeps D non-empty: still a single boundary write total.
         await Assert.That(sub.TryLockedPush(element: 9, priority: 9)).IsTrue();
         await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(1UL).Because("D stays non-empty, the bit stays set");
         await Assert.That(sub.DebugOccupancyWriteCountForTest).IsEqualTo(1L).Because(
             "only the empty->non-empty crossing wrote the bit; a push onto a non-empty D is not a boundary");
-
-        // Pop one (D still non-empty): bit stays set, no boundary write.
         lock (sub.SyncLock)
         {
             sub.PopHeldRoot(out _, out _);
         }
 
         await Assert.That(queue.DebugOccupancyForTest[0]).IsEqualTo(1UL).Because("D is still non-empty after a non-last pop");
-
-        // Pop the last (D drains to empty): the non-empty->empty crossing clears the bit.
         lock (sub.SyncLock)
         {
             sub.PopHeldRoot(out _, out _);

@@ -35,14 +35,15 @@ public class PriorityComparerHelpersTests
     /// as either <see langword="null"/> or the Default instance itself) normalizes to a stored
     /// <see langword="null"/> — selecting the devirtualized default-comparer hot path.
     /// </summary>
+    /// <remarks>
+    /// An explicit <c>Comparer&lt;int&gt;.Default</c> also normalizes to <see langword="null"/>,
+    /// because it is the default.
+    /// </remarks>
     [Test]
     public async Task InitializeComparer_ValueTypeDefault_NormalizesToNull()
     {
-        // Supplying null for a value type with default ordering -> null (devirtualized path).
         await Assert.That(PriorityComparerHelpers.InitializeComparer<int>(null)).IsNull().Because(
             "a null comparer on a value-type priority selects the devirtualized default path (stored null)");
-
-        // Supplying Comparer<int>.Default explicitly -> also null (it IS the default).
         await Assert.That(PriorityComparerHelpers.InitializeComparer<int>(Comparer<int>.Default)).IsNull().Because(
             "passing Comparer<int>.Default for a value type collapses to the same devirtualized null path");
     }
@@ -120,6 +121,11 @@ public class PriorityComparerHelpersTests
     /// custom comparer's ORDERING: a value-type queue built with a descending comparer drains in
     /// descending order, proving the custom comparer flows through the dual path correctly.
     /// </summary>
+    /// <remarks>
+    /// The descending comparer makes the strict-min path drain the LARGEST priority first. The public
+    /// <c>Comparer</c> property projects the stored custom comparer, which is not null. A queue with the
+    /// default comparer projects its stored null back to <c>Comparer&lt;int&gt;.Default</c>.
+    /// </remarks>
     [Test]
     public async Task CustomComparer_ChangesDrainOrder_AndComparerPropertyIsNeverNull()
     {
@@ -130,7 +136,6 @@ public class PriorityComparerHelpersTests
             queue.Enqueue(v, v);
         }
 
-        // A descending comparer makes the strict-min path drain LARGEST-first.
         int previous = int.MaxValue;
         int popped = 0;
         while (queue.TryDequeueBestObserved(out _, out int priority))
@@ -142,11 +147,7 @@ public class PriorityComparerHelpersTests
         }
 
         await Assert.That(popped).IsEqualTo(values.Length).Because("the full population drained");
-
-        // The public Comparer property projects the (non-null) stored custom comparer.
         await Assert.That(queue.Comparer).IsNotNull().Because("the public Comparer property is never null");
-
-        // A default-comparer queue's public Comparer projects the stored null back to Default.
         var defaultQueue = new ConcurrentPriorityQueue<int, int>();
         await Assert.That(ReferenceEquals(defaultQueue.Comparer, Comparer<int>.Default)).IsTrue().Because(
             "a default-comparer queue projects its stored null back to Comparer<int>.Default");
