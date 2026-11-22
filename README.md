@@ -76,3 +76,5 @@ Tests use TUnit and Microsoft Testing Platform. Use `dotnet test --project src/B
 Apache 2.0. See [LICENSE](LICENSE).
 
 <!-- ci-lanes scratch proof: docs-only PR for targeting. -->
+
+<!-- Disposable native Buildkite base-update fixture. -->
