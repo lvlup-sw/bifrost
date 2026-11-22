@@ -76,13 +76,15 @@ public class WorkerRegistrySnapshotTests
     /// <summary>
     /// Verifies that GetSnapshot correctly counts idle and busy workers.
     /// </summary>
+    /// <remarks>
+    /// The test creates 3 idle workers and 2 busy workers.
+    /// </remarks>
     [Test]
     public async Task GetSnapshot_WithMixedStates_CountsCorrectly()
     {
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
-        // Create 3 idle workers
         for (var i = 0; i < 3; i++)
         {
             var worker = await registry.CreateWorkerAsync(
@@ -92,7 +94,6 @@ public class WorkerRegistrySnapshotTests
             worker.MarkIdle();
         }
 
-        // Create 2 busy workers
         for (var i = 0; i < 2; i++)
         {
             var worker = await registry.CreateWorkerAsync(
@@ -115,13 +116,15 @@ public class WorkerRegistrySnapshotTests
     /// <summary>
     /// Verifies that GetSnapshot correctly counts workers requested to stop.
     /// </summary>
+    /// <remarks>
+    /// The test creates 3 workers and requests a stop for 2 of them.
+    /// </remarks>
     [Test]
     public async Task GetSnapshot_WithStoppingWorkers_CountsCorrectly()
     {
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
-        // Create 3 workers
         for (var i = 0; i < 3; i++)
         {
             await registry.CreateWorkerAsync(
@@ -130,7 +133,6 @@ public class WorkerRegistrySnapshotTests
                 cts.Token).ConfigureAwait(false);
         }
 
-        // Request stop for 2 workers
         registry.RequestWorkerStop("worker-0");
         registry.RequestWorkerStop("worker-1");
 
@@ -157,7 +159,6 @@ public class WorkerRegistrySnapshotTests
             StoppingWorkers: 2,
             Timestamp: DateTimeOffset.UtcNow);
 
-        // Assert - Verify record properties are accessible
         await Assert.That(snapshot.TotalWorkers).IsEqualTo(10);
         await Assert.That(snapshot.ActiveWorkers).IsEqualTo(8);
         await Assert.That(snapshot.IdleWorkers).IsEqualTo(5);
@@ -168,6 +169,10 @@ public class WorkerRegistrySnapshotTests
     /// <summary>
     /// Verifies that WorkerRegistrySnapshot supports with-expressions (immutability).
     /// </summary>
+    /// <remarks>
+    /// The <c>with</c> expression makes a new snapshot with one changed value. The original stays
+    /// unchanged, and the other values stay the same.
+    /// </remarks>
     [Test]
     public async Task WorkerRegistrySnapshot_SupportsWithExpressions()
     {
@@ -179,14 +184,11 @@ public class WorkerRegistrySnapshotTests
             StoppingWorkers: 2,
             Timestamp: DateTimeOffset.UtcNow);
 
-        // Act - Create new snapshot with modified value
         var modified = original with { IdleWorkers = 7 };
 
-        // Assert - Original is unchanged
         await Assert.That(original.IdleWorkers).IsEqualTo(5);
         await Assert.That(modified.IdleWorkers).IsEqualTo(7);
 
-        // Other values remain the same
         await Assert.That(modified.TotalWorkers).IsEqualTo(original.TotalWorkers);
     }
 
@@ -195,13 +197,18 @@ public class WorkerRegistrySnapshotTests
     /// This is a regression test for the bug where busy = active - idle misclassified
     /// idle workers that had stop requested as busy workers.
     /// </summary>
+    /// <remarks>
+    /// The test creates 2 idle workers and 1 busy worker. Then it requests a stop on one idle
+    /// worker, which was the bug scenario. The idle count includes only idle-worker-1 (no stop
+    /// requested). The busy count includes only busy-worker. The stopping count includes only
+    /// idle-worker-0. The invariant idle + busy + stopping = active must hold.
+    /// </remarks>
     [Test]
     public async Task GetSnapshot_IdleWorkersWithStopRequested_NotCountedAsBusy()
     {
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
-        // Create 2 idle workers
         for (var i = 0; i < 2; i++)
         {
             var worker = await registry.CreateWorkerAsync(
@@ -211,25 +218,22 @@ public class WorkerRegistrySnapshotTests
             worker.MarkIdle();
         }
 
-        // Create 1 busy worker
         var busyWorker = await registry.CreateWorkerAsync(
             "busy-worker",
             async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
             cts.Token).ConfigureAwait(false);
         busyWorker.MarkBusy();
 
-        // Request stop on one idle worker (this was the bug scenario)
         registry.RequestWorkerStop("idle-worker-0");
 
         var snapshot = registry.GetSnapshot();
 
         await Assert.That(snapshot.TotalWorkers).IsEqualTo(3);
         await Assert.That(snapshot.ActiveWorkers).IsEqualTo(3);
-        await Assert.That(snapshot.IdleWorkers).IsEqualTo(1); // Only idle-worker-1 (not stop-requested)
-        await Assert.That(snapshot.BusyWorkers).IsEqualTo(1); // Only busy-worker (not stop-requested)
-        await Assert.That(snapshot.StoppingWorkers).IsEqualTo(1); // Only idle-worker-0
+        await Assert.That(snapshot.IdleWorkers).IsEqualTo(1);
+        await Assert.That(snapshot.BusyWorkers).IsEqualTo(1);
+        await Assert.That(snapshot.StoppingWorkers).IsEqualTo(1);
 
-        // Verify invariant: idle + busy + stopping = active
         await Assert.That(snapshot.IdleWorkers + snapshot.BusyWorkers + snapshot.StoppingWorkers)
             .IsEqualTo(snapshot.ActiveWorkers);
 
@@ -239,13 +243,18 @@ public class WorkerRegistrySnapshotTests
     /// <summary>
     /// Verifies the snapshot invariant: IdleWorkers + BusyWorkers + StoppingWorkers == ActiveWorkers.
     /// </summary>
+    /// <remarks>
+    /// The test creates a mix of idle, busy, and stopping workers. The stop requests go to an idle
+    /// worker (worker-0) and a busy worker (worker-4), so both become stopping. The invariant idle
+    /// + busy + stopping = active must hold. The individual counts are: idle 2 (worker-1,
+    /// worker-2), busy 3 (worker-3, worker-5, worker-6), and stopping 2 (worker-0, worker-4).
+    /// </remarks>
     [Test]
     public async Task GetSnapshot_SnapshotInvariant_IsCorrect()
     {
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
-        // Create mix of idle, busy, and stopping workers
         for (var i = 0; i < 7; i++)
         {
             var worker = await registry.CreateWorkerAsync(
@@ -263,20 +272,17 @@ public class WorkerRegistrySnapshotTests
             }
         }
 
-        // Request stop for some workers (mix of idle and busy)
-        registry.RequestWorkerStop("worker-0"); // idle becoming stopping
-        registry.RequestWorkerStop("worker-4"); // busy becoming stopping
+        registry.RequestWorkerStop("worker-0");
+        registry.RequestWorkerStop("worker-4");
 
         var snapshot = registry.GetSnapshot();
 
-        // Assert - Verify invariant: idle + busy + stopping = active
         await Assert.That(snapshot.IdleWorkers + snapshot.BusyWorkers + snapshot.StoppingWorkers)
             .IsEqualTo(snapshot.ActiveWorkers);
 
-        // Verify individual counts
-        await Assert.That(snapshot.IdleWorkers).IsEqualTo(2); // worker-1, worker-2
-        await Assert.That(snapshot.BusyWorkers).IsEqualTo(3); // worker-3, worker-5, worker-6
-        await Assert.That(snapshot.StoppingWorkers).IsEqualTo(2); // worker-0, worker-4
+        await Assert.That(snapshot.IdleWorkers).IsEqualTo(2);
+        await Assert.That(snapshot.BusyWorkers).IsEqualTo(3);
+        await Assert.That(snapshot.StoppingWorkers).IsEqualTo(2);
 
         await cts.CancelAsync().ConfigureAwait(false);
     }
@@ -284,6 +290,9 @@ public class WorkerRegistrySnapshotTests
     /// <summary>
     /// Verifies that GetSnapshot is consistent when called multiple times without changes.
     /// </summary>
+    /// <remarks>
+    /// The counts from the calls must be identical.
+    /// </remarks>
     [Test]
     public async Task GetSnapshot_CalledMultipleTimes_ReturnsConsistentCounts()
     {
@@ -302,7 +311,6 @@ public class WorkerRegistrySnapshotTests
         var snapshot1 = registry.GetSnapshot();
         var snapshot2 = registry.GetSnapshot();
 
-        // Assert - Counts should be identical
         await Assert.That(snapshot1.TotalWorkers).IsEqualTo(snapshot2.TotalWorkers);
         await Assert.That(snapshot1.ActiveWorkers).IsEqualTo(snapshot2.ActiveWorkers);
         await Assert.That(snapshot1.IdleWorkers).IsEqualTo(snapshot2.IdleWorkers);

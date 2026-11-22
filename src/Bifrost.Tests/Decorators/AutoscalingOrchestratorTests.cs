@@ -37,7 +37,6 @@ public class AutoscalingOrchestratorTests
         _registry = Substitute.For<IWorkerRegistry>();
         _metrics = Substitute.For<IWorkerMetrics>();
 
-        // Setup default property values
         _inner.PendingCount.Returns(0);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);

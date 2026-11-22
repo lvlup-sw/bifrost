@@ -21,30 +21,30 @@ public class IWorkOrchestratorTests
     /// <summary>
     /// Verifies that the interface defines all required members.
     /// </summary>
+    /// <remarks>
+    /// The <c>Writer</c> escape hatch was removed in v0.5.0, so the interface must not have a
+    /// <c>Writer</c> property.
+    /// </remarks>
     [Test]
     public async Task IWorkOrchestrator_Interface_DefinesRequiredMembers()
     {
         var interfaceType = typeof(IWorkOrchestrator<>);
 
-        // Assert - interface exists and is generic
         await Assert.That(interfaceType).IsNotNull();
         await Assert.That(interfaceType.IsInterface).IsTrue();
         await Assert.That(interfaceType.IsGenericTypeDefinition).IsTrue();
 
-        // Check for required methods
         var methods = interfaceType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Concat(typeof(IWorkWriter<>).GetMethods()).ToArray();
         await Assert.That(methods.Any(m => m.Name == "EnqueueAsync")).IsTrue();
         await Assert.That(methods.Any(m => m.Name == "TryEnqueue")).IsTrue();
         await Assert.That(methods.Any(m => m.Name == "AbortAsync")).IsTrue();
 
-        // Check for required properties
         var properties = interfaceType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
         await Assert.That(properties.Any(p => p.Name == "PendingCount")).IsTrue();
         await Assert.That(properties.Any(p => p.Name == "ActiveWorkers")).IsTrue();
         await Assert.That(properties.Any(p => p.Name == "Capacity")).IsTrue();
 
-        // The Writer escape hatch was removed in v0.5.0
         await Assert.That(properties.Any(p => p.Name == "Writer")).IsFalse();
     }
 

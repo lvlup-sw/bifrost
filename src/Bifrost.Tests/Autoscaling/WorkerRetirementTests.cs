@@ -195,6 +195,9 @@ internal class WorkerRetirementTests
         Require(!worker.RequestStop(), "retained metadata cannot cancel a disposed signal");
     }
 
+    // The call to WorkQueue.WaitToDequeueAsync models the boundary where a retiring consumer has
+    // acquired the only wake but has not removed the envelope. No later enqueue or Complete can
+    // rescue that envelope, so the retiring worker must hand it off to the survivor.
     [Test]
     [Arguments(DispatchStrategy.PriorityExact)]
     [Arguments(DispatchStrategy.PriorityRelaxed)]
@@ -209,8 +212,6 @@ internal class WorkerRetirementTests
                 WorkerCount = 0, Capacity = 4, DispatchStrategy = strategy, FullMode = QueueFullMode.Reject,
             }), NullLogger<WorkOrchestrator<int>>.Instance);
         Require(orchestrator.TryEnqueue(42), "work admitted");
-        // Model the boundary where a retiring consumer has acquired the only wake
-        // but has not removed the envelope. No later enqueue or Complete may rescue it.
         Require(await orchestrator.WorkQueue.WaitToDequeueAsync(deadline.Token).ConfigureAwait(false), "wake acquired");
         await retirement.CancelAsync().ConfigureAwait(false);
         await orchestrator.CreateWorkerFunction(null, retirement.Token)("retiring", deadline.Token).ConfigureAwait(false);

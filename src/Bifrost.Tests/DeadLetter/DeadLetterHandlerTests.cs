@@ -71,6 +71,9 @@ public class DeadLetterHandlerTests
     /// <summary>
     /// Verifies that the inner handler is retried MaxRetries+1 times on failure.
     /// </summary>
+    /// <remarks>
+    /// <c>MaxRetries</c> is 3, so the handler gets 1 initial call + 3 retries = 4 calls.
+    /// </remarks>
     [Test]
     public async Task HandleAsync_Failure_RetriesUpToMaxRetries()
     {
@@ -80,7 +83,6 @@ public class DeadLetterHandlerTests
 
         await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
 
-        // Assert - MaxRetries=3, so 1 initial + 3 retries = 4 total calls
         await _innerHandler.Received(4).HandleAsync("work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -102,6 +104,9 @@ public class DeadLetterHandlerTests
     /// <summary>
     /// Verifies that the dead-lettered work has correct context.
     /// </summary>
+    /// <remarks>
+    /// <c>AttemptCount</c> is 4: 1 initial attempt + 3 retries.
+    /// </remarks>
     [Test]
     public async Task HandleAsync_Failure_DeadLetteredWorkHasCorrectContext()
     {
@@ -117,7 +122,7 @@ public class DeadLetterHandlerTests
 
         await Assert.That(capturedItem.Work).IsEqualTo("work");
         await Assert.That(capturedItem.Exception).IsEqualTo(exception);
-        await Assert.That(capturedItem.AttemptCount).IsEqualTo(4); // 1 initial + 3 retries
+        await Assert.That(capturedItem.AttemptCount).IsEqualTo(4);
         await Assert.That(capturedItem.FailedAt).IsNotDefault();
     }
 
@@ -154,7 +159,6 @@ public class DeadLetterHandlerTests
             .Returns(_ => new ValueTask(Task.FromException(new InvalidOperationException("fail"))));
         var handler = CreateHandler();
 
-        // Act & Assert - should not throw
         await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
         var completed = true;
         await Assert.That(completed).IsTrue();
@@ -205,6 +209,9 @@ public class DeadLetterHandlerTests
     /// <summary>
     /// Verifies that DLQ is never called on cancellation.
     /// </summary>
+    /// <remarks>
+    /// The <c>OperationCanceledException</c> is expected.
+    /// </remarks>
     [Test]
     public async Task HandleAsync_Cancellation_NeverDeadLetters()
     {
@@ -220,7 +227,6 @@ public class DeadLetterHandlerTests
         }
         catch (OperationCanceledException)
         {
-            // Expected
         }
 
         await _dlq.DidNotReceive().EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
@@ -229,6 +235,9 @@ public class DeadLetterHandlerTests
     /// <summary>
     /// Verifies that with MaxRetries=0, work is dead-lettered on first failure.
     /// </summary>
+    /// <remarks>
+    /// The handler gets 1 attempt only, with no retries.
+    /// </remarks>
     [Test]
     public async Task HandleAsync_MaxRetries0_DeadLettersImmediately()
     {
@@ -241,7 +250,6 @@ public class DeadLetterHandlerTests
 
         await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
 
-        // Assert - 1 attempt only (no retries)
         await _innerHandler.Received(1).HandleAsync("work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
         await _dlq.Received(1).EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
@@ -320,6 +328,9 @@ public class DeadLetterHandlerTests
     /// Verifies that when a publish callback is provided and work is dead-lettered,
     /// the callback is invoked with a WorkDeadLetteredEvent.
     /// </summary>
+    /// <remarks>
+    /// <c>AttemptCount</c> is 4: 1 initial attempt + 3 retries.
+    /// </remarks>
     [Test]
     public async Task HandleAsync_Failure_WithPublishCallback_PublishesEvent()
     {
@@ -338,7 +349,7 @@ public class DeadLetterHandlerTests
 
         var deadLetteredEvent = (WorkDeadLetteredEvent<string>)capturedEvent!;
         await Assert.That(deadLetteredEvent.Work).IsEqualTo("work");
-        await Assert.That(deadLetteredEvent.AttemptCount).IsEqualTo(4); // 1 initial + 3 retries
+        await Assert.That(deadLetteredEvent.AttemptCount).IsEqualTo(4);
         await Assert.That(deadLetteredEvent.Exception).IsNotNull();
     }
 
@@ -355,7 +366,6 @@ public class DeadLetterHandlerTests
 
         await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
 
-        // Assert - dead-lettering still happens
         await _dlq.Received(1).EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -383,7 +393,6 @@ public class DeadLetterHandlerTests
     [Test]
     public async Task Constructor_AcceptsNullPublishCallback()
     {
-        // Act & Assert - should not throw
         var handler = new DeadLetterHandler<string>(
             _innerHandler, _dlq, _notifier, _options,
             NullLogger<DeadLetterHandler<string>>.Instance,

@@ -169,7 +169,6 @@ public class WorkerRegistryTests
 
         var stoppedCount = registry.RequestMultipleWorkerStop(1);
 
-        // Assert - Should stop the idle worker first
         await Assert.That(stoppedCount).IsEqualTo(1);
         var workers = registry.GetAllWorkers();
         var idleWorker = workers.First(w => w.WorkerId == "idle-worker");
@@ -210,13 +209,16 @@ public class WorkerRegistryTests
     /// <summary>
     /// Verifies RequestMultipleWorkerStop selects newest workers first (LIFO).
     /// </summary>
+    /// <remarks>
+    /// The 10 ms delay between the creations gives each worker a different creation time. A request
+    /// to stop 1 worker must stop the newest worker (worker-2) first.
+    /// </remarks>
     [Test]
     public async Task RequestMultipleWorkerStop_SelectsNewestFirst()
     {
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
-        // Create workers with slight delay to ensure different creation times
         for (var i = 0; i < 3; i++)
         {
             var worker = await registry.CreateWorkerAsync(
@@ -224,13 +226,11 @@ public class WorkerRegistryTests
                 async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
                 cts.Token).ConfigureAwait(false);
             worker.IsIdle = true;
-            await Task.Delay(10).ConfigureAwait(false); // Ensure different creation times
+            await Task.Delay(10).ConfigureAwait(false);
         }
 
-        // Act - Request to stop 1 worker
         var stoppedCount = registry.RequestMultipleWorkerStop(1);
 
-        // Assert - Newest (worker-2) should be stopped first
         await Assert.That(stoppedCount).IsEqualTo(1);
         var workers = registry.GetAllWorkers();
         var worker2 = workers.First(w => w.WorkerId == "worker-2");
@@ -242,6 +242,9 @@ public class WorkerRegistryTests
     /// <summary>
     /// Verifies RequestMultipleWorkerStop returns actual count when less available.
     /// </summary>
+    /// <remarks>
+    /// The test requests more stops than there are workers.
+    /// </remarks>
     [Test]
     public async Task RequestMultipleWorkerStop_ReturnsActualCount_WhenLessAvailable()
     {
@@ -254,7 +257,6 @@ public class WorkerRegistryTests
             cts.Token).ConfigureAwait(false);
         worker.IsIdle = true;
 
-        // Act - Request more than available
         var stoppedCount = registry.RequestMultipleWorkerStop(5);
 
         await Assert.That(stoppedCount).IsEqualTo(1);
@@ -365,13 +367,17 @@ public class WorkerRegistryTests
     /// <summary>
     /// Verifies that when a worker function faults, the error is logged (M12).
     /// </summary>
+    /// <remarks>
+    /// The logger signals <c>logReceived</c> when it receives an error call. The test creates a
+    /// worker that throws, then waits for the <c>ContinueWith</c> fault handler to log. This wait
+    /// is deterministic, with no fixed delay, so the signal guarantees that the error was logged.
+    /// </remarks>
     [Test]
     public async Task CreateWorkerAsync_WorkerFaults_LogsError()
     {
         var logger = Substitute.For<ILogger<WorkerRegistry>>();
         var logReceived = new TaskCompletionSource();
 
-        // Signal when the logger receives an error call
         logger.When(l => l.Log(
                 LogLevel.Error,
                 Arg.Any<EventId>(),
@@ -382,16 +388,13 @@ public class WorkerRegistryTests
 
         var registry = new WorkerRegistry(logger);
 
-        // Act - Create a worker that throws
         await registry.CreateWorkerAsync(
             "faulting-worker",
             (id, ct) => throw new InvalidOperationException("Worker fault"),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Wait for the ContinueWith fault handler to log (deterministic, no fixed delay)
         await logReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
-        // Assert - Error was logged (guaranteed by the signal above)
         logger.Received().Log(
             LogLevel.Error,
             Arg.Any<EventId>(),

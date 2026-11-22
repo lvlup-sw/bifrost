@@ -31,6 +31,10 @@ public sealed class EventStreamAndDlqCorrectnessTests
     /// subscribing after disposal throws <see cref="ObjectDisposedException"/>.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The enumeration starts after <c>DisposeAsync</c>. But <c>DisposeAsync</c> completed the
+    /// registered channel, so the enumeration ends immediately and does not hang.
+    /// </remarks>
     [Test]
     public async Task EventStream_SubscribeAcrossDispose_NeverStrandsChannel()
     {
@@ -41,8 +45,6 @@ public sealed class EventStreamAndDlqCorrectnessTests
         var stream = decorator.GetEventStreamAsync<IOrchestratorEvent>();
         await decorator.DisposeAsync().ConfigureAwait(false);
 
-        // Even though enumeration starts after DisposeAsync, the registered channel was
-        // completed by DisposeAsync and terminates immediately without hanging.
         var count = 0;
         await foreach (var _ in stream.ConfigureAwait(false))
         {

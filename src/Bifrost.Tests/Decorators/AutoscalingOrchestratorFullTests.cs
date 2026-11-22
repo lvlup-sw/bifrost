@@ -42,7 +42,6 @@ public class AutoscalingOrchestratorFullTests
         _options = new AutoscalingOptions { Enabled = true };
         _logger = NullLogger<AutoscalingOrchestrator<string>>.Instance;
 
-        // Setup default property values
         _inner.PendingCount.Returns(0);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
@@ -88,7 +87,6 @@ public class AutoscalingOrchestratorFullTests
 
         await orchestrator.RequestScaleUpAsync(3).ConfigureAwait(false);
 
-        // Assert - 3 workers should be created via registry
         await _registry.Received(3).CreateWorkerAsync(
             Arg.Is<string>(s => s.StartsWith("AutoScale-", StringComparison.Ordinal)),
             Arg.Any<Func<string, CancellationToken, Task>>(),
@@ -127,6 +125,9 @@ public class AutoscalingOrchestratorFullTests
     /// <summary>
     /// Verifies RequestScaleDownAsync respects idle worker count.
     /// </summary>
+    /// <remarks>
+    /// Only 3 workers are idle, so the decorator stops only 3.
+    /// </remarks>
     [Test]
     public async Task RequestScaleDownAsync_RespectsIdleWorkerCount()
     {
@@ -138,7 +139,6 @@ public class AutoscalingOrchestratorFullTests
 
         await orchestrator.RequestScaleDownAsync(5).ConfigureAwait(false);
 
-        // Assert - Should only stop 3 (the idle count)
         _registry.Received(1).RequestMultipleWorkerStop(3);
     }
 
@@ -347,7 +347,6 @@ public class AutoscalingOrchestratorFullTests
 
         await orchestrator.RequestScaleDownAsync(5).ConfigureAwait(false);
 
-        // Assert - Should request stop for 0 workers
         _registry.Received(1).RequestMultipleWorkerStop(0);
     }
 }

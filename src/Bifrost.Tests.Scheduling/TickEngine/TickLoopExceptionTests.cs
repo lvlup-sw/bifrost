@@ -44,6 +44,11 @@ public sealed class TickLoopExceptionTests
     /// restarts and recovers — the job fires once the fault clears.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// On the first fire, the publish throws one time and faults the loop body. The loop logs
+    /// critical, publishes a <c>SchedulerFaultedEvent</c>, and restarts. After the fault clears,
+    /// the next occurrence fires normally.
+    /// </remarks>
     [Test]
     public async Task OwnCodeFault_LogsCritical_PublishesFaultedEvent_AndRestarts()
     {
@@ -52,8 +57,6 @@ public sealed class TickLoopExceptionTests
         await using var fx = await Fixture.StartAsync(sink, new SchedulerOptions(), logger).ConfigureAwait(false);
         var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
-        // First fire: the publish throws once, faulting the loop body. The loop logs
-        // critical, publishes a SchedulerFaultedEvent, and restarts.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
@@ -61,7 +64,6 @@ public sealed class TickLoopExceptionTests
         await Assert.That(sink.Any<SchedulerFaultedEvent>()).IsTrue();
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
 
-        // After the fault clears, the next occurrence fires normally.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(dispatcher.FireCount).IsGreaterThanOrEqualTo(1);
@@ -72,36 +74,39 @@ public sealed class TickLoopExceptionTests
     /// scheduler to its faulted state and stop ticking.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// <para>The sink throws on every fire publish, so each restart faults again
+    /// immediately.</para>
+    /// <para><c>RestartBackoff</c> is <c>TimeSpan.Zero</c> so that this test examines the give-up
+    /// transition in isolation: every queued occurrence faults again on the single 30 minute
+    /// advance, as before the backoff was added. <c>BackoffBetweenRestartsTests</c> covers the
+    /// backoff itself: the delay between restarts, that give-up still occurs WITH a backoff, and
+    /// clean cancellation during a backoff.</para>
+    /// <para>The first advance makes several interval occurrences due at the same time. Each due
+    /// fire's publish throws and faults the loop body. The loop restarts, finds the next occurrence
+    /// that is still due, and faults again. After more than <c>MaxRestartsInWindow</c> faults, the
+    /// loop moves to Faulted and stops. When the loop is Faulted, the second advance does not tick,
+    /// so the loop attempts no more fires.</para>
+    /// </remarks>
     [Test]
     public async Task ThreeConsecutiveFaultsInWindow_TransitionsToFaulted_StopsTicking()
     {
-        // Throw on every fire publish so each restart re-faults immediately.
         var sink = new FaultInjectingEventSink { ThrowOnFiredCount = int.MaxValue };
         var options = new SchedulerOptions
         {
             MaxRestartsInWindow = 3,
             RestartWindow = TimeSpan.FromSeconds(60),
 
-            // Disable the inter-restart backoff so this test exercises the give-up
-            // transition in isolation: every queued occurrence re-faults on the single
-            // advance below, as before the backoff was added. The backoff itself — the
-            // delay between restarts, that give-up is still reached WITH a backoff, and
-            // clean cancellation during a backoff — is covered by BackoffBetweenRestartsTests.
             RestartBackoff = TimeSpan.Zero,
         };
         await using var fx = await Fixture.StartAsync(sink, options).ConfigureAwait(false);
         var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
-        // Advance far enough that several interval occurrences are due at once. Each
-        // due fire's publish throws, faulting the loop body; the loop restarts, finds
-        // the next still-due occurrence, and re-faults. After more than
-        // MaxRestartsInWindow faults the loop transitions to Faulted and stops.
         fx.Time.Advance(TimeSpan.FromMinutes(30));
         await fx.Loop.WaitForFaultedAsync(TestTimeout).ConfigureAwait(false);
 
         await Assert.That(fx.Loop.IsFaulted).IsTrue();
 
-        // Faulted: advancing time no longer ticks (no further fires attempted).
         var firesBefore = dispatcher.FireCount;
         fx.Time.Advance(TimeSpan.FromMinutes(30));
         await Assert.That(dispatcher.FireCount).IsEqualTo(firesBefore);
@@ -114,6 +119,16 @@ public sealed class TickLoopExceptionTests
     /// in a provider that can inject a one-time backwards skew on the next reading.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// <para>The skewable fixture always supplies a skew provider, so the test binds it one
+    /// time.</para>
+    /// <para>The test injects a backwards skew and then wakes the loop. The loop reads the earlier
+    /// time, detects the regression, logs a warning, and arms again against the current time. It
+    /// does not sleep on a stale absolute deadline. Then <c>SkewBy(TimeSpan.Zero)</c> clears the
+    /// skew, and the loop arms again at the correct delay against the current time without skew.
+    /// The test then advances the underlying clock to the occurrence. The loop still fires it
+    /// exactly one time, with no lost fire and no duplicate fire.</para>
+    /// </remarks>
     [Test]
     public async Task ClockSkewBackwards_LogsWarning_AndContinues()
     {
@@ -121,24 +136,17 @@ public sealed class TickLoopExceptionTests
         var logger = new CapturingLogger<ScheduleTickLoop>();
         await using var fx = await Fixture.StartSkewableAsync(sink, logger).ConfigureAwait(false);
 
-        // The skewable fixture always supplies a skew provider; bind it once.
         await Assert.That(fx.Skew).IsNotNull();
         var skew = fx.Skew!;
 
         var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
-        // Inject a backwards skew, then wake the loop. The loop reads the earlier time,
-        // detects the regression, warns, and re-arms against the current time rather
-        // than sleeping on a stale absolute deadline.
         skew.SkewBy(TimeSpan.FromMinutes(-10));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
         await Assert.That(logger.Any(LogLevel.Warning)).IsTrue();
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
 
-        // Clear the skew and let the loop re-arm at the correct delay against the
-        // (un-skewed) current time, then advance the underlying clock to the
-        // occurrence: the loop still fires it exactly once (no lost or duplicate fire).
         skew.SkewBy(TimeSpan.Zero);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 

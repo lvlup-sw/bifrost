@@ -62,6 +62,10 @@ public class IEventStreamOrchestratorTests
     /// Verifies the interface has the expected number of declared-only members.
     /// This catches accidental additions or removals.
     /// </summary>
+    /// <remarks>
+    /// The interface declares 3 methods: <c>GetEventStreamAsync</c>, <c>EnqueueAsync</c>, and
+    /// <c>TryEnqueue</c>.
+    /// </remarks>
     [Test]
     public async Task Interface_HasExpectedMemberCount()
     {
@@ -69,7 +73,6 @@ public class IEventStreamOrchestratorTests
         var members = interfaceType.GetMembers(
             BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance);
 
-        // Assert - 3 declared methods: GetEventStreamAsync, EnqueueAsync, TryEnqueue
         await Assert.That(members.Length).IsEqualTo(1);
     }
 }

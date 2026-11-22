@@ -28,7 +28,6 @@ public class CorePackageTests
 
         var exportedTypes = coreAssembly.GetExportedTypes();
 
-        // Assert - Verify key types are accessible
         await Assert.That(exportedTypes.Any(t => t.Name == "IWorkOrchestrator`1")).IsTrue();
         await Assert.That(exportedTypes.Any(t => t.Name == "IWorkHandler`1")).IsTrue();
         await Assert.That(exportedTypes.Any(t => t.Name == "WorkOrchestratorOptions")).IsTrue();

@@ -26,12 +26,10 @@ public class IWorkHandlerTests
     {
         var interfaceType = typeof(IWorkHandler<>);
 
-        // Assert - interface exists and is generic
         await Assert.That(interfaceType).IsNotNull();
         await Assert.That(interfaceType.IsInterface).IsTrue();
         await Assert.That(interfaceType.IsGenericTypeDefinition).IsTrue();
 
-        // Check for HandleAsync method
         var method = interfaceType.GetMethod(
             "HandleAsync",
             BindingFlags.Public | BindingFlags.Instance);

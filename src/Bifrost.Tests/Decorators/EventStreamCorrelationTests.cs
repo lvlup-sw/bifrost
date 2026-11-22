@@ -34,7 +34,6 @@ public class EventStreamCorrelationTests
         _inner = Substitute.For<IWorkOrchestrator<string>>();
         _logger = Substitute.For<ILogger<EventStreamOrchestrator<string>>>();
 
-        // Configure inner mock defaults
         _inner.PendingCount.Returns(5);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
@@ -47,6 +46,10 @@ public class EventStreamCorrelationTests
     /// <summary>
     /// Verifies that null correlationId returns all events.
     /// </summary>
+    /// <remarks>
+    /// The delay gives the subscriber time to start. The subscriber must receive all the enqueued
+    /// events.
+    /// </remarks>
     [Test]
     public async Task GetEventStreamAsync_NullCorrelationId_ReturnsAllEvents()
     {
@@ -67,23 +70,25 @@ public class EventStreamCorrelationTests
             }
         });
 
-        // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act - enqueue multiple events
         await decorator.EnqueueAsync("test1").ConfigureAwait(false);
         await decorator.EnqueueAsync("test2").ConfigureAwait(false);
         await decorator.EnqueueAsync("test3").ConfigureAwait(false);
 
         await subscriberTask.ConfigureAwait(false);
 
-        // Assert - all events should be received
         await Assert.That(receivedEvents.Count).IsEqualTo(3);
     }
 
     /// <summary>
     /// Verifies that specified correlationId filters events correctly.
     /// </summary>
+    /// <remarks>
+    /// The <c>OperationCanceledException</c> is expected if the timeout occurs before the
+    /// subscriber receives all events. The test enqueues events with different correlation IDs. The
+    /// subscriber must receive only the events with the matching correlation ID.
+    /// </remarks>
     [Test]
     public async Task GetEventStreamAsync_SpecifiedCorrelationId_FiltersCorrectly()
     {
@@ -108,14 +113,11 @@ public class EventStreamCorrelationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected if timeout occurs before we receive all events
             }
         });
 
-        // Give subscriber time to start
         await Task.Delay(150).ConfigureAwait(false);
 
-        // Act - enqueue events with different correlation IDs
         await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: targetCorrelationId)).ConfigureAwait(false);
         await Task.Delay(20).ConfigureAwait(false);
         await decorator.EnqueueAsync("test2", new WorkEnqueueOptions(CorrelationId: "different-correlation")).ConfigureAwait(false);
@@ -126,7 +128,6 @@ public class EventStreamCorrelationTests
 
         await subscriberTask.ConfigureAwait(false);
 
-        // Assert - only events with matching correlationId should be received
         await Assert.That(receivedEvents.Count).IsEqualTo(2);
         foreach (var evt in receivedEvents)
         {
@@ -137,6 +138,11 @@ public class EventStreamCorrelationTests
     /// <summary>
     /// Verifies that correlation ID comparison is case-sensitive (Ordinal).
     /// </summary>
+    /// <remarks>
+    /// The <c>OperationCanceledException</c> is expected if no matching events arrive. The test
+    /// enqueues "correlation-abc" (lowercase), "CORRELATION-ABC" (uppercase), and "Correlation-ABC"
+    /// (exact match). The subscriber must receive only the exact case match.
+    /// </remarks>
     [Test]
     public async Task GetEventStreamAsync_CorrelationIdComparison_IsCaseSensitive()
     {
@@ -161,21 +167,17 @@ public class EventStreamCorrelationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected if no matching events
             }
         });
 
-        // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act - enqueue events with different case correlation IDs
-        await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: "correlation-abc")).ConfigureAwait(false);  // lowercase
-        await decorator.EnqueueAsync("test2", new WorkEnqueueOptions(CorrelationId: "CORRELATION-ABC")).ConfigureAwait(false);  // uppercase
-        await decorator.EnqueueAsync("test3", new WorkEnqueueOptions(CorrelationId: "Correlation-ABC")).ConfigureAwait(false);  // exact match
+        await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: "correlation-abc")).ConfigureAwait(false);
+        await decorator.EnqueueAsync("test2", new WorkEnqueueOptions(CorrelationId: "CORRELATION-ABC")).ConfigureAwait(false);
+        await decorator.EnqueueAsync("test3", new WorkEnqueueOptions(CorrelationId: "Correlation-ABC")).ConfigureAwait(false);
 
         await subscriberTask.ConfigureAwait(false);
 
-        // Assert - only exact case match should be received
         await Assert.That(receivedEvents.Count).IsEqualTo(1);
         await Assert.That(receivedEvents.First().CorrelationId).IsEqualTo(targetCorrelationId);
     }
@@ -183,6 +185,11 @@ public class EventStreamCorrelationTests
     /// <summary>
     /// Verifies that events without correlation ID are excluded when filtering by correlation ID.
     /// </summary>
+    /// <remarks>
+    /// The <c>OperationCanceledException</c> is expected. The test enqueues events with a null
+    /// correlation ID. None of them has the matching correlation ID, so the subscriber must receive
+    /// no events.
+    /// </remarks>
     [Test]
     public async Task GetEventStreamAsync_EventsWithoutCorrelationId_AreExcludedWhenFiltering()
     {
@@ -203,20 +210,16 @@ public class EventStreamCorrelationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected
             }
         });
 
-        // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act - enqueue events without correlation ID (null)
         await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: null)).ConfigureAwait(false);
         await decorator.EnqueueAsync("test2", new WorkEnqueueOptions(CorrelationId: null)).ConfigureAwait(false);
 
         await subscriberTask.ConfigureAwait(false);
 
-        // Assert - no events should be received (none have matching correlationId)
         await Assert.That(receivedEvents.Count).IsEqualTo(0);
     }
 
@@ -226,7 +229,6 @@ public class EventStreamCorrelationTests
     [Test]
     public async Task ICorrelatedEvent_HasCorrelationIdProperty()
     {
-        // Assert - verify interface exists and has correct property
         var interfaceType = typeof(ICorrelatedEvent);
         var property = interfaceType.GetProperty(nameof(ICorrelatedEvent.CorrelationId));
 
@@ -237,6 +239,9 @@ public class EventStreamCorrelationTests
     /// <summary>
     /// Verifies that correlation ID filtering works with typed event filtering.
     /// </summary>
+    /// <remarks>
+    /// The <c>OperationCanceledException</c> is expected.
+    /// </remarks>
     [Test]
     public async Task GetEventStreamAsync_TypeAndCorrelationFiltering_WorkTogether()
     {
@@ -261,11 +266,9 @@ public class EventStreamCorrelationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected
             }
         });
 
-        // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
         await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: targetCorrelationId)).ConfigureAwait(false);
@@ -296,7 +299,6 @@ public class EventStreamCorrelationTests
             }
         });
 
-        // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
         await decorator.EnqueueAsync("test-work", new WorkEnqueueOptions(CorrelationId: "my-correlation-id")).ConfigureAwait(false);
@@ -327,7 +329,6 @@ public class EventStreamCorrelationTests
             }
         });
 
-        // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
         var result = decorator.TryEnqueue("test-work", new WorkEnqueueOptions(CorrelationId: "my-correlation-id"));
@@ -341,6 +342,10 @@ public class EventStreamCorrelationTests
     /// <summary>
     /// Verifies that events enqueued with the original EnqueueAsync (without correlationId) have null CorrelationId.
     /// </summary>
+    /// <remarks>
+    /// The test uses the original <c>EnqueueAsync</c> without a correlation ID, so the event must
+    /// have a null correlation ID.
+    /// </remarks>
     [Test]
     public async Task EnqueueAsync_WithoutCorrelationId_EventHasNullCorrelationId()
     {
@@ -358,15 +363,12 @@ public class EventStreamCorrelationTests
             }
         });
 
-        // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act - use original EnqueueAsync without correlationId
         await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
 
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert - event should have null correlationId
         await Assert.That(evt.CorrelationId).IsNull();
     }
 }

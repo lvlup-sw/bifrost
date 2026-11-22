@@ -43,12 +43,18 @@ public class RejectionRoutingTests
     /// rejected result — routing is observability, not retry.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The priority strategy is at capacity (fail-fast admission), and the DLQ is configured. The
+    /// single worker is parked inside a gated handler, so the queue state is deterministic while
+    /// the test fills to capacity. The test parks the worker, fills to capacity, and then sheds one
+    /// item. The caller must still receive the rejection (no swallowing). The shed item must be in
+    /// the dead-letter pathway with the marker that identifies a rejection: <c>AttemptCount</c> 0
+    /// (never admitted, never attempted) and a <c>WorkRejectedException</c> that carries the
+    /// reason. At the end, the test releases the parked worker so that disposal does not wait.
+    /// </remarks>
     [Test]
     public async Task EnqueueRejected_WithDlqDecorator_RoutesToDeadLetter()
     {
-        // Arrange — priority strategy at capacity (fail-fast admission), DLQ
-        // configured. The single worker is parked inside a gated handler so the
-        // queue state is deterministic while filling to capacity.
         var handler = new GateHandler();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -67,7 +73,6 @@ public class RejectionRoutingTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        // Act — park the worker, fill to capacity, then shed one.
         var parked = await orchestrator.EnqueueAsync("park-worker", WorkClass.Interactive).ConfigureAwait(false);
         await Assert.That(parked).IsEqualTo(EnqueueResult.Accepted);
         await handler.Started.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
@@ -76,15 +81,11 @@ public class RejectionRoutingTests
         var second = await orchestrator.EnqueueAsync("keep-2", WorkClass.Interactive).ConfigureAwait(false);
         var shed = await orchestrator.EnqueueAsync("shed-item", WorkClass.Interactive).ConfigureAwait(false);
 
-        // Assert — the caller still receives the rejection (no swallowing).
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(shed.IsAccepted).IsFalse();
         await Assert.That(shed.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
 
-        // Assert — the shed item is in the dead-letter pathway with the
-        // rejection-distinguishing marker: AttemptCount 0 (never admitted, never
-        // attempted) and a WorkRejectedException carrying the reason.
         var entries = new List<DeadLetteredWork<string>>();
         await foreach (var entry in dlq.ReadAllAsync().ConfigureAwait(false))
         {
@@ -98,7 +99,6 @@ public class RejectionRoutingTests
         await Assert.That(marker).IsNotNull();
         await Assert.That(marker!.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
 
-        // Cleanup — release the parked worker so disposal does not wait.
         handler.Release();
     }
 
@@ -107,10 +107,13 @@ public class RejectionRoutingTests
     /// typed <see cref="EnqueueResult"/>: nothing is thrown, nothing else happens.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The routing decorator has no DLQ services. The test fills to capacity and then sheds one
+    /// item, and the enqueue must not throw. Only the typed rejection surfaces to the caller.
+    /// </remarks>
     [Test]
     public async Task EnqueueRejected_WithoutDlq_SurfacesResultOnly()
     {
-        // Arrange — routing decorator with no DLQ services configured.
         var options = Options.Create(new WorkOrchestratorOptions
         {
             Capacity = 1,
@@ -126,11 +129,9 @@ public class RejectionRoutingTests
             notifier: null,
             NullLogger<RejectionRoutingOrchestrator<string>>.Instance);
 
-        // Act — fill to capacity, then shed; must not throw.
         var accepted = await routing.EnqueueAsync("keep", WorkClass.Interactive).ConfigureAwait(false);
         var shed = await routing.EnqueueAsync("shed", WorkClass.Interactive).ConfigureAwait(false);
 
-        // Assert — typed rejection surfaces to the caller, nothing else.
         await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(shed.IsAccepted).IsFalse();
         await Assert.That(shed.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
@@ -146,10 +147,15 @@ public class RejectionRoutingTests
     /// <see cref="RejectionReason.CapacityExceeded"/>.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The capacity is 1 and there are no workers, so the second <c>TryEnqueue</c> rejects
+    /// fail-fast. The test uses the boolean surface: it fills, then sheds. False surfaces to the
+    /// caller. The rejection is counted with the inferred reason and routed with the marker
+    /// (<c>AttemptCount</c> 0 + exception).
+    /// </remarks>
     [Test]
     public async Task TryEnqueueRejected_WithDlq_IsCountedAndRouted()
     {
-        // Arrange — capacity 1, no workers: the second TryEnqueue rejects fail-fast.
         var options = Options.Create(new WorkOrchestratorOptions
         {
             Capacity = 1,
@@ -168,12 +174,9 @@ public class RejectionRoutingTests
         var observed = new List<(WorkClass Class, RejectionReason Reason)>();
         routing.RejectionObserved = (workClass, reason) => observed.Add((workClass, reason));
 
-        // Act — boolean surface: fill, then shed.
         var kept = routing.TryEnqueue("keep", WorkClass.Interactive);
         var shed = routing.TryEnqueue("shed", WorkClass.Interactive);
 
-        // Assert — false surfaces to the caller; the rejection is counted with the
-        // inferred reason and routed with the marker (AttemptCount 0 + exception).
         await Assert.That(kept).IsTrue();
         await Assert.That(shed).IsFalse();
         await Assert.That(observed.Count).IsEqualTo(1);
@@ -196,6 +199,9 @@ public class RejectionRoutingTests
     /// Verifies that accepted enqueues never touch the dead-letter pathway.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// All enqueues are admitted, because they stay below capacity and below the watermarks.
+    /// </remarks>
     [Test]
     public async Task EnqueueAccepted_NeverRoutesToDlq()
     {
@@ -216,7 +222,6 @@ public class RejectionRoutingTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        // Act — all enqueues admitted (below capacity and watermarks).
         var first = await orchestrator.EnqueueAsync("a", WorkClass.Interactive).ConfigureAwait(false);
         var second = await orchestrator.EnqueueAsync("b", WorkClass.Interactive).ConfigureAwait(false);
 
@@ -232,10 +237,14 @@ public class RejectionRoutingTests
     /// rejections are always counted, tagged by reason.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The routing decorator has a real DLQ, and the orchestrator is drained. An enqueue after the
+    /// drain rejects with Shutdown. Shutdown must surface and be counted, but it must not
+    /// dead-letter.
+    /// </remarks>
     [Test]
     public async Task EnqueueRejected_ShutdownReason_DoesNotDeadLetter_ButIsCounted()
     {
-        // Arrange — routing decorator with a real DLQ, orchestrator drained.
         var options = Options.Create(new WorkOrchestratorOptions
         {
             Capacity = 4,
@@ -256,10 +265,8 @@ public class RejectionRoutingTests
 
         await orchestrator.DrainAsync().ConfigureAwait(false);
 
-        // Act — enqueue after drain rejects with Shutdown.
         var result = await routing.EnqueueAsync("late-item", WorkClass.Default).ConfigureAwait(false);
 
-        // Assert — Shutdown surfaced and counted, but never dead-lettered.
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(result.Reason).IsEqualTo(RejectionReason.Shutdown);
         await Assert.That(dlq.Count).IsEqualTo(0);
@@ -273,10 +280,14 @@ public class RejectionRoutingTests
     /// rejected.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The capacity is 1, so the first Interactive item is admitted and the second is rejected. The
+    /// instrument identity (name and unit) is part of the DR-3 evidence contract. The counter must
+    /// have exactly one increment, tagged by class and reason.
+    /// </remarks>
     [Test]
     public async Task RejectedCounter_TaggedByClassAndReason()
     {
-        // Arrange — capacity 1: first Interactive admitted, second rejected.
         var options = Options.Create(new WorkOrchestratorOptions
         {
             Capacity = 1,
@@ -298,14 +309,12 @@ public class RejectionRoutingTests
 
         using var collector = new RejectedCounterCollector(metrics.Rejected);
 
-        // Instrument identity is part of the DR-3 evidence contract.
         await Assert.That(metrics.Rejected.Name).IsEqualTo("bifrost.orchestrator.rejected");
         await Assert.That(metrics.Rejected.Unit).IsEqualTo("{item}");
 
         var accepted = await routing.EnqueueAsync("keep", WorkClass.Interactive).ConfigureAwait(false);
         var rejected = await routing.EnqueueAsync("shed", WorkClass.Interactive).ConfigureAwait(false);
 
-        // Assert — exactly one increment, tagged by class and reason.
         await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(rejected.IsAccepted).IsFalse();
 
@@ -320,6 +329,9 @@ public class RejectionRoutingTests
     /// Verifies that accepted enqueues never increment the rejected counter.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// Both items are admitted, so there are zero measurements.
+    /// </remarks>
     [Test]
     public async Task RejectedCounter_NotIncrementedOnAccepted()
     {
@@ -344,11 +356,9 @@ public class RejectionRoutingTests
 
         using var collector = new RejectedCounterCollector(metrics.Rejected);
 
-        // Act — both admitted.
         var first = await routing.EnqueueAsync("a", WorkClass.Interactive).ConfigureAwait(false);
         var second = await routing.EnqueueAsync("b", WorkClass.Interactive).ConfigureAwait(false);
 
-        // Assert — zero measurements.
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(collector.Snapshot().Count).IsEqualTo(0);
@@ -359,6 +369,10 @@ public class RejectionRoutingTests
     /// decorator wrapping the concrete orchestrator (DR-6 wiring).
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The routing decorator wraps the bare orchestrator. Without OpenTelemetry, no counter hook is
+    /// attached.
+    /// </remarks>
     [Test]
     public async Task WithDeadLetterQueue_RegistersRejectionRoutingDecorator()
     {
@@ -373,8 +387,6 @@ public class RejectionRoutingTests
 
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert — routing decorator wraps the bare orchestrator; without
-        // OpenTelemetry no counter hook is attached.
         var routing = orchestrator as RejectionRoutingOrchestrator<string>;
         await Assert.That(routing).IsNotNull();
         await Assert.That(routing!.Inner is WorkOrchestrator<string>).IsTrue();
@@ -387,6 +399,9 @@ public class RejectionRoutingTests
     /// independent of dead-letter configuration.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The counter hook is attached although no DLQ is configured.
+    /// </remarks>
     [Test]
     public async Task WithOpenTelemetry_AttachesRejectedCounterHook()
     {
@@ -401,7 +416,6 @@ public class RejectionRoutingTests
 
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert — the counter hook is attached even though no DLQ is configured.
         var routing = orchestrator as RejectionRoutingOrchestrator<string>;
         await Assert.That(routing).IsNotNull();
         await Assert.That(routing!.RejectionObserved).IsNotNull();
@@ -448,11 +462,15 @@ public class RejectionRoutingTests
         /// Initializes a new instance of the <see cref="RejectedCounterCollector"/> class.
         /// </summary>
         /// <param name="instrument">The exact instrument instance to observe.</param>
+        /// <remarks>
+        /// The <c>_listener.Start</c> call is necessary to activate the listener, so that
+        /// <c>OnMeasurement</c> fires.
+        /// </remarks>
         public RejectedCounterCollector(Instrument instrument)
         {
             _listener.SetMeasurementEventCallback<long>(OnMeasurement);
             _listener.EnableMeasurementEvents(instrument);
-            _listener.Start(); // Required to activate the listener so OnMeasurement fires.
+            _listener.Start();
         }
 
         /// <summary>

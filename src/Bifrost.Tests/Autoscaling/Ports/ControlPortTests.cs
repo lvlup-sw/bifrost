@@ -59,12 +59,14 @@ public class ControlPortTests
     /// <summary>
     /// Verifies that IAutoscalingControlPort defines CreateWorkerFunction method without callback.
     /// </summary>
+    /// <remarks>
+    /// The test gets the overload without parameters.
+    /// </remarks>
     [Test]
     public async Task Interface_DefinesCreateWorkerFunctionMethod()
     {
         var type = typeof(IAutoscalingControlPort);
 
-        // Act - Get the overload without parameters
         var methods = type.GetMethods()
             .Where(m => m.Name == nameof(IAutoscalingControlPort.CreateWorkerFunction))
             .ToArray();
@@ -78,12 +80,14 @@ public class ControlPortTests
     /// <summary>
     /// Verifies that IAutoscalingControlPort defines CreateWorkerFunction method with callback.
     /// </summary>
+    /// <remarks>
+    /// The test gets the overload with the <c>Action&lt;bool&gt;</c> parameter.
+    /// </remarks>
     [Test]
     public async Task Interface_DefinesCreateWorkerFunctionMethodWithCallback()
     {
         var type = typeof(IAutoscalingControlPort);
 
-        // Act - Get the overload with Action<bool> parameter
         var methods = type.GetMethods()
             .Where(m => m.Name == nameof(IAutoscalingControlPort.CreateWorkerFunction))
             .ToArray();

@@ -84,21 +84,22 @@ public sealed class PriorityDispatchAcceptanceTests
     /// key, so the ordering is deterministic — asserted exactly, no relaxation.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The trial gates a single worker on the first item, puts the batch backlog plus one
+    /// interactive item behind it, releases the gate, and drains. The gate dispatches first because
+    /// it captured the worker. The interactive item must be the IMMEDIATE next dispatch, although
+    /// 64 batch items were enqueued before it. The remainder must be exactly the batch backlog (no
+    /// loss, no duplication).
+    /// </remarks>
     [Test]
     public async Task Interactive_EnqueuedBehindNBatch_DispatchesNext_Locking()
     {
-        // Arrange / Act — gate a single worker on the first item, pile the batch
-        // backlog plus one interactive item behind it, release, drain.
         var order = await RunGatedBacklogTrialAsync(DispatchStrategy.PriorityExact).ConfigureAwait(false);
 
-        // Assert — the gate dispatched first (it captured the worker), and the
-        // interactive item is the IMMEDIATE next dispatch despite 64 batch items
-        // having been enqueued ahead of it.
         await Assert.That(order.Count).IsEqualTo(BatchBacklog + 2);
         await Assert.That(order[0]).IsEqualTo("gate");
         await Assert.That(order[1]).IsEqualTo("interactive");
 
-        // The remainder is exactly the batch backlog (no loss, no duplication).
         var tail = order.Skip(2).ToList();
         await Assert.That(tail.All(w => w.StartsWith("batch-", StringComparison.Ordinal))).IsTrue();
         await Assert.That(tail.Distinct().Count()).IsEqualTo(BatchBacklog);
@@ -152,22 +153,24 @@ public sealed class PriorityDispatchAcceptanceTests
     /// only when ≥ 10 of 20 trials do:
     /// <c>P(Binomial(20, 0.15) ≥ 10) ≈ 2×10⁻⁵</c>.
     /// </para>
+    /// <para><b>Test mechanics.</b> The test computes the rank-error bound from the same formula
+    /// that the structure documents (default sub-queue count). A self-check requires that the bound
+    /// is strictly below the FIFO position (N + 1) on EVERY host, because otherwise the assertion
+    /// is vacuous. The test then runs K independent trials. Each trial records the dispatch
+    /// position of the interactive item among the dispatches after the gate (1 = the very next).
+    /// <c>order[0]</c> is the gate, so the index within the full order IS the 1-based dispatch
+    /// position after the gate. The final assertion compares the median over the trials with the
+    /// bound.</para>
     /// </remarks>
     [Test]
     public async Task Interactive_EnqueuedBehindNBatch_DispatchesEarly_MultiQueue()
     {
-        // Arrange — the rank-error bound, computed from the same formula the
-        // structure documents (sub-queue count default).
         var subQueueCount = (int)BitOperations.RoundUpToPowerOf2((uint)(4 * Environment.ProcessorCount));
         var collapsedUniverse = Math.Min(subQueueCount, BatchBacklog);
         var bound = 1 + (int)Math.Ceiling(5.0 / 6.0 * collapsedUniverse);
 
-        // Self-check: the bound must be strictly below the FIFO position (N + 1) on
-        // EVERY host, or the assertion would be vacuous.
         await Assert.That(bound).IsLessThan(BatchBacklog + 1);
 
-        // Act — K independent trials, each recording the interactive item's
-        // dispatch position among the post-gate dispatches (1 = the very next).
         var positions = new List<int>(TrialCount);
         for (var trial = 0; trial < TrialCount; trial++)
         {
@@ -176,14 +179,11 @@ public sealed class PriorityDispatchAcceptanceTests
             await Assert.That(order.Count).IsEqualTo(BatchBacklog + 2);
             await Assert.That(order[0]).IsEqualTo("gate");
 
-            // Post-gate position: order[0] is the gate, so the index within the
-            // full order IS the 1-based post-gate dispatch position.
             var position = order.IndexOf("interactive");
             await Assert.That(position).IsGreaterThanOrEqualTo(1);
             positions.Add(position);
         }
 
-        // Assert — median over the trials within the rank-error-derived bound.
         var sorted = positions.Order().ToList();
         var median = (sorted[(TrialCount / 2) - 1] + sorted[TrialCount / 2]) / 2.0;
         await Assert.That(median).IsLessThanOrEqualTo(bound);
@@ -217,15 +217,24 @@ public sealed class PriorityDispatchAcceptanceTests
     /// pseudo-random class interleaving, per-class means differ only by ±few-ms
     /// noise around zero, which cannot clear 20 ms.
     /// </para>
+    /// <para><b>Test mechanics.</b> The test uses real time, because the waits must be real
+    /// durations. It has 4 workers, and the capacity is far above the peak backlog, so the
+    /// admission watermarks never shed (0.90 × 4096 = 3686 ≫ 600) and every enqueued item must
+    /// dispatch. Four concurrent producers enqueue mixed classes while the 4 workers consume
+    /// concurrently. Each producer uses a deterministic xorshift sequence. That sequence gives an
+    /// approximately uniform class spread with NO systematic correlation between class and enqueue
+    /// order, so FIFO shows no ordering. The test requires that nothing was shed and that
+    /// everything dispatched exactly one time. Each class must carry real statistical mass: the
+    /// deterministic seeds give approximately 200 items per class, and the minimum of 100 protects
+    /// the means against noise from small samples. The final assertions require the strict class
+    /// ordering of the mean dispatch wait, plus the separation floor that noise cannot
+    /// clear.</para>
     /// </remarks>
     [Test]
     [Arguments(DispatchStrategy.PriorityRelaxed)]
     [Arguments(DispatchStrategy.PriorityExact)]
     public async Task Interactive_UnderMultiProducerMultiConsumerLoad_LowerMeanWaitThanBatch(DispatchStrategy strategy)
     {
-        // Arrange — real time (waits must be real durations), 4 workers, capacity
-        // far above the peak backlog so the admission watermarks never shed
-        // (0.90 × 4096 = 3686 ≫ 600): every enqueued item must dispatch.
         const int producerCount = 4;
         const int itemsPerProducer = 150;
         var options = new WorkOrchestratorOptions
@@ -245,10 +254,6 @@ public sealed class PriorityDispatchAcceptanceTests
             NullLogger<WorkOrchestrator<string>>.Instance);
         orchestrator.QueueWaitObserved = (workClass, wait) => waits.Enqueue((workClass, wait));
 
-        // Act — 4 concurrent producers enqueue mixed classes (deterministic
-        // per-producer xorshift sequence: uniform-ish class spread with NO
-        // systematic class-vs-enqueue-order correlation, so FIFO would show no
-        // ordering) while the 4 workers consume concurrently.
         uint[] producerSeeds = [0x9E3779B9u, 0x85EBCA6Bu, 0xC2B2AE35u, 0x27D4EB2Fu];
         var producers = Enumerable.Range(0, producerCount)
             .Select(p => Task.Run(async () =>
@@ -276,15 +281,12 @@ public sealed class PriorityDispatchAcceptanceTests
         using var drainCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
 
-        // Assert — nothing was shed and everything dispatched exactly once.
         await Assert.That(rejectedCounts.Sum()).IsEqualTo(0);
         await Assert.That(waits.Count).IsEqualTo(producerCount * itemsPerProducer);
 
         var byClass = waits.GroupBy(w => w.Class)
             .ToDictionary(g => g.Key, g => g.Select(w => w.Wait.TotalMilliseconds).ToList());
 
-        // Each class carries real statistical mass (deterministic seeds give ~200
-        // per class; ≥ 100 guards the means against tiny-sample noise).
         await Assert.That(byClass[WorkClass.Interactive].Count).IsGreaterThanOrEqualTo(100);
         await Assert.That(byClass[WorkClass.Default].Count).IsGreaterThanOrEqualTo(100);
         await Assert.That(byClass[WorkClass.Batch].Count).IsGreaterThanOrEqualTo(100);
@@ -293,8 +295,6 @@ public sealed class PriorityDispatchAcceptanceTests
         var meanDefault = byClass[WorkClass.Default].Average();
         var meanBatch = byClass[WorkClass.Batch].Average();
 
-        // Strict class ordering of mean dispatch wait, plus the separation floor
-        // that noise cannot clear (see remarks).
         await Assert.That(meanInteractive).IsLessThan(meanDefault);
         await Assert.That(meanDefault).IsLessThan(meanBatch);
         await Assert.That(meanBatch - meanInteractive).IsGreaterThan(20.0);
@@ -310,16 +310,20 @@ public sealed class PriorityDispatchAcceptanceTests
     /// </summary>
     /// <param name="strategy">The dispatch strategy binding under test.</param>
     /// <returns>The complete dispatch order, beginning with the gate item.</returns>
+    /// <remarks>
+    /// The frozen clock gives every envelope the same enqueue timestamp, so only the class boost
+    /// decides the order. This gives determinism where it helps. The capacity of 256 keeps the
+    /// 66-item trial far below the Batch admission watermark (0.90 × 256 = 230), so nothing is shed
+    /// at admission. The trial captures the single worker on the gate item. Then it uses the
+    /// arrangement of the criterion: N batch items first, THEN the interactive item. At the end, it
+    /// releases the worker and drains everything.
+    /// </remarks>
     private static async Task<List<string>> RunGatedBacklogTrialAsync(DispatchStrategy strategy)
     {
-        // Frozen clock: every envelope gets the same enqueue timestamp, so ordering
-        // is decided purely by the class boost — determinism where it helps.
         var fakeTime = new FakeTimeProvider();
         var handler = new GateRecordingHandler();
         var options = new WorkOrchestratorOptions
         {
-            // Capacity 256 keeps the 66-item trial far below the Batch admission
-            // watermark (0.90 × 256 = 230): nothing is shed at admission.
             Capacity = 256,
             WorkerCount = 1,
             DispatchStrategy = strategy,
@@ -332,12 +336,10 @@ public sealed class PriorityDispatchAcceptanceTests
             NullLogger<WorkOrchestrator<string>>.Instance,
             fakeTime);
 
-        // Capture the single worker on the gate item.
         var gateAccepted = await orchestrator.EnqueueAsync("gate").ConfigureAwait(false);
         await Assert.That(gateAccepted).IsEqualTo(EnqueueResult.Accepted);
         await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // The criterion's arrangement: N batch items first, THEN the interactive item.
         for (var i = 0; i < BatchBacklog; i++)
         {
             var accepted = await orchestrator.EnqueueAsync($"batch-{i:D2}", WorkClass.Batch).ConfigureAwait(false);
@@ -347,7 +349,6 @@ public sealed class PriorityDispatchAcceptanceTests
         var interactiveAccepted = await orchestrator.EnqueueAsync("interactive", WorkClass.Interactive).ConfigureAwait(false);
         await Assert.That(interactiveAccepted).IsEqualTo(EnqueueResult.Accepted);
 
-        // Release the worker and drain everything.
         handler.ReleaseGate();
         using var drainCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);

@@ -262,7 +262,6 @@ public class AutoscalingCoordinatorTests
 
         await coordinator.RequestScaleUpAsync(3, CancellationToken.None).ConfigureAwait(false);
 
-        // Assert - 3 workers should be created via registry
         await _mockRegistry.Received(3).CreateWorkerAsync(
             Arg.Any<string>(),
             Arg.Any<Func<string, CancellationToken, Task>>(),
@@ -329,7 +328,6 @@ public class AutoscalingCoordinatorTests
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
         var mockEvent = Substitute.For<IOrchestratorEvent>();
 
-        // Act & Assert - should not throw
         await Assert.That(() => coordinator.PublishEvent(mockEvent)).ThrowsNothing();
     }
 

@@ -99,11 +99,14 @@ public class DeadLetterQueueOptionsTests
     /// Formula: total attempts = 1 (initial) + MaxRetries.
     /// This test makes the semantics explicit via DeadLetterHandler behavior.
     /// </summary>
+    /// <remarks>
+    /// <c>MaxRetries</c> = 3 means 1 initial attempt + 3 retries = 4 total attempts.
+    /// </remarks>
     [Test]
     public async Task MaxRetries_ClarifiesTotalAttempts_FormulaIs1PlusMaxRetries()
     {
         const int maxRetries = 3;
-        const int expectedTotalAttempts = 1 + maxRetries; // 4
+        const int expectedTotalAttempts = 1 + maxRetries;
 
         var innerHandler = Substitute.For<IWorkHandler<string>>();
         var dlq = Substitute.For<IDeadLetterQueue<string>>();
@@ -124,7 +127,6 @@ public class DeadLetterQueueOptionsTests
 
         await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
 
-        // Assert - MaxRetries=3 means 1 initial + 3 retries = 4 total attempts
         await Assert.That(actualCallCount).IsEqualTo(expectedTotalAttempts);
     }
 }

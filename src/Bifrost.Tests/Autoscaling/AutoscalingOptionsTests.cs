@@ -40,14 +40,16 @@ public class AutoscalingOptionsTests
     /// <summary>
     /// Verifies Enabled property can be set via object initializer and defaults to true.
     /// </summary>
+    /// <remarks>
+    /// The test first reads the default. Then it sets the value through an object initializer
+    /// (init-only).
+    /// </remarks>
     [Test]
     public async Task Enabled_DefaultsToTrue_CanBeSetViaInitializer()
     {
-        // Arrange - verify default
         var defaultOptions = new AutoscalingOptions();
         await Assert.That(defaultOptions.Enabled).IsTrue();
 
-        // Act - set via object initializer (init-only)
         var options = new AutoscalingOptions { Enabled = false };
 
         await Assert.That(options.Enabled).IsFalse();
@@ -140,10 +142,12 @@ public class AutoscalingOptionsTests
     /// <summary>
     /// Verifies properties can be set via object initializer.
     /// </summary>
+    /// <remarks>
+    /// The test sets all properties through an object initializer (init-only).
+    /// </remarks>
     [Test]
     public async Task Properties_CanBeSetViaInitializer()
     {
-        // Act - set all properties via object initializer (init-only)
         var options = new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -172,6 +176,7 @@ public class AutoscalingOptionsTests
     /// Init-only setters (get; init;) allow object initializer syntax and Options Pattern
     /// binding while preventing post-construction mutation. The IsExternalInit modifier
     /// on the setter's return parameter distinguishes init from set.
+    /// <para>The setter of each property must have the <c>IsExternalInit</c> modifier.</para>
     /// </remarks>
     [Test]
     public async Task Properties_AreInitOnly()
@@ -183,7 +188,6 @@ public class AutoscalingOptionsTests
             "LowWatermark", "CooldownPeriod", "ScaleUpStep", "ScaleDownStep", "CheckInterval",
         };
 
-        // Act & Assert - each property's setter should have IsExternalInit modifier
         foreach (var propertyName in propertyNames)
         {
             var property = type.GetProperty(propertyName);

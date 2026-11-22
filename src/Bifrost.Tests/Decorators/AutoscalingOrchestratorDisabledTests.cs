@@ -41,7 +41,6 @@ public class AutoscalingOrchestratorDisabledTests
         _options = new AutoscalingOptions { Enabled = false };
         _logger = Substitute.For<ILogger<AutoscalingOrchestrator<string>>>();
 
-        // Setup default property values
         _inner.PendingCount.Returns(0);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
@@ -101,7 +100,6 @@ public class AutoscalingOrchestratorDisabledTests
         await orchestrator.AbortAsync().ConfigureAwait(false);
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
-        // Assert - verify delegation without metrics
         _metrics.DidNotReceive().RecordEnqueue();
         await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
         await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
@@ -117,7 +115,6 @@ public class AutoscalingOrchestratorDisabledTests
         _ = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        // Assert - verify warning was logged
         _logger.Received(1).Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
@@ -131,6 +128,9 @@ public class AutoscalingOrchestratorDisabledTests
     /// <summary>
     /// Verifies ActiveWorkers only returns inner count when disabled.
     /// </summary>
+    /// <remarks>
+    /// When autoscaling is disabled, only the inner count applies.
+    /// </remarks>
     [Test]
     public async Task WhenDisabled_ActiveWorkers_OnlyInnerCount()
     {
@@ -142,7 +142,6 @@ public class AutoscalingOrchestratorDisabledTests
 
         var result = orchestrator.ActiveWorkers;
 
-        // Assert - Should only use inner count when disabled
         await Assert.That(result).IsEqualTo(5);
     }
 
@@ -157,7 +156,6 @@ public class AutoscalingOrchestratorDisabledTests
 
         await orchestrator.RequestScaleUpAsync(5).ConfigureAwait(false);
 
-        // Assert - no workers should be created
         await _registry.DidNotReceive().CreateWorkerAsync(
             Arg.Any<string>(),
             Arg.Any<Func<string, CancellationToken, Task>>(),
@@ -177,7 +175,6 @@ public class AutoscalingOrchestratorDisabledTests
 
         await orchestrator.RequestScaleDownAsync(3).ConfigureAwait(false);
 
-        // Assert - no workers should be stopped
         _registry.DidNotReceive().RequestMultipleWorkerStop(Arg.Any<int>());
     }
 }

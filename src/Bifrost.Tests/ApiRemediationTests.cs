@@ -167,6 +167,10 @@ public class ApiRemediationTests
     }
 
     /// <summary>Completion waits for an admitted producer before letting readers terminate.</summary>
+    /// <remarks>
+    /// The test uses dedicated threads. A saturated thread pool can delay <c>Task.Run</c> past the
+    /// spin window, and then the admission handshake never starts.
+    /// </remarks>
     [Test]
     public async Task RelaxedCompletionWaitsForInFlightPublication()
     {
@@ -182,8 +186,6 @@ public class ApiRemediationTests
         foreach (var stripe in stripes) stripe.SyncLock.Enter();
         try
         {
-            // Dedicated threads: a saturated pool can delay Task.Run past the spin
-            // window, and the admission handshake never starts.
             producer = Task.Factory.StartNew(
                 () => queue.Enqueue(new WorkEnvelope<string>("accepted", WorkClass.Interactive, 0)),
                 CancellationToken.None,

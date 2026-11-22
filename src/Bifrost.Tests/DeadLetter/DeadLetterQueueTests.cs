@@ -173,13 +173,16 @@ public class DeadLetterQueueTests
     /// <summary>
     /// Verifies that when at capacity, the oldest item is dropped.
     /// </summary>
+    /// <remarks>
+    /// The capacity is 3 and the test enqueues 4 items. The oldest item is dropped, and the newest
+    /// 3 remain.
+    /// </remarks>
     [Test]
     public async Task EnqueueAsync_AtCapacity_DropsOldest()
     {
         var options = Options.Create(new DeadLetterQueueOptions { Capacity = 3 });
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
 
-        // Enqueue 4 items (capacity is 3)
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("oldest", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("middle1", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("middle2", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
@@ -191,7 +194,6 @@ public class DeadLetterQueueTests
             results.Add(item);
         }
 
-        // Assert - oldest should be dropped, newest 3 remain
         await Assert.That(results.Count).IsEqualTo(3);
         await Assert.That(results[0].Work).IsEqualTo("middle1");
         await Assert.That(results[1].Work).IsEqualTo("middle2");
@@ -224,6 +226,10 @@ public class DeadLetterQueueTests
     /// <summary>
     /// Verifies that enqueueing at capacity increments DroppedCount.
     /// </summary>
+    /// <remarks>
+    /// The test fills the queue to capacity. Then it enqueues one more item, which drops the
+    /// oldest.
+    /// </remarks>
     [Test]
     public async Task EnqueueAsync_AtCapacity_IncrementsDroppedCount()
     {
@@ -231,11 +237,9 @@ public class DeadLetterQueueTests
         var logger = Substitute.For<ILogger<DeadLetterQueue<string>>>();
         var dlq = new DeadLetterQueue<string>(options, logger);
 
-        // Fill to capacity
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("first", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("second", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
 
-        // Act - enqueue one more, which should drop the oldest
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("third", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
 
         await Assert.That(dlq.DroppedCount).IsEqualTo(1L);
@@ -250,7 +254,6 @@ public class DeadLetterQueueTests
         var options = Options.Create(new DeadLetterQueueOptions { Capacity = 5 });
         var dlq = new DeadLetterQueue<string>(options, NullLogger<DeadLetterQueue<string>>.Instance);
 
-        // Act - enqueue items below capacity
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("first", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
         await dlq.EnqueueAsync(new DeadLetteredWork<string>("second", null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
 

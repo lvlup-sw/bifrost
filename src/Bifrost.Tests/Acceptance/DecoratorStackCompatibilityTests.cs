@@ -62,14 +62,22 @@ public sealed class DecoratorStackCompatibilityTests
     /// </summary>
     /// <param name="strategy">The dispatch strategy binding under test.</param>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// <para>The builder makes the full stack. The capacity is far above the backlog, so no
+    /// admission watermark sheds (0.90 × 64 = 57 ≫ 12). The test enqueues a mixed-class backlog
+    /// through the decorated surface. Every item must be processed exactly one time (no loss, no
+    /// duplication), and the dead-letter pathway must stay untouched (no failures and no rejections
+    /// anywhere in the stack).</para>
+    /// <para><c>WorkOrchestrator.DisposeAsync</c> owns the cleanup. The test disposes the
+    /// orchestrator, not the provider, to prevent the double-dispose path on resources that the
+    /// orchestrator owns.</para>
+    /// </remarks>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
     [Arguments(DispatchStrategy.PriorityRelaxed)]
     [Arguments(DispatchStrategy.PriorityExact)]
     public async Task FullStack_RoundTrip_WorkProcessed(DispatchStrategy strategy)
     {
-        // Arrange — full stack via the builder; capacity far above the backlog so
-        // no admission watermark sheds (0.90 × 64 = 57 ≫ 12).
         var handler = new MatrixHandler();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -89,7 +97,6 @@ public sealed class DecoratorStackCompatibilityTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Act — enqueue a mixed-class backlog through the decorated surface.
         const int itemCount = 12;
         for (var i = 0; i < itemCount; i++)
         {
@@ -102,18 +109,13 @@ public sealed class DecoratorStackCompatibilityTests
         using var drainCts = new CancellationTokenSource(WaitTimeout);
         await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
 
-        // Assert — every item processed exactly once (no loss, no duplication).
         var processed = handler.ProcessedSnapshot();
         await Assert.That(processed.Count).IsEqualTo(itemCount);
         await Assert.That(processed.Distinct().Count()).IsEqualTo(itemCount);
 
-        // Assert — the dead-letter pathway stayed untouched (no failures, no
-        // rejections anywhere in the stack).
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
         await Assert.That(dlq.Count).IsEqualTo(0);
 
-        // Cleanup is owned by WorkOrchestrator.DisposeAsync — dispose the orchestrator
-        // rather than the provider to avoid the double-dispose path on orchestrator-owned resources.
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -127,13 +129,20 @@ public sealed class DecoratorStackCompatibilityTests
     /// </summary>
     /// <param name="strategy">The dispatch strategy binding under test.</param>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The full stack has a single worker, so one gate item parks ALL consumers. The worker
+    /// dequeues the gate item, so the gate item never counts as pending, and the queue is quiescent
+    /// after that point. The mixed-class backlog behind the parked worker is 10 items, much less
+    /// than the 0.90 × 64 Batch watermark, so every class admits. The quiescent depth must be exact
+    /// through every decorator layer. After the gate releases and the queue drains, the depth
+    /// returns to zero, which is also exact at quiescence.
+    /// </remarks>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
     [Arguments(DispatchStrategy.PriorityRelaxed)]
     [Arguments(DispatchStrategy.PriorityExact)]
     public async Task PendingCount_ApproximateTolerant_AllStrategies(DispatchStrategy strategy)
     {
-        // Arrange — full stack, single worker so one gate item parks ALL consumers.
         var handler = new MatrixHandler();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -153,14 +162,10 @@ public sealed class DecoratorStackCompatibilityTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Park the single worker: the gate item is dequeued (so it never counts as
-        // pending) and the queue is quiescent from here on.
         var gateResult = await orchestrator.EnqueueAsync("gate").ConfigureAwait(false);
         await Assert.That(gateResult).IsEqualTo(EnqueueResult.Accepted);
         await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Act — a mixed-class backlog behind the parked worker (10 ≪ the 0.90 × 64
-        // Batch watermark, so every class admits).
         const int depth = 10;
         for (var i = 0; i < depth; i++)
         {
@@ -170,10 +175,8 @@ public sealed class DecoratorStackCompatibilityTests
             await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         }
 
-        // Assert — quiescent depth is exact through every decorator layer.
         await Assert.That(orchestrator.PendingCount).IsEqualTo(depth);
 
-        // Release and drain — depth returns to zero (also exact at quiescence).
         handler.ReleaseGate();
         using var drainCts = new CancellationTokenSource(WaitTimeout);
         await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
@@ -190,14 +193,18 @@ public sealed class DecoratorStackCompatibilityTests
     /// </summary>
     /// <param name="strategy">The dispatch strategy binding under test.</param>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The DLQ has one retry, so the poison item fails two times and then dead-letters with
+    /// <c>AttemptCount</c> 2. The test puts the poison item between two healthy items. Exactly the
+    /// poison item must dead-letter, with the handler's own exception and the exhausted attempt
+    /// count (1 initial + 1 retry). The healthy items around the failure must process normally.
+    /// </remarks>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
     [Arguments(DispatchStrategy.PriorityRelaxed)]
     [Arguments(DispatchStrategy.PriorityExact)]
     public async Task DlqHandlerFailure_RoutesPerStrategy(DispatchStrategy strategy)
     {
-        // Arrange — DLQ with one retry: the poison item fails twice, then
-        // dead-letters with AttemptCount 2.
         var handler = new MatrixHandler();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -215,7 +222,6 @@ public sealed class DecoratorStackCompatibilityTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Act — a poison item between two healthy ones.
         var first = await orchestrator.EnqueueAsync("ok-1").ConfigureAwait(false);
         var poison = await orchestrator.EnqueueAsync("poison-item").ConfigureAwait(false);
         var second = await orchestrator.EnqueueAsync("ok-2").ConfigureAwait(false);
@@ -226,8 +232,6 @@ public sealed class DecoratorStackCompatibilityTests
         using var drainCts = new CancellationTokenSource(WaitTimeout);
         await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
 
-        // Assert — exactly the poison item dead-lettered, with the handler's own
-        // exception and the exhausted attempt count (1 initial + 1 retry).
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
         var entries = await ReadAllEntriesAsync(dlq).ConfigureAwait(false);
         await Assert.That(entries.Count).IsEqualTo(1);
@@ -235,7 +239,6 @@ public sealed class DecoratorStackCompatibilityTests
         await Assert.That(entries[0].AttemptCount).IsEqualTo(2);
         await Assert.That(entries[0].Exception is InvalidOperationException).IsTrue();
 
-        // Assert — the healthy items processed normally around the failure.
         var processed = handler.ProcessedSnapshot();
         await Assert.That(processed.Count).IsEqualTo(2);
         await Assert.That(processed).Contains("ok-1");
@@ -255,13 +258,19 @@ public sealed class DecoratorStackCompatibilityTests
     /// </summary>
     /// <param name="strategy">The priority binding under test.</param>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The capacity is 2 and the single worker is parked, so the queue state is deterministic while
+    /// the test fills to hard capacity (Interactive watermark 1.0). The test parks the worker,
+    /// fills to capacity, and then sheds one item. The caller must still receive the typed
+    /// rejection (no swallowing). The shed item must be in the dead-letter pathway with the marker
+    /// that identifies a rejection. At the end, the test releases the parked worker so that
+    /// disposal does not wait.
+    /// </remarks>
     [Test]
     [Arguments(DispatchStrategy.PriorityRelaxed)]
     [Arguments(DispatchStrategy.PriorityExact)]
     public async Task DlqAdmissionRejection_RoutesOnPriorityStrategies(DispatchStrategy strategy)
     {
-        // Arrange — capacity 2, single worker parked: the queue state is
-        // deterministic while filling to hard capacity (Interactive watermark 1.0).
         var handler = new MatrixHandler();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -280,7 +289,6 @@ public sealed class DecoratorStackCompatibilityTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        // Act — park the worker, fill to capacity, then shed one.
         var parked = await orchestrator.EnqueueAsync("gate", WorkClass.Interactive).ConfigureAwait(false);
         await Assert.That(parked).IsEqualTo(EnqueueResult.Accepted);
         await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
@@ -289,14 +297,11 @@ public sealed class DecoratorStackCompatibilityTests
         var second = await orchestrator.EnqueueAsync("keep-2", WorkClass.Interactive).ConfigureAwait(false);
         var shed = await orchestrator.EnqueueAsync("shed-item", WorkClass.Interactive).ConfigureAwait(false);
 
-        // Assert — the caller still receives the typed rejection (no swallowing).
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(shed.IsAccepted).IsFalse();
         await Assert.That(shed.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
 
-        // Assert — the shed item is in the dead-letter pathway with the
-        // rejection-distinguishing marker.
         var entries = await ReadAllEntriesAsync(dlq).ConfigureAwait(false);
         await Assert.That(entries.Count).IsEqualTo(1);
         await Assert.That(entries[0].Work).IsEqualTo("shed-item");
@@ -305,7 +310,6 @@ public sealed class DecoratorStackCompatibilityTests
         await Assert.That(marker).IsNotNull();
         await Assert.That(marker!.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
 
-        // Cleanup — release the parked worker so disposal does not wait.
         handler.ReleaseGate();
 
         await orchestrator.DisposeAsync().ConfigureAwait(false);
@@ -318,11 +322,18 @@ public sealed class DecoratorStackCompatibilityTests
     /// pathway never produces a dead-letter entry.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The capacity is 2, the single worker is parked, and the DLQ is configured. If FIFO ever made
+    /// admission entries, this stack would capture them. The test parks the worker and fills to
+    /// capacity. The overflow enqueue must WAIT (producer-wait), not fail fast: the queue is full
+    /// and the only consumer is parked, so the enqueue cannot be complete. No admission entry can
+    /// exist while the producer waits. When the worker is released, space becomes free and the wait
+    /// resolves to acceptance. At the end, everything must be processed, and the FIFO admission
+    /// pathway must not have dead-lettered anything.
+    /// </remarks>
     [Test]
     public async Task DlqAdmissionAtCapacity_Fifo_WaitsWithoutDeadLettering()
     {
-        // Arrange — capacity 2, single worker parked, DLQ configured: if FIFO ever
-        // produced admission entries, this stack would capture them.
         var handler = new MatrixHandler();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -340,7 +351,6 @@ public sealed class DecoratorStackCompatibilityTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        // Park the worker and fill to capacity.
         var parked = await orchestrator.EnqueueAsync("gate").ConfigureAwait(false);
         await Assert.That(parked).IsEqualTo(EnqueueResult.Accepted);
         await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
@@ -350,15 +360,11 @@ public sealed class DecoratorStackCompatibilityTests
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
 
-        // Act — the overflow enqueue must WAIT (producer-wait), not fail fast: with
-        // the queue full and the only consumer parked, it cannot have completed.
         var overflow = orchestrator.EnqueueAsync("overflow");
         await Assert.That(overflow.IsCompleted).IsFalse();
 
-        // Assert — no admission entry exists while the producer is waiting.
         await Assert.That(dlq.Count).IsEqualTo(0);
 
-        // Release the worker: space frees, the wait resolves to acceptance.
         handler.ReleaseGate();
         var overflowResult = await overflow.ConfigureAwait(false);
         await Assert.That(overflowResult).IsEqualTo(EnqueueResult.Accepted);
@@ -366,8 +372,6 @@ public sealed class DecoratorStackCompatibilityTests
         using var drainCts = new CancellationTokenSource(WaitTimeout);
         await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
 
-        // Assert — everything processed, and the FIFO admission pathway never
-        // dead-lettered anything.
         await Assert.That(handler.ProcessedSnapshot().Count).IsEqualTo(4);
         await Assert.That(dlq.Count).IsEqualTo(0);
 
@@ -382,14 +386,25 @@ public sealed class DecoratorStackCompatibilityTests
     /// </summary>
     /// <param name="strategy">The dispatch strategy binding under test.</param>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// <para>The stack has only the event stream (the outermost decorator). The capacity is 4, so
+    /// the declined-admission leg is reachable on every strategy through <c>TryEnqueue</c>.</para>
+    /// <para>The test subscribes BEFORE it acts. <c>GetEventStreamAsync</c> registers the
+    /// subscriber channel eagerly at call time, so no event published after these calls can be
+    /// missed. <c>DrainAsync</c> completes the channels, and that ends the collectors.</para>
+    /// <para>The test parks the worker and fills to hard capacity (Interactive watermark 1.0). Then
+    /// it attempts one <c>TryEnqueue</c> over capacity, which is declined on every strategy (FIFO:
+    /// full channel, priority: fail-fast admission). The drain processes the backlog and then
+    /// completes the subscriber channels. There must be enqueued events for exactly the five
+    /// accepted items and never for the declined overflow. Work-processed events must flow for all
+    /// five accepted items.</para>
+    /// </remarks>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
     [Arguments(DispatchStrategy.PriorityRelaxed)]
     [Arguments(DispatchStrategy.PriorityExact)]
     public async Task EventStream_PublishesPerStrategy(DispatchStrategy strategy)
     {
-        // Arrange — event stream only (outermost decorator), capacity 4 so the
-        // declined-admission leg is reachable on every strategy via TryEnqueue.
         var handler = new MatrixHandler();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -409,9 +424,6 @@ public sealed class DecoratorStackCompatibilityTests
         var eventStream = orchestrator as IEventStreamOrchestrator<string>;
         await Assert.That(eventStream).IsNotNull();
 
-        // Subscribe BEFORE acting — GetEventStreamAsync registers the subscriber
-        // channel eagerly at call time, so no event published after these calls can
-        // be missed; DrainAsync completes the channels, ending the collectors.
         var enqueuedWorks = new ConcurrentQueue<string>();
         var completedWorks = new ConcurrentQueue<(string Work, bool Success)>();
         var enqueuedStream = eventStream!.GetEventStreamAsync<WorkEnqueuedEvent<string>>();
@@ -431,9 +443,6 @@ public sealed class DecoratorStackCompatibilityTests
             }
         });
 
-        // Act — park the worker, fill to hard capacity (Interactive watermark 1.0),
-        // then attempt one over-capacity TryEnqueue: declined on every strategy
-        // (FIFO: full channel; priority: fail-fast admission).
         var parked = await orchestrator.EnqueueAsync("gate", WorkClass.Interactive).ConfigureAwait(false);
         await Assert.That(parked).IsEqualTo(EnqueueResult.Accepted);
         await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
@@ -449,20 +458,16 @@ public sealed class DecoratorStackCompatibilityTests
         var overflowAdmitted = orchestrator.TryEnqueue("overflow", WorkClass.Interactive);
         await Assert.That(overflowAdmitted).IsFalse();
 
-        // Drain — processes the backlog, then completes the subscriber channels.
         handler.ReleaseGate();
         using var drainCts = new CancellationTokenSource(WaitTimeout);
         await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
         await Task.WhenAll(enqueuedCollector, completedCollector).WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Assert — enqueued events for exactly the five accepted items, never for
-        // the declined overflow.
         var enqueued = enqueuedWorks.ToList();
         await Assert.That(enqueued.Count).IsEqualTo(5);
         await Assert.That(enqueued.Contains("overflow")).IsFalse();
         await Assert.That(enqueued.Contains("gate")).IsTrue();
 
-        // Assert — work-processed events flowed for all five accepted items.
         var completed = completedWorks.ToList();
         await Assert.That(completed.Count).IsEqualTo(5);
         await Assert.That(completed.All(c => c.Success)).IsTrue();
@@ -483,13 +488,18 @@ public sealed class DecoratorStackCompatibilityTests
     /// </summary>
     /// <param name="strategy">The dispatch strategy binding under test.</param>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The test uses the full stack plus health checks. It resolves the orchestrator singleton so
+    /// that the check observes the live instance. The check with the default name must be
+    /// registered and must report Healthy on the idle orchestrator (0% utilization), for every
+    /// binding.
+    /// </remarks>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
     [Arguments(DispatchStrategy.PriorityRelaxed)]
     [Arguments(DispatchStrategy.PriorityExact)]
     public async Task HealthCheck_RegistersAndReportsPerStrategy(DispatchStrategy strategy)
     {
-        // Arrange — full stack plus health checks.
         var handler = new MatrixHandler();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -509,15 +519,12 @@ public sealed class DecoratorStackCompatibilityTests
 
         var provider = services.BuildServiceProvider();
 
-        // Realize the orchestrator singleton so the check observes the live instance.
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         await Assert.That(orchestrator).IsNotNull();
 
         var healthService = provider.GetRequiredService<HealthCheckService>();
         var report = await healthService.CheckHealthAsync().ConfigureAwait(false);
 
-        // Assert — the default-named check is registered and reports Healthy on the
-        // idle (0% utilization) orchestrator, for every binding.
         await Assert.That(report.Entries.ContainsKey("WorkOrchestrator<String>")).IsTrue();
         await Assert.That(report.Entries["WorkOrchestrator<String>"].Status).IsEqualTo(HealthStatus.Healthy);
         await Assert.That(report.Status).IsEqualTo(HealthStatus.Healthy);
@@ -534,14 +541,22 @@ public sealed class DecoratorStackCompatibilityTests
     /// </summary>
     /// <param name="strategy">The dispatch strategy binding under test.</param>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The full stack has autoscaling and a single built-in worker. The gate item parks that
+    /// worker, so only the dynamic worker can drain the backlog. The test makes one dynamic worker
+    /// through the decorated surface, and the autoscaling decorator wraps that worker with metrics
+    /// instrumentation. The dynamic worker alone must consume the full backlog while the built-in
+    /// worker stays parked (the gate item never completes). At the end, the test releases the gate,
+    /// drains, and stops the dynamic worker. The dynamic worker exits normally when the drained
+    /// queue completes, and cancellation is a backstop. An <c>OperationCanceledException</c> is
+    /// expected during this shutdown.
+    /// </remarks>
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
     [Arguments(DispatchStrategy.PriorityRelaxed)]
     [Arguments(DispatchStrategy.PriorityExact)]
     public async Task Autoscaling_DynamicWorkers_ConsumePerStrategy(DispatchStrategy strategy)
     {
-        // Arrange — full stack with autoscaling; a single built-in worker that the
-        // gate item will park, leaving the backlog exclusively to the dynamic worker.
         var handler = new MatrixHandler();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -561,12 +576,10 @@ public sealed class DecoratorStackCompatibilityTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Park the built-in worker.
         var parked = await orchestrator.EnqueueAsync("gate").ConfigureAwait(false);
         await Assert.That(parked).IsEqualTo(EnqueueResult.Accepted);
         await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Backlog that only a dynamic worker can drain.
         const int itemCount = 6;
         for (var i = 0; i < itemCount; i++)
         {
@@ -576,14 +589,10 @@ public sealed class DecoratorStackCompatibilityTests
             await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         }
 
-        // Act — one dynamically created worker through the decorated surface (the
-        // autoscaling decorator wraps it with metrics instrumentation).
         using var workerCts = new CancellationTokenSource();
         var workerFunc = orchestrator.CreateWorkerFunction();
         var workerTask = Task.Run(() => workerFunc("dynamic-worker", workerCts.Token));
 
-        // Assert — the dynamic worker alone consumed the entire backlog while the
-        // built-in worker stayed parked (the gate item never completed).
         await handler.WaitForProcessedCountAsync(itemCount, WaitTimeout).ConfigureAwait(false);
         var processed = handler.ProcessedSnapshot();
         await Assert.That(processed.Count).IsEqualTo(itemCount);
@@ -593,8 +602,6 @@ public sealed class DecoratorStackCompatibilityTests
             await Assert.That(processed).Contains($"item-{i}");
         }
 
-        // Cleanup — release the gate, drain, and stop the dynamic worker (it exits
-        // naturally once the drained queue completes; cancellation is a backstop).
         handler.ReleaseGate();
         using var drainCts = new CancellationTokenSource(WaitTimeout);
         await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
@@ -605,7 +612,6 @@ public sealed class DecoratorStackCompatibilityTests
         }
         catch (OperationCanceledException)
         {
-            // Expected during shutdown.
         }
 
         await orchestrator.DisposeAsync().ConfigureAwait(false);

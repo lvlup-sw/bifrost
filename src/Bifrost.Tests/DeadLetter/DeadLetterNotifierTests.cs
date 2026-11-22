@@ -44,16 +44,17 @@ public class DeadLetterNotifierTests
     /// <summary>
     /// Verifies that Notify without a subscriber does not throw.
     /// </summary>
+    /// <remarks>
+    /// If the call returns, no exception was thrown.
+    /// </remarks>
     [Test]
     public async Task Notify_WithoutSubscriber_DoesNotThrow()
     {
         var notifier = CreateNotifier();
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
-        // Act - should not throw
         notifier.Notify(evt);
 
-        // Assert - if we get here, no exception was thrown
         var completed = true;
         await Assert.That(completed).IsTrue();
     }
@@ -100,13 +101,15 @@ public class DeadLetterNotifierTests
     /// Verifies that multiple subscribers can be registered without throwing.
     /// Replaces the old single-subscriber restriction test.
     /// </summary>
+    /// <remarks>
+    /// The second <c>Subscribe</c> call must NOT throw.
+    /// </remarks>
     [Test]
     public async Task Subscribe_Multiple_DoesNotThrow()
     {
         var notifier = CreateNotifier();
         notifier.Subscribe(_ => { });
 
-        // Act & Assert - second Subscribe should NOT throw
         var secondSubscription = notifier.Subscribe(_ => { });
         await Assert.That(secondSubscription).IsNotNull();
     }
@@ -139,6 +142,10 @@ public class DeadLetterNotifierTests
     /// <summary>
     /// Verifies that Notify invokes all registered subscribers when multiple are registered.
     /// </summary>
+    /// <remarks>
+    /// The test awaits all three fire-and-forget callbacks deterministically. It does not race a
+    /// fixed delay.
+    /// </remarks>
     [Test]
     public async Task Notify_WithMultipleSubscribers_InvokesAllCallbacks()
     {
@@ -169,8 +176,6 @@ public class DeadLetterNotifierTests
 
         notifier.Notify(evt);
 
-        // Assert — await all three fire-and-forget callbacks deterministically rather than racing a
-        // fixed delay.
         await Task.WhenAll(done1.Task, done2.Task, done3.Task).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(callCount1).IsEqualTo(1);
         await Assert.That(callCount2).IsEqualTo(1);
@@ -180,6 +185,10 @@ public class DeadLetterNotifierTests
     /// <summary>
     /// Verifies that when one subscriber throws, other subscribers are still invoked.
     /// </summary>
+    /// <remarks>
+    /// Both subscribers that do not throw must run, although the middle one throws. The test awaits
+    /// them deterministically. It does not race a fixed delay.
+    /// </remarks>
     [Test]
     public async Task Notify_SubscriberThrows_OtherSubscribersStillCalled()
     {
@@ -205,8 +214,6 @@ public class DeadLetterNotifierTests
 
         notifier.Notify(evt);
 
-        // Assert - both non-throwing subscribers run even though the middle one throws; await them
-        // deterministically rather than racing a fixed delay.
         await Task.WhenAll(beforeDone.Task, afterDone.Task).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(beforeCallCount).IsEqualTo(1);
         await Assert.That(afterCallCount).IsEqualTo(1);
@@ -215,6 +222,10 @@ public class DeadLetterNotifierTests
     /// <summary>
     /// Verifies that when a subscriber throws, the exception does not propagate to the caller of Notify.
     /// </summary>
+    /// <remarks>
+    /// The <c>Notify</c> call must NOT throw. The delay lets the fire-and-forget tasks complete. If
+    /// the test gets past the call, no exception was thrown synchronously.
+    /// </remarks>
     [Test]
     public async Task Notify_SubscriberThrows_DoesNotPropagateToCallerSynchronously()
     {
@@ -223,13 +234,10 @@ public class DeadLetterNotifierTests
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
-        // Act - should NOT throw
         notifier.Notify(evt);
 
-        // Allow fire-and-forget tasks to complete
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Assert - if we get here, no exception was thrown synchronously
         var completed = true;
         await Assert.That(completed).IsTrue();
     }
@@ -237,6 +245,10 @@ public class DeadLetterNotifierTests
     /// <summary>
     /// Verifies that the async Subscribe overload works with async callbacks.
     /// </summary>
+    /// <remarks>
+    /// The test awaits the fire-and-forget callback deterministically. It does not race a fixed
+    /// delay, because the fixed <c>Task.Delay</c> caused CI flakiness under load.
+    /// </remarks>
     [Test]
     public async Task SubscribeAsync_WithAsyncCallback_InvokesCallback()
     {
@@ -252,8 +264,6 @@ public class DeadLetterNotifierTests
 
         notifier.Notify(evt);
 
-        // Assert — await the fire-and-forget callback deterministically rather than racing a fixed
-        // delay (the fixed Task.Delay was the source of CI flakiness under load).
         var observed = await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await Assert.That(observed).IsEqualTo(evt);
     }

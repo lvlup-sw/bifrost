@@ -54,6 +54,9 @@ public class AutoscalingEngineTimerTests
     /// <summary>
     /// Verifies that StartAsync is idempotent.
     /// </summary>
+    /// <remarks>
+    /// The second <c>StartAsync</c> call must be idempotent.
+    /// </remarks>
     [Test]
     public async Task StartAsync_WhenAlreadyRunning_RemainsRunning()
     {
@@ -62,7 +65,7 @@ public class AutoscalingEngineTimerTests
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
         await engine.StartAsync().ConfigureAwait(false);
-        await engine.StartAsync().ConfigureAwait(false); // Second call should be idempotent
+        await engine.StartAsync().ConfigureAwait(false);
 
         await Assert.That(engine.IsRunning).IsTrue();
 
@@ -88,6 +91,9 @@ public class AutoscalingEngineTimerTests
     /// <summary>
     /// Verifies that StopAsync is idempotent.
     /// </summary>
+    /// <remarks>
+    /// The <c>StopAsync</c> call must not throw.
+    /// </remarks>
     [Test]
     public async Task StopAsync_WhenNotRunning_RemainsNotRunning()
     {
@@ -95,7 +101,7 @@ public class AutoscalingEngineTimerTests
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        await engine.StopAsync().ConfigureAwait(false); // Should not throw
+        await engine.StopAsync().ConfigureAwait(false);
 
         await Assert.That(engine.IsRunning).IsFalse();
     }
@@ -103,6 +109,10 @@ public class AutoscalingEngineTimerTests
     /// <summary>
     /// Verifies that the timer fires at the configured interval.
     /// </summary>
+    /// <remarks>
+    /// The test waits for the events deterministically, because the thread pool can be slow under
+    /// CI load. It must receive at least 2 evaluations.
+    /// </remarks>
     [Test]
     public async Task StartAsync_WithCheckInterval_FiresEvaluationPeriodically()
     {
@@ -122,14 +132,12 @@ public class AutoscalingEngineTimerTests
 
         await engine.StartAsync().ConfigureAwait(false);
 
-        // Wait for events deterministically (thread pool may be slow under CI load)
         var completed = await Task.WhenAny(
             twoEventsReceived.Task,
             Task.Delay(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
 
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert - Should have received at least 2 evaluations
         await Assert.That(ReferenceEquals(completed, twoEventsReceived.Task)).IsTrue();
         await Assert.That(eventCount).IsGreaterThanOrEqualTo(2);
     }
@@ -137,6 +145,10 @@ public class AutoscalingEngineTimerTests
     /// <summary>
     /// Verifies that stopping the engine stops the timer.
     /// </summary>
+    /// <remarks>
+    /// The test waits for at least one event before it stops the engine. The 300 ms delay after the
+    /// stop makes sure that no more evaluations occur. No new events can arrive after the stop.
+    /// </remarks>
     [Test]
     public async Task StopAsync_StopsTimerEvaluation()
     {
@@ -154,14 +166,12 @@ public class AutoscalingEngineTimerTests
 
         await engine.StartAsync().ConfigureAwait(false);
 
-        // Wait for at least one event before stopping
         await firstEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
         await engine.StopAsync().ConfigureAwait(false);
         var countAfterStop = eventCount;
-        await Task.Delay(300).ConfigureAwait(false); // Wait to ensure no more evaluations
+        await Task.Delay(300).ConfigureAwait(false);
 
-        // Assert - No new events after stop
         await Assert.That(eventCount).IsEqualTo(countAfterStop);
     }
 
