@@ -169,9 +169,11 @@ public sealed class BackoffBetweenRestartsTests
     /// final <c>await stop</c> rethrows any exception that the loop leaked on stop.
     /// </para>
     /// <para>
-    /// A clean cancellation is not a fault. The loop must not go to the faulted state and must not
-    /// log the loop-gave-up message. The test asserts only <c>IsFaulted</c>. It creates a
-    /// <c>CapturingLogger</c> but does not assert on the log.
+    /// A clean cancellation is not a fault. The loop must not go to the faulted state, and its
+    /// execute task must run to completion rather than end as canceled or faulted. The log must
+    /// hold exactly the two critical "will restart" entries for the two injected faults, and no
+    /// loop-gave-up entry. The sink must see no third fault event. So a stop that is handled as
+    /// a fault, or a cancellation that escapes the backoff, fails the test.
     /// </para>
     /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
@@ -200,6 +202,11 @@ public sealed class BackoffBetweenRestartsTests
         await stop.ConfigureAwait(false);
 
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
+        await Assert.That(((BackgroundService)fx.Loop).ExecuteTask!.IsCompletedSuccessfully).IsTrue();
+        await Assert.That(sink.FaultCount).IsEqualTo(2);
+        await Assert.That(logger.Entries.Count(e => e.Level == LogLevel.Critical && e.Message.Contains("will restart", StringComparison.Ordinal)))
+            .IsEqualTo(2);
+        await Assert.That(logger.Contains(LogLevel.Critical, "transitioned to the faulted state")).IsFalse();
         fx.Loop.Dispose();
     }
 

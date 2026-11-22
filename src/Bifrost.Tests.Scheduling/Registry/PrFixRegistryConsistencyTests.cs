@@ -55,10 +55,12 @@ public sealed class PrFixRegistryConsistencyTests
     /// and the test does not presume which.
     /// </para>
     /// <para>
-    /// <c>ReleaseAfterArrivalGraceAsync</c> releases the gate after both registrants have either
-    /// entered <c>SaveAsync</c> or bailed out before it. With the fix, only the winner reaches the
-    /// gate. With the bug, both do. The release comes after a short bounded grace, so the test
-    /// never wedges if only one registrant arrives.
+    /// <c>ReleaseAfterFirstArrivalAsync</c> releases the gate as soon as the first registrant
+    /// arrives in <c>SaveAsync</c>, with no fixed delay. The registry holds a per-name mutation
+    /// lease for the whole registration, so the second registrant cannot reach the store while the
+    /// first is parked at the gate. It runs after the release. With the fix it sees the claimed
+    /// slot and throws. With a persist-first ordering it writes its payload, which the extra
+    /// permits let through, and the save-count and payload assertions catch it.
     /// </para>
     /// <para>
     /// The test requires exactly one winner and one loser, and the in-memory registry must hold the
@@ -106,7 +108,7 @@ public sealed class PrFixRegistryConsistencyTests
             }
         });
 
-        await store.ReleaseAfterArrivalGraceAsync().ConfigureAwait(false);
+        await store.ReleaseAfterFirstArrivalAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
         var results = await Task.WhenAll(taskA, taskB).ConfigureAwait(false);
 
@@ -172,8 +174,8 @@ public sealed class PrFixRegistryConsistencyTests
     /// <summary>
     /// A store whose <see cref="SaveAsync"/> blocks on a gate and records every
     /// persisted record, so a test can observe whether a losing registrant ever
-    /// wrote. The gate is released by the test once both registrants have arrived,
-    /// or after a bounded grace if only one ever arrives (the fixed code path).
+    /// wrote. The test releases the gate when the arrival count shows that the first
+    /// registrant has reached <see cref="SaveAsync"/>.
     /// </summary>
     private sealed class GatingStore : IScheduleStore
     {
@@ -186,9 +188,8 @@ public sealed class PrFixRegistryConsistencyTests
 
         public int Arrivals => Volatile.Read(ref this.arrivals);
 
-        // Counts each arrival in arrivals (exposed as Arrivals) before it waits on the gate. The
-        // count is there to coordinate the gate release, but no test reads it now:
-        // ReleaseAfterArrivalGraceAsync waits a fixed grace instead.
+        // Counts each arrival in arrivals (exposed as Arrivals) before it waits on the gate.
+        // ReleaseAfterFirstArrivalAsync reads the count to release the gate.
         public async ValueTask SaveAsync(JobRecord job, CancellationToken ct)
         {
             ArgumentNullException.ThrowIfNull(job);
@@ -217,19 +218,29 @@ public sealed class PrFixRegistryConsistencyTests
         }
 
         /// <summary>
-        /// Releases the SaveAsync gate after a short bounded grace, by which point any
-        /// registrant that is going to reach SaveAsync has done so (the winner under
-        /// the fix; both registrants under the bug). Releases generously so no
-        /// registrant blocks. The grace is bounded so the test never wedges.
+        /// Waits until the first registrant has arrived in <see cref="SaveAsync"/>, then
+        /// releases the gate. The wait is bounded by <paramref name="timeout"/> on the real
+        /// wall clock, so a registrant that never arrives fails the test fast.
         /// </summary>
+        /// <param name="timeout">The real-wall-clock bound on the wait for the first arrival.</param>
+        /// <returns>A task that completes when the gate is released.</returns>
         /// <remarks>
-        /// The grace is 250 ms, which gives registrants time to reach <c>SaveAsync</c> or bail out
-        /// before it. Then the method releases 8 permits: enough to unblock any waiter (1 under the
-        /// fix, 2 under the bug), plus slack.
+        /// The method releases 8 permits: enough to unblock any waiter (1 under the fix, 2 under a
+        /// persist-first bug), plus slack.
         /// </remarks>
-        public async Task ReleaseAfterArrivalGraceAsync()
+        /// <exception cref="TimeoutException">No registrant arrived within <paramref name="timeout"/>.</exception>
+        public async Task ReleaseAfterFirstArrivalAsync(TimeSpan timeout)
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+            var deadline = Task.Delay(timeout, TimeProvider.System, CancellationToken.None);
+            while (this.Arrivals < 1)
+            {
+                if (deadline.IsCompleted)
+                {
+                    throw new TimeoutException($"No registrant reached SaveAsync within {timeout}.");
+                }
+
+                await Task.Yield();
+            }
 
             this.gate.Release(8);
         }
