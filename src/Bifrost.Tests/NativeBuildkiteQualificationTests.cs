@@ -3,7 +3,7 @@
 namespace Bifrost.Tests;
 
 /// <summary>
-/// Disposable proof that the native Buildkite gate reports a test failure.
+/// Disposable proof that the native Buildkite gate reports this revision’s test outcome.
 /// </summary>
 public sealed class NativeBuildkiteQualificationTests
 {
