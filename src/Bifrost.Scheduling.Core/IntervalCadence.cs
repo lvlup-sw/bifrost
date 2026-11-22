@@ -91,8 +91,8 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
     /// <param name="now">The current instant (DR-7).</param>
     /// <returns>The next aligned occurrence, or null when the representable date range is exhausted.</returns>
     /// <remarks>
-    /// The range check divides before it multiplies, so the overflow cannot occur. Both the local
-    /// date and the UTC date must stay representable. Exhaustion is normal, as it is for one-shot and
+    /// The range check on <c>steps</c> divides before it multiplies, so the check itself cannot
+    /// overflow. Both the local date and the UTC date must stay representable. Exhaustion is normal, as it is for one-shot and
     /// cron cadences.
     /// </remarks>
     private DateTimeOffset? ComputeBaseFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)

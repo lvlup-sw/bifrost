@@ -69,8 +69,9 @@ public static class SchedulerServiceCollectionExtensions
     /// callback to add additional jobs or swap the store (NCronJob#138).
     /// </para>
     /// <para>
-    /// <strong>Registration notes.</strong> A double registration is a configuration error that
-    /// hides conflicts and produces undefined behavior (NCronJob#138, R10). The
+    /// <strong>Registration notes.</strong> A second call on the same
+    /// <see cref="IServiceCollection"/> is a configuration error that hides conflicts and produces
+    /// undefined behavior (NCronJob#138, R10). The
     /// <c>SchedulerRegisteredMarker</c> is a private sealed class, so code outside this method cannot
     /// register it by accident. The defaults use <c>TryAdd</c>, so a caller-supplied
     /// <see cref="TimeProvider"/> is kept and <c>UseStore</c> can replace the default store.

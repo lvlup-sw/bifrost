@@ -36,8 +36,11 @@ internal static class MissedFirePolicyApplier
     /// <see cref="MissedFirePolicy.Coalesce"/>, the full (capped) backlog for
     /// <see cref="MissedFirePolicy.FireAllMissed"/>, and an empty list for
     /// <see cref="MissedFirePolicy.SkipMissed"/> or when nothing was missed.
-    /// <see cref="MissedFirePolicy.SkipMissed"/> discards the whole backlog without enumerating it.
     /// </returns>
+    /// <remarks>
+    /// <see cref="MissedFirePolicy.SkipMissed"/> returns before the walk starts, so it discards the
+    /// whole backlog without enumerating it.
+    /// </remarks>
     internal static IReadOnlyList<DateTimeOffset> ComputeMissedFires(
         Cadence cadence,
         DateTimeOffset? lastFiredAt,

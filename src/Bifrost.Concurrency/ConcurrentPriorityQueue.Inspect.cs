@@ -120,8 +120,9 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <para>
     /// Each attempt starts with a lock-free pass over every published top. It finds the winner (the
     /// minimum, from <see cref="TryScanForMinimum"/>) and the runner-up (the second-smallest published
-    /// top, from <see cref="TryScanRunnerUp"/>), which revalidates the live root of the winner. If
-    /// every sub-queue scanned empty (or unknown), there is nothing to dequeue. Each attempt takes at
+    /// top, from <see cref="TryScanRunnerUp"/>). The runner-up is the bar that the live root of the
+    /// winner must meet under the lock. If every sub-queue scanned empty (or unknown), there is
+    /// nothing to dequeue. Each attempt takes at
     /// most ONE lock, on the winner only, and never blocks. A contended winner does not wait. The
     /// attempt is consumed and the loop rescans.
     /// </para>
