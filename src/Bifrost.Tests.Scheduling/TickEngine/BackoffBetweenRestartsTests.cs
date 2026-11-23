@@ -163,10 +163,8 @@ public sealed class BackoffBetweenRestartsTests
     /// which arms the hour-long backoff.
     /// </para>
     /// <para>
-    /// The test stops the loop while it is parked on the backoff. <c>StopAsync</c> cancels the
-    /// stopping token, the backoff delay observes the cancellation, and the loop exits cleanly.
-    /// <c>StopAsync</c> must return within the real-wall-clock timeout with no exception leak. The
-    /// final <c>await stop</c> rethrows any exception that the loop leaked on stop.
+    /// The fake clock signals when it creates the backoff timer. The test then calls
+    /// <c>StopAsync</c> and requires the loop to exit within the real-wall-clock timeout.
     /// </para>
     /// <para>
     /// A clean cancellation is not a fault. The loop must not go to the faulted state, and its
@@ -180,34 +178,35 @@ public sealed class BackoffBetweenRestartsTests
     [Test]
     public async Task CancellationDuringBackoff_ExitsCleanly()
     {
+        var backoff = TimeSpan.FromHours(1);
+        var time = new BackoffClock(backoff);
         var sink = new FaultRecordingEventSink { ThrowOnFiredCount = int.MaxValue };
         var logger = new CapturingLogger<ScheduleTickLoop>();
         var fx = await Fixture.StartAsync(
             sink,
             new SchedulerOptions
             {
-                RestartBackoff = TimeSpan.FromHours(1),
+                RestartBackoff = backoff,
                 MaxRestartsInWindow = 1000,
                 RestartWindow = TimeSpan.FromHours(1),
             },
-            logger).ConfigureAwait(false);
+            logger,
+            time).ConfigureAwait(false);
+        using var registry = fx.Registry;
+        using var loop = fx.Loop;
         _ = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
         fx.Time.Advance(TimeSpan.FromMinutes(30));
-        await sink.WaitForFaultCountAsync(2, TestTimeout).ConfigureAwait(false);
+        await time.BackoffArmed.WaitAsync(TestTimeout).ConfigureAwait(false);
 
-        var stop = ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
-        var completed = await Task.WhenAny(stop, Task.Delay(TestTimeout, TimeProvider.System)).ConfigureAwait(false);
-        await Assert.That(completed).IsEqualTo((Task)stop);
-        await stop.ConfigureAwait(false);
+        await ((IHostedService)loop).StopAsync(CancellationToken.None).WaitAsync(TestTimeout).ConfigureAwait(false);
 
-        await Assert.That(fx.Loop.IsFaulted).IsFalse();
-        await Assert.That(((BackgroundService)fx.Loop).ExecuteTask!.IsCompletedSuccessfully).IsTrue();
+        await Assert.That(loop.IsFaulted).IsFalse();
+        await Assert.That(((BackgroundService)loop).ExecuteTask!.IsCompletedSuccessfully).IsTrue();
         await Assert.That(sink.FaultCount).IsEqualTo(2);
         await Assert.That(logger.Entries.Count(e => e.Level == LogLevel.Critical && e.Message.Contains("will restart", StringComparison.Ordinal)))
             .IsEqualTo(2);
         await Assert.That(logger.Contains(LogLevel.Critical, "transitioned to the faulted state")).IsFalse();
-        fx.Loop.Dispose();
     }
 
     /// <summary>
@@ -261,6 +260,25 @@ public sealed class BackoffBetweenRestartsTests
         fx.Loop.Dispose();
     }
 
+    /// <summary>Signals when the loop creates its one-shot restart timer.</summary>
+    private sealed class BackoffClock(TimeSpan backoff) : FakeTimeProvider(BackoffBetweenRestartsTests.Start)
+    {
+        private readonly TaskCompletionSource backoffArmed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task BackoffArmed => this.backoffArmed.Task;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = base.CreateTimer(callback, state, dueTime, period);
+            if (dueTime == backoff && period == Timeout.InfiniteTimeSpan)
+            {
+                this.backoffArmed.TrySetResult();
+            }
+
+            return timer;
+        }
+    }
+
     /// <summary>
     /// A test harness owning a started <see cref="ScheduleTickLoop"/> with a fault-recording
     /// event sink, mirroring the fixture used by the loop's other fault tests.
@@ -283,9 +301,10 @@ public sealed class BackoffBetweenRestartsTests
         public static async Task<Fixture> StartAsync(
             ISchedulerEventSink sink,
             SchedulerOptions options,
-            ILogger<ScheduleTickLoop>? logger = null)
+            ILogger<ScheduleTickLoop>? logger = null,
+            FakeTimeProvider? time = null)
         {
-            var time = new FakeTimeProvider(Start);
+            time ??= new FakeTimeProvider(Start);
             var store = new InMemoryScheduleStore();
             var registry = new ScheduleRegistry(store, time);
             var router = new JobDispatcherRouter(sink);

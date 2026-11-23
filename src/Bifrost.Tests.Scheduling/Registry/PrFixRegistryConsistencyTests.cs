@@ -18,9 +18,8 @@ namespace Bifrost.Tests.Scheduling.Registry;
 /// <see cref="ScheduleRegistry"/>:
 /// <list type="bullet">
 /// <item>
-/// FIX A1 — <see cref="ScheduleRegistry.RegisterAsync"/> must claim the in-memory
-/// slot BEFORE persisting, so a losing concurrent same-name registrant never
-/// writes its (different) payload to the store. The store and the in-memory
+/// FIX A1 — <see cref="ScheduleRegistry.RegisterAsync"/> allows one of two
+/// concurrent same-name registrations to persist its payload. The store and
 /// registry must agree on the winner's payload.
 /// </item>
 /// <item>
@@ -36,39 +35,15 @@ public sealed class PrFixRegistryConsistencyTests
         new(2026, 6, 13, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>
-    /// FIX A1. Two concurrent <see cref="ScheduleRegistry.RegisterAsync"/> calls for
-    /// the SAME name with DIFFERENT payloads: exactly one succeeds and the other
-    /// throws <see cref="DuplicateJobNameException"/>. Critically, the LOSER must NOT
-    /// have written its payload to the store — the store and the in-memory registry
-    /// must agree on the winner's payload. With the buggy persist-first ordering, the
-    /// loser's blind upsert can leave loser data in the store; the fix claims the
-    /// in-memory slot first so the loser never reaches the store.
+    /// Exactly one of two concurrent <see cref="ScheduleRegistry.RegisterAsync"/> calls
+    /// for the same name succeeds. The other throws <see cref="DuplicateJobNameException"/>.
+    /// The store records one write, and its payload matches the in-memory winner.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <c>GatingStore.SaveAsync</c> blocks on a gate, so under the buggy persist-first ordering
-    /// both registrants are in <c>SaveAsync</c> at the same time. The store records every record
-    /// that it actually persists, so the test can prove that the loser never wrote.
-    /// </para>
-    /// <para>
-    /// The two payloads differ by their interval. The winner is whichever <c>TryAdd</c> succeeds,
-    /// and the test does not presume which.
-    /// </para>
-    /// <para>
-    /// <c>ReleaseAfterFirstArrivalAsync</c> releases the gate as soon as the first registrant
-    /// arrives in <c>SaveAsync</c>, with no fixed delay. The registry holds a per-name mutation
-    /// lease for the whole registration, so the second registrant cannot reach the store while the
-    /// first is parked at the gate. It runs after the release. With the fix it sees the claimed
-    /// slot and throws. With a persist-first ordering it writes its payload, which the extra
-    /// permits let through, and the save-count and payload assertions catch it.
-    /// </para>
-    /// <para>
-    /// The test requires exactly one winner and one loser, and the in-memory registry must hold the
-    /// payload of the winner. The core FIX A1 assertion is that the store holds the payload of the
-    /// winner, not of the loser. Only the winner may call <c>SaveAsync</c> (<c>SaveCount</c> = 1):
-    /// the loser claimed the slot, failed, and did not touch the store. The buggy persist-first
-    /// ordering produces two saves.
-    /// </para>
+    /// A per-name mutation lease holds the second registration until the first completes.
+    /// The duplicate-name check then rejects the second payload before it reaches the store.
+    /// The store gate opens when the first save arrives, and the test accepts either payload
+    /// as the winner.
     /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
@@ -225,8 +200,8 @@ public sealed class PrFixRegistryConsistencyTests
         /// <param name="timeout">The real-wall-clock bound on the wait for the first arrival.</param>
         /// <returns>A task that completes when the gate is released.</returns>
         /// <remarks>
-        /// The method releases 8 permits: enough to unblock any waiter (1 under the fix, 2 under a
-        /// persist-first bug), plus slack.
+        /// Extra permits let an unexpected second write complete so the save-count assertion can
+        /// report it.
         /// </remarks>
         /// <exception cref="TimeoutException">No registrant arrived within <paramref name="timeout"/>.</exception>
         public async Task ReleaseAfterFirstArrivalAsync(TimeSpan timeout)
