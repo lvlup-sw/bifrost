@@ -38,9 +38,10 @@ public sealed class BifrostHttpResiliencePolicy
     public TimeSpan AttemptTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
     /// <summary>
-    /// Gets or sets the maximum number of retry attempts. Set to <c>0</c> to disable retries entirely
-    /// (the retry strategy is then omitted from the pipeline — the correct choice for non-idempotent or
-    /// streaming requests). Default is 3.
+    /// Gets or sets the maximum number of retry attempts for safe requests (GET, HEAD, OPTIONS, TRACE).
+    /// Requests with any other method, such as POST, PUT, PATCH, DELETE, or CONNECT, are never retried,
+    /// whatever this value is. Set to <c>0</c> to disable retries entirely (the retry strategy is then
+    /// omitted from the pipeline — the correct choice for streaming requests). Default is 3.
     /// </summary>
     public int MaxRetries { get; set; } = 3;
 
