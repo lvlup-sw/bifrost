@@ -45,8 +45,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 {
     /// <summary>
     /// The maximum number of missed occurrences reconciled at startup — mirrors the
-    /// default cap of <see cref="MissedFirePolicyApplier.ComputeMissedFires"/>, used to
-    /// detect and log a capped <see cref="MissedFirePolicy.FireAllMissed"/> backlog.
+    /// default cap of <see cref="MissedFirePolicyApplier.ComputeMissedFires"/>. It bounds
+    /// every startup walk and is used to detect and log a capped backlog.
     /// </summary>
     private const int MissedFirePolicyApplierCatchUpCap = 100;
 
@@ -367,6 +367,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// exits cleanly as a normal stop. When the loop exits (faulted or stopped),
     /// <c>ReleaseIdleBarrierOnExit</c> unblocks any test that waits on idle.
     /// </para>
+    /// <para>
+    /// A stop during <c>SeedAsync</c> ends seeding and skips the tick loop. The shutdown drain and the
+    /// idle-barrier release still run.
+    /// </para>
     /// </remarks>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -379,7 +383,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
         this.healthMonitor.RecordLoopStarted(this.timeProvider.GetUtcNow());
 
-        await this.SeedAsync(stoppingToken).ConfigureAwait(false);
+        try
+        {
+            await this.SeedAsync(stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
 
         while (!this.ShouldStop(stoppingToken) && !this.IsFaulted)
         {
@@ -2054,7 +2064,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 continue;
             }
 
-            this.ApplyStartupMissedFirePolicies(record, now);
+            stoppingToken.ThrowIfCancellationRequested();
+            this.ApplyStartupMissedFirePolicies(record, now, stoppingToken);
             this.ArmFromRecord(record, now);
             seeded.Add(record.Name);
         }
@@ -2078,7 +2089,12 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     /// <param name="record">The durable record carrying the job's last-fired instant.</param>
     /// <param name="now">The startup instant (DR-7).</param>
+    /// <param name="stoppingToken">The loop's stopping token; it ends the missed-fire walk.</param>
     /// <remarks>
+    /// <para>
+    /// Both walks are capped at <see cref="MissedFirePolicyApplierCatchUpCap"/> occurrences and stop
+    /// when <paramref name="stoppingToken"/> fires, so a long downtime cannot hold the tick thread.
+    /// </para>
     /// <para>
     /// <c>catchUp</c> holds the catch-up occurrences that are actually dispatched, per the configured
     /// policy: the full (capped) backlog for <see cref="MissedFirePolicy.FireAllMissed"/>, a single
@@ -2092,13 +2108,23 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// a blocked budget cannot retain one entry per missed fire.
     /// </para>
     /// </remarks>
-    private void ApplyStartupMissedFirePolicies(JobRecord record, DateTimeOffset now)
+    private void ApplyStartupMissedFirePolicies(JobRecord record, DateTimeOffset now, CancellationToken stoppingToken)
     {
         var catchUp = MissedFirePolicyApplier.ComputeMissedFires(
-            record.Cadence, record.LastFiredAt, now, record.MissedFirePolicy);
+            record.Cadence,
+            record.LastFiredAt,
+            now,
+            record.MissedFirePolicy,
+            MissedFirePolicyApplierCatchUpCap,
+            stoppingToken);
 
         var missedCount = MissedFirePolicyApplier.ComputeMissedFires(
-            record.Cadence, record.LastFiredAt, now, MissedFirePolicy.FireAllMissed).Count;
+            record.Cadence,
+            record.LastFiredAt,
+            now,
+            MissedFirePolicy.FireAllMissed,
+            MissedFirePolicyApplierCatchUpCap,
+            stoppingToken).Count;
 
         if (missedCount == 0)
         {
