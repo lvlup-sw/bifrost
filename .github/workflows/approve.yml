@@ -1,4 +1,4 @@
-# Public repositories must host this workflow locally or call a public workflow.
+# Vendored from workflow-templates/approve.yml in lvlup-sw/.github.
 
 name: Approve
 
@@ -10,7 +10,10 @@ permissions: {}
 
 jobs:
   approve:
-    if: github.event.issue.pull_request && github.event.issue.state == 'open' && github.event.comment.body == '/approve'
+    if: >-
+      github.event_name == 'issue_comment' && github.event.action == 'created' &&
+      github.event.issue.pull_request && github.event.issue.state == 'open' &&
+      (github.event.comment.body == '/approve' || startsWith(github.event.comment.body, '/approve override '))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -19,7 +22,7 @@ jobs:
       group: approve-command-${{ github.repository }}-${{ github.event.issue.number }}
       cancel-in-progress: false
     steps:
-      - name: Approve the PR head for a repository admin
+      - name: Process the repository admin's approval command
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -30,8 +33,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          # GitHub Actions compares strings without regard to case.
-          if [[ "$COMMENT_BODY" != '/approve' ]]; then
+          review_id=''
+          override_pattern='^/approve override ([1-9][0-9]*) ([^[:space:]].*)$'
+          if [[ "$COMMENT_BODY" == '/approve override '* ]]; then
+            if [[ "$COMMENT_BODY" == *$'\n'* || "$COMMENT_BODY" == *$'\r'* ]] ||
+               ! [[ "$COMMENT_BODY" =~ $override_pattern ]]; then
+              echo '::error::Use /approve override <review-id> <reason> on one line.'
+              exit 1
+            fi
+            review_id=${BASH_REMATCH[1]}
+            reason=${BASH_REMATCH[2]}
+          elif [[ "$COMMENT_BODY" != '/approve' ]]; then
             exit 0
           fi
 
@@ -43,10 +55,43 @@ jobs:
           fi
 
           pr_api="$repo_api/pulls/$PR_NUMBER"
-          head_sha=$(gh api "$pr_api" --jq '.head.sha')
-          approved_commits=$(gh api --paginate "$pr_api/reviews" \
-            --jq '.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED") | .commit_id')
-          if grep -Fxq -- "$head_sha" <<< "$approved_commits"; then
+          head_sha=$(gh api "$pr_api" --jq 'select(.state == "open") | .head.sha // empty')
+          if [[ -z "$head_sha" ]]; then
+            echo '::error::The pull request must be open and have a head commit.'
+            exit 1
+          fi
+          latest_reviews=$(gh api --paginate --slurp "$pr_api/reviews" | jq -c '
+            (add // [])
+            | map(select(.state == "CHANGES_REQUESTED" or .state == "APPROVED" or .state == "DISMISSED"))
+            | group_by(.user.id)
+            | map(max_by([.submitted_at, .id]))
+          ')
+
+          if [[ -n "$review_id" ]]; then
+            review_state=$(jq -r --arg id "$review_id" '
+              .[] | select((.id | tostring) == $id) | .state
+            ' <<< "$latest_reviews")
+            case "$review_state" in
+              CHANGES_REQUESTED)
+                gh api --method PUT "$pr_api/reviews/$review_id/dismissals" \
+                  -f event=DISMISS \
+                  -f "message=Dismissed through /approve override by @$COMMENT_AUTHOR at commit $head_sha. Reason: $reason" > /dev/null
+                echo "Dismissed review $review_id on $REPOSITORY#$PR_NUMBER."
+                ;;
+              DISMISSED)
+                echo "Review $review_id is already dismissed."
+                ;;
+              *)
+                echo "::error::Review $review_id is not a current change request on this pull request."
+                exit 1
+                ;;
+            esac
+          fi
+
+          already_approved=$(jq -r --arg head "$head_sha" '
+            any(.[]; .user.login == "github-actions[bot]" and .state == "APPROVED" and .commit_id == $head)
+          ' <<< "$latest_reviews")
+          if [[ "$already_approved" == 'true' ]]; then
             echo "github-actions[bot] already approved $head_sha."
             exit 0
           fi
