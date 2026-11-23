@@ -1,6 +1,4 @@
-# Runs the org /approve comment command in this repository.
-# A repository admin comments /approve on a pull request and github-actions[bot]
-# approves its head commit. See approve-command.yml in lvlup-sw/.github.
+# Public repositories must host this workflow locally or call a public workflow.
 
 name: Approve
 
@@ -12,6 +10,49 @@ permissions: {}
 
 jobs:
   approve:
-    uses: lvlup-sw/.github/.github/workflows/approve-command.yml@v1.13
+    if: github.event.issue.pull_request && github.event.issue.state == 'open' && github.event.comment.body == '/approve'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       pull-requests: write
+    concurrency:
+      group: approve-command-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Approve the PR head for a repository admin
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+
+          # GitHub Actions compares strings without regard to case.
+          if [[ "$COMMENT_BODY" != '/approve' ]]; then
+            exit 0
+          fi
+
+          repo_api="repos/$REPOSITORY"
+          permission=$(gh api "$repo_api/collaborators/$COMMENT_AUTHOR/permission" --jq '.permission')
+          if [[ "$permission" != 'admin' ]]; then
+            echo '::warning::Only repository admins can use /approve.'
+            exit 0
+          fi
+
+          pr_api="$repo_api/pulls/$PR_NUMBER"
+          head_sha=$(gh api "$pr_api" --jq '.head.sha')
+          approved_commits=$(gh api --paginate "$pr_api/reviews" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED") | .commit_id')
+          if grep -Fxq -- "$head_sha" <<< "$approved_commits"; then
+            echo "github-actions[bot] already approved $head_sha."
+            exit 0
+          fi
+
+          gh api --method POST "$pr_api/reviews" \
+            -f event=APPROVE \
+            -f commit_id="$head_sha" \
+            -f body="Approved through /approve by @$COMMENT_AUTHOR at commit $head_sha." > /dev/null
+          echo "Approved $REPOSITORY#$PR_NUMBER at $head_sha."
