@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "propertyRef": "FifoChannelWorkQueue/sequential-string-conservation",
+  "method": "property",
+  "caseId": "Case_24",
+  "domain": {
+    "kind": "array",
+    "element": {
+      "kind": "string",
+      "alphabet": "ab\u00e9\ud83d\ude00",
+      "minLength": 0,
+      "maxLength": 8
+    },
+    "minLength": 0,
+    "maxLength": 12
+  },
+  "cases": [
+    [
+      ""
+    ]
+  ],
+  "original": [
+    "\u00e9a\u00e9a\ud83d\ude00",
+    "\ud83d\ude00a"
+  ],
+  "signature": "property/oracle-false",
+  "reduction": {
+    "attempts": 5,
+    "rejected": 0,
+    "duplicates": 2,
+    "exhausted": false,
+    "aborted": null
+  }
+}

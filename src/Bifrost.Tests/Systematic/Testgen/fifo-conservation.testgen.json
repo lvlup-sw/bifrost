@@ -1,0 +1,46 @@
+{
+  "contractVersion": 2,
+  "framework": "tunit",
+  "frameworkVersion": "1.2.11",
+  "target": {
+    "project": "src/Bifrost.Tests/Bifrost.Tests.csproj",
+    "path": "src/Bifrost.Tests/Systematic/Testgen/FifoConservationGeneratedTests.cs",
+    "namespace": "Bifrost.Tests.Systematic.Testgen",
+    "className": "FifoConservationGeneratedTests",
+    "binding": "Bifrost.Tests.Systematic.Testgen.FifoConservationBinding"
+  },
+  "propertyRef": "FifoChannelWorkQueue/sequential-string-conservation",
+  "assumptions": [
+    "One producer and consumer execute sequentially; capacity equals input length or one for empty input. Completion preserves queued values in FIFO order. No concurrent ordering or overload claim."
+  ],
+  "domain": {
+    "kind": "array",
+    "element": {
+      "kind": "string",
+      "alphabet": "ab\u00e9\ud83d\ude00",
+      "minLength": 0,
+      "maxLength": 8
+    },
+    "minLength": 0,
+    "maxLength": 12
+  },
+  "cases": [
+    [],
+    [
+      "a"
+    ],
+    [
+      "a",
+      "b",
+      "\u00e9\ud83d\ude00"
+    ]
+  ],
+  "generation": {
+    "seed": 85,
+    "count": 32,
+    "maxAttempts": 256
+  },
+  "reduction": {
+    "maxAttempts": 32
+  }
+}

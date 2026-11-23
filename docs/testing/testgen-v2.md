@@ -17,4 +17,10 @@ The generator returns a create-only patch. For regeneration, remove only the gen
 
 The control reduces to `create(a), stop(a)` with signature `stateful/stop/state-mismatch`. This establishes sensitivity to that count defect. It does not test arbitrary concurrent histories, durable recovery, throughput, or production risk. The model uses no WorkerRegistry implementation code to compute expected states; the target binding uses the public API. Native worker cleanup schedules remain uncontrolled.
 
-[Issue #85](https://github.com/lvlup-sw/bifrost/issues/85) separately tracks real production persistence, sustained dependency outages, resource limits, and release applicability. The existing process-recovery fixture uses a single-record file store and process termination; it is not a production durability adapter.
+The FIFO campaign checks 32 string sequences through sequential admission, completion, and drain. Its oracle compares the observed values with the accepted input sequence. The control consumes an extra item on dequeue.
+
+```sh
+dotnet run --project src/Bifrost.Tests -c Release -- --treenode-filter '/*/*/FifoConservationGeneratedTests/*' --minimum-expected-tests 32
+```
+
+Both are bounded, in-memory campaigns. [Issue #85](https://github.com/lvlup-sw/bifrost/issues/85) tracks the broader application evidence gaps. [Issue #110](https://github.com/lvlup-sw/bifrost/issues/110) tracks future durability support.
