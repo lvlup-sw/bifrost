@@ -31,18 +31,15 @@ public class DeadLetterQueueExtensionsTests
     [Test]
     public async Task WithDeadLetterQueue_RegistersDlqService()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithDeadLetterQueue();
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert
         var dlq = provider.GetService<IDeadLetterQueue<string>>();
         await Assert.That(dlq).IsNotNull();
 
@@ -55,18 +52,15 @@ public class DeadLetterQueueExtensionsTests
     [Test]
     public async Task WithDeadLetterQueue_RegistersNotifierService()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithDeadLetterQueue();
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert
         var notifier = provider.GetService<DeadLetterNotifier<string>>();
         await Assert.That(notifier).IsNotNull();
 
@@ -79,18 +73,15 @@ public class DeadLetterQueueExtensionsTests
     [Test]
     public async Task WithDeadLetterQueue_RegistersOptions()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithDeadLetterQueue();
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert
         var options = provider.GetService<Microsoft.Extensions.Options.IOptions<DeadLetterQueueOptions>>();
         await Assert.That(options).IsNotNull();
         await Assert.That(options!.Value.Capacity).IsEqualTo(1000);
@@ -104,13 +95,11 @@ public class DeadLetterQueueExtensionsTests
     [Test]
     public async Task WithDeadLetterQueue_AppliesCustomOptions()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithDeadLetterQueue(opts =>
         {
             opts.Capacity = 500;
@@ -119,7 +108,6 @@ public class DeadLetterQueueExtensionsTests
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert
         var options = Options.Create(provider.GetRequiredService<IOptionsMonitor<DeadLetterQueueOptions>>().Get(WorkOptions.Name<string>()));
         await Assert.That(options.Value.Capacity).IsEqualTo(500);
         await Assert.That(options.Value.MaxRetries).IsEqualTo(5);
@@ -133,7 +121,6 @@ public class DeadLetterQueueExtensionsTests
     [Test]
     public async Task WithDeadLetterQueue_WrapsHandler()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var failingHandler = Substitute.For<IWorkHandler<string>>();
@@ -149,7 +136,6 @@ public class DeadLetterQueueExtensionsTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        // Act - enqueue and poll for processing completion
         await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -158,7 +144,6 @@ public class DeadLetterQueueExtensionsTests
             await Task.Delay(50, cts.Token).ConfigureAwait(false);
         }
 
-        // Assert
         await Assert.That(dlq.Count).IsGreaterThanOrEqualTo(1);
 
         await orchestrator.DisposeAsync().ConfigureAwait(false);
@@ -180,16 +165,13 @@ public class DeadLetterQueueExtensionsTests
     [Test]
     public async Task WithDeadLetterQueue_ReturnsSameBuilder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         var result = builder.WithDeadLetterQueue();
 
-        // Assert
         await Assert.That(result).IsEqualTo(builder);
     }
 }

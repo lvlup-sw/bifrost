@@ -60,15 +60,18 @@ internal struct SubQueueBuffer<TElement, TPriority>
     /// the buffer's logical length, never more than the fixed inline capacity.
     /// </param>
     /// <returns>A span aliasing the first <paramref name="length"/> slots of <paramref name="buffer"/>.</returns>
+    /// <remarks>
+    /// The <see cref="Debug.Assert(bool, string)"/> is defense in depth. <c>MemoryMarshal.CreateSpan</c>
+    /// does no bounds check, so a length past the fixed inline capacity silently fabricates an
+    /// out-of-bounds span over adjacent storage (a memory-safety hole). All production callers are
+    /// provably bounded by the logical <c>bufferCapacity</c> (at most <c>BufferCapacityMax</c>). The
+    /// debug-only assert fast-fails any future caller that violates the precondition, at zero release
+    /// cost.
+    /// </remarks>
     internal static Span<(TElement Element, TPriority Priority)> AsSpan(
         ref SubQueueBuffer<TElement, TPriority> buffer,
         int length)
     {
-        // Defense-in-depth: CreateSpan does no bounds check, so a length past the fixed inline
-        // capacity would silently fabricate an out-of-bounds span over adjacent storage (a
-        // memory-safety hole). All production callers are provably bounded by the logical
-        // bufferCapacity (≤ BufferCapacityMax); this debug-only assert fast-fails any future
-        // caller that violates the precondition, at zero release cost.
         Debug.Assert(
             (uint)length <= SubQueue<TElement, TPriority>.BufferCapacityMax,
             "SubQueueBuffer.AsSpan length exceeds the fixed inline capacity.");

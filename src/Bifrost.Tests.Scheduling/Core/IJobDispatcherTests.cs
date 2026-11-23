@@ -58,6 +58,10 @@ public sealed class IJobDispatcherTests
     /// <summary>
     /// Verifies <see cref="JobFireContext"/> is a readonly record struct.
     /// </summary>
+    /// <remarks>
+    /// The C# compiler marks readonly structs with <c>[IsReadOnlyAttribute]</c>. Record structs
+    /// synthesize an <c>IEquatable&lt;T&gt;</c> implementation.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task JobFireContext_IsReadonlyRecordStruct()
@@ -66,12 +70,10 @@ public sealed class IJobDispatcherTests
 
         await Assert.That(type.IsValueType).IsTrue();
 
-        // The C# compiler marks readonly structs with [IsReadOnlyAttribute].
         var isReadOnly = type.GetCustomAttributes()
             .Any(a => a.GetType().Name == "IsReadOnlyAttribute");
         await Assert.That(isReadOnly).IsTrue();
 
-        // record structs synthesize an IEquatable<T> implementation.
         await Assert.That(typeof(IEquatable<JobFireContext>).IsAssignableFrom(type)).IsTrue();
     }
 

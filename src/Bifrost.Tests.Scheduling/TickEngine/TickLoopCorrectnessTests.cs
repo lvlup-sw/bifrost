@@ -41,6 +41,10 @@ public sealed class TickLoopCorrectnessTests
     /// while paused also does not dispatch.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The second <c>TriggerAsync</c> call comes after the job is already paused. That trigger also
+    /// must not dispatch.
+    /// </remarks>
     [Test]
     public async Task TriggerOnPausedJob_DoesNotDispatch()
     {
@@ -70,7 +74,6 @@ public sealed class TickLoopCorrectnessTests
         {
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Triggering while already paused also must not dispatch.
             await registry.TriggerAsync("job").ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
@@ -207,6 +210,13 @@ public sealed class TickLoopCorrectnessTests
     /// the triggered job fires only once the fake clock advances across the backoff.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The 2 minute advance causes fault #1 (immediate retry) and fault #2 (which arms
+    /// <c>RestartBackoff</c>). The next 1 minute advance is less than the backoff, so the loop is
+    /// still parked in backoff and the probe must not fire. The advance by <c>backoff</c> crosses
+    /// the rest of <c>RestartBackoff</c>. Then the loop resumes and drains the queued Trigger
+    /// command.
+    /// </remarks>
     [Test]
     public async Task OrdinaryCommandDuringRestartBackoff_DoesNotBypassBackoff()
     {
@@ -240,7 +250,6 @@ public sealed class TickLoopCorrectnessTests
                 .ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Advance 2m -> Fault #1 (immediate retry) + Fault #2 (arms RestartBackoff).
             time.Advance(TimeSpan.FromMinutes(2));
             await sink.WaitForFaultCountAsync(2, TestTimeout).ConfigureAwait(false);
 
@@ -253,13 +262,10 @@ public sealed class TickLoopCorrectnessTests
                 .ConfigureAwait(false);
             await registry.TriggerAsync("probe").ConfigureAwait(false);
 
-            // Advance less than backoff: still parked in backoff, so probe must not fire.
             time.Advance(TimeSpan.FromMinutes(1));
             await Task.Yield();
             await Assert.That(probeDispatcher.FireCount).IsEqualTo(0);
 
-            // Now advance across the remainder of RestartBackoff: loop resumes and drains
-            // the queued Trigger command.
             time.Advance(backoff);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
             await Assert.That(probeDispatcher.FireCount).IsEqualTo(1);

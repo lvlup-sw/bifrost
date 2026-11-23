@@ -28,7 +28,6 @@ public class HealthCheckExtensionsTests
     [Test]
     public async Task WithHealthChecks_RegistersHealthCheck()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -37,22 +36,17 @@ public class HealthCheckExtensionsTests
         builder.WithHealthChecks();
         builder.Build();
 
-        // Act
         var provider = services.BuildServiceProvider();
 
-        // Get the orchestrator to ensure it was built
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         await Assert.That(orchestrator).IsNotNull();
 
-        // Get the health check service to verify the health check is registered
         var healthCheckService = provider.GetService<HealthCheckService>();
         await Assert.That(healthCheckService).IsNotNull();
 
-        // Verify by running the health check
         var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
         await Assert.That(report.Entries).IsNotEmpty();
 
-        // Cleanup
         if (orchestrator is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync().ConfigureAwait(false);
@@ -65,7 +59,6 @@ public class HealthCheckExtensionsTests
     [Test]
     public async Task WithHealthChecks_UsesCustomName()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -76,16 +69,13 @@ public class HealthCheckExtensionsTests
 
         var provider = services.BuildServiceProvider();
 
-        // Get health check service
         var healthCheckService = provider.GetService<HealthCheckService>();
         await Assert.That(healthCheckService).IsNotNull();
 
-        // Verify custom name is in the report
         var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
         var hasCustomName = report.Entries.ContainsKey("custom-health-check");
         await Assert.That(hasCustomName).IsTrue();
 
-        // Cleanup
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         if (orchestrator is IAsyncDisposable disposable)
         {
@@ -99,17 +89,14 @@ public class HealthCheckExtensionsTests
     [Test]
     public async Task WithHealthChecks_ReturnsBuilderForChaining()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
 
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         var result = builder.WithHealthChecks();
 
-        // Assert
         await Assert.That(result).IsEqualTo(builder);
     }
 
@@ -119,7 +106,6 @@ public class HealthCheckExtensionsTests
     [Test]
     public async Task AddWorkOrchestratorHealthCheck_RegistersHealthCheck()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -127,16 +113,13 @@ public class HealthCheckExtensionsTests
         var builder = services.AddWorkOrchestrator<string>();
         builder.Build();
 
-        // Act - Use the separate extension method
         services.AddWorkOrchestratorHealthCheck<string>();
 
         var provider = services.BuildServiceProvider();
         var healthCheckService = provider.GetService<HealthCheckService>();
 
-        // Assert
         await Assert.That(healthCheckService).IsNotNull();
 
-        // Cleanup
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         if (orchestrator is IAsyncDisposable disposable)
         {
@@ -150,7 +133,6 @@ public class HealthCheckExtensionsTests
     [Test]
     public async Task AddAutoscalingHealthChecks_RegistersAutoscalingHealthCheck()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
@@ -163,14 +145,12 @@ public class HealthCheckExtensionsTests
         services.AddKeyedSingleton<IOptions<AutoscalingOptions>>(typeof(string),
             Options.Create(new AutoscalingOptions { MinWorkers = 1, MaxWorkers = 16 }));
 
-        // Act
         services.AddHealthChecks()
             .AddAutoscalingHealthChecks<string>();
 
         var provider = services.BuildServiceProvider();
         var healthCheckService = provider.GetService<HealthCheckService>();
 
-        // Assert
         await Assert.That(healthCheckService).IsNotNull();
 
         var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
@@ -183,7 +163,6 @@ public class HealthCheckExtensionsTests
     [Test]
     public async Task AddAutoscalingHealthChecks_RegistersWorkerRegistryHealthCheck()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
@@ -196,14 +175,12 @@ public class HealthCheckExtensionsTests
         services.AddKeyedSingleton<IOptions<AutoscalingOptions>>(typeof(string),
             Options.Create(new AutoscalingOptions { MinWorkers = 1, MaxWorkers = 16 }));
 
-        // Act
         services.AddHealthChecks()
             .AddAutoscalingHealthChecks<string>();
 
         var provider = services.BuildServiceProvider();
         var healthCheckService = provider.GetService<HealthCheckService>();
 
-        // Assert
         await Assert.That(healthCheckService).IsNotNull();
 
         var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
@@ -216,14 +193,11 @@ public class HealthCheckExtensionsTests
     [Test]
     public async Task AddAutoscalingHealthChecks_ReturnsBuilderForChaining()
     {
-        // Arrange
         var services = new ServiceCollection();
         var builder = services.AddHealthChecks();
 
-        // Act
         var result = builder.AddAutoscalingHealthChecks<string>();
 
-        // Assert
         await Assert.That(result).IsEqualTo(builder);
     }
 
@@ -233,7 +207,6 @@ public class HealthCheckExtensionsTests
     [Test]
     public async Task AddAutoscalingHealthChecks_ThrowsWhenBuilderNull()
     {
-        // Act & Assert
         await Assert.That(() => HealthCheckExtensions.AddAutoscalingHealthChecks<string>(null!))
             .Throws<ArgumentNullException>();
     }

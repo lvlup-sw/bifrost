@@ -51,13 +51,10 @@ public class ScopedHandlerProxyTests
     [Test]
     public async Task HandleAsync_CreatesScope()
     {
-        // Arrange
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        // Act
         await proxy.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         _scopeFactory.Received(1).CreateScope();
     }
 
@@ -67,13 +64,10 @@ public class ScopedHandlerProxyTests
     [Test]
     public async Task HandleAsync_ResolvesHandlerFromScope()
     {
-        // Arrange
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        // Act
         await proxy.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         _scopedServiceProvider.Received(1).GetService(typeof(IWorkHandler<string>));
     }
 
@@ -83,13 +77,10 @@ public class ScopedHandlerProxyTests
     [Test]
     public async Task HandleAsync_DisposesScope()
     {
-        // Arrange
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        // Act
         await proxy.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await ((IAsyncDisposable)_scope).Received(1).DisposeAsync().ConfigureAwait(false);
     }
 
@@ -99,12 +90,10 @@ public class ScopedHandlerProxyTests
     [Test]
     public async Task HandleAsync_DisposesScope_OnException()
     {
-        // Arrange
         _innerHandler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromException(new InvalidOperationException("handler error")));
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        // Act & Assert
         await Assert.That(() => proxy.HandleAsync("work", CancellationToken.None).AsTask())
             .Throws<InvalidOperationException>();
 
@@ -117,7 +106,6 @@ public class ScopedHandlerProxyTests
     [Test]
     public async Task HandleAsync_FreshScopePerCall()
     {
-        // Arrange
         var scope1 = Substitute.For<IServiceScope, IAsyncDisposable>();
         var scope2 = Substitute.For<IServiceScope, IAsyncDisposable>();
         var sp1 = Substitute.For<IServiceProvider>();
@@ -132,11 +120,9 @@ public class ScopedHandlerProxyTests
 
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        // Act
         await proxy.HandleAsync("work1", CancellationToken.None).ConfigureAwait(false);
         await proxy.HandleAsync("work2", CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         _scopeFactory.Received(2).CreateScope();
     }
 
@@ -146,14 +132,11 @@ public class ScopedHandlerProxyTests
     [Test]
     public async Task HandleAsync_PassesWorkAndCancellationToken()
     {
-        // Arrange
         using var cts = new CancellationTokenSource();
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        // Act
         await proxy.HandleAsync("my-work", cts.Token).ConfigureAwait(false);
 
-        // Assert
         await _innerHandler.Received(1).HandleAsync("my-work", cts.Token).ConfigureAwait(false);
     }
 
@@ -163,7 +146,6 @@ public class ScopedHandlerProxyTests
     [Test]
     public async Task Constructor_ThrowsWhenScopeFactoryNull()
     {
-        // Act & Assert
         await Assert.That(() => new ScopedHandlerProxy<string>(null!))
             .Throws<ArgumentNullException>();
     }

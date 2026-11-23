@@ -47,7 +47,6 @@ public sealed class ScheduleTickLoopBasicTests
         fx.Time.Advance(TimeSpan.FromHours(1));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // No job registered: nothing fired.
         await Assert.That(fx.Events.OfType<JobFiredEvent>().Any()).IsFalse();
     }
 
@@ -90,6 +89,9 @@ public sealed class ScheduleTickLoopBasicTests
     /// Verifies a one-shot job fires once at its instant then leaves the heap.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The second advance goes far past the one-shot occurrence. The job must not fire again.
+    /// </remarks>
     [Test]
     public async Task OneShotJob_FiresOnce_ThenLeavesHeap()
     {
@@ -101,7 +103,6 @@ public sealed class ScheduleTickLoopBasicTests
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
-        // Advancing far past the one-shot must not re-fire it.
         fx.Time.Advance(TimeSpan.FromHours(1));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
@@ -115,6 +116,10 @@ public sealed class ScheduleTickLoopBasicTests
     /// dispatches.)
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The first advance passes only the early job, so the early job fires and the late job does
+    /// not. The second advance passes the late job, and then the late job fires too.
+    /// </remarks>
     [Test]
     public async Task MultipleJobs_FireInNextFireOrder()
     {
@@ -122,14 +127,12 @@ public sealed class ScheduleTickLoopBasicTests
         var late = await fx.RegisterAsync("late", Cadence.At(Start.AddMinutes(10))).ConfigureAwait(false);
         var early = await fx.RegisterAsync("early", Cadence.At(Start.AddMinutes(2))).ConfigureAwait(false);
 
-        // Advance past only the early job: it fires, the late one does not.
         fx.Time.Advance(TimeSpan.FromMinutes(2));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(early.FireCount).IsEqualTo(1);
         await Assert.That(late.FireCount).IsEqualTo(0);
         await Assert.That(early.LastFireTime).IsEqualTo(Start.AddMinutes(2));
 
-        // Advance past the late job: it now fires too.
         fx.Time.Advance(TimeSpan.FromMinutes(8));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(late.FireCount).IsEqualTo(1);
@@ -181,12 +184,15 @@ public sealed class ScheduleTickLoopBasicTests
     /// Verifies a trigger command fires the job immediately, regardless of schedule.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The cadence puts the next occurrence one hour out. The trigger fires the job now, without an
+    /// advance of time.
+    /// </remarks>
     [Test]
     public async Task TriggerCommand_FiresImmediately_RegardlessOfSchedule()
     {
         await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
 
-        // Cadence is an hour out, but the trigger fires now without advancing time.
         var dispatcher = await fx.RegisterAsync("hourly", Cadence.Interval(TimeSpan.FromHours(1)))
             .ConfigureAwait(false);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);

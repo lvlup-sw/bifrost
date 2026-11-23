@@ -34,12 +34,8 @@ public sealed class PrFixEventStreamRaceTests
         var stream = new SchedulerEventStream();
         stream.Dispose();
 
-        // Subscribe after dispose: must yield a completed stream, not a live-but-orphan
-        // subscription whose channel is never completed.
         var enumeration = DrainAsync(stream);
 
-        // If Subscribe added a never-completed channel, this enumeration would hang; the
-        // timeout converts a hang into a deterministic failure.
         var count = await enumeration.WaitAsync(TestTimeout).ConfigureAwait(false);
 
         await Assert.That(count).IsEqualTo(0);
@@ -56,8 +52,6 @@ public sealed class PrFixEventStreamRaceTests
         var stream = new SchedulerEventStream();
         var enumeration = DrainAsync(stream);
 
-        // Dispose should complete every live subscriber channel so the in-flight
-        // enumeration ends.
         stream.Dispose();
 
         var count = await enumeration.WaitAsync(TestTimeout).ConfigureAwait(false);

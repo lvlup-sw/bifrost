@@ -50,12 +50,20 @@ public class SeqlockTearTests
     /// may be observed, and the validated-read path must be exercised beyond the
     /// non-vacuousness floor (DR-4).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The <c>TornDetectPriority</c> type makes torn reads self-evident. Index 0 with a single-word
+    /// occupancy array satisfies the boundary-transition wiring. This test does not assert on the bitmask.
+    /// </para>
+    /// <para>
+    /// The writer uses a seeded <c>Random</c> (12345) for reproducibility. Its values are random, but each
+    /// value is internally consistent. The storm runs for its bounded window, then the test joins all threads.
+    /// The assertions require zero torn snapshots, and proof that the readers exercised the validated path.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task TryReadTop_UnderWriteStorm_NeverReturnsTornValue()
     {
-        // Arrange — a sub-queue whose priority type makes torn reads self-evident. Index 0 with a
-        // single-word occupancy array satisfies the boundary-transition wiring; this test does not
-        // assert on the bitmask.
         var subQueue = new SubQueue<string, TornDetectPriority>(comparer: null, index: 0, occupancy: new ulong[1]);
         using var storm = new CancellationTokenSource(StormDuration);
 
@@ -67,7 +75,6 @@ public class SeqlockTearTests
 
         var writer = new Thread(() =>
         {
-            // Seeded for reproducibility; values are random but each is internally consistent.
             var rng = new Random(12345);
             while (!storm.IsCancellationRequested)
             {
@@ -118,7 +125,6 @@ public class SeqlockTearTests
             { IsBackground = true, Name = $"seqlock-storm-reader-{i}" };
         }
 
-        // Act — run the storm for its bounded window, then join everything.
         writer.Start();
         foreach (var reader in readers)
         {
@@ -131,7 +137,6 @@ public class SeqlockTearTests
             reader.Join();
         }
 
-        // Assert — zero torn snapshots, and the readers genuinely exercised the validated path.
         await Assert.That(tornReads).IsEqualTo(0).Because(
             $"a torn read slipped through version validation; first torn sample: {firstTornSample} " +
             $"(validated={validatedReads:N0}, unknown={unknownReads:N0})");

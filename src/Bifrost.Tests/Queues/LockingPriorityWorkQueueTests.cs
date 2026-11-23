@@ -77,31 +77,46 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
     /// here; the lock-based heap admits an exact, per-item assertion.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// <para>
+    /// The ordering is exact, so the test needs no statistical sizing, and a modest group size is enough.
+    /// The queue has 2× capacity headroom, so the class watermarks (Batch 0.90, Default 0.95 of capacity)
+    /// never trip during the interleaved fill. This test isolates dequeue-side ordering.
+    /// <see cref="Watermarks_ApplyIdentically"/> covers admission.
+    /// </para>
+    /// <para>
+    /// The virtual-time layout mirrors the ordering test of the sibling binding. It uses ticks at 1 kHz,
+    /// so <c>InteractiveBoostWindow</c> is 30_000 ticks and <c>BatchPenaltyWindow</c> is 60_000 ticks. A
+    /// smaller key is dequeued sooner:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Interactive has the freshest timestamps (1_520_000+i) and key 1_490_000+i (boost −30_000).</description></item>
+    /// <item><description>Default has the middle timestamps (1_500_000+i) and key 1_500_000+i (no boost).</description></item>
+    /// <item><description>Batch has the oldest timestamps (1_450_000+i) and key 1_510_000+i (penalty +60_000).</description></item>
+    /// </list>
+    /// <para>
+    /// The ids are interactive [0, g), default [g, 2g), and batch [2g, 3g). Thus the exact key order is
+    /// precisely the id order 0, 1, …, 3g−1. All keys are distinct, so the heap order is fully determined.
+    /// </para>
+    /// <para>
+    /// Under the global lock, every <c>TryDequeue</c> on a non-empty queue pops the true minimum key. A
+    /// miss is a binding bug, not relaxation. The drain must give the strict sequence 0, 1, …, 3g−1 with
+    /// no rank error.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task ExactOrdering_QuiescentDrain_StrictVirtualTimeOrder()
     {
-        // Arrange — no statistical sizing needed (exact ordering): a modest group size
-        // suffices. 2× capacity headroom so the class watermarks (Batch 0.90, Default
-        // 0.95 of capacity) never trip during the interleaved fill — this test isolates
-        // dequeue-side ORDERING; admission is covered by Watermarks_ApplyIdentically.
         const int groupSize = 64;
         const int totalItems = 3 * groupSize;
 
         var options = new PriorityDispatchOptions
         {
-            InteractiveBoostWindow = TimeSpan.FromSeconds(30), // 30_000 ticks at 1 kHz
-            BatchPenaltyWindow = TimeSpan.FromSeconds(60),     // 60_000 ticks at 1 kHz
+            InteractiveBoostWindow = TimeSpan.FromSeconds(30),
+            BatchPenaltyWindow = TimeSpan.FromSeconds(60),
         };
         var queue = CreateEnvelopeQueue(2 * totalItems, options);
 
-        // Virtual-time layout (ticks at 1 kHz; smaller key = sooner), mirroring the
-        // sibling binding's ordering test:
-        //   Interactive — FRESHEST timestamps (1_520_000+i), key 1_490_000+i (boost −30_000)
-        //   Default     — middle timestamps   (1_500_000+i), key 1_500_000+i (no boost)
-        //   Batch       — OLDEST timestamps   (1_450_000+i), key 1_510_000+i (penalty +60_000)
-        // Ids: interactive [0, g), default [g, 2g), batch [2g, 3g) — so the exact key
-        // order is precisely id order 0, 1, …, 3g−1. All keys are distinct, so the heap
-        // order is fully determined.
         for (var i = 0; i < groupSize; i++)
         {
             var batchOk = queue.TryEnqueue(
@@ -115,8 +130,6 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
             await Assert.That(interactiveOk).IsTrue();
         }
 
-        // Act — quiescent drain: under the global lock every TryDequeue on a non-empty
-        // queue pops the true minimum key; a miss would be a binding bug, not relaxation.
         var drainOrder = new List<int>(totalItems);
         for (var pos = 0; pos < totalItems; pos++)
         {
@@ -127,7 +140,6 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
 
         await Assert.That(queue.Count).IsEqualTo(0);
 
-        // Assert — STRICT sequence: exactly 0, 1, …, 3g−1, no rank error tolerated.
         var strictlyOrdered = drainOrder.SequenceEqual(Enumerable.Range(0, totalItems));
         await Assert.That(strictlyOrdered).IsTrue();
     }
@@ -141,11 +153,15 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
     /// makes every boundary deterministic.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The test first fills the queue to the Batch threshold (0.90 × 100 = 90) with Default items. The
+    /// Default threshold is 95, so the fill itself never trips a watermark. Then it ramps to the Default
+    /// threshold (95) with Interactive items. Hard capacity is the only Interactive limit. The admission
+    /// path of the wrapper enforces it, because the locking structure has no built-in bounding.
+    /// </remarks>
     [Test]
     public async Task Watermarks_ApplyIdentically()
     {
-        // Arrange — fill to the Batch threshold (0.90 × 100 = 90) with Default items
-        // (Default threshold is 95, so the fill itself never trips a watermark).
         var queue = CreateEnvelopeQueue(WatermarkCapacity);
         var stamp = 0L;
         for (var i = 0; i < 90; i++)
@@ -156,11 +172,9 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
 
         await Assert.That(queue.Count).IsEqualTo(90);
 
-        // Act + Assert — Batch sheds at its watermark; Interactive is still admitted.
         var batchAtBatchWatermark = queue.TryEnqueue(new WorkEnvelope<int>(900, WorkClass.Batch, ++stamp));
         await Assert.That(batchAtBatchWatermark).IsFalse();
 
-        // Ramp to the Default threshold (95) with Interactive items.
         for (var i = 90; i < 95; i++)
         {
             var accepted = queue.TryEnqueue(new WorkEnvelope<int>(i, WorkClass.Interactive, ++stamp));
@@ -169,7 +183,6 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
 
         await Assert.That(queue.Count).IsEqualTo(95);
 
-        // Default now sheds too; Interactive continues to full capacity.
         var defaultAtDefaultWatermark = queue.TryEnqueue(new WorkEnvelope<int>(901, WorkClass.Default, ++stamp));
         await Assert.That(defaultAtDefaultWatermark).IsFalse();
 
@@ -181,8 +194,6 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
 
         await Assert.That(queue.Count).IsEqualTo(WatermarkCapacity);
 
-        // Hard capacity is the only Interactive limit — enforced by the wrapper's
-        // admission path, since the locking structure has no built-in bounding.
         var interactiveOverCapacity = queue.TryEnqueue(new WorkEnvelope<int>(902, WorkClass.Interactive, ++stamp));
         await Assert.That(interactiveOverCapacity).IsFalse();
         await Assert.That(queue.Count).IsEqualTo(WatermarkCapacity);
@@ -195,10 +206,13 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
     /// consumer is left waiting forever.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// Three consumers park on an empty queue with a non-cancellable token. The 100 ms delay gives the
+    /// consumers time to actually park on the semaphore before <c>Complete()</c> runs.
+    /// </remarks>
     [Test]
     public async Task Complete_WakesParkedConsumers_NoHang()
     {
-        // Arrange — three consumers parked on an empty queue with a non-cancellable token.
         const int consumerCount = 3;
         var queue = CreateEnvelopeQueue(SmallCapacity);
         var waits = new Task<bool>[consumerCount];
@@ -207,15 +221,12 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
             waits[c] = queue.WaitToDequeueAsync(CancellationToken.None).AsTask();
         }
 
-        // Give the consumers time to actually park on the semaphore.
         await Task.Delay(TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
         await Assert.That(waits.Any(w => w.IsCompleted)).IsFalse();
 
-        // Act — completion must wake every parked waiter.
         queue.Complete();
         var results = await Task.WhenAll(waits).WaitAsync(BindingWaitTimeout).ConfigureAwait(false);
 
-        // Assert — completed AND empty: every wait reports shutdown via false.
         foreach (var signaled in results)
         {
             await Assert.That(signaled).IsFalse();
@@ -232,17 +243,19 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
     /// the set.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The two residual envelopes have distinct keys: stamp 100 drains before stamp 101. When the queue is
+    /// complete and empty, the wait reports shutdown through <c>false</c>. It never throws and needs no
+    /// cancellation to unblock.
+    /// </remarks>
     [Test]
     public async Task Complete_DrainsResidual_ThenWaitReturnsFalse()
     {
-        // Arrange — two residual envelopes with distinct keys, then complete the queue.
         var queue = CreateEnvelopeQueue(SmallCapacity);
         await Assert.That(queue.TryEnqueue(new WorkEnvelope<int>(1, WorkClass.Default, 100))).IsTrue();
         await Assert.That(queue.TryEnqueue(new WorkEnvelope<int>(2, WorkClass.Default, 101))).IsTrue();
         queue.Complete();
 
-        // Act + Assert — residual items drain through the canonical loop in EXACT key
-        // order (stamp 100 before stamp 101 — strict sequence, not just the set).
         var drained = new List<int>();
         using var timeoutCts = new CancellationTokenSource(BindingWaitTimeout);
         while (drained.Count < 2)
@@ -254,8 +267,6 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
 
         await Assert.That(drained.SequenceEqual(new[] { 1, 2 })).IsTrue();
 
-        // Completed AND empty: the wait reports shutdown via false — never throws, and
-        // needs no cancellation to unblock.
         var signaled = await queue.WaitToDequeueAsync(CancellationToken.None)
             .AsTask()
             .WaitAsync(BindingWaitTimeout)
@@ -269,17 +280,17 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
     /// and that the rejection funds no wake-up permit.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The queue stays empty after the rejection: no phantom item and no permit.
+    /// </remarks>
     [Test]
     public async Task TryEnqueue_AfterComplete_ReturnsFalse()
     {
-        // Arrange
         var queue = CreateEnvelopeQueue(SmallCapacity);
         queue.Complete();
 
-        // Act
         var accepted = queue.TryEnqueue(new WorkEnvelope<int>(1, WorkClass.Default, 100));
 
-        // Assert — rejected, and the queue stays empty (no phantom item, no permit).
         await Assert.That(accepted).IsFalse();
         await Assert.That(queue.Count).IsEqualTo(0);
     }
@@ -290,10 +301,14 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
     /// item is received exactly once, no loss, no duplication.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The producers cycle the work class through Interactive, Default, and Batch. A consumer returns when
+    /// <c>ConsumeOneAsync</c> reports shutdown: all items were received, or the timeout fired.
+    /// Exactly-once means that the count matches and the distinct set is the full range.
+    /// </remarks>
     [Test]
     public async Task Conservation_ComposedQueue_UnderStress()
     {
-        // Arrange
         const int producerCount = 4;
         const int itemsPerProducer = 250;
         const int consumerCount = 4;
@@ -318,7 +333,7 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
                     var id = (producerIndex * itemsPerProducer) + i;
                     var envelope = new WorkEnvelope<int>(
                         id,
-                        (WorkClass)(id % 3), // cycle Interactive/Default/Batch
+                        (WorkClass)(id % 3),
                         Interlocked.Increment(ref stampSource));
                     while (!queue.TryEnqueue(envelope))
                     {
@@ -343,7 +358,7 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
                     var (gotItem, envelope) = await ConsumeOneAsync(queue, doneCts.Token).ConfigureAwait(false);
                     if (!gotItem)
                     {
-                        return; // Shutdown (all items received) or timeout.
+                        return;
                     }
 
                     received.Enqueue(envelope.Work);
@@ -355,11 +370,9 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
             });
         }
 
-        // Act
         await Task.WhenAll(producers).ConfigureAwait(false);
         await Task.WhenAll(consumers).ConfigureAwait(false);
 
-        // Assert — exactly-once: count matches and the distinct set is the full range.
         await Assert.That(receivedCount).IsEqualTo(totalItems);
         var distinct = new HashSet<int>(received);
         await Assert.That(distinct.Count).IsEqualTo(totalItems);
@@ -373,6 +386,10 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
     /// all rejected eagerly, matching the sibling binding's validation surface.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The queue validates watermark monotonicity (Batch ≤ Default ≤ Interactive) at consumption, the same
+    /// as the sibling binding (DR-6).
+    /// </remarks>
     [Test]
     public async Task Constructor_InvalidArguments_Throw()
     {
@@ -386,8 +403,6 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
                 SmallCapacity, new PriorityDispatchOptions(), 0))
             .Throws<ArgumentOutOfRangeException>();
 
-        // Watermark monotonicity (Batch ≤ Default ≤ Interactive) is validated at
-        // consumption, identically to the sibling binding (DR-6).
         var batchAboveDefault = new PriorityDispatchOptions { BatchAdmissionWatermark = 0.97 };
         await Assert.That(() => new LockingPriorityWorkQueue<int>(
                 WatermarkCapacity, batchAboveDefault, TestTimestampFrequency))

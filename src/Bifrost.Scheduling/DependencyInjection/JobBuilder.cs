@@ -93,6 +93,10 @@ internal sealed class JobBuilder<TWork> : IJobBuilder<TWork>, IJobDefinitionSour
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// DI resolution is deferred to startup. The factory resolves the orchestrator and the shared
+    /// sink against the application service provider when it runs.
+    /// </remarks>
     public IJobBuilder<TWork> DispatchTo<TOrchestrator>(
         Func<JobFireContext, TWork> fire,
         WorkClass workClass = WorkClass.Batch)
@@ -103,8 +107,6 @@ internal sealed class JobBuilder<TWork> : IJobBuilder<TWork>, IJobDefinitionSour
         this.dispatchKind = JobDispatchKinds.Orchestrator;
         this.workClass = workClass;
 
-        // Defer DI resolution to startup: resolve the orchestrator and the shared
-        // sink against the application service provider when the factory runs.
         var capturedWorkClass = workClass;
         this.dispatcherFactory = provider => new OrchestratorJobDispatcher<TWork>(
             fire,
@@ -116,21 +118,27 @@ internal sealed class JobBuilder<TWork> : IJobBuilder<TWork>, IJobDefinitionSour
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// This method resets any work class that a prior <c>DispatchTo</c> set (C4). The work class is
+    /// meaningful only for orchestrator dispatch. Custom dispatch does not use it, and it must not
+    /// leak a stale value (for example Interactive) into the <c>JobDefinition</c>.
+    /// </para>
+    /// <para>
+    /// The dispatcher is registered at configuration time (F1, Task 50), so the factory can resolve
+    /// it at fire time without the consumer having to register it. <c>TryAddSingleton</c> keeps a
+    /// registration that the consumer already supplied, including a scoped or transient lifetime.
+    /// The factory does not resolve <typeparamref name="TDispatcher"/> from the root: each fire
+    /// resolves it from the scope of that fire.
+    /// </para>
+    /// </remarks>
     public IJobBuilder<TWork> DispatchVia<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TDispatcher>()
         where TDispatcher : class, IJobDispatcher
     {
         this.dispatchKind = JobDispatchKinds.Custom;
 
-        // Reset any work class set by a prior DispatchTo (C4). The work class is
-        // meaningful only for orchestrator dispatch; for custom dispatch it is unused
-        // and must not leak a stale value (e.g. Interactive) into the JobDefinition.
         this.workClass = WorkClass.Default;
 
-        // Register the dispatcher at configuration time (F1, Task 50) so the factory
-        // can resolve it at fire time without the consumer having to register it.
-        // TryAddSingleton keeps a registration the consumer already supplied, including
-        // a scoped or transient lifetime. The factory does not resolve TDispatcher from
-        // the root: each fire resolves it from that fire's scope.
         this.services.TryAddSingleton<TDispatcher>();
         this.dispatcherFactory = static provider => new ScopeResolvingJobDispatcher<TDispatcher>(provider);
         return this;

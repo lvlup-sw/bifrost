@@ -41,19 +41,23 @@ public static class EventStreamExtensions
     /// allowing proper DI ordering where handler decorators are applied before orchestrator
     /// decorators.
     /// </para>
+    /// <para>
+    /// The late binding uses the captured local <c>eventStreamOrchestrator</c>. The handler
+    /// decorator is applied first (to the handler), then the orchestrator decorator wraps the
+    /// orchestrator. So by the time the handler processes work, the orchestrator reference is
+    /// available. The same captured reference backs the builder-level
+    /// <c>EventPublishCallback</c> for cross-cutting event routing: other extensions (for example,
+    /// <c>WithDeadLetterQueue</c>) use it to publish events through the event stream. That reference
+    /// is set when the orchestrator factory runs during <c>Build()</c>.
+    /// </para>
     /// </remarks>
     public static WorkOrchestratorBuilder<TWork> WithEventStream<TWork>(
         this WorkOrchestratorBuilder<TWork> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        // Use a captured reference for late-binding the orchestrator to the handler decorator.
-        // The handler decorator is applied first (to the handler), then the orchestrator
-        // decorator wraps the orchestrator. By the time the handler processes work,
-        // the orchestrator reference is available.
         EventStreamOrchestrator<TWork>? eventStreamOrchestrator = null;
 
-        // Add handler decorator for WorkCompletedEvent publishing
         var nextHandlerOrder = builder.HandlerDecorators.Count == 0
             ? 0
             : builder.HandlerDecorators.Max(d => d.Order) + 1;
@@ -65,13 +69,8 @@ public static class EventStreamExtensions
                     handler,
                     evt => eventStreamOrchestrator?.PublishToSubscribers(evt))));
 
-        // Set builder-level publish callback for cross-cutting event routing.
-        // Other extensions (e.g., WithDeadLetterQueue) can use this to publish
-        // events through the event stream. Late-bound: eventStreamOrchestrator
-        // is set when the orchestrator factory runs during Build().
         builder.EventPublishCallback = evt => eventStreamOrchestrator?.PublishToSubscribers(evt);
 
-        // Add orchestrator decorator for event streaming
         builder.Decorators.Add(new DecoratorRegistration<TWork>(
             Order: 50,
             Factory: (sp, inner) =>

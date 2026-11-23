@@ -94,11 +94,13 @@ public class BannedTimeApiTests
     /// Self-test: verifies that the IL scanner catches a deliberate violation
     /// in a test-local fixture method, proving the check is not vacuously green.
     /// </summary>
+    /// <remarks>
+    /// The test points the scanner at THIS test assembly, which contains
+    /// <c>BannedApiViolationFixture</c>. The fixture method MUST show up in the result.
+    /// </remarks>
     [Test]
     public async Task BannedApiCheck_CatchesDeliberateViolation()
     {
-        // Arrange — point the scanner at THIS test assembly, which contains
-        // BannedApiViolationFixture below.
         var thisAssemblyPath = typeof(BannedTimeApiTests).Assembly.Location;
         var paths = new[] { thisAssemblyPath };
 
@@ -107,10 +109,7 @@ public class BannedTimeApiTests
             ("System.DateTime", "get_UtcNow"),
         };
 
-        // Act
         var violations = FindMemberReferenceViolations(paths, banned);
-
-        // Assert — the fixture method MUST show up
         await Assert.That(violations).IsNotEmpty()
             .Because(
                 "The IL scanner must detect DateTime.UtcNow in BannedApiViolationFixture. " +
@@ -126,6 +125,10 @@ public class BannedTimeApiTests
     /// entries that match any of the supplied <paramref name="bannedMethods"/>
     /// tuples (type-full-name, member-name).
     /// </summary>
+    /// <remarks>
+    /// Only member references with a <c>TypeReference</c> parent are of interest. The scanner skips
+    /// <c>TypeDef</c> and <c>MethodDef</c> parents.
+    /// </remarks>
     private static List<string> FindMemberReferenceViolations(
         IEnumerable<string> assemblyPaths,
         IEnumerable<(string TypeFullName, string MemberName)> bannedMethods)
@@ -151,8 +154,6 @@ public class BannedTimeApiTests
             {
                 var memberRef = metadata.GetMemberReference(memberRefHandle);
                 var memberName = metadata.GetString(memberRef.Name);
-
-                // Only interested in TypeReference parents (not TypeDef or MethodDef parents).
                 if (memberRef.Parent.Kind != HandleKind.TypeReference)
                 {
                     continue;
@@ -192,6 +193,9 @@ public class BannedTimeApiTests
     /// <see cref="TimeProvider"/> overloads have 3 parameters
     /// (<c>Task.Delay(TimeSpan, TimeProvider, CancellationToken)</c>).
     /// Any <c>Task.Delay</c> reference with fewer than 3 parameters is banned.
+    /// The parameter count comes from the signature blob of the reference. In an
+    /// ECMA-335 §II.23.2.1 MethodRefSig, byte 0 is the calling convention, byte 1 starts
+    /// the compressed parameter count, and the return type and parameter types follow.
     /// </remarks>
     private static List<string> FindNonTimeProviderTaskDelayViolations(
         IEnumerable<string> assemblyPaths)
@@ -236,12 +240,6 @@ public class BannedTimeApiTests
                     continue;
                 }
 
-                // Read the method signature blob and count parameters.
-                // ECMA-335 §II.23.2.1 MethodRefSig:
-                //   [0]: calling convention byte
-                //   [1]: param count (compressed uint)
-                //   [2+]: return type, then param types
-                // The TimeProvider overload takes 3 params; anything fewer is banned.
                 var sigBlob = metadata.GetBlobBytes(memberRef.Signature);
                 int paramCount = DecodeParamCount(sigBlob);
 
@@ -262,6 +260,10 @@ public class BannedTimeApiTests
     /// ECMA-335 §II.23.2.1: byte 0 is calling convention, byte(s) 1+ are the
     /// compressed parameter count.
     /// </summary>
+    /// <remarks>
+    /// The method skips the calling convention byte at index 0 and decodes the
+    /// compressed unsigned integer that starts at index 1.
+    /// </remarks>
     private static int DecodeParamCount(byte[] blob)
     {
         if (blob.Length < 2)
@@ -269,8 +271,6 @@ public class BannedTimeApiTests
             return 0;
         }
 
-        // Skip calling convention byte (index 0).
-        // The param count is a compressed uint starting at index 1.
         var (value, _) = ReadCompressedUInt32(blob, 1);
         return (int)value;
     }

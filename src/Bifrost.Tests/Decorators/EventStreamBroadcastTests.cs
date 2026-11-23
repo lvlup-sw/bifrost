@@ -35,7 +35,6 @@ public class EventStreamBroadcastTests
         _inner = Substitute.For<IWorkOrchestrator<string>>();
         _logger = Substitute.For<ILogger<EventStreamOrchestrator<string>>>();
 
-        // Configure inner mock defaults
         _inner.PendingCount.Returns(5);
         _inner.ActiveWorkers.Returns(2);
         _inner.Capacity.Returns(100);
@@ -48,10 +47,14 @@ public class EventStreamBroadcastTests
     /// <summary>
     /// Verifies that multiple subscribers receive the same event (broadcast pattern).
     /// </summary>
+    /// <remarks>
+    /// The test starts three subscribers and gives them time to start (a generous delay for CI).
+    /// Then it enqueues work to make events and waits for all subscribers to receive them. All
+    /// subscribers must receive both events.
+    /// </remarks>
     [Test]
     public async Task GetEventStreamAsync_MultipleSubscribers_AllReceiveSameEvent()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriber1Events = new ConcurrentBag<IOrchestratorEvent>();
         var subscriber2Events = new ConcurrentBag<IOrchestratorEvent>();
@@ -59,7 +62,6 @@ public class EventStreamBroadcastTests
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        // Start three subscribers
         var subscriber1Task = Task.Run(async () =>
         {
             await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
@@ -96,17 +98,13 @@ public class EventStreamBroadcastTests
             }
         });
 
-        // Give subscribers time to start (generous for CI)
         await Task.Delay(250).ConfigureAwait(false);
 
-        // Act - enqueue work to generate events
         await decorator.EnqueueAsync("test1").ConfigureAwait(false);
         await decorator.EnqueueAsync("test2").ConfigureAwait(false);
 
-        // Wait for all subscribers to receive events
         await Task.WhenAll(subscriber1Task, subscriber2Task, subscriber3Task).ConfigureAwait(false);
 
-        // Assert - all subscribers should receive both events
         await Assert.That(subscriber1Events.Count).IsEqualTo(2);
         await Assert.That(subscriber2Events.Count).IsEqualTo(2);
         await Assert.That(subscriber3Events.Count).IsEqualTo(2);
@@ -115,17 +113,22 @@ public class EventStreamBroadcastTests
     /// <summary>
     /// Verifies that slow subscribers use DropOldest and don't block other subscribers.
     /// </summary>
+    /// <remarks>
+    /// The slow subscriber does not consume events quickly: it waits 500 ms for each event to
+    /// simulate slow processing. The <c>OperationCanceledException</c> at cancellation is expected.
+    /// The first enqueue wakes the slow subscriber, and the test waits until the slow subscriber
+    /// receives that first event. Then the test enqueues many events rapidly while the slow
+    /// subscriber is still busy. The fast subscriber must receive all events without being blocked.
+    /// </remarks>
     [Test]
     public async Task GetEventStreamAsync_SlowSubscriber_DoesNotBlockOthers()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var fastSubscriberEvents = new ConcurrentBag<IOrchestratorEvent>();
         var slowSubscriberReady = new TaskCompletionSource();
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        // Start a slow subscriber that doesn't consume events quickly
         var slowSubscriberTask = Task.Run(async () =>
         {
             try
@@ -139,17 +142,14 @@ public class EventStreamBroadcastTests
                         isFirst = false;
                     }
 
-                    // Simulate slow processing - just don't consume quickly
                     await Task.Delay(500, cts.Token).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)
             {
-                // Expected on cancellation
             }
         });
 
-        // Start a fast subscriber
         var fastSubscriberTask = Task.Run(async () =>
         {
             await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
@@ -162,22 +162,17 @@ public class EventStreamBroadcastTests
             }
         });
 
-        // Give subscribers time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Enqueue first event to wake up slow subscriber
         await decorator.EnqueueAsync("trigger").ConfigureAwait(false);
 
-        // Wait for slow subscriber to receive first event
         await slowSubscriberReady.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-        // Act - enqueue many events rapidly while slow subscriber is still processing
         for (int i = 0; i < 9; i++)
         {
             await decorator.EnqueueAsync($"test{i}").ConfigureAwait(false);
         }
 
-        // Assert - fast subscriber should receive all events without being blocked
         var completed = await Task.WhenAny(fastSubscriberTask, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
         await Assert.That(ReferenceEquals(completed, fastSubscriberTask)).IsTrue();
         await Assert.That(fastSubscriberEvents.Count).IsEqualTo(10);
@@ -188,15 +183,20 @@ public class EventStreamBroadcastTests
     /// <summary>
     /// Verifies that subscriber cleanup happens on cancellation.
     /// </summary>
+    /// <remarks>
+    /// The test gives the subscriber time to start, because CI can be slow. The
+    /// <c>OperationCanceledException</c> in the subscriber is expected. The test makes some events,
+    /// cancels the subscriber, waits, and then makes more events. No errors must occur, and the
+    /// cancelled subscriber must be cleaned up. The test checks this indirectly: no exceptions
+    /// occur and the orchestrator still works.
+    /// </remarks>
     [Test]
     public async Task GetEventStreamAsync_OnCancellation_CleansUpSubscriber()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriberCts = new CancellationTokenSource();
         var eventsReceived = 0;
 
-        // Start subscriber
         var subscriberTask = Task.Run(async () =>
         {
             try
@@ -208,44 +208,38 @@ public class EventStreamBroadcastTests
             }
             catch (OperationCanceledException)
             {
-                // Expected
             }
         });
 
-        // Give subscriber time to start (CI can be slow)
         await Task.Delay(500).ConfigureAwait(false);
 
-        // Generate some events
         await decorator.EnqueueAsync("test1").ConfigureAwait(false);
         await Task.Delay(200).ConfigureAwait(false);
 
-        // Act - cancel the subscriber
         await subscriberCts.CancelAsync().ConfigureAwait(false);
         await subscriberTask.ConfigureAwait(false);
 
-        // Wait a bit then try generating more events
         await Task.Delay(100).ConfigureAwait(false);
         await decorator.EnqueueAsync("test2").ConfigureAwait(false);
 
-        // Assert - no errors should occur, and previous subscriber should have been cleaned up
-        // We verify this indirectly by ensuring no exceptions occurred and the orchestrator still works
         await Assert.That(eventsReceived).IsGreaterThanOrEqualTo(1);
     }
 
     /// <summary>
     /// Verifies that each subscriber gets its own independent channel.
     /// </summary>
+    /// <remarks>
+    /// Both subscribers must receive the same event.
+    /// </remarks>
     [Test]
     public async Task GetEventStreamAsync_EachSubscriber_GetsOwnChannel()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriber1Received = new TaskCompletionSource<IOrchestratorEvent>();
         var subscriber2Received = new TaskCompletionSource<IOrchestratorEvent>();
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
-        // Start two subscribers
         var task1 = Task.Run(async () =>
         {
             await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
@@ -264,13 +258,10 @@ public class EventStreamBroadcastTests
             }
         });
 
-        // Give subscribers time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         await decorator.EnqueueAsync("broadcast-test").ConfigureAwait(false);
 
-        // Assert - both subscribers should receive the same event
         var event1 = await subscriber1Received.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
         var event2 = await subscriber2Received.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
@@ -287,10 +278,15 @@ public class EventStreamBroadcastTests
     /// <summary>
     /// Verifies that TryEnqueue broadcasts events to multiple subscribers.
     /// </summary>
+    /// <remarks>
+    /// The test registers the subscribers synchronously. <c>GetEventStreamAsync</c> adds to the
+    /// subscriber dictionary before it returns the async enumerable, so both channels exist before
+    /// any enqueue. The bounded channel (capacity 1000) buffers events, even if the readers have
+    /// not started to iterate. Thus no delay is necessary before the enqueue.
+    /// </remarks>
     [Test]
     public async Task TryEnqueue_BroadcastsToMultipleSubscribers()
     {
-        // Arrange
         _inner.Enqueue(Arg.Any<string>()).Returns(EnqueueResult.Accepted);
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriber1Events = new ConcurrentBag<IOrchestratorEvent>();
@@ -298,10 +294,6 @@ public class EventStreamBroadcastTests
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        // Register subscribers synchronously — GetEventStreamAsync adds to the
-        // subscriber dictionary before returning the async enumerable, so both
-        // channels exist before any enqueue. The bounded channel (capacity 1000)
-        // buffers events even if readers haven't started iterating yet.
         var stream1 = decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token);
         var stream2 = decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token);
 
@@ -329,13 +321,10 @@ public class EventStreamBroadcastTests
             }
         });
 
-        // Act — subscribers are registered and channels buffer, no delay needed
         decorator.TryEnqueue("test-work");
 
-        // Wait for subscribers to consume
         await Task.WhenAll(task1, task2).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(subscriber1Events.Count).IsEqualTo(1);
         await Assert.That(subscriber2Events.Count).IsEqualTo(1);
     }
@@ -343,10 +332,13 @@ public class EventStreamBroadcastTests
     /// <summary>
     /// Verifies that dispose completes all subscriber channels.
     /// </summary>
+    /// <remarks>
+    /// Both subscribers only consume events. They must complete normally when the decorator is
+    /// disposed.
+    /// </remarks>
     [Test]
     public async Task DisposeAsync_CompletesAllSubscriberChannels()
     {
-        // Arrange
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var subscriber1Completed = new TaskCompletionSource();
         var subscriber2Completed = new TaskCompletionSource();
@@ -355,7 +347,6 @@ public class EventStreamBroadcastTests
         {
             await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>().ConfigureAwait(false))
             {
-                // Just consume
             }
 
             subscriber1Completed.SetResult();
@@ -365,19 +356,15 @@ public class EventStreamBroadcastTests
         {
             await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>().ConfigureAwait(false))
             {
-                // Just consume
             }
 
             subscriber2Completed.SetResult();
         });
 
-        // Give subscribers time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act
         await decorator.DisposeAsync().ConfigureAwait(false);
 
-        // Assert - both subscribers should complete gracefully
         var completedTask1 = await Task.WhenAny(subscriber1Completed.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
         var completedTask2 = await Task.WhenAny(subscriber2Completed.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
 

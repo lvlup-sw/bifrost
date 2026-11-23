@@ -26,24 +26,20 @@ public class EventStreamExtensionsTests
     [Test]
     public async Task WithEventStream_AddsDecorator()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithEventStream();
         builder.Build();
 
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
 
-        // Assert
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(orchestrator).IsAssignableTo<IEventStreamOrchestrator<string>>();
 
-        // Cleanup
         if (orchestrator is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync().ConfigureAwait(false);
@@ -56,26 +52,26 @@ public class EventStreamExtensionsTests
     [Test]
     public async Task WithEventStream_ReturnsBuilder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         var result = builder.WithEventStream();
 
-        // Assert
         await Assert.That(result).IsSameReferenceAs(builder);
     }
 
     /// <summary>
     /// Verifies that the decorated orchestrator can stream events.
     /// </summary>
+    /// <remarks>
+    /// The event stream is a broadcast, so a subscriber gets only the events published after it starts.
+    /// The test starts the subscriber first, then waits 100 ms so that it can start before the enqueue.
+    /// </remarks>
     [Test]
     public async Task WithEventStream_OrchestratorCanStreamEvents()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -90,7 +86,6 @@ public class EventStreamExtensionsTests
         var receivedEvent = new TaskCompletionSource<WorkEnqueuedEvent<string>>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
-        // Start subscriber BEFORE enqueuing (broadcast pattern)
         var subscriberTask = Task.Run(async () =>
         {
             await foreach (var evt in eventStreamOrchestrator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
@@ -100,17 +95,13 @@ public class EventStreamExtensionsTests
             }
         });
 
-        // Give subscriber time to start
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Act - enqueue work
         await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
 
-        // Assert - verify event can be consumed
         var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
         await Assert.That(evt.Work).IsEqualTo("test-work");
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -120,12 +111,10 @@ public class EventStreamExtensionsTests
     [Test]
     public async Task WithEventStream_CanChainWithBuild()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
 
-        // Act - chain WithEventStream with Build
         services.AddWorkOrchestrator<string>()
             .WithEventStream()
             .Build();
@@ -133,11 +122,9 @@ public class EventStreamExtensionsTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
 
-        // Assert
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(orchestrator).IsAssignableTo<IEventStreamOrchestrator<string>>();
 
-        // Cleanup
         if (orchestrator is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync().ConfigureAwait(false);

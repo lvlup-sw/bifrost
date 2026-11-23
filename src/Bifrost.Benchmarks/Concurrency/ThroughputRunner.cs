@@ -61,7 +61,7 @@ public sealed class ThroughputRunner
     /// <summary>
     /// The steady-state population pre-filled before the timed window for every non-drain workload,
     /// so mixed measurements exercise the two-choice fast path instead of the empty-queue
-    /// verification scan (see the pre-population comment in <see cref="Run"/>).
+    /// verification scan (see the remarks on <see cref="Run"/>).
     /// </summary>
     internal const int MixedPrepopulation = 100_000;
 
@@ -89,6 +89,41 @@ public sealed class ThroughputRunner
     /// </param>
     /// <returns>The aggregated <see cref="ThroughputResult"/> for the run.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="threadCount"/> is less than one.</exception>
+    /// <remarks>
+    /// <para>
+    /// The drain workload pre-populates the shared queue before the timed window opens, so the window
+    /// measures pure drain throughput and not the fill. The mixed and split workloads pre-populate
+    /// <see cref="MixedPrepopulation"/> entries before the window opens (the standard
+    /// MultiQueue-literature methodology). A 1:1 op mix over an empty queue keeps the population near
+    /// zero. The two-choice samples of the relaxed dequeue then miss constantly and fall into the O(n)
+    /// empty-verification scan, so the run measures the empty-queue path and not mixed throughput.
+    /// The fixed population keeps the dequeues on the intended two-choice fast path, while the 1:1 mix
+    /// holds the population steady.
+    /// </para>
+    /// <para>
+    /// <c>paddedCounters</c> gives each worker one 128-byte-isolated slot (see the class remarks).
+    /// The volatile stop flag is in a one-field box (<c>StopFlag</c>), so a closure can flip it and
+    /// every worker reads the same volatile location again on each iteration. The workers and this
+    /// controller all meet on the barrier. Because the controller takes part, it starts the timer at
+    /// the exact release instant. Each worker seeds its own <see cref="Random"/> from its thread
+    /// index. The streams are distinct per thread and deterministic per index, for reproducibility
+    /// within a run. There is no cross-thread contention on <see cref="Random.Shared"/>.
+    /// </para>
+    /// <para>
+    /// Drain workers exit on their own when they observe the queue empty, usually well before the
+    /// window ends. The method measures the actual elapsed drain time, because a division by the full
+    /// window pins every target at population/window and erases the comparison. All workers drain
+    /// the same shared queue concurrently, so the watchdog is a single wall-clock window across all
+    /// of them (not <c>threadCount</c> × window). A drain that never empties is bounded by one window
+    /// in total and then fails fast instead of hanging. After the joins, the method sets the stop
+    /// flag to stop any straggler that never observed empty.
+    /// </para>
+    /// <para>
+    /// The other workloads sleep for the window, then flip the stop flag. The loop of each worker
+    /// reads the flag again and exits. At the end, the method gathers the padded slots back into a
+    /// compact, contiguous per-thread array for the result.
+    /// </para>
+    /// </remarks>
     public ThroughputResult Run(
         ThroughputTarget target,
         ThroughputWorkload workload,
@@ -102,8 +137,6 @@ public sealed class ThroughputRunner
 
         IThroughputQueue queue = CreateQueue(target, stickiness, bufferCapacity);
 
-        // Drain pre-populates the shared queue BEFORE the timed window opens so the window measures
-        // pure drain throughput, not the fill.
         int drainPerThread = workload == ThroughputWorkload.Drain
             ? (drainPrepopulationPerThread > 0 ? drainPrepopulationPerThread : Math.Max(1, DrainTotalPopulation / threadCount))
             : 0;
@@ -118,27 +151,16 @@ public sealed class ThroughputRunner
         }
         else
         {
-            // Mixed/split workloads pre-populate a steady-state population before the window opens
-            // (the standard MultiQueue-literature methodology). A 1:1 op mix over an EMPTY queue
-            // keeps the population near zero, which forces the relaxed dequeue's two-choice samples
-            // to miss constantly and fall into the O(n) empty-verification scan — measuring the
-            // empty-queue path, not mixed throughput. The fixed population keeps the dequeues on
-            // the intended two-choice fast path while the 1:1 mix holds the population steady.
             for (long i = 0; i < MixedPrepopulation; i++)
             {
                 queue.Enqueue(i);
             }
         }
 
-        // Padded counters: one 128-byte-isolated slot per worker (see the class remarks).
         long[] paddedCounters = new long[threadCount * CounterStride];
 
-        // The volatile stop flag is wrapped in a one-field box so a closure can flip it and every
-        // worker re-reads the same volatile location each iteration.
         var stop = new StopFlag();
 
-        // Workers + this controller all rendezvous on the barrier; the controller's participation
-        // lets it start the timer at the exact release instant.
         using var barrier = new Barrier(threadCount + 1);
 
         var workers = new Thread[threadCount];
@@ -150,8 +172,6 @@ public sealed class ThroughputRunner
 
             var worker = new Thread(() =>
             {
-                // Thread-seeded RNG: distinct streams per thread, deterministic per index for
-                // reproducibility within a run, without cross-thread contention on Random.Shared.
                 var rng = new Random(unchecked(0x5DEECE66 + (threadIndex * unchecked((int)0x9E3779B1))));
 
                 barrier.SignalAndWait();
@@ -168,18 +188,11 @@ public sealed class ThroughputRunner
             worker.Start();
         }
 
-        // Release all workers simultaneously, then time the window precisely from that instant.
         barrier.SignalAndWait();
         var sw = Stopwatch.StartNew();
 
         if (workload == ThroughputWorkload.Drain)
         {
-            // Drain workers exit on their own when the queue is observed empty — usually well
-            // before the window. Measure the ACTUAL elapsed drain time: dividing by the full
-            // window would pin every target at population/window and erase the comparison. The
-            // workers all drain the same shared queue concurrently, so the watchdog is a SINGLE
-            // wall-clock window across all of them (not threadCount × window): a drain that never
-            // empties is bounded by one window total, then fails fast rather than hanging.
             var drainWatchdog = Stopwatch.StartNew();
             foreach (Thread worker in workers)
             {
@@ -192,14 +205,13 @@ public sealed class ThroughputRunner
                 }
             }
 
-            stop.Stop = true; // Watchdog: stop any straggler that never observed empty.
+            stop.Stop = true;
             sw.Stop();
 
             JoinAllOrThrow(workers);
         }
         else
         {
-            // Sleep the window, then flip the stop flag; each worker's loop re-reads it and exits.
             Thread.Sleep(window);
             stop.Stop = true;
             sw.Stop();
@@ -207,7 +219,6 @@ public sealed class ThroughputRunner
             JoinAllOrThrow(workers);
         }
 
-        // Gather the padded slots back into a compact, contiguous per-thread array for the result.
         long[] perThreadOps = new long[threadCount];
         long total = 0;
         for (int t = 0; t < threadCount; t++)
@@ -347,12 +358,12 @@ public sealed class ThroughputRunner
     /// A single failed dequeue is treated as "drained": under the relaxed contract a
     /// <see langword="false"/> means a full verification pass observed every sub-queue empty, so once
     /// any thread sees that, the cooperative drain is finished. This keeps the smoke run fast and the
-    /// accounting (successful dequeues ≤ population) exact.
+    /// accounting (successful dequeues ≤ population) exact. The <paramref name="drainPerThread"/>
+    /// parameter is unused beyond documenting intent: the queue is shared and already filled before
+    /// the window, so the loop drains the shared instance cooperatively.
     /// </remarks>
     private static long RunDrain(IThroughputQueue queue, StopFlag stop, int drainPerThread)
     {
-        // drainPerThread is unused beyond documenting intent: the queue is shared and already filled
-        // before the window, so the loop simply drains the shared instance cooperatively.
         _ = drainPerThread;
 
         long ops = 0;
@@ -360,7 +371,6 @@ public sealed class ThroughputRunner
         {
             if (!queue.TryDequeue())
             {
-                // Observed empty: the cooperative drain is complete for this thread.
                 break;
             }
 

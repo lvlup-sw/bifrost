@@ -63,6 +63,10 @@ public static class PriorityKey
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="timestampFrequency"/> is zero or negative.
     /// </exception>
+    /// <remarks>
+    /// The Batch boost is the negated <see cref="PriorityDispatchOptions.BatchPenaltyWindow"/>. The
+    /// subtraction of a negative boost adds the penalty, which defers batch work in virtual time.
+    /// </remarks>
     public static Boosts Precompute(PriorityDispatchOptions options, long timestampFrequency)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -73,8 +77,6 @@ public static class PriorityKey
         var batchPenaltyTicks =
             ToTimestampTicks(options.BatchPenaltyWindow, timestampFrequency);
 
-        // Boost(Batch) = −BatchPenaltyWindow: subtracting a negative boost ADDS the
-        // penalty, deferring batch work in virtual time.
         return new Boosts(interactiveBoostTicks, -batchPenaltyTicks);
     }
 
@@ -91,14 +93,17 @@ public static class PriorityKey
     /// <c>EnqueuedAtTicks − Boost(Class)</c> in timestamp units. Pure
     /// <see cref="long"/> arithmetic — no floating point, no allocation.
     /// </returns>
+    /// <remarks>
+    /// A signed subtraction overflows only when its operands have opposite signs and the result
+    /// changes the sign of the timestamp. The method then clamps to <see cref="long.MinValue"/> or
+    /// <see cref="long.MaxValue"/> instead of reversing the urgency.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static long Compute<TWork>(in WorkEnvelope<TWork> envelope, in Boosts boosts)
     {
         var timestamp = envelope.EnqueuedAtTicks;
         var boost = boosts.BoostTicksFor(envelope.Class);
         var result = unchecked(timestamp - boost);
-        // A signed subtraction overflows only when its operands have opposite signs
-        // and the result changes the timestamp's sign. Clamp instead of reversing urgency.
         return ((timestamp ^ boost) & (timestamp ^ result)) < 0
             ? timestamp < 0 ? long.MinValue : long.MaxValue
             : result;

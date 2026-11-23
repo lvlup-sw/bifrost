@@ -27,10 +27,8 @@ public class AutoscalingEngineHostedServiceTests
     [Test]
     public async Task AutoscalingEngineHostedService_ImplementsIHostedService()
     {
-        // Arrange
         var type = typeof(AutoscalingEngineHostedService<string>);
 
-        // Assert
         await Assert.That(typeof(IHostedService).IsAssignableFrom(type)).IsTrue();
     }
 
@@ -40,14 +38,11 @@ public class AutoscalingEngineHostedServiceTests
     [Test]
     public async Task StartAsync_CallsEngineStartAsync()
     {
-        // Arrange
         var engine = Substitute.For<IAutoscalingEngine>();
         var hostedService = new AutoscalingEngineHostedService<string>(new ServiceCollection().AddKeyedSingleton<IAutoscalingEngine>(typeof(string), engine).BuildServiceProvider());
 
-        // Act
         await hostedService.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await engine.Received(1).StartAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -57,14 +52,11 @@ public class AutoscalingEngineHostedServiceTests
     [Test]
     public async Task StopAsync_CallsEngineStopAsync()
     {
-        // Arrange
         var engine = Substitute.For<IAutoscalingEngine>();
         var hostedService = new AutoscalingEngineHostedService<string>(new ServiceCollection().AddKeyedSingleton<IAutoscalingEngine>(typeof(string), engine).BuildServiceProvider());
 
-        // Act
         await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await engine.Received(1).StopAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -74,15 +66,12 @@ public class AutoscalingEngineHostedServiceTests
     [Test]
     public async Task StartAsync_PassesCancellationToken()
     {
-        // Arrange
         var engine = Substitute.For<IAutoscalingEngine>();
         var hostedService = new AutoscalingEngineHostedService<string>(new ServiceCollection().AddKeyedSingleton<IAutoscalingEngine>(typeof(string), engine).BuildServiceProvider());
         using var cts = new CancellationTokenSource();
 
-        // Act
         await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
 
-        // Assert
         await engine.Received(1).StartAsync(cts.Token).ConfigureAwait(false);
     }
 
@@ -92,10 +81,8 @@ public class AutoscalingEngineHostedServiceTests
     [Test]
     public async Task AutoscalingEngineHostedService_IsSealed()
     {
-        // Arrange
         var type = typeof(AutoscalingEngineHostedService<string>);
 
-        // Assert
         await Assert.That(type.IsSealed).IsTrue();
     }
 
@@ -105,7 +92,6 @@ public class AutoscalingEngineHostedServiceTests
     [Test]
     public async Task Constructor_NullEngine_ThrowsArgumentNullException()
     {
-        // Act & Assert
         await Assert.That(() => new AutoscalingEngineHostedService<string>(null!))
             .Throws<ArgumentNullException>();
     }

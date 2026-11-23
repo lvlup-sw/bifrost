@@ -55,6 +55,10 @@ public class PriorityWaitAllocationBenchmarks
     /// and (when enabled) the pooled async box are stabilized before measurement.
     /// </summary>
     /// <returns>A task representing the asynchronous setup.</returns>
+    /// <remarks>
+    /// The warmup runs the cycle 64 times to JIT the state machine and prime the per-thread box cache
+    /// of <see cref="System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder{TResult}"/>.
+    /// </remarks>
     [GlobalSetup]
     public async Task GlobalSetup()
     {
@@ -63,8 +67,6 @@ public class PriorityWaitAllocationBenchmarks
             options: new PriorityDispatchOptions(),
             timestampFrequency: TestTimestampFrequency);
 
-        // Warm up: run the cycle a few times to JIT the state machine and prime the
-        // PoolingAsyncValueTaskMethodBuilder's per-thread box cache.
         for (var i = 0; i < 64; i++)
         {
             await ParkWakeCycleAsync().ConfigureAwait(false);
@@ -97,28 +99,27 @@ public class PriorityWaitAllocationBenchmarks
     /// the item so the queue is empty for the next cycle.
     /// </summary>
     /// <returns>A task representing the asynchronous cycle.</returns>
+    /// <remarks>
+    /// The wait starts first. On an empty, non-completed queue it parks on the semaphore, which is
+    /// the path that allocates the async box without pooling. A brief spin lets the consumer reach
+    /// the park before the release, so the wait truly suspends and does not complete synchronously.
+    /// </remarks>
     private async Task ParkWakeCycleAsync()
     {
         var queue = _queue!;
 
-        // Start the wait first; on an empty, non-completed queue it parks on the
-        // semaphore (the path that allocates the async box without pooling).
         var waitTask = queue.WaitToDequeueAsync(CancellationToken.None);
 
-        // Spin briefly to let the consumer reach the park before the release, so the
-        // wait genuinely suspends rather than completing synchronously.
         var spin = new SpinWait();
         while (!spin.NextSpinWillYield)
         {
             spin.SpinOnce();
         }
 
-        // Release the parked waiter.
         queue.TryEnqueue(new WorkEnvelope<int>(0, WorkClass.Interactive, 0));
 
         await waitTask.ConfigureAwait(false);
 
-        // Drain so the queue is empty again for the next cycle.
         queue.TryDequeue(out _);
     }
 }

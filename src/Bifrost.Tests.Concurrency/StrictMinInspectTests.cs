@@ -59,14 +59,16 @@ public class StrictMinInspectTests
     /// stripes makes the full-scan behavior load-bearing: a relaxed pop would routinely return a
     /// non-minimum and break the strictly-increasing sequence.
     /// </summary>
+    /// <remarks>
+    /// The test inserts 0..n−1 in a shuffled order, so the elements scatter across stripes. The strict
+    /// drain must still return them in perfect ascending order, whatever stripe they landed in. The drain
+    /// is exact: it leaves nothing behind and fabricates nothing.
+    /// </remarks>
     [Test]
     public async Task TryDequeueBestObserved_SingleThreadDrain_ReturnsExactGlobalMinimumOrder()
     {
         var queue = NewPinned(subQueueCount: 16);
         const int n = 2_000;
-
-        // Insert 0..n-1 in a shuffled order so the elements scatter across stripes; the strict drain
-        // must still surface them in perfect ascending order regardless of where they landed.
         var rng = new Random(0xBEEF);
         int[] order = Enumerable.Range(0, n).ToArray();
         for (int i = order.Length - 1; i > 0; i--)
@@ -92,7 +94,6 @@ public class StrictMinInspectTests
             previous = priority;
         }
 
-        // The drain is exact: nothing left behind, nothing fabricated.
         await Assert.That(queue.TryDequeueBestObserved(out _, out _)).IsFalse().Because("the queue is fully drained");
         await Assert.That(queue.IsEmpty).IsTrue().Because("a strict drain removes every element exactly once");
     }
@@ -108,18 +109,19 @@ public class StrictMinInspectTests
     /// method gave up early, returning <see langword="false"/> with elements still resident
     /// (the AOT-smoke symptom: <c>TryDequeueBestObserved</c> drained 0 of 4096).
     /// </summary>
+    /// <remarks>
+    /// The queue has a single sub-queue with buffering on. Every element goes through <c>D</c> and the heap
+    /// on ONE stripe, so the under-lock revalidation read of the strict path is unambiguously the buffered
+    /// front. There are more elements (200) than <c>bufferCapacity</c>, so <c>D</c> fills, the heap is
+    /// non-empty, and pops force repeated refills of <c>D</c> from the heap. That is exactly the regime
+    /// where the heap root is not <c>D.front()</c>. The shuffled insertion makes sure that a wrong
+    /// revalidation cannot pass by lucky ordering.
+    /// </remarks>
     [Test]
     public async Task TryDequeueBestObserved_Buffered_DrainsAllInStrictOrder()
     {
-        // Single sub-queue with buffering on: every element funnels through D + heap on ONE stripe, so
-        // the strict path's under-lock revalidation read is unambiguously the buffered front.
         var queue = NewBufferedPinned(subQueueCount: 1, bufferCapacity: 16);
-
-        // > bufferCapacity elements so D fills, the heap is non-empty, and pops force repeated
-        // refills of D from the heap — exactly the regime where the heap root != D.front().
         const int n = 200;
-
-        // Shuffled insertion so a wrong revalidation cannot accidentally pass by lucky ordering.
         var rng = new Random(0xC0FFEE);
         int[] order = Enumerable.Range(0, n).ToArray();
         for (int i = order.Length - 1; i > 0; i--)
@@ -160,31 +162,30 @@ public class StrictMinInspectTests
     /// strictly larger than <c>D.front()</c> — so the no-worse-than-scanned-minimum check failed every
     /// attempt and TryPeekBestObserved returned <see langword="false"/> on a non-empty queue.
     /// </summary>
+    /// <remarks>
+    /// The test enqueues more than <c>C</c> elements, so <c>D</c> holds the smallest <c>C</c> entries (its
+    /// front is the global minimum) and the heap keeps the larger keys. In this arrangement the heap root
+    /// is not <c>D.front()</c>. The published top is <c>D.front() == 0</c>, but 0 does NOT sit at the heap
+    /// root, because it was buffered. The peek is non-destructive: a second peek still sees 0, and the
+    /// count is unchanged. The next strict pop then removes exactly that peeked minimum.
+    /// </remarks>
     [Test]
     public async Task TryPeekBestObserved_Buffered_ReturnsResidentMinimum()
     {
         var queue = NewBufferedPinned(subQueueCount: 1, bufferCapacity: 16);
-
-        // Enqueue more than C so D holds the smallest C entries (front = the global minimum) while the
-        // heap retains the larger keys — the arrangement where heap root != D.front().
         const int n = 50;
         for (int p = n - 1; p >= 0; p--)
         {
             queue.Enqueue(p, p);
         }
 
-        // The published top is D.front() == 0, but 0 does NOT sit at the heap root (it was buffered).
         await Assert.That(queue.TryPeekBestObserved(out int e1, out int p1)).IsTrue().Because(
             "TryPeekBestObserved must see the buffered resident minimum 0 in D.front(), not fail against the heap root");
         await Assert.That(p1).IsEqualTo(0).Because("the resident minimum lives in the deletion buffer D");
         await Assert.That(e1).IsEqualTo(0);
-
-        // Non-destructive: a second peek still sees 0, and the count is unchanged.
         await Assert.That(queue.TryPeekBestObserved(out _, out int p2)).IsTrue();
         await Assert.That(p2).IsEqualTo(0).Because("a second peek still sees the buffered minimum — peek does not remove");
         await Assert.That(queue.Count).IsEqualTo(n).Because("the two buffered peeks removed nothing");
-
-        // And the next strict pop removes exactly that peeked minimum.
         await Assert.That(queue.TryDequeueBestObserved(out _, out int popped)).IsTrue();
         await Assert.That(popped).IsEqualTo(0).Because("the peeked buffered minimum is the next element popped");
     }
@@ -195,31 +196,28 @@ public class StrictMinInspectTests
     /// the cross-stripe <c>TryScanForMinimum</c> winner selection and the <c>TryScanRunnerUp</c>
     /// revalidation against a smaller candidate in another stripe.
     /// </summary>
+    /// <remarks>
+    /// Stripe 0 holds {50, 60}, stripe 3 holds the true minimum {5} and {70}, and stripe 5 holds {9}. The
+    /// test drives each stripe directly, so the placement is deterministic. The public <c>Enqueue</c>
+    /// scatters randomly and cannot pin which stripe holds the minimum. The first strict pop must return
+    /// 5 from stripe 3, not 50 from stripe 0 or 9 from stripe 5. The second pop returns 9 (stripe 5), the
+    /// runner-up that is now the winner. The rest ascend exactly: 50, 60, 70.
+    /// </remarks>
     [Test]
     public async Task TryDequeueBestObserved_MinimumInDistinctStripe_PopsAcrossStripes()
     {
         var queue = NewPinned(subQueueCount: 8);
         SubQueue<int, int>[] stripes = queue.SubQueuesForTest;
-
-        // Stripe 0 holds {50, 60}; stripe 3 holds the true minimum {5} plus {70}; stripe 5 holds {9}.
-        // Direct-drive each stripe so the placement is deterministic (the public Enqueue scatters
-        // randomly and could not pin which stripe holds the minimum).
         PushDirect(stripes[0], 50);
         PushDirect(stripes[0], 60);
         PushDirect(stripes[3], 70);
         PushDirect(stripes[3], 5);
         PushDirect(stripes[5], 9);
-
-        // First strict pop: the global minimum is 5 in stripe 3 — not stripe 0's 50 or stripe 5's 9.
         await Assert.That(queue.TryDequeueBestObserved(out int e1, out int p1)).IsTrue();
         await Assert.That(p1).IsEqualTo(5).Because("the strict min is 5 in stripe 3, found by the cross-stripe scan");
         await Assert.That(e1).IsEqualTo(5);
-
-        // Second strict pop: now 9 (stripe 5) is the runner-up-turned-winner.
         await Assert.That(queue.TryDequeueBestObserved(out int _, out int p2)).IsTrue();
         await Assert.That(p2).IsEqualTo(9).Because("after 5 is removed, 9 in stripe 5 is the new global minimum");
-
-        // Remaining ascend exactly: 50, 60, 70.
         await Assert.That(PopMinPriority(queue)).IsEqualTo(50);
         await Assert.That(PopMinPriority(queue)).IsEqualTo(60);
         await Assert.That(PopMinPriority(queue)).IsEqualTo(70);
@@ -254,6 +252,10 @@ public class StrictMinInspectTests
     /// without removing it: the very next strict pop yields that same minimum, proving the peek was
     /// non-destructive while exercising the lock-free scan + single-lock retrieval path.
     /// </summary>
+    /// <remarks>
+    /// Stripe 4 holds the global minimum 3. The two peeks are idempotent, and both see 3. The element is
+    /// still present after the peeks, so the strict pop then removes exactly that 3.
+    /// </remarks>
     [Test]
     public async Task TryPeekBestObserved_ReturnsGlobalMinimum_WithoutRemoving()
     {
@@ -261,18 +263,15 @@ public class StrictMinInspectTests
         SubQueue<int, int>[] stripes = queue.SubQueuesForTest;
 
         PushDirect(stripes[1], 40);
-        PushDirect(stripes[4], 3);   // the global minimum
+        PushDirect(stripes[4], 3);
         PushDirect(stripes[6], 20);
 
-        // Peek twice: idempotent, and both see the minimum 3 in stripe 4.
         await Assert.That(queue.TryPeekBestObserved(out int e1, out int p1)).IsTrue();
         await Assert.That(p1).IsEqualTo(3).Because("TryPeekBestObserved returns the global minimum 3");
         await Assert.That(e1).IsEqualTo(3);
 
         await Assert.That(queue.TryPeekBestObserved(out int _, out int p2)).IsTrue();
         await Assert.That(p2).IsEqualTo(3).Because("a second peek still sees 3 — peek does not remove");
-
-        // The element is still present: the strict pop now removes exactly that 3.
         await Assert.That(queue.Count).IsEqualTo(3).Because("nothing was removed by the two peeks");
         await Assert.That(queue.TryDequeueBestObserved(out _, out int popped)).IsTrue();
         await Assert.That(popped).IsEqualTo(3).Because("the peeked minimum is the next element popped");
@@ -286,16 +285,19 @@ public class StrictMinInspectTests
     /// root, then <see cref="SubQueuePopStatus.Empty"/> once drained — and it republishes the new top
     /// so the queue-level strict path stays correct.
     /// </summary>
+    /// <remarks>
+    /// The value 10 becomes the root of the min-heap. The caller owns the lock for <c>PopHeldRoot</c>. That
+    /// is the whole point of the #18 path: it pops the exact root it revalidated, with no unlock window
+    /// between. The drain crosses the non-empty-to-empty boundary, so <c>PopHeldRoot</c> republishes empty.
+    /// </remarks>
     [Test]
     public async Task PopHeldRoot_UnderHeldLock_PopsRootThenReportsEmpty()
     {
         var subQueue = new SubQueue<int, int>(comparer: null, index: 0, occupancy: new ulong[1]);
         PushDirect(subQueue, 30);
-        PushDirect(subQueue, 10); // becomes the root (min-heap)
+        PushDirect(subQueue, 10);
         PushDirect(subQueue, 20);
 
-        // The caller owns the lock for PopHeldRoot — that is the whole point of the #18 path: it pops
-        // the exact root it revalidated, with no intervening unlock window.
         SubQueuePopStatus s1, s2, s3, s4;
         int e1, p1, e2, p2, e3, p3, e4, p4;
         lock (subQueue.SyncLock)
@@ -315,8 +317,6 @@ public class StrictMinInspectTests
 
         await Assert.That(s3).IsEqualTo(SubQueuePopStatus.Success);
         await Assert.That(p3).IsEqualTo(30);
-
-        // The drain crossed the non-empty->empty boundary: PopHeldRoot republished empty.
         await Assert.That(s4).IsEqualTo(SubQueuePopStatus.Empty).Because(
             "a held-lock pop on a drained heap reports Empty, never Contended (the caller holds the lock)");
         await Assert.That(subQueue.HeapSize).IsEqualTo(0).Because("the heap is fully drained");
@@ -329,14 +329,18 @@ public class StrictMinInspectTests
     /// conservation holds exactly — every element is popped exactly once and none is lost or
     /// duplicated — exercising the under-lock revalidation/rescan loop under real contention.
     /// </summary>
+    /// <remarks>
+    /// Phase 1 enqueues everything single-threaded, so a false-while-non-empty has no honest excuse. In
+    /// phase 2 the consumers drain concurrently through the STRICT path. Each popped priority is unique in
+    /// 0..n−1, so a per-priority tally proves that no element is popped twice. Conservation requires that
+    /// every priority is popped exactly once, with none lost and none duplicated.
+    /// </remarks>
     [Test]
     public async Task TryDequeueBestObserved_ConcurrentDrain_ConservesEveryElement()
     {
         var queue = NewPinned(subQueueCount: 16);
         const int n = 20_000;
         const int consumerCount = 6;
-
-        // PHASE 1: enqueue everything single-threaded so a false-while-non-empty has no honest excuse.
         for (int i = 0; i < n; i++)
         {
             queue.Enqueue(i, i);
@@ -344,9 +348,6 @@ public class StrictMinInspectTests
 
         long remaining = n;
         int[] popCounts = new int[n];
-
-        // PHASE 2: consumers drain via the STRICT path concurrently. Each popped priority is unique
-        // 0..n-1, so a per-priority tally proves no element is ever popped twice.
         var consumers = new Thread[consumerCount];
         for (int c = 0; c < consumerCount; c++)
         {
@@ -376,7 +377,6 @@ public class StrictMinInspectTests
                 "consumer threads must complete; a timeout signals a drain-progress regression (lost pop) rather than hanging CI");
         }
 
-        // Conservation: every priority popped exactly once, none lost, none duplicated.
         int poppedOnce = popCounts.Count(x => x == 1);
         int duplicated = popCounts.Count(x => x > 1);
         int missing = popCounts.Count(x => x == 0);
@@ -397,9 +397,9 @@ public class StrictMinInspectTests
     private static void PushDirect(SubQueue<int, int> subQueue, int priority)
         => subQueue.TryLockedPush(priority, priority);
 
-    /// <summary>Pops the strict global minimum priority, asserting success first.</summary>
+    /// <summary>Pops the strict global minimum priority.</summary>
     /// <param name="queue">The queue to pop from.</param>
-    /// <returns>The popped minimum priority.</returns>
+    /// <returns>The popped minimum priority, or <see cref="int.MinValue"/> when the pop fails.</returns>
     private static int PopMinPriority(ConcurrentPriorityQueue<int, int> queue)
     {
         bool ok = queue.TryDequeueBestObserved(out _, out int priority);

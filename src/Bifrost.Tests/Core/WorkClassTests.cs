@@ -26,20 +26,20 @@ public class WorkClassTests
     /// Verifies the enum underlying values are ordered Interactive (0),
     /// Default (1), Batch (2) so comparisons read "lower = more urgent".
     /// </summary>
+    /// <remarks>
+    /// The values go into locals so that the TUnit analyzer does not see constant operands.
+    /// </remarks>
     [Test]
     public async Task WorkClass_Values_OrderedInteractiveDefaultBatch()
     {
-        // Arrange - locals so the TUnit analyzer does not see constant operands
         var interactive = (int)WorkClass.Interactive;
         var defaultClass = (int)WorkClass.Default;
         var batch = (int)WorkClass.Batch;
 
-        // Assert - explicit underlying values
         await Assert.That(interactive).IsEqualTo(0);
         await Assert.That(defaultClass).IsEqualTo(1);
         await Assert.That(batch).IsEqualTo(2);
 
-        // Assert - ordering reads "lower = more urgent"
         await Assert.That(interactive).IsLessThan(defaultClass);
         await Assert.That(defaultClass).IsLessThan(batch);
     }
@@ -51,10 +51,8 @@ public class WorkClassTests
     [Test]
     public async Task EnqueueResult_Accepted_HasNoRejectionReason()
     {
-        // Arrange
         var result = EnqueueResult.Accepted;
 
-        // Assert
         await Assert.That(result.IsAccepted).IsTrue();
         await Assert.That(result.Reason).IsNull();
     }
@@ -70,10 +68,8 @@ public class WorkClassTests
     [Arguments(RejectionReason.Shutdown)]
     public async Task EnqueueResult_Rejected_CarriesReason(RejectionReason reason)
     {
-        // Arrange
         var result = EnqueueResult.Rejected(reason);
 
-        // Assert
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(result.Reason).IsEqualTo(reason);
     }

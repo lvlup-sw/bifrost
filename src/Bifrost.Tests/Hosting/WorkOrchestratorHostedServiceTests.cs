@@ -21,19 +21,19 @@ public class WorkOrchestratorHostedServiceTests
     /// <summary>
     /// Verifies that StartAsync completes successfully.
     /// </summary>
+    /// <remarks>
+    /// The service starts without a call to the orchestrator, because the workers start on construction.
+    /// </remarks>
     [Test]
     public async Task WorkOrchestratorHostedService_StartAsync_Completes()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
 
-        // Act
         var task = service.StartAsync(CancellationToken.None);
         await task.ConfigureAwait(false);
 
-        // Assert - Service starts without calling orchestrator methods (workers start on construction)
         await Assert.That(task.IsCompletedSuccessfully).IsTrue();
     }
 
@@ -43,15 +43,12 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_StopAsync_StopsOrchestrator()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
 
-        // Act
         await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await orchestrator.Received(1).DrainAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -61,10 +58,8 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_Constructor_ThrowsWhenOrchestratorNull()
     {
-        // Arrange
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
 
-        // Act & Assert
         await Assert.That(() => new WorkOrchestratorHostedService<string>(null!, logger))
             .Throws<ArgumentNullException>();
     }
@@ -75,10 +70,8 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_Constructor_ThrowsWhenLoggerNull()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
 
-        // Act & Assert
         await Assert.That(() => new WorkOrchestratorHostedService<string>(orchestrator, null!))
             .Throws<ArgumentNullException>();
     }
@@ -89,16 +82,13 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_StopAsync_PassesCancellationToken()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
         using var cts = new CancellationTokenSource();
 
-        // Act
         await service.StopAsync(cts.Token).ConfigureAwait(false);
 
-        // Assert - Verify the token was passed
         await orchestrator.Received(1).DrainAsync(cts.Token).ConfigureAwait(false);
     }
 
@@ -108,18 +98,15 @@ public class WorkOrchestratorHostedServiceTests
     [Test]
     public async Task WorkOrchestratorHostedService_StartAsync_CanBeCalledMultipleTimes()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
 
-        // Act - Call StartAsync twice
         var task1 = service.StartAsync(CancellationToken.None);
         await task1.ConfigureAwait(false);
         var task2 = service.StartAsync(CancellationToken.None);
         await task2.ConfigureAwait(false);
 
-        // Assert - Both should complete successfully
         await Assert.That(task1.IsCompletedSuccessfully).IsTrue();
         await Assert.That(task2.IsCompletedSuccessfully).IsTrue();
     }

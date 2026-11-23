@@ -43,6 +43,11 @@ public sealed class DispatchFailureTests
     /// not crash the loop (a healthy job still fires), and the failed job's next fire
     /// is still scheduled (it fires on its next occurrence once it stops throwing).
     /// </summary>
+    /// <remarks>
+    /// On the first occurrence, the failing dispatch throws (isolated as a <see
+    /// cref="JobFireFailedEvent"/>) and the healthy one fires. The next fire of the failing job is
+    /// still scheduled, so on its next occurrence it dispatches again and now succeeds.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DispatchFailure_PublishesFailedEvent_LoopContinues_NextFireScheduled()
@@ -53,16 +58,12 @@ public sealed class DispatchFailureTests
         await fx.RegisterAsync("failing", Cadence.Interval(TimeSpan.FromMinutes(5)), failing).ConfigureAwait(false);
         await fx.RegisterAsync("healthy", Cadence.Interval(TimeSpan.FromMinutes(5)), healthy).ConfigureAwait(false);
 
-        // First occurrence: the failing dispatch throws (isolated as JobFireFailedEvent),
-        // the healthy one fires.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
         await Assert.That(fx.Events.OfType<JobFireFailedEvent>().Any()).IsTrue();
         await Assert.That(healthy.FireCount).IsEqualTo(1);
 
-        // The failing job's next fire was still scheduled: on its next occurrence it
-        // dispatches again (now succeeding).
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(failing.SuccessCount).IsEqualTo(1);
@@ -73,6 +74,10 @@ public sealed class DispatchFailureTests
     /// dispatch is logged and swallowed (best-effort), and the next fire is still
     /// scheduled and fires.
     /// </summary>
+    /// <remarks>
+    /// The fire happens even though the checkpoint throws, and the loop logs the failure. The next
+    /// fire is still scheduled and fires on the next occurrence.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task CheckpointFailure_LoggedAndSwallowed_NextFireScheduled()
@@ -86,12 +91,10 @@ public sealed class DispatchFailureTests
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // The fire happened despite the checkpoint throwing; the failure was logged.
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
         await Assert.That(logger.Any(LogLevel.Warning)).IsTrue();
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
 
-        // The next fire is still scheduled and fires on the next occurrence.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(dispatcher.FireCount).IsEqualTo(2);

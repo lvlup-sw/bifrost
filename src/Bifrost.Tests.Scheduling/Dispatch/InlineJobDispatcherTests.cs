@@ -45,6 +45,14 @@ public sealed class InlineJobDispatcherTests
     /// Verifies the delegate runs on a thread-pool thread, not the calling (tick)
     /// thread.
     /// </summary>
+    /// <remarks>
+    /// The test drives the dispatch from a dedicated non-pool thread, so the assertion that the
+    /// delegate ran on a different thread than the caller is deterministic. If the caller is a
+    /// pool thread (the test runner is one in Release), the runtime can reuse it to run the
+    /// queued delegate. Then the two thread ids can be equal by chance. This real flake occurred
+    /// in about 2 of 3 Release runs. A foreground <c>Thread</c> is never a pool thread, so its id
+    /// can never equal the id of the pool thread.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DispatchAsync_RunsDelegateOnPoolThread_NotCallingThread()
@@ -60,12 +68,6 @@ public sealed class InlineJobDispatcherTests
             return ValueTask.CompletedTask;
         });
 
-        // Drive the dispatch from a dedicated NON-pool thread so the "ran on a
-        // different thread than the caller" assertion is deterministic. If the caller
-        // were itself a pool thread (as the test runner is in Release), the runtime is
-        // free to recycle it to run the queued delegate, making the two thread ids
-        // coincide by chance — a real flake observed ~2/3 of Release runs. A foreground
-        // Thread is never a pool thread, so its id can never equal the pool thread's.
         var driver = new Thread(() =>
         {
             callerThreadId = Environment.CurrentManagedThreadId;

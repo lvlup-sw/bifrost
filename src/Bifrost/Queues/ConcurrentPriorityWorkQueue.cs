@@ -122,20 +122,28 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// cross-property relation cannot be a single-setter guard on the options without
     /// order-of-assignment traps.
     /// </exception>
+    /// <remarks>
+    /// <para>
+    /// <see cref="AdmissionThresholds.Precompute"/> validates the watermark monotonicity and
+    /// precomputes the per-class admission thresholds as integer counts (DR-6), as
+    /// <see cref="PriorityKey.Precompute"/> does for the boosts. The floating-point
+    /// watermark × capacity products are evaluated exactly once, so the admission check of
+    /// <see cref="TryEnqueue"/> is a pure integer comparison.
+    /// </para>
+    /// <para>
+    /// <see cref="CpqTuningResolver.Resolve"/> turns the tuning profile into concrete MultiQueue
+    /// settings once. Buffering is keyed off the reference-ness of the element, because that is
+    /// where buffering earns its keep. The work envelope is a struct, so buffering turns on whenever
+    /// <typeparamref name="TWork"/> is, or contains, a managed reference, and stays off for pure
+    /// value-type work.
+    /// </para>
+    /// </remarks>
     public ConcurrentPriorityWorkQueue(int capacity, PriorityDispatchOptions options, long timestampFrequency)
     {
         _boosts = PriorityKey.Precompute(options, timestampFrequency);
 
-        // Validate watermark monotonicity and precompute the per-class admission
-        // thresholds as integer COUNTS (DR-6), mirroring the Boosts precompute above:
-        // the floating-point watermark × capacity products are evaluated exactly once,
-        // so TryEnqueue's admission check is pure integer comparison.
         _thresholds = AdmissionThresholds.Precompute(options, capacity);
 
-        // Resolve the tuning profile to concrete MultiQueue settings once. Buffering is keyed off the
-        // element's reference-ness because that is where it earns its keep; the work envelope is a struct,
-        // so this turns on whenever TWork is, or contains, a managed reference and stays off for pure
-        // value-type work.
         (_resolvedStickiness, _resolvedBufferCapacity) = CpqTuningResolver.Resolve(
             options.CpqTuning,
             RuntimeHelpers.IsReferenceOrContainsReferences<WorkEnvelope<TWork>>());
@@ -163,11 +171,11 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     // Retirement can consume an item permit without taking the item. Restore a wake.
     internal void WakeConsumer() => _signal.Release();
 
+    // The completion gate also covers the permit release of Complete. Without the gate, a drain
+    // that loses the check-then-wait race takes the completion wake and leaves a parked consumer
+    // blocked after the queue is empty.
     internal void ConsumeMatchedWake()
     {
-        // The completion gate also covers Complete's permit release. A drain that
-        // loses the check-then-wait race would otherwise take the completion wake
-        // and leave a parked consumer blocked after the queue is empty.
         lock (_completionGate)
         {
             if (_completed) return;
@@ -201,10 +209,13 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     public bool TryEnqueue(in WorkEnvelope<TWork> item) => Enqueue(item).IsAccepted;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The high bit of <c>_admissionState</c> closes admission. <see cref="Complete"/> waits for the
+    /// producers that were already admitted, including their wake-up releases, before it lets
+    /// consumers observe completion.
+    /// </remarks>
     public EnqueueResult Enqueue(in WorkEnvelope<TWork> item)
     {
-        // The high bit closes admission. Complete waits for previously admitted producers,
-        // including their wake-up releases, before allowing consumers to observe completion.
         int state;
         do
         {
@@ -258,37 +269,44 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// <see cref="Complete"/>, and the post-completion poll — are unchanged: only the
     /// state-machine's backing storage is pooled, not the awaited operation.
     /// </para>
+    /// <para>
+    /// <b>Completion handshake.</b> The method registers as a waiter (the
+    /// <c>Interlocked.Increment</c> of <c>_waiterCount</c>) before it reads <c>_completed</c>.
+    /// <see cref="Complete"/> publishes the flag behind a full fence before it reads this count.
+    /// So either this method sees completion and never parks, or <see cref="Complete"/> sees the
+    /// registration and funds a wake-up permit. This store-buffering handshake rules out the case
+    /// where neither side sees the other.
+    /// </para>
+    /// <para>
+    /// The cancellation check comes before the check of <c>_completed</c>, which matches the
+    /// <c>WaitToReadAsync</c> order of the channel binding. The boundary of the consume loop absorbs
+    /// the <see cref="OperationCanceledException"/>, also the native one that the semaphore throws
+    /// for a parked wait. After completion the semaphore is no longer authoritative, because residual
+    /// items can be drained directly without consuming permits. So the wait degrades to a poll:
+    /// <see langword="true"/> while residual items remain, else <see langword="false"/>.
+    /// </para>
+    /// <para>
+    /// An acquired permit is either an item permit or a completion wake-up. An item permit means
+    /// that an item is likely available, but <c>TryDequeue</c> can still miss spuriously, and
+    /// consumers then loop back to this wait. A completion wake-up with the queue completed and empty
+    /// reports shutdown.
+    /// </para>
     /// </remarks>
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public async ValueTask<bool> WaitToDequeueAsync(CancellationToken cancellationToken)
     {
-        // Register as a waiter BEFORE reading the completed flag. Complete() publishes
-        // the flag (full fence) before reading this count, so either this method sees
-        // completion here and never parks, or Complete() sees the registration and funds
-        // a wake-up permit — never neither (store-buffering handshake).
         Interlocked.Increment(ref _waiterCount);
         try
         {
-            // Contract cancellation semantic: surface OperationCanceledException
-            // (checked before the completed flag, matching the channel binding's
-            // WaitToReadAsync ordering); the consume loop's boundary absorbs it.
             cancellationToken.ThrowIfCancellationRequested();
 
             if (_completed)
             {
-                // Post-completion the semaphore is no longer authoritative (residual
-                // items may be drained directly without consuming permits), so the wait
-                // degrades to a poll: true while residual items remain, else false.
                 return !_queue.IsEmpty;
             }
 
-            // Cancellation of a parked wait propagates the semaphore's native
-            // OperationCanceledException to the consume loop's boundary.
             await _signal.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-            // Permit acquired: either an item permit (an item is likely available —
-            // TryDequeue may still spuriously miss; consumers loop back to this wait) or
-            // a completion wake-up (completed AND empty: report shutdown).
             return !_completed || !_queue.IsEmpty;
         }
         finally
@@ -316,6 +334,12 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
     /// one permit per registered waiter (the no-hang handshake — see the class remarks).
     /// Idempotent: only the first call performs the wake.
     /// </summary>
+    /// <remarks>
+    /// The <c>Interlocked.MemoryBarrier</c> is a full fence between the publish of <c>_completed</c>
+    /// and the read of <c>_waiterCount</c>. It pairs with the <c>Interlocked.Increment</c> in
+    /// <see cref="WaitToDequeueAsync(CancellationToken)"/>, so a waiter that missed the flag is
+    /// always visible here and receives a wake-up permit.
+    /// </remarks>
     public void Complete()
     {
         lock (_completionGate)
@@ -326,9 +350,6 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
             while (Volatile.Read(ref _admissionState) != int.MinValue) spinner.SpinOnce();
             _completed = true;
 
-            // Full fence between publishing the flag and reading the waiter count: pairs
-            // with the Interlocked.Increment in WaitToDequeueAsync so a waiter that missed
-            // the flag is always visible here and receives a wake-up permit.
             Interlocked.MemoryBarrier();
 
             var waiters = Volatile.Read(ref _waiterCount);

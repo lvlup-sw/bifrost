@@ -121,6 +121,13 @@ public static class ThroughputSweep
     /// <param name="bufferCapacities">The buffer capacities to sweep, e.g. <c>{0, 16}</c> (off vs. paper-optimum).</param>
     /// <param name="outputDirectory">The directory the CSV and Markdown files are written into (created if absent).</param>
     /// <returns>Every (buffer capacity, <see cref="ThroughputResult"/>) pair produced, in sweep order.</returns>
+    /// <remarks>
+    /// The method fails fast at the API boundary on invalid sweep values, not deep inside the run.
+    /// Each buffer capacity must stay within the logical buffer range <c>[0, 16]</c> of the queue
+    /// (<c>SubQueue.BufferCapacityMax</c>), and <c>0</c> disables buffering. The queue constructor
+    /// also throws, but the check here surfaces a bad sweep configuration before any benchmark work
+    /// begins.
+    /// </remarks>
     public static IReadOnlyList<(int BufferCapacity, ThroughputResult Result)> RunBufferedAb(
         double windowSeconds,
         int[] threadCounts,
@@ -131,15 +138,11 @@ public static class ThroughputSweep
         ArgumentNullException.ThrowIfNull(bufferCapacities);
         ArgumentNullException.ThrowIfNull(outputDirectory);
 
-        // Fail fast at the API boundary on invalid sweep values rather than deep inside the run.
         foreach (int threadCount in threadCounts)
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(threadCount, 1);
         }
 
-        // bufferCapacity must stay within the queue's logical buffer range [0, 16]
-        // (SubQueue.BufferCapacityMax); 0 disables buffering. The ctor would also throw, but
-        // validating here surfaces a bad sweep configuration before any benchmark work begins.
         foreach (int bufferCapacity in bufferCapacities)
         {
             ArgumentOutOfRangeException.ThrowIfNegative(bufferCapacity);
@@ -177,6 +180,9 @@ public static class ThroughputSweep
     /// <summary>
     /// The default thread-count ladder: powers of two from 1 up to and including 2×<see cref="Environment.ProcessorCount"/>.
     /// </summary>
+    /// <remarks>
+    /// The ladder always contains the exact 2×cores point, also when that value is not a power of two.
+    /// </remarks>
     internal static int[] DefaultThreadCounts()
     {
         int max = Math.Max(1, Environment.ProcessorCount * 2);
@@ -186,7 +192,6 @@ public static class ThroughputSweep
             counts.Add(c);
         }
 
-        // Ensure the exact 2×cores point is present even when it is not a power of two.
         if (counts[^1] != max)
         {
             counts.Add(max);

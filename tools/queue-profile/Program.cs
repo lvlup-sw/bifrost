@@ -1,3 +1,7 @@
+// The throughput scenarios run the nested population, buffer-capacity, and thread-count loops of the
+// full validation matrix, and stop after the target configuration. This keeps the preceding
+// workloads and the warmup order of the full matrix.
+
 using Bifrost.Concurrency;
 using System.Diagnostics;
 using System.Reflection;
@@ -15,7 +19,6 @@ if (scenario.StartsWith("batch-"))
     return;
 }
 int population = scenario == "throughput-dense" ? 4096 : 16;
-// Preserve the full validation matrix's preceding workloads and warmup order.
 foreach (int p in new[] { 16, 4096 })
 foreach (int c in new[] { 0, 16 })
 foreach (int threads in new[] { 1, 4 })

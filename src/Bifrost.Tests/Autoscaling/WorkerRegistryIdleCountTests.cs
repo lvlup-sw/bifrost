@@ -22,13 +22,10 @@ public class WorkerRegistryIdleCountTests
     [Test]
     public async Task IdleWorkerCount_NoWorkers_ReturnsZero()
     {
-        // Arrange
         var registry = new WorkerRegistry();
 
-        // Act
         var idleCount = registry.IdleWorkerCount;
 
-        // Assert
         await Assert.That(idleCount).IsEqualTo(0);
     }
 
@@ -38,7 +35,6 @@ public class WorkerRegistryIdleCountTests
     [Test]
     public async Task IdleWorkerCount_WithIdleWorkers_ReturnsCorrectCount()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -54,13 +50,10 @@ public class WorkerRegistryIdleCountTests
             cts.Token).ConfigureAwait(false);
         worker2.MarkIdle();
 
-        // Act
         var idleCount = registry.IdleWorkerCount;
 
-        // Assert
         await Assert.That(idleCount).IsEqualTo(2);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -70,7 +63,6 @@ public class WorkerRegistryIdleCountTests
     [Test]
     public async Task IdleWorkerCount_WithBusyWorkers_ExcludesBusyWorkers()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -86,13 +78,10 @@ public class WorkerRegistryIdleCountTests
             cts.Token).ConfigureAwait(false);
         worker2.MarkBusy();
 
-        // Act
         var idleCount = registry.IdleWorkerCount;
 
-        // Assert
         await Assert.That(idleCount).IsEqualTo(1);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
@@ -102,7 +91,6 @@ public class WorkerRegistryIdleCountTests
     [Test]
     public async Task IdleWorkerCount_WithStoppingWorkers_ExcludesStoppingWorkers()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -117,25 +105,24 @@ public class WorkerRegistryIdleCountTests
             async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
             cts.Token).ConfigureAwait(false);
         worker2.MarkIdle();
-        registry.RequestWorkerStop("worker-2"); // Request stop
+        registry.RequestWorkerStop("worker-2");
 
-        // Act
         var idleCount = registry.IdleWorkerCount;
 
-        // Assert
         await Assert.That(idleCount).IsEqualTo(1);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
     /// <summary>
     /// Verifies that IdleWorkerCount reflects state changes correctly.
     /// </summary>
+    /// <remarks>
+    /// The workers start idle. The test then marks a worker busy, and then idle again.
+    /// </remarks>
     [Test]
     public async Task IdleWorkerCount_StateChanges_ReflectsCorrectly()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
 
@@ -144,28 +131,27 @@ public class WorkerRegistryIdleCountTests
             async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
             cts.Token).ConfigureAwait(false);
 
-        // Act & Assert - Initial state (workers start idle)
         await Assert.That(registry.IdleWorkerCount).IsEqualTo(1);
 
-        // Mark busy
         worker.MarkBusy();
         await Assert.That(registry.IdleWorkerCount).IsEqualTo(0);
 
-        // Mark idle again
         worker.MarkIdle();
         await Assert.That(registry.IdleWorkerCount).IsEqualTo(1);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 
     /// <summary>
     /// Verifies that IdleWorkerCount is thread-safe under concurrent access.
     /// </summary>
+    /// <remarks>
+    /// State changes and count reads run concurrently. The count must always be valid (0-10), and
+    /// the run must complete without errors.
+    /// </remarks>
     [Test]
     public async Task IdleWorkerCount_ConcurrentAccess_IsThreadSafe()
     {
-        // Arrange
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
         var workers = new List<WorkerInfo>();
@@ -179,14 +165,12 @@ public class WorkerRegistryIdleCountTests
             workers.Add(worker);
         }
 
-        // Act - Concurrent state changes and count reads
         var readTask = Task.Run(() =>
         {
             for (var i = 0; i < 1000; i++)
             {
                 var count = registry.IdleWorkerCount;
 
-                // Count should always be valid (0-10)
                 if (count < 0 || count > 10)
                 {
                     throw new InvalidOperationException($"Invalid idle count: {count}");
@@ -210,15 +194,12 @@ public class WorkerRegistryIdleCountTests
             }
         });
 
-        // Assert - Should complete without errors
         await Task.WhenAll(readTask, writeTask).ConfigureAwait(false);
 
-        // Final count should be valid
         var finalCount = registry.IdleWorkerCount;
         await Assert.That(finalCount).IsGreaterThanOrEqualTo(0);
         await Assert.That(finalCount).IsLessThanOrEqualTo(10);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
     }
 }

@@ -101,6 +101,10 @@ internal sealed class SoakRunner
     /// <param name="config">The workload shape.</param>
     /// <exception cref="ArgumentNullException"><paramref name="config"/> is <c>null</c>.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="workers"/> is less than one.</exception>
+    /// <remarks>
+    /// <c>_saturationRatePerSecond</c> is the aggregate service rate of the consumers. The controller
+    /// steers the total arrival rate around this value to hold the occupancy band.
+    /// </remarks>
     internal SoakRunner(SoakBinding binding, int workers, SoakConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -117,8 +121,6 @@ internal sealed class SoakRunner
             _collectors[i] = new ClassCollector();
         }
 
-        // Saturation: the consumers' aggregate service rate. The controller steers the total
-        // arrival rate around this to hold the occupancy band.
         _saturationRatePerSecond = workers / config.MeanWorkSeconds;
         _rate.RatePerSecond = InitialRateMultiple * _saturationRatePerSecond;
     }
@@ -218,6 +220,10 @@ internal sealed class SoakRunner
     /// <param name="share">This class's fraction of the total arrival rate.</param>
     /// <param name="seed">The deterministic RNG seed for this producer's stream.</param>
     /// <param name="ct">The soak-window token.</param>
+    /// <remarks>
+    /// An <see cref="OperationCanceledException"/> is the orderly end of the soak window, so the
+    /// method swallows it.
+    /// </remarks>
     private async Task ProduceAsync(WorkClass workClass, double share, int seed, CancellationToken ct)
     {
         if (share <= 0)
@@ -239,7 +245,6 @@ internal sealed class SoakRunner
         }
         catch (OperationCanceledException)
         {
-            // Orderly end of the soak window.
         }
     }
 
@@ -250,6 +255,10 @@ internal sealed class SoakRunner
     /// </summary>
     /// <param name="seed">The deterministic RNG seed for the burst durations.</param>
     /// <param name="ct">The soak-window token.</param>
+    /// <remarks>
+    /// An <see cref="OperationCanceledException"/> is the orderly end of the soak window, so the
+    /// method swallows it.
+    /// </remarks>
     private async Task BurstAsync(int seed, CancellationToken ct)
     {
         if (_config.BurstSize <= 0 || _config.BurstIntervalSeconds <= 0)
@@ -272,7 +281,6 @@ internal sealed class SoakRunner
         }
         catch (OperationCanceledException)
         {
-            // Orderly end of the soak window.
         }
     }
 
@@ -283,6 +291,12 @@ internal sealed class SoakRunner
     /// shutdown or cancellation interrupts a simulated item.
     /// </summary>
     /// <param name="ct">The soak-window token.</param>
+    /// <remarks>
+    /// In the canonical loop a miss from <c>TryDequeue</c> is never an error, so the loop goes back
+    /// to the wait. The simulated work is a delay because the soak measures queue behavior, not CPU.
+    /// An <see cref="OperationCanceledException"/> means that the window closed mid-item. That item's
+    /// queue wait was already recorded at dequeue.
+    /// </remarks>
     private async Task ConsumeAsync(CancellationToken ct)
     {
         try
@@ -291,20 +305,17 @@ internal sealed class SoakRunner
             {
                 if (!_queue.TryDequeue(out WorkEnvelope<int> envelope))
                 {
-                    // Canonical loop: a miss is never an error — loop back to the wait.
                     continue;
                 }
 
                 double waitMs = _time.GetElapsedTime(envelope.EnqueuedAtTicks).TotalMilliseconds;
                 _collectors[(int)envelope.Class].RecordDispatch(waitMs);
 
-                // Simulated work: the soak measures queue behavior, not CPU.
                 await Task.Delay(envelope.Work, ct).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
         {
-            // Window closed mid-item; its queue wait was already recorded at dequeue.
         }
     }
 
@@ -314,6 +325,12 @@ internal sealed class SoakRunner
     /// allocation-stability series.
     /// </summary>
     /// <param name="ct">The soak-window token.</param>
+    /// <remarks>
+    /// The rate controller is slow feedback: below the band it multiplies the total arrival rate by
+    /// <c>RateGainUp</c>, above the band by <c>RateGainDown</c>, and inside the band it holds the
+    /// rate. An <see cref="OperationCanceledException"/> is the orderly end of the soak window, so
+    /// the method swallows it.
+    /// </remarks>
     private async Task MonitorAsync(CancellationToken ct)
     {
         int tick = 0;
@@ -337,7 +354,6 @@ internal sealed class SoakRunner
                     _occupancyInBand++;
                 }
 
-                // Slow feedback: nudge the total arrival rate toward the band; inside it, hold.
                 double rate = _rate.RatePerSecond;
                 if (occupancy < _config.TargetOccupancyLow)
                 {
@@ -361,7 +377,6 @@ internal sealed class SoakRunner
         }
         catch (OperationCanceledException)
         {
-            // Orderly end of the soak window.
         }
     }
 
@@ -393,9 +408,14 @@ internal sealed class SoakRunner
             GC.CollectionCount(2)));
 
     /// <summary>Aggregates the collectors, occupancy accumulators, and GC series into the run's <see cref="SoakResult"/>.</summary>
+    /// <remarks>
+    /// The method computes the per-class totals first, so the shares have denominators. The
+    /// allocation-stability figures are per-interval rates between consecutive GC snapshots. The
+    /// first (start-up) interval is excluded when there are enough samples (more than three) to
+    /// afford it.
+    /// </remarks>
     private SoakResult BuildResult()
     {
-        // Per-class totals first, so shares have denominators.
         var snapshots = new (long Offered, long Rejected, double[] SortedWaits, double MaxWaitMs)[3];
         long totalOffered = 0;
         long totalDispatched = 0;
@@ -424,8 +444,6 @@ internal sealed class SoakRunner
                 maxWaitMs));
         }
 
-        // Allocation stability: per-interval rates between consecutive GC snapshots, the first
-        // (start-up) interval excluded when there are enough samples to afford it.
         double allocMean = 0;
         double allocMin = 0;
         double allocMax = 0;

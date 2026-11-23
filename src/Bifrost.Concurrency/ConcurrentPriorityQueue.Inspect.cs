@@ -46,10 +46,26 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <param name="priority">Its priority, or default on failure.</param>
     /// <returns>True on success; false when empty or when contention prevents observation.</returns>
     /// <remarks>
+    /// <para>
     /// This is not an exact global-minimum operation. The scan is non-atomic, skips unknown tops,
     /// and locks only the selected stripe. Another stripe may contain a smaller priority throughout
     /// the call. Bounded retries may return false while the queue contains elements. Only quiescent,
     /// uncontended use yields exact minimum order. Equal priorities have no stable FIFO guarantee.
+    /// </para>
+    /// <para>
+    /// Each attempt starts with a lock-free pass over every published top
+    /// (<see cref="TryScanForMinimum"/>). It finds the index of the winning sub-queue and the minimum
+    /// priority observed in this pass. If every sub-queue scanned empty (or unknown), there is
+    /// nothing to peek. Each attempt takes at most ONE lock, on the winner only, and never blocks.
+    /// A contended winner does not wait. The attempt rescans, because the picture can also have moved.
+    /// </para>
+    /// <para>
+    /// Under the lock, the live minimum is accepted when it is no worse than the scanned minimum.
+    /// <c>TryPeekLiveMin</c> reads <c>D.front()</c> on the buffered path (the published top), not the
+    /// heap root, so the buffered resident minimum revalidates correctly. Otherwise the winner was
+    /// mutated after the scan (it is empty now, or its root is strictly larger than the scanned
+    /// minimum), and the next attempt rescans for a possibly-better candidate.
+    /// </para>
     /// </remarks>
     public bool TryPeekBestObserved([MaybeNullWhen(false)] out TElement element, [MaybeNullWhen(false)] out TPriority priority)
     {
@@ -57,20 +73,15 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
         for (int attempt = 0; attempt < PeekRetryLimit; attempt++)
         {
-            // Lock-free pass over every published top; find the winning sub-queue's index and the
-            // minimum priority observed this pass.
             if (!TryScanForMinimum(out int winner, out TPriority scannedMin))
             {
-                // Every sub-queue scanned empty (or unknown): nothing to peek.
                 break;
             }
 
             SubQueue<TElement, TPriority> subQueue = queues[winner];
 
-            // At most ONE lock per attempt, on the winner only, never blocking.
             if (!subQueue.SyncLock.TryEnter())
             {
-                // Contended winner: do not wait; rescan (the picture may also have moved).
                 continue;
             }
 
@@ -79,16 +90,10 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 if (subQueue.TryPeekLiveMin(out TElement rootElement, out TPriority rootPriority) &&
                     CompareEffective(rootPriority, scannedMin) <= 0)
                 {
-                    // The live minimum is no worse than the minimum we scanned: accept it. TryPeekLiveMin
-                    // reads D.front() on the buffered path (the published top), not the heap root, so the
-                    // buffered resident minimum revalidates correctly here.
                     element = rootElement;
                     priority = rootPriority;
                     return true;
                 }
-
-                // The winner was mutated out from under us (empty now, or its root is strictly
-                // larger than the scanned minimum): rescan for a possibly-better candidate.
             }
             finally
             {
@@ -106,10 +111,47 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <param name="priority">Its priority, or default on failure.</param>
     /// <returns>True on success; false when empty or when contention prevents observation.</returns>
     /// <remarks>
+    /// <para>
     /// This is not an exact global-minimum operation. The scan is non-atomic, skips unknown tops,
     /// and locks only the selected stripe. Another stripe may contain a smaller priority throughout
     /// the call. Bounded retries may return false while the queue contains elements. Only quiescent,
     /// uncontended use yields exact minimum order. Equal priorities have no stable FIFO guarantee.
+    /// </para>
+    /// <para>
+    /// Each attempt starts with a lock-free pass over every published top. It finds the winner (the
+    /// minimum, from <see cref="TryScanForMinimum"/>) and the runner-up (the second-smallest published
+    /// top, from <see cref="TryScanRunnerUp"/>). The runner-up is the bar that the live root of the
+    /// winner must meet under the lock. If every sub-queue scanned empty (or unknown), there is
+    /// nothing to dequeue. Each attempt takes at
+    /// most ONE lock, on the winner only, and never blocks. A contended winner does not wait. The
+    /// attempt is consumed and the loop rescans.
+    /// </para>
+    /// <para>
+    /// Under the lock, the live root is read again, because a writer can have changed it since the
+    /// scan. The winner is accepted only when it still holds a root that is no worse than the scanned
+    /// top of the runner-up. If the live root is strictly larger than the runner-up (the scanned
+    /// minimum was popped and a larger element exposed), or the winner is now empty, a better
+    /// candidate can live in the sub-queue of the runner-up, so the loop rescans. The revalidation
+    /// uses the LIVE minimum of the winner (<c>TryPeekLiveMin</c>), not its heap root. On the buffered
+    /// path the live minimum is <c>D.front()</c> (the published top), and the heap root is a larger
+    /// key. A heap-only read would mis-revalidate, or wrongly report empty when the heap is empty but
+    /// <c>D</c> is full.
+    /// </para>
+    /// <para>
+    /// <c>PopHeldRoot</c> pops the revalidated root while the lock is STILL held. A release followed by
+    /// a separate locked pop would expose an unlocked window. In that window another thread can
+    /// remove the validated root and surface a worse one, and this path would pop an element that it
+    /// never revalidated. A pop under the held lock makes the revalidated root and the popped root the
+    /// same element by construction. An Empty result in the post-revalidation window is effectively
+    /// unreachable, because the root was just peeked under the same lock. It consumes the attempt and
+    /// the loop rescans.
+    /// </para>
+    /// <para>
+    /// This path pops the sub-queue DIRECTLY and bypasses <see cref="TryPopFrom"/>. Thus it must
+    /// release the bounded reservation itself through <c>OnElementRemovedFromBounded</c> (which does
+    /// nothing on an unbounded queue). This is the same helper that <see cref="TryPopFrom"/> uses, so
+    /// there is one decrement site per successful removal.
+    /// </para>
     /// </remarks>
     public bool TryDequeueBestObserved([MaybeNullWhen(false)] out TElement element, [MaybeNullWhen(false)] out TPriority priority)
     {
@@ -117,11 +159,8 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
         for (int attempt = 0; attempt < DequeueMinRetryLimit; attempt++)
         {
-            // Lock-free pass over every published top: the winner (minimum) and the runner-up
-            // (second-smallest published top), used to revalidate the winner's live root below.
             if (!TryScanForMinimum(out int winner, out TPriority scannedMin))
             {
-                // Every sub-queue scanned empty (or unknown): nothing to dequeue.
                 break;
             }
 
@@ -129,50 +168,27 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
             SubQueue<TElement, TPriority> subQueue = queues[winner];
 
-            // At most ONE lock per attempt, on the winner only, never blocking.
             if (!subQueue.SyncLock.TryEnter())
             {
-                // Contended winner: do not wait; consume the attempt and rescan.
                 continue;
             }
 
             try
             {
-                // Re-read the live root under the lock; a writer may have changed it since the scan.
-                // Accept the winner only when it still holds a root that is no worse than the
-                // runner-up's scanned top: if the live root is strictly larger than the runner-up
-                // (the scanned minimum was popped, a larger element exposed) or the winner is now
-                // empty, a better candidate may live in the runner-up's sub-queue, so we rescan.
-                // Revalidate the winner's LIVE minimum, not its heap root: on the buffered path the live
-                // minimum is D.front() (the published top), while the heap root is a larger key — a
-                // heap-only re-read would mis-revalidate (or wrongly report empty when the heap is empty
-                // but D is full), so the strict path must peek D.front() here.
                 bool revalidated =
                     subQueue.TryPeekLiveMin(out _, out TPriority rootPriority) &&
                     (!hasRunnerUp || CompareEffective(rootPriority, runnerUp) <= 0);
 
                 if (!revalidated)
                 {
-                    // The winner moved out from under us; rescan for a possibly-better candidate.
                     continue;
                 }
 
-                // Pop the revalidated root while STILL holding the lock. Releasing here and re-locking
-                // in a separate pop would expose an unlocked window in which another thread could
-                // remove the validated root and surface a worse one, so the best-observed path would pop
-                // an element it never revalidated. Popping under the held lock makes the revalidated
-                // root and the popped root the same element by construction.
                 if (subQueue.PopHeldRoot(out element, out priority) == SubQueuePopStatus.Success)
                 {
-                    // This path pops the sub-queue DIRECTLY, bypassing TryPopFrom, so it must release
-                    // the bounded reservation itself (no-op on an unbounded queue), the same single
-                    // helper TryPopFrom uses, keeping one decrement site per successful removal.
                     OnElementRemovedFromBounded();
                     return true;
                 }
-
-                // Empty in the post-revalidation window — effectively unreachable, since the root was
-                // just peeked under this same lock: consume the attempt and rescan.
             }
             finally
             {
@@ -209,7 +225,8 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// skipped. The returned <paramref name="winner"/> is only a hint: a concurrent writer may have
     /// changed that sub-queue by the time a caller locks it, so callers must re-validate under the
     /// lock. Extracted so that <c>TryDequeueBestObserved</c> reuses the identical minimum-scan
-    /// before its locked pop.
+    /// before its locked pop. An unknown read (one that raced a writer) or an empty read is not a
+    /// candidate in this pass.
     /// </remarks>
     private bool TryScanForMinimum(out int winner, out TPriority minimum)
     {
@@ -223,7 +240,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         {
             if (!queues[i].TryReadTop(out TPriority top, out bool empty) || empty)
             {
-                // Unknown (raced a writer) or empty: not a candidate this pass.
                 continue;
             }
 
@@ -282,7 +298,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
             if (!queues[i].TryReadTop(out TPriority top, out bool empty) || empty)
             {
-                // Unknown (raced a writer) or empty: not a candidate this pass.
                 continue;
             }
 

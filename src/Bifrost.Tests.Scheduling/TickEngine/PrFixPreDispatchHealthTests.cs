@@ -50,6 +50,12 @@ public sealed class PrFixPreDispatchHealthTests
     /// non-empty and the failure rate is 1.0. Without the fix the monitor never sees
     /// the failure and both stay at zero, so the failure rate under-reports.
     /// </summary>
+    /// <remarks>
+    /// The test makes the job due, and the per-fire scope creation faults before the in-flight
+    /// tracking dispatcher (and its health-monitor recording) runs. The loop must publish the
+    /// compensating failed-fire event (existing behavior) and also record the failed fire into the
+    /// health monitor (the fix).
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ScopeCreationFault_RecordsFailedFireInHealthMonitor()
@@ -76,13 +82,9 @@ public sealed class PrFixPreDispatchHealthTests
                 new CountingDispatcher()).ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Make the job due; the per-fire scope creation faults BEFORE the in-flight
-            // tracking dispatcher (and its health-monitor recording) ever runs.
             time.Advance(TimeSpan.FromMinutes(1));
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // The compensating failed-fire event was published (existing behaviour) AND
-            // the failed fire was recorded into the health monitor (the fix).
             await Assert.That(sink.Published.OfType<JobFireFailedEvent>().Count()).IsEqualTo(1);
             await Assert.That(monitor.RecentFireCount).IsEqualTo(1);
             await Assert.That(monitor.FailureRate).IsEqualTo(1d);

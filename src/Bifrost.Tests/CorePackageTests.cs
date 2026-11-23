@@ -24,13 +24,10 @@ public class CorePackageTests
     [Test]
     public async Task CorePackageStructure_WhenReferenced_ProvidesExpectedTypes()
     {
-        // Arrange
         var coreAssembly = typeof(IWorkOrchestrator<>).Assembly;
 
-        // Act
         var exportedTypes = coreAssembly.GetExportedTypes();
 
-        // Assert - Verify key types are accessible
         await Assert.That(exportedTypes.Any(t => t.Name == "IWorkOrchestrator`1")).IsTrue();
         await Assert.That(exportedTypes.Any(t => t.Name == "IWorkHandler`1")).IsTrue();
         await Assert.That(exportedTypes.Any(t => t.Name == "WorkOrchestratorOptions")).IsTrue();

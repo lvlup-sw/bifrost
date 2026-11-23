@@ -29,12 +29,10 @@ public class AutoscalingExtensionsTests
     [Test]
     public async Task WithAutoscaling_AddsDecorator()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         services.AddLogging();
 
-        // Act
         var builder = services.AddWorkOrchestrator<string>()
             .WithAutoscaling();
         builder.Build();
@@ -42,7 +40,6 @@ public class AutoscalingExtensionsTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert - The outer orchestrator should be the AutoscalingOrchestrator
         await Assert.That(orchestrator).IsAssignableTo<AutoscalingOrchestrator<string>>();
     }
 
@@ -52,12 +49,10 @@ public class AutoscalingExtensionsTests
     [Test]
     public async Task WithAutoscaling_RegistersMetrics()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         services.AddLogging();
 
-        // Act
         var builder = services.AddWorkOrchestrator<string>()
             .WithAutoscaling();
         builder.Build();
@@ -65,7 +60,6 @@ public class AutoscalingExtensionsTests
         var provider = services.BuildServiceProvider();
         var metrics = provider.GetKeyedService<IWorkerMetrics>(typeof(string));
 
-        // Assert
         await Assert.That(metrics).IsNotNull();
         await Assert.That(metrics).IsAssignableTo<WorkerMetrics>();
     }
@@ -76,12 +70,10 @@ public class AutoscalingExtensionsTests
     [Test]
     public async Task WithAutoscaling_RegistersOptions()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         services.AddLogging();
 
-        // Act
         var builder = services.AddWorkOrchestrator<string>()
             .WithAutoscaling(new AutoscalingOptions { MinWorkers = 3, MaxWorkers = 20 });
         builder.Build();
@@ -89,7 +81,6 @@ public class AutoscalingExtensionsTests
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredKeyedService<Microsoft.Extensions.Options.IOptions<AutoscalingOptions>>(typeof(string));
 
-        // Assert
         await Assert.That(options.Value.MinWorkers).IsEqualTo(3);
         await Assert.That(options.Value.MaxWorkers).IsEqualTo(20);
     }
@@ -100,16 +91,13 @@ public class AutoscalingExtensionsTests
     [Test]
     public async Task WithAutoscaling_ReturnsSameBuilder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         services.AddLogging();
 
-        // Act
         var builder = services.AddWorkOrchestrator<string>();
         var result = builder.WithAutoscaling();
 
-        // Assert
         await Assert.That(result).IsEqualTo(builder);
     }
 
@@ -119,12 +107,10 @@ public class AutoscalingExtensionsTests
     [Test]
     public async Task WithAutoscaling_RegistersEngine()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         services.AddLogging();
 
-        // Act
         var builder = services.AddWorkOrchestrator<string>()
             .WithAutoscaling();
         builder.Build();
@@ -132,7 +118,6 @@ public class AutoscalingExtensionsTests
         var provider = services.BuildServiceProvider();
         var engine = provider.GetKeyedService<AutoscalingEngine>(typeof(string));
 
-        // Assert
         await Assert.That(engine).IsNotNull();
     }
 
@@ -142,12 +127,10 @@ public class AutoscalingExtensionsTests
     [Test]
     public async Task WithAutoscaling_NullConfigure_UsesDefaults()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         services.AddLogging();
 
-        // Act
         var builder = services.AddWorkOrchestrator<string>()
             .WithAutoscaling(null);
         builder.Build();
@@ -155,7 +138,6 @@ public class AutoscalingExtensionsTests
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredKeyedService<Microsoft.Extensions.Options.IOptions<AutoscalingOptions>>(typeof(string));
 
-        // Assert - Should use default values
         await Assert.That(options.Value.MinWorkers).IsEqualTo(1);
         await Assert.That(options.Value.MaxWorkers).IsEqualTo(16);
     }

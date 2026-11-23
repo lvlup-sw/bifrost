@@ -51,6 +51,10 @@ public static class ResilienceExtensions
     ///   <item><description>Timeout to prevent indefinite hangs</description></item>
     /// </list>
     /// </para>
+    /// <para>
+    /// The options are named by work type, so the retry settings of one pipeline cannot replace the
+    /// settings of another.
+    /// </para>
     /// </remarks>
     public static WorkOrchestratorBuilder<TWork> WithResilience<TWork>(
         this WorkOrchestratorBuilder<TWork> builder,
@@ -58,12 +62,10 @@ public static class ResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        // Named by work type so one pipeline's retry settings cannot replace another's.
         var optionsName = WorkOptions.Name<TWork>();
         builder.Services.AddOptions<ResiliencySettings>(optionsName)
             .Configure(configure ?? (_ => { }));
 
-        // Add the resilience decorator
         builder.Decorators.Add(new DecoratorRegistration<TWork>(
             ResilienceDecoratorOrder,
             (sp, inner) => new ResilientOrchestrator<TWork>(

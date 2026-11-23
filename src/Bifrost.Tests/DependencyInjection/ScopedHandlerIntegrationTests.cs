@@ -25,10 +25,12 @@ public class ScopedHandlerIntegrationTests
     /// <summary>
     /// Verifies that a scoped handler resolves a new instance from a fresh scope per work item.
     /// </summary>
+    /// <remarks>
+    /// Each scope creates one handler instance, so three work items give three distinct instance IDs.
+    /// </remarks>
     [Test]
     public async Task WithHandler_Scoped_ResolvesFromScope_PerWorkItem()
     {
-        // Arrange
         var tracker = new InstanceTracker();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -36,7 +38,6 @@ public class ScopedHandlerIntegrationTests
         services.AddScoped<ScopedTrackingHandler>();
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Register via factory that resolves from scope to get the ScopedTrackingHandler
         builder.WithHandler<string>(sp => sp.GetRequiredService<ScopedTrackingHandler>(),
             ServiceLifetime.Scoped);
         builder.Build();
@@ -44,18 +45,15 @@ public class ScopedHandlerIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Act - enqueue 3 items
         await orchestrator.EnqueueAsync("item-1").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("item-2").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("item-3").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false); // Allow processing
+        await Task.Delay(500).ConfigureAwait(false);
 
-        // Assert - should have 3 distinct handler instance IDs (one per scope)
         await Assert.That(tracker.InstanceIds.Count).IsGreaterThanOrEqualTo(3);
         var distinctInstances = tracker.InstanceIds.Distinct().Count();
         await Assert.That(distinctInstances).IsGreaterThanOrEqualTo(3);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -63,10 +61,13 @@ public class ScopedHandlerIntegrationTests
     /// Verifies that a scoped handler works with the dead letter queue.
     /// Each retry should create a fresh scope.
     /// </summary>
+    /// <remarks>
+    /// The item always fails. One initial attempt plus two retries gives three scope creations, so the
+    /// test expects at least three handler instances.
+    /// </remarks>
     [Test]
     public async Task WithHandler_Scoped_WorksWithDeadLetterQueue()
     {
-        // Arrange
         var tracker = new InstanceTracker();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -82,25 +83,26 @@ public class ScopedHandlerIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Act - enqueue 1 item that will fail (1 initial + 2 retries = 3 scope creations)
         await orchestrator.EnqueueAsync("failing-item").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false); // Allow processing + retries
+        await Task.Delay(500).ConfigureAwait(false);
 
-        // Assert - should have at least 3 handler instances (initial + 2 retries)
         var distinctInstances = tracker.InstanceIds.Distinct().Count();
         await Assert.That(distinctInstances).IsGreaterThanOrEqualTo(3);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
     /// Verifies that a scoped handler works alongside the event stream.
     /// </summary>
+    /// <remarks>
+    /// The consumer starts before the enqueue, and the test waits until the subscriber channel is
+    /// registered. After <c>DrainAsync</c>, a 100 ms delay lets event propagation finish, because the
+    /// subscriber notification is fire-and-forget.
+    /// </remarks>
     [Test]
     public async Task WithHandler_Scoped_WorksWithEventStream()
     {
-        // Arrange
         var tracker = new InstanceTracker();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -117,7 +119,6 @@ public class ScopedHandlerIntegrationTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var eventOrchestrator = orchestrator as IEventStreamOrchestrator<string>;
 
-        // Collect events — start consumer before enqueuing to ensure subscriber is registered
         var events = new ConcurrentBag<IOrchestratorEvent>();
         using var eventCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var subscriberReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -133,7 +134,6 @@ public class ScopedHandlerIntegrationTests
                 .GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: eventCts.Token);
             var enumerator = enumerable.GetAsyncEnumerator(eventCts.Token);
 
-            // Signal that the subscriber channel is now registered
             subscriberReady.TrySetResult();
 
             try
@@ -145,7 +145,6 @@ public class ScopedHandlerIntegrationTests
             }
             catch (OperationCanceledException)
             {
-                // Expected when CTS fires
             }
             finally
             {
@@ -153,41 +152,37 @@ public class ScopedHandlerIntegrationTests
             }
         });
 
-        // Wait for subscriber registration before enqueuing
         await subscriberReady.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-        // Act
         await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
 
-        // Wait for processing to complete deterministically
         await orchestrator.DrainAsync().ConfigureAwait(false);
 
-        // Give event propagation a moment to complete (fire-and-forget subscriber notification)
         await Task.Delay(100).ConfigureAwait(false);
         await eventCts.CancelAsync().ConfigureAwait(false);
         await eventTask.ConfigureAwait(false);
 
-        // Assert - events should have been published
         await Assert.That(events.Count).IsGreaterThan(0);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
     /// Verifies that a singleton handler resolves once (control test).
     /// </summary>
+    /// <remarks>
+    /// For a singleton, the factory runs once and creates one instance. Three work items give three
+    /// invocations but exactly one distinct handler instance.
+    /// </remarks>
     [Test]
     public async Task WithHandler_Singleton_ResolvesOnce()
     {
-        // Arrange
         var tracker = new InstanceTracker();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(tracker);
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Use factory overload for singleton -- the factory is called once, creating one instance
         builder.WithHandler<string>(sp =>
             new SingletonTrackingHandler(sp.GetRequiredService<InstanceTracker>()));
         builder.Build();
@@ -195,18 +190,15 @@ public class ScopedHandlerIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Act - enqueue 3 items
         await orchestrator.EnqueueAsync("item-1").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("item-2").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("item-3").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false); // Allow processing
+        await Task.Delay(500).ConfigureAwait(false);
 
-        // Assert - should have 3 invocations but exactly 1 distinct handler instance (singleton)
         await Assert.That(tracker.InstanceIds.Count).IsGreaterThanOrEqualTo(3);
         var distinctInstances = tracker.InstanceIds.Distinct().Count();
         await Assert.That(distinctInstances).IsEqualTo(1);
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 

@@ -54,6 +54,22 @@ public sealed class FireScopeShutdownTests
     /// the loop back to idle and the dispatcher runs, which a stranded (&gt; 0) count would
     /// prevent the idle barrier from ever observing.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On fires #1 and #2, scope creation faults. Each fire must publish Fired and then a
+    /// compensating Failed, run no dispatcher, strand no in-flight count, and not fault the loop.
+    /// The loop reaching idle each time proves that nothing is stranded.
+    /// </para>
+    /// <para>
+    /// On fire #3, scope creation succeeds, the dispatcher runs, and the fire drains the loop back
+    /// to idle. A count stranded by either earlier scope-fault fire would leave in-flight &gt; 0,
+    /// and the idle barrier would never release here.
+    /// </para>
+    /// <para>
+    /// All three fires published their handoff signal, and the two scope-fault fires each got a
+    /// compensating terminal event. So every Fired has a matching outcome (U-5).
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task CreateScopeFaultsMidShutdown_EveryFiredGetsTerminalEvent_InFlightNotStranded()
@@ -80,9 +96,6 @@ public sealed class FireScopeShutdownTests
                 .ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Fires #1 and #2: scope creation faults. Each must publish Fired then a
-            // compensating Failed, run no dispatcher, strand no in-flight count, and not
-            // fault the loop. The loop reaching idle each time proves nothing is stranded.
             time.Advance(TimeSpan.FromMinutes(1));
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
             time.Advance(TimeSpan.FromMinutes(1));
@@ -91,16 +104,11 @@ public sealed class FireScopeShutdownTests
             await Assert.That(dispatcher.FireCount).IsEqualTo(0);
             await Assert.That(loop.IsFaulted).IsFalse();
 
-            // Fire #3: scope creation now succeeds; the dispatcher runs and the fire drains
-            // the loop back to idle. A count stranded by either prior scope-fault fire would
-            // leave in-flight > 0 and the idle barrier would never release here.
             time.Advance(TimeSpan.FromMinutes(1));
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
             await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
-            // Three fires published their handoff signal; the two scope-fault fires each got a
-            // compensating terminal event, so every Fired has a matching outcome (U-5).
             var fired = sink.Published.OfType<JobFiredEvent>().Count();
             var failed = sink.Published.OfType<JobFireFailedEvent>().Count();
             await Assert.That(fired).IsEqualTo(3);

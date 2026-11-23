@@ -23,7 +23,6 @@ public class InlineDelegateWorkHandlerTests
     [Test]
     public async Task HandleAsync_InvokesDelegate()
     {
-        // Arrange
         string? receivedWork = null;
         var handler = new InlineDelegateWorkHandler<string>((work, ct) =>
         {
@@ -31,10 +30,8 @@ public class InlineDelegateWorkHandlerTests
             return ValueTask.CompletedTask;
         });
 
-        // Act
         await handler.HandleAsync("test-work", CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(receivedWork).IsEqualTo("test-work");
     }
 
@@ -44,12 +41,10 @@ public class InlineDelegateWorkHandlerTests
     [Test]
     public async Task HandleAsync_PropagatesException()
     {
-        // Arrange
         var expectedException = new InvalidOperationException("test error");
         var handler = new InlineDelegateWorkHandler<string>((_, _) =>
             throw expectedException);
 
-        // Act & Assert
         await Assert.That(() => handler.HandleAsync("test-work", CancellationToken.None).AsTask())
             .Throws<InvalidOperationException>()
             .WithMessage("test error");
@@ -61,7 +56,6 @@ public class InlineDelegateWorkHandlerTests
     [Test]
     public async Task HandleAsync_PassesCancellationToken()
     {
-        // Arrange
         CancellationToken receivedToken = default;
         var handler = new InlineDelegateWorkHandler<string>((_, ct) =>
         {
@@ -71,10 +65,8 @@ public class InlineDelegateWorkHandlerTests
 
         using var cts = new CancellationTokenSource();
 
-        // Act
         await handler.HandleAsync("test-work", cts.Token).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(receivedToken).IsEqualTo(cts.Token);
     }
 
@@ -84,7 +76,6 @@ public class InlineDelegateWorkHandlerTests
     [Test]
     public async Task Constructor_ThrowsWhenDelegateNull()
     {
-        // Act & Assert
         await Assert.That(() => new InlineDelegateWorkHandler<string>(null!))
             .Throws<ArgumentNullException>();
     }
@@ -95,10 +86,8 @@ public class InlineDelegateWorkHandlerTests
     [Test]
     public async Task ImplementsIWorkHandler()
     {
-        // Arrange
         var handler = new InlineDelegateWorkHandler<string>((_, _) => ValueTask.CompletedTask);
 
-        // Assert
         await Assert.That(handler).IsAssignableTo<IWorkHandler<string>>();
     }
 }

@@ -82,6 +82,8 @@ public sealed class SystematicRegistryRestartTests
         }
     }
 
+    // A dispatcher that throws has not acknowledged the fire, so the occurrence stays
+    // uncheckpointed and the restart replays it.
     [Test]
     [Arguments(0, false)]
     [Arguments(1, false)]
@@ -99,8 +101,6 @@ public sealed class SystematicRegistryRestartTests
         {
             first.Clock.Advance(TimeSpan.FromMinutes(1));
             await first.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(10));
-            // A dispatcher that throws has not acknowledged the fire, so the
-            // occurrence stays uncheckpointed and the restart replays it.
             await Assert.That(store.CheckpointAttempts).IsEqualTo(dispatchFails ? 0 : 1);
             await Assert.That(store.CheckpointEffects).IsEqualTo(dispatchFails || checkpointFault == 1 ? 0 : 1);
             await Assert.That(attempts.Count).IsEqualTo(1);

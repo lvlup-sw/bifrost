@@ -44,10 +44,8 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GetTransientExceptionTypes_ReturnsExpectedTypes()
     {
-        // Act
         var types = ResiliencyPolicyGenerator.GetTransientExceptionTypes();
 
-        // Assert
         await Assert.That(types).Contains(typeof(HttpRequestException));
         await Assert.That(types).Contains(typeof(TimeoutException));
         await Assert.That(types).Contains(typeof(SocketException));
@@ -62,7 +60,6 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GeneratePolicy_NullLogger_Throws()
     {
-        // Act & Assert
         await Assert.That(() => ResiliencyPolicyGenerator.GeneratePolicy<string>(null!, _settings, "fallback"))
             .Throws<ArgumentNullException>();
     }
@@ -73,7 +70,6 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GeneratePolicy_NullSettings_Throws()
     {
-        // Act & Assert
         await Assert.That(() => ResiliencyPolicyGenerator.GeneratePolicy<string>(_logger, null!, "fallback"))
             .Throws<ArgumentNullException>();
     }
@@ -84,10 +80,8 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GeneratePolicy_ValidInputs_ReturnsPolicy()
     {
-        // Act
         var policy = ResiliencyPolicyGenerator.GeneratePolicy<string>(_logger, _settings, "fallback");
 
-        // Assert
         await Assert.That(policy).IsNotNull();
     }
 
@@ -97,7 +91,6 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GeneratePolicy_HandledException_ReturnsFallbackValue()
     {
-        // Arrange
         var settings = new ResiliencySettings
         {
             RetryCount = 0,
@@ -105,14 +98,12 @@ public class ResiliencyPolicyGeneratorTests
         };
         var policy = ResiliencyPolicyGenerator.GeneratePolicy<string>(_logger, settings, "fallback");
 
-        // Act
         var result = await policy.ExecuteAsync(async _ =>
         {
             await Task.Yield();
             throw new HttpRequestException("Test exception");
         }, CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result).IsEqualTo("fallback");
     }
 
@@ -122,17 +113,14 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GeneratePolicy_SuccessfulAction_ReturnsResult()
     {
-        // Arrange
         var policy = ResiliencyPolicyGenerator.GeneratePolicy<string>(_logger, _settings, "fallback");
 
-        // Act
         var result = await policy.ExecuteAsync(async _ =>
         {
             await Task.Yield();
             return "success";
         }, CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result).IsEqualTo("success");
     }
 
@@ -142,7 +130,6 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GetAsyncBackgroundTaskPattern_NullLogger_Throws()
     {
-        // Act & Assert
         await Assert.That(() => ResiliencyPolicyGenerator.GetAsyncBackgroundTaskPattern(null!, _settings, _ => true))
             .Throws<ArgumentNullException>();
     }
@@ -153,7 +140,6 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GetAsyncBackgroundTaskPattern_NullSettings_Throws()
     {
-        // Act & Assert
         await Assert.That(() => ResiliencyPolicyGenerator.GetAsyncBackgroundTaskPattern(_logger, null!, _ => true))
             .Throws<ArgumentNullException>();
     }
@@ -164,7 +150,6 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GetAsyncBackgroundTaskPattern_NullPredicate_Throws()
     {
-        // Act & Assert
         await Assert.That(() => ResiliencyPolicyGenerator.GetAsyncBackgroundTaskPattern(_logger, _settings, null!))
             .Throws<ArgumentNullException>();
     }
@@ -175,10 +160,8 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GetAsyncBackgroundTaskPattern_ValidInputs_ReturnsPolicy()
     {
-        // Act
         var policy = ResiliencyPolicyGenerator.GetAsyncBackgroundTaskPattern(_logger, _settings, _ => true);
 
-        // Assert
         await Assert.That(policy).IsNotNull();
     }
 
@@ -188,18 +171,15 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GetAsyncBackgroundTaskPattern_SuccessfulAction_Completes()
     {
-        // Arrange
         var policy = ResiliencyPolicyGenerator.GetAsyncBackgroundTaskPattern(_logger, _settings, _ => true);
         var executed = false;
 
-        // Act
         await policy.ExecuteAsync(async (_, ct) =>
         {
             await Task.Yield();
             executed = true;
         }, new Polly.Context(), CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(executed).IsTrue();
     }
 
@@ -209,7 +189,6 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task GetAsyncBackgroundTaskPattern_FailedAction_PropagatesException()
     {
-        // Arrange
         var settings = new ResiliencySettings
         {
             RetryCount = 0,
@@ -220,7 +199,6 @@ public class ResiliencyPolicyGeneratorTests
             settings,
             ex => ex is HttpRequestException);
 
-        // Act & Assert
         await Assert.That(async () =>
         {
             await policy.ExecuteAsync(async (_, ct) =>
@@ -237,10 +215,8 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task CreateExceptionPredicate_NullTypes_UsesTransientTypes()
     {
-        // Act
         var predicate = ResiliencyPolicyGenerator.CreateExceptionPredicate(null);
 
-        // Assert
         await Assert.That(predicate(new HttpRequestException())).IsTrue();
         await Assert.That(predicate(new TimeoutException())).IsTrue();
         await Assert.That(predicate(new ArgumentException())).IsFalse();
@@ -252,10 +228,8 @@ public class ResiliencyPolicyGeneratorTests
     [Test]
     public async Task CreateExceptionPredicate_EmptyTypes_UsesTransientTypes()
     {
-        // Act
         var predicate = ResiliencyPolicyGenerator.CreateExceptionPredicate([]);
 
-        // Assert
         await Assert.That(predicate(new HttpRequestException())).IsTrue();
         await Assert.That(predicate(new IOException())).IsTrue();
     }
@@ -263,15 +237,16 @@ public class ResiliencyPolicyGeneratorTests
     /// <summary>
     /// Verifies CreateExceptionPredicate handles custom types.
     /// </summary>
+    /// <remarks>
+    /// <see cref="ArgumentNullException"/> matches because it derives from a specified type.
+    /// </remarks>
     [Test]
     public async Task CreateExceptionPredicate_CustomTypes_MatchesSpecifiedTypes()
     {
-        // Act
         var predicate = ResiliencyPolicyGenerator.CreateExceptionPredicate([typeof(ArgumentException)]);
 
-        // Assert
         await Assert.That(predicate(new ArgumentException())).IsTrue();
-        await Assert.That(predicate(new ArgumentNullException())).IsTrue(); // Derived type
+        await Assert.That(predicate(new ArgumentNullException())).IsTrue();
         await Assert.That(predicate(new HttpRequestException())).IsFalse();
     }
 }

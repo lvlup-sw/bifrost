@@ -51,10 +51,12 @@ public sealed class WatermarkAdmissionTests
     /// first.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The test fills the queue to the Batch threshold (0.90 × 100 = 90) with Default items.
+    /// </remarks>
     [Test]
     public async Task TryEnqueue_Batch_RejectedAboveBatchWatermark()
     {
-        // Arrange — fill to the Batch threshold (0.90 × 100 = 90) with Default items.
         var queue = CreateEnvelopeQueue(WatermarkCapacity);
         var stamp = 0L;
         for (var i = 0; i < 90; i++)
@@ -65,11 +67,9 @@ public sealed class WatermarkAdmissionTests
 
         await Assert.That(queue.Count).IsEqualTo(90);
 
-        // Act
         var batchAccepted = queue.TryEnqueue(new WorkEnvelope<int>(900, WorkClass.Batch, ++stamp));
         var interactiveAccepted = queue.TryEnqueue(new WorkEnvelope<int>(901, WorkClass.Interactive, ++stamp));
 
-        // Assert — Batch shed at its watermark; Interactive still admitted.
         await Assert.That(batchAccepted).IsFalse();
         await Assert.That(interactiveAccepted).IsTrue();
         await Assert.That(queue.Count).IsEqualTo(91);
@@ -81,11 +81,13 @@ public sealed class WatermarkAdmissionTests
     /// succeeds.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The test ramps to 95 with Interactive items, which are admitted to full capacity. Thus the fill
+    /// itself never trips a watermark.
+    /// </remarks>
     [Test]
     public async Task TryEnqueue_Default_RejectedAboveDefaultWatermark()
     {
-        // Arrange — ramp to 95 with Interactive items (admitted to full capacity), so
-        // the fill itself never trips a watermark.
         var queue = CreateEnvelopeQueue(WatermarkCapacity);
         var stamp = 0L;
         for (var i = 0; i < 95; i++)
@@ -96,11 +98,9 @@ public sealed class WatermarkAdmissionTests
 
         await Assert.That(queue.Count).IsEqualTo(95);
 
-        // Act
         var defaultAccepted = queue.TryEnqueue(new WorkEnvelope<int>(900, WorkClass.Default, ++stamp));
         var interactiveAccepted = queue.TryEnqueue(new WorkEnvelope<int>(901, WorkClass.Interactive, ++stamp));
 
-        // Assert
         await Assert.That(defaultAccepted).IsFalse();
         await Assert.That(interactiveAccepted).IsTrue();
         await Assert.That(queue.Count).IsEqualTo(96);
@@ -112,14 +112,15 @@ public sealed class WatermarkAdmissionTests
     /// is rejected.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// Hard capacity is the only Interactive limit.
+    /// </remarks>
     [Test]
     public async Task TryEnqueue_Interactive_AdmittedToFullCapacity()
     {
-        // Arrange
         var queue = CreateEnvelopeQueue(WatermarkCapacity);
         var stamp = 0L;
 
-        // Act + Assert — every enqueue up to capacity is admitted.
         for (var i = 0; i < WatermarkCapacity; i++)
         {
             var accepted = queue.TryEnqueue(new WorkEnvelope<int>(i, WorkClass.Interactive, ++stamp));
@@ -128,7 +129,6 @@ public sealed class WatermarkAdmissionTests
 
         await Assert.That(queue.Count).IsEqualTo(WatermarkCapacity);
 
-        // Hard capacity is the only Interactive limit.
         var overCapacity = queue.TryEnqueue(new WorkEnvelope<int>(900, WorkClass.Interactive, ++stamp));
         await Assert.That(overCapacity).IsFalse();
     }
@@ -140,12 +140,15 @@ public sealed class WatermarkAdmissionTests
     /// shed order of DR-6.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The test ramps with Interactive items and probes Batch and Default at each fill level. The test
+    /// immediately dequeues each successful probe, so the ramp level stays the same. The queue is
+    /// quiescent, so that dequeue always pops. At full capacity even Interactive is rejected (the hard
+    /// backstop).
+    /// </remarks>
     [Test]
     public async Task ShedOrder_UnderPressure_BatchFirstThenDefault()
     {
-        // Arrange — ramp with Interactive items; at each fill level probe Batch and
-        // Default. A successful probe is immediately dequeued back out (quiescent, so
-        // the dequeue is guaranteed to pop) to keep the ramp level undisturbed.
         var queue = CreateEnvelopeQueue(WatermarkCapacity);
         var stamp = 0L;
         var rejectionOrder = new List<WorkClass>();
@@ -189,10 +192,8 @@ public sealed class WatermarkAdmissionTests
             }
         }
 
-        // Act — at full capacity even Interactive is rejected (the hard backstop).
         var interactiveAtCapacity = queue.TryEnqueue(new WorkEnvelope<int>(-3, WorkClass.Interactive, ++stamp));
 
-        // Assert — Batch sheds first, then Default, then (and only then) Interactive.
         await Assert.That(rejectionOrder).IsEquivalentTo(new[] { WorkClass.Batch, WorkClass.Default });
         await Assert.That(batchRejectedAt).IsEqualTo(90);
         await Assert.That(defaultRejectedAt).IsEqualTo(95);
@@ -206,16 +207,18 @@ public sealed class WatermarkAdmissionTests
     /// of 50.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// With the Batch watermark at 0.5, Batch is admitted at 49 (below the shifted threshold) and rejected
+    /// at 50. The Batch override does not change the thresholds of the other classes.
+    /// </remarks>
     [Test]
     public async Task Watermarks_Configurable()
     {
-        // Defaults — 0.90 / 0.95 / 1.0 per DR-6.
         var defaults = new PriorityDispatchOptions();
         await Assert.That(defaults.BatchAdmissionWatermark).IsEqualTo(0.90);
         await Assert.That(defaults.DefaultAdmissionWatermark).IsEqualTo(0.95);
         await Assert.That(defaults.InteractiveAdmissionWatermark).IsEqualTo(1.0);
 
-        // Arrange — Batch watermark lowered to 0.5: rejection point moves to 50.
         var options = new PriorityDispatchOptions { BatchAdmissionWatermark = 0.5 };
         var queue = CreateEnvelopeQueue(WatermarkCapacity, options);
         var stamp = 0L;
@@ -225,7 +228,6 @@ public sealed class WatermarkAdmissionTests
             await Assert.That(accepted).IsTrue();
         }
 
-        // Act + Assert — Batch admitted at 49 (below the shifted threshold), rejected at 50.
         var batchAtBoundary = queue.TryEnqueue(new WorkEnvelope<int>(900, WorkClass.Batch, ++stamp));
         await Assert.That(batchAtBoundary).IsTrue();
         await Assert.That(queue.Count).IsEqualTo(50);
@@ -233,7 +235,6 @@ public sealed class WatermarkAdmissionTests
         var batchAboveBoundary = queue.TryEnqueue(new WorkEnvelope<int>(901, WorkClass.Batch, ++stamp));
         await Assert.That(batchAboveBoundary).IsFalse();
 
-        // The other class thresholds are unaffected by the Batch override.
         var defaultStillAdmitted = queue.TryEnqueue(new WorkEnvelope<int>(902, WorkClass.Default, ++stamp));
         await Assert.That(defaultStillAdmitted).IsTrue();
     }
@@ -250,7 +251,6 @@ public sealed class WatermarkAdmissionTests
     [Test]
     public async Task Watermarks_Validation()
     {
-        // Range (0, 1]: zero, negative, and above-one fractions are rejected at assignment.
         await Assert.That(() => new PriorityDispatchOptions { BatchAdmissionWatermark = 0.0 })
             .Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => new PriorityDispatchOptions { DefaultAdmissionWatermark = -0.1 })
@@ -258,8 +258,6 @@ public sealed class WatermarkAdmissionTests
         await Assert.That(() => new PriorityDispatchOptions { InteractiveAdmissionWatermark = 1.5 })
             .Throws<ArgumentOutOfRangeException>();
 
-        // Monotonicity Batch ≤ Default ≤ Interactive: violations throw when the
-        // consuming queue validates the options at construction.
         var batchAboveDefault = new PriorityDispatchOptions { BatchAdmissionWatermark = 0.97 };
         await Assert.That(() => new ConcurrentPriorityWorkQueue<int>(
                 WatermarkCapacity, batchAboveDefault, TestTimestampFrequency))
@@ -270,7 +268,6 @@ public sealed class WatermarkAdmissionTests
                 WatermarkCapacity, defaultAboveInteractive, TestTimestampFrequency))
             .Throws<ArgumentException>();
 
-        // A monotone non-default configuration is accepted.
         var monotone = new PriorityDispatchOptions
         {
             BatchAdmissionWatermark = 0.5,
@@ -292,11 +289,13 @@ public sealed class WatermarkAdmissionTests
     /// asserted by <see cref="Watermarks_Validation"/>.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// Each setter goes through <c>ThrowIfNotInUnitInterval</c>. Its explicit <c>NaN</c> guard must fire
+    /// before the ordering checks, which <c>NaN</c> would silently pass.
+    /// </remarks>
     [Test]
     public async Task Watermarks_RejectNaN()
     {
-        // Each setter routes through ThrowIfNotInUnitInterval, whose explicit NaN guard
-        // must fire before the ordering checks (which NaN would silently pass).
         await Assert.That(() => new PriorityDispatchOptions { BatchAdmissionWatermark = double.NaN })
             .Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => new PriorityDispatchOptions { DefaultAdmissionWatermark = double.NaN })
@@ -314,7 +313,6 @@ public sealed class WatermarkAdmissionTests
     [Test]
     public async Task Watermark_QuiescentExactness()
     {
-        // Arrange — fill to 89 with Default items.
         var queue = CreateEnvelopeQueue(WatermarkCapacity);
         var stamp = 0L;
         for (var i = 0; i < 89; i++)
@@ -325,12 +323,10 @@ public sealed class WatermarkAdmissionTests
 
         await Assert.That(queue.Count).IsEqualTo(89);
 
-        // Act + Assert — count == 89 admits Batch (89 < 90) ...
         var batchAtBoundary = queue.TryEnqueue(new WorkEnvelope<int>(900, WorkClass.Batch, ++stamp));
         await Assert.That(batchAtBoundary).IsTrue();
         await Assert.That(queue.Count).IsEqualTo(90);
 
-        // ... and count == 90 rejects it (90 >= 90), exactly at the boundary.
         var batchAboveBoundary = queue.TryEnqueue(new WorkEnvelope<int>(901, WorkClass.Batch, ++stamp));
         await Assert.That(batchAboveBoundary).IsFalse();
         await Assert.That(queue.Count).IsEqualTo(90);

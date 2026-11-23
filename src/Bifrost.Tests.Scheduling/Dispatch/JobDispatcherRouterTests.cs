@@ -70,6 +70,23 @@ public sealed class JobDispatcherRouterTests
     /// Verifies the dispatcher runs on a thread other than the caller's: the
     /// router hands off to the pool so the tick thread never awaits user code.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The test issues the fire-and-forget dispatch from a dedicated non-pool foreground thread,
+    /// and keeps that thread alive until it observes the pool dispatch. The runtime recycles the
+    /// <c>ManagedThreadId</c> of a terminated thread. If the test joins the driver before the
+    /// dispatch runs, the pool thread that runs the queued dispatch can get the freed id of the
+    /// driver. Then the two ids can be equal by chance (the historical flake, issue #44). While
+    /// the driver stays blocked on <c>releaseDriver</c>, its id stays reserved. So the pool thread
+    /// always gets a different id, and "ran on a thread other than the caller" holds
+    /// deterministically, not by luck.
+    /// </para>
+    /// <para>
+    /// The dispatcher records its thread id before it increments <c>Invocations</c>. So when the
+    /// test observes the invocation, the id is already captured, and the driver is still alive and
+    /// holds its own id.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Dispatch_RunsDispatcherOnPoolThread_NotCallingThread()
@@ -78,13 +95,6 @@ public sealed class JobDispatcherRouterTests
         var dispatcher = new RecordingDispatcher();
         var router = new JobDispatcherRouter(sink);
 
-        // Issue the (fire-and-forget) dispatch from a dedicated NON-pool foreground thread and keep
-        // that thread ALIVE until the pool dispatch has been observed. A terminated thread's
-        // ManagedThreadId is recycled by the runtime, so if the driver were joined before the
-        // dispatch ran, the pool thread that runs the queued dispatch could be handed the driver's
-        // freed id — making the two ids coincide by chance (the historical flake, issue #44). While
-        // the driver stays blocked its id is reserved, so the pool thread is guaranteed a different
-        // id and "ran on a thread other than the caller" holds deterministically, not by luck.
         var callerThreadId = 0;
         using var releaseDriver = new ManualResetEventSlim(false);
         var driver = new Thread(() =>
@@ -95,8 +105,6 @@ public sealed class JobDispatcherRouterTests
         });
         driver.Start();
 
-        // The dispatcher records its thread id before it increments Invocations, so once we observe
-        // the invocation the id is already captured — and the driver is still alive holding its own.
         var observed = await WaitUntilAsync(() => dispatcher.Invocations > 0).ConfigureAwait(false);
         releaseDriver.Set();
         driver.Join();
@@ -120,7 +128,6 @@ public sealed class JobDispatcherRouterTests
         var dispatcher = new ThrowingDispatcher(boom);
         var router = new JobDispatcherRouter(sink);
 
-        // Must not throw to the caller (the tick thread).
         router.Dispatch(dispatcher, Context("crasher"), CancellationToken.None);
 
         var observed = await WaitUntilAsync(() => sink.Any<JobFireFailedEvent>()).ConfigureAwait(false);

@@ -276,6 +276,12 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     /// when the cadence is exhausted, and empty when no job is registered under
     /// <paramref name="name"/>.
     /// </returns>
+    /// <remarks>
+    /// The first occurrence keeps the <c>NextFireAt</c> that registration or the tick loop already
+    /// scheduled, when it is still in the future. After each occurrence, <c>lastFiredAt</c> and
+    /// <c>now</c> both move to that occurrence, so <see cref="Cadence.ComputeNextFire"/> always
+    /// projects strictly forward.
+    /// </remarks>
     internal IReadOnlyList<DateTimeOffset> GetNextOccurrences(string name, int count)
     {
         ArgumentNullException.ThrowIfNull(name);
@@ -288,7 +294,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
         var result = new List<DateTimeOffset>(count);
         var cadence = record.Cadence;
-        // Preserve the occurrence already scheduled by registration or the tick loop.
         DateTimeOffset? lastFiredAt = record.LastFiredAt;
         var now = this.timeProvider.GetUtcNow();
 
@@ -303,8 +308,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             }
 
             result.Add(next.Value);
-            // The next iteration's "lastFiredAt" is this occurrence, and we advance
-            // "now" past it so that ComputeNextFire always projects strictly forward.
             lastFiredAt = next.Value;
             now = next.Value;
         }
@@ -383,6 +386,23 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await action().ConfigureAwait(false);
     }
 
+    // A relative one-shot resolves to an absolute instant through the injected TimeProvider of the
+    // registry (R1/DR-2). The static factory Cadence.After does no clock access, so resolution
+    // happens here, once, at registration time.
+    //
+    // A one-shot whose fire instant is in the past is rejected. A past one-shot would fire
+    // immediately or the missed-fire policy would silently swallow it. Both are ergonomics traps
+    // (quartznet#636/#2180, Hangfire#1637, R10). "Past" is judged against the injected
+    // TimeProvider of the registry (DR-7).
+    //
+    // The in-memory slot is claimed FIRST (jobs.TryAdd), then persisted. The order matters under a
+    // concurrent same-name race. SaveAsync is a blind upsert. If the persist came first, a losing
+    // registrant would already have written its (possibly different) payload to the store before
+    // TryAdd rejected it. Then the store would hold loser data while the registry holds the winner.
+    // With the slot claimed first, a loser is rejected before it touches the store. If the store
+    // write fails, or dispose aborts the registration after the persist, the catch block
+    // compensates: it releases the slot, so a failure never leaves the job in the registry (the
+    // rollback invariant).
     private async ValueTask RegisterCoreAsync(
         string name,
         Cadence cadence,
@@ -402,17 +422,10 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
         var now = this.timeProvider.GetUtcNow();
 
-        // Resolve a relative one-shot to an absolute instant using the registry's
-        // injected TimeProvider (R1/DR-2): the static factory Cadence.After performs
-        // no clock access; resolution happens here, once, at registration time.
         cadence = cadence is RelativeOneShotCadence relative
             ? new OneShotCadence(now + relative.Delay)
             : cadence;
 
-        // Reject a one-shot whose fire instant is in the past: a past one-shot would
-        // fire immediately or be silently swallowed by the missed-fire policy, both of
-        // which are ergonomics traps (quartznet#636/#2180, Hangfire#1637, R10).
-        // "Past" is judged against the registry's injected TimeProvider (DR-7).
         if (cadence is OneShotCadence absoluteOneShot
             && absoluteOneShot.FireAt < now)
         {
@@ -435,14 +448,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             DispatcherTypeName: dispatcher.GetType().FullName,
             Metadata: new Dictionary<string, string>());
 
-        // Claim the in-memory slot FIRST, then persist. Ordering matters under a
-        // concurrent same-name race: SaveAsync is a blind upsert, so if we persisted
-        // first a losing registrant would have already written its (possibly different)
-        // payload to the store before TryAdd rejected it — leaving the store holding
-        // loser data while the registry holds the winner. Claiming the slot first means
-        // a loser is rejected before it ever touches the store. We then persist; if the
-        // store write fails we compensate by releasing the slot so a store failure never
-        // leaves the job in the registry (the existing rollback invariant).
         if (!this.jobs.TryAdd(name, record))
         {
             throw new DuplicateJobNameException(name);
@@ -462,7 +467,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         }
         catch
         {
-            // Compensate: the slot we claimed must not outlive a failed persist or post-dispose abort.
             this.jobs.TryRemove(name, out _);
             throw;
         }
@@ -471,6 +475,8 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         this.events.Publish(new JobRegisteredEvent(name));
     }
 
+    // The post-commit wake is written unconditionally inside lifecycleGate. After the durable and
+    // in-memory state is committed, a caller cancellation must NOT drop the tick-loop wake (DR-1).
     private async ValueTask<bool> UnregisterCoreAsync(string name, CancellationToken ct = default)
     {
         this.ThrowIfDisposed();
@@ -491,9 +497,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             this.jobs.TryRemove(name, out _);
             this.UnbindDispatcher(name);
 
-            // Post-commit wake is written unconditionally inside lifecycleGate: once
-            // durable + in-memory state is committed, a caller cancellation must NOT
-            // drop the tick-loop wake (DR-1).
             this.commands.Writer.TryWrite(
                 new RegistryCommand(RegistryCommandKind.Unregister, name, registrationId));
         }
@@ -503,6 +506,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         return true;
     }
 
+    // A job that is already paused needs nothing persisted or signaled.
     private async ValueTask PauseCoreAsync(string name, CancellationToken ct = default)
     {
         this.ThrowIfDisposed();
@@ -513,7 +517,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             throw new JobNotFoundException(name);
         }
 
-        // Already paused: nothing to persist or signal.
         if (record.State == JobState.Paused)
         {
             return;
@@ -522,6 +525,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await this.TransitionAsync(record, JobState.Paused, RegistryCommandKind.Pause, ct).ConfigureAwait(false);
     }
 
+    // A job that is already running needs nothing persisted or signaled.
     private async ValueTask ResumeCoreAsync(string name, CancellationToken ct = default)
     {
         this.ThrowIfDisposed();
@@ -532,7 +536,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             throw new JobNotFoundException(name);
         }
 
-        // Already running: nothing to persist or signal.
         if (record.State == JobState.Running)
         {
             return;
@@ -541,6 +544,13 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         await this.TransitionAsync(record, JobState.Running, RegistryCommandKind.Resume, ct).ConfigureAwait(false);
     }
 
+    // An update applies the same resolution and validation as registration: a relative one-shot
+    // resolves against the registry clock, and a past one-shot is rejected (R10). NextFireAt is
+    // computed again from the new cadence. Mutating operations must never cause immediate execution
+    // as a side effect (R10). TriggerAsync is the only fire-on-demand API.
+    //
+    // Under lifecycleGate, the latest in-memory record is read again, so a concurrent LastFiredAt
+    // checkpoint that landed while SaveAsync was awaiting is kept.
     private async ValueTask UpdateCoreAsync(
         string name,
         Cadence cadence,
@@ -558,8 +568,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
         var now = this.timeProvider.GetUtcNow();
 
-        // Apply the same resolution and validation as registration: relative one-shots
-        // are resolved against the registry clock; past one-shots are rejected (R10).
         cadence = cadence is RelativeOneShotCadence relative
             ? new OneShotCadence(now + relative.Delay)
             : cadence;
@@ -574,9 +582,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
                 "cause a silent immediate fire or a missed-fire-policy decision.");
         }
 
-        // Recompute NextFireAt from the new cadence. Mutating operations must never
-        // cause immediate execution as a side effect (R10); TriggerAsync is the only
-        // fire-on-demand API.
         var nextFireAt = cadence.ComputeNextFire(lastFiredAt: null, now: now);
         var updated = record with
         {
@@ -591,8 +596,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         {
             this.ThrowIfDisposed();
 
-            // Re-read the latest in-memory record under the gate to preserve any
-            // concurrent LastFiredAt checkpoint while SaveAsync was awaiting.
             var latest = this.jobs.GetValueOrDefault(name, updated);
             var committed = latest with
             {
@@ -613,6 +616,21 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// Trigger commits no durable or in-memory state before the post: the post IS the operation.
+    /// The post-commit wakes (Register, Unregister, Transition, Update) write unconditionally, so a
+    /// late cancel cannot orphan state that is already committed. Here nothing is committed that
+    /// needs protection. Thus a caller cancellation aborts the trigger cleanly with an
+    /// <see cref="OperationCanceledException"/> and enqueues nothing. This matches the
+    /// caller-cancel-to-OCE contract for uncommitted operations.
+    /// </para>
+    /// <para>
+    /// The admission slot stays held until the tick loop hands the trigger off, drops it, or abandons
+    /// it at shutdown. A running dispatch must not wait (<c>DispatchAdmission.IsReentrant</c>),
+    /// because the slot that it needs is released only after that dispatch finishes.
+    /// </para>
+    /// </remarks>
     public async ValueTask TriggerAsync(string name, CancellationToken ct = default)
     {
         this.ThrowIfDisposed();
@@ -623,15 +641,6 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             throw new JobNotFoundException(name);
         }
 
-        // Trigger does not commit any durable or in-memory state before posting: the
-        // post IS the operation. Unlike the post-commit wakes (Register/Unregister/
-        // Transition/Update, which use CancellationToken.None so a late cancel cannot
-        // orphan already-committed state), there is nothing committed here to protect,
-        // so a caller cancellation should cleanly abort the trigger via OCE and enqueue
-        // nothing — matching the caller-cancel→OCE contract for uncommitted operations.
-        // The admission slot stays held until the tick loop hands the trigger off,
-        // drops it, or abandons it at shutdown. A running dispatch must not wait:
-        // the slot it needs is released only after that dispatch finishes.
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, this.triggerAdmissionCancelled.Token);
         var acquired = false;
         try
@@ -880,16 +889,18 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     /// <c>using</c> consumer tears the registry down correctly. Idempotent across both
     /// the sync and async paths via a shared single-shot <see cref="Interlocked"/> guard.
     /// </summary>
+    /// <remarks>
+    /// Only the first caller completes the writer. A second <c>Complete()</c> would throw, so the
+    /// guard makes double-dispose (sync or async) safe. The semaphore and the cancellation source
+    /// stay usable, because the tick loop can still release a slot for a command that it drains
+    /// after the writer completes.
+    /// </remarks>
     public void Dispose()
     {
         lock (this.lifecycleGate)
         {
-            // Idempotent: only the first caller completes the writer; a second Complete()
-            // would throw, so the guard makes double-dispose (sync or async) safe.
             if (Interlocked.Exchange(ref this.disposed, 1) == 0)
             {
-                // Leave the semaphore and the cancellation source usable. The tick loop
-                // can still release a slot for a command it drains after the writer completes.
                 this.triggerAdmissionCancelled.Cancel();
                 this.commands.Writer.Complete();
                 this.disposedTcs.TrySetResult();

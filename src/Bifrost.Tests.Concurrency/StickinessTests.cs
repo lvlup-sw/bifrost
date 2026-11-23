@@ -30,7 +30,7 @@ public class StickinessTests
     /// and honors an explicit positive factor, exposed through <c>StickinessForTest</c>.
     /// </summary>
     [Test]
-    [Arguments(-1, 1)] // -1 sentinel resolves to the default 1.
+    [Arguments(-1, 1)]
     [Arguments(1, 1)]
     [Arguments(4, 4)]
     [Arguments(7, 7)]
@@ -90,25 +90,27 @@ public class StickinessTests
     /// before re-sampling: the first call samples and arms a countdown, the next <c>s - 1</c> calls
     /// return the cached index unchanged, and the <c>(s+1)</c>th call re-samples.
     /// </summary>
+    /// <remarks>
+    /// The handle uses fixed seed words, so the sampled indices are reproducible. The mask 15 selects
+    /// 16 sub-queues. The call after the period ends re-samples. Across a full period the new index is
+    /// sometimes different, so the test asserts only that the index stays in range and that the reuse
+    /// contract held.
+    /// </remarks>
     [Test]
     public async Task NextStickyIndex_ReusesForStickinessPeriod()
     {
-        // A deterministic handle (fixed seed words) so the sampled indices are reproducible.
         var handle = ThreadHandle.CreateForTesting(1, 2, 3, 4);
-        const int mask = 15; // 16 sub-queues.
+        const int mask = 15;
         const int stickiness = 4;
 
         int first = handle.NextStickyIndex(mask, stickiness);
 
-        // The next three calls (s - 1 = 3) must return the identical cached index.
         for (int i = 0; i < stickiness - 1; i++)
         {
             await Assert.That(handle.NextStickyIndex(mask, stickiness)).IsEqualTo(first).Because(
                 $"call {i + 2} within the sticky period reuses the first sampled index {first}");
         }
 
-        // The next call ends the period and re-samples. Across a full period it is at least sometimes
-        // different; assert the index is always in range, and that the reuse contract above held.
         int resampled = handle.NextStickyIndex(mask, stickiness);
         await Assert.That(resampled).IsGreaterThanOrEqualTo(0).Because("a resampled index is non-negative");
         await Assert.That(resampled).IsLessThanOrEqualTo(mask).Because("a resampled index stays within [0, mask]");
@@ -119,14 +121,15 @@ public class StickinessTests
     /// countdown), behaviorally identical to a plain index draw — the <c>s == 1</c> contract that
     /// leaves the relaxed-dequeue behavior unchanged.
     /// </summary>
+    /// <remarks>
+    /// With <c>s == 1</c> the countdown is armed to 0, so every call takes the resample branch. Thus every
+    /// returned index must be a legal in-range value.
+    /// </remarks>
     [Test]
     public async Task NextStickyIndex_StickinessOne_ResamplesEveryCall()
     {
         var handle = ThreadHandle.CreateForTesting(0xDEAD, 0xBEEF, 0xCAFE, 0xF00D);
         const int mask = 15;
-
-        // With s == 1 the countdown is armed to 0, so every call takes the resample branch. Every
-        // returned index must be a legal in-range value (the resample path runs each time).
         for (int i = 0; i < 20; i++)
         {
             int idx = handle.NextStickyIndex(mask, stickiness: 1);
@@ -140,17 +143,17 @@ public class StickinessTests
     /// <c>[ThreadStatic]</c> handle is shared across queues of different sub-queue counts, so a stuck
     /// index sampled for one mask must never be returned for a different mask.
     /// </summary>
+    /// <remarks>
+    /// The test arms a sticky period for a 256-sub-queue mask (values up to 255). Then it requests a
+    /// 4-sub-queue mask (values 0..3) while the period is still live. The mask gate must force a fresh
+    /// sample in the new range and never reuse the large stuck index.
+    /// </remarks>
     [Test]
     public async Task NextStickyIndex_DifferentMask_ForcesResampleInRange()
     {
         var handle = ThreadHandle.CreateForTesting(11, 22, 33, 44);
         const int stickiness = 8;
-
-        // Arm a sticky period for a 256-sub-queue mask (values up to 255).
         handle.NextStickyIndex(mask: 255, stickiness);
-
-        // Now request with a 4-sub-queue mask (values 0..3) WHILE the period is still live. The mask
-        // gate must force a fresh sample in the new range, never reuse the large stuck index.
         int small = handle.NextStickyIndex(mask: 3, stickiness);
 
         await Assert.That(small).IsGreaterThanOrEqualTo(0).And.IsLessThanOrEqualTo(3).Because(
@@ -161,6 +164,17 @@ public class StickinessTests
     /// <c>ResetStickyEnqueue</c> ends the current enqueue sticky period immediately: a call that would
     /// have reused the cached index instead re-samples (the production resample-on-contention path).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The first <c>NextStickyIndex</c> call arms the period (remaining = 3). <c>ResetStickyEnqueue</c>
+    /// ends it immediately (remaining = 0). The next call must take the resample branch, not the reuse
+    /// branch. The test exercises that path and requires an in-range index.
+    /// </para>
+    /// <para>
+    /// The final loop proves that the reset armed a FRESH period and was not a no-op: the resampled
+    /// index is reused for the remaining <c>stickiness - 1</c> calls of the new window.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task ResetStickyEnqueue_EndsPeriod_ForcesResample()
     {
@@ -168,17 +182,11 @@ public class StickinessTests
         const int mask = 15;
         const int stickiness = 4;
 
-        handle.NextStickyIndex(mask, stickiness); // arm the period (remaining = 3).
-        handle.ResetStickyEnqueue();              // end it immediately (remaining = 0).
-
-        // The next call must take the resample branch, not the reuse branch. We verify by exercising
-        // the path; the returned index must be in range.
+        handle.NextStickyIndex(mask, stickiness);
+        handle.ResetStickyEnqueue();
         int afterReset = handle.NextStickyIndex(mask, stickiness);
         await Assert.That(afterReset).IsGreaterThanOrEqualTo(0).And.IsLessThanOrEqualTo(mask).Because(
             "after ResetStickyEnqueue the next call resamples a fresh in-range index");
-
-        // Prove the reset armed a FRESH period (not a no-op): the resampled index is then reused
-        // for the remaining stickiness - 1 calls of the new window.
         for (int i = 0; i < stickiness - 1; i++)
         {
             await Assert.That(handle.NextStickyIndex(mask, stickiness)).IsEqualTo(afterReset).Because(
@@ -191,6 +199,11 @@ public class StickinessTests
     /// and <c>ResetStickyDequeue</c> ends the dequeue period early — the two-choice analogue of the
     /// enqueue sticky path. The pair is always two distinct in-range indices.
     /// </summary>
+    /// <remarks>
+    /// Within the period the cached pair is reused exactly. After <c>ResetStickyDequeue</c>, the next call
+    /// re-samples a fresh distinct in-range pair. The last call proves that the reset began a FRESH reuse
+    /// window, because it reuses the resampled pair.
+    /// </remarks>
     [Test]
     public async Task NextStickyPair_ReusesDistinctPair_AndResets()
     {
@@ -202,20 +215,14 @@ public class StickinessTests
         await Assert.That(i0).IsNotEqualTo(j0).Because("the sampled pair is two distinct indices");
         await Assert.That(i0).IsGreaterThanOrEqualTo(0).And.IsLessThanOrEqualTo(mask);
         await Assert.That(j0).IsGreaterThanOrEqualTo(0).And.IsLessThanOrEqualTo(mask);
-
-        // Within the period the cached pair is reused exactly.
         handle.NextStickyPair(mask, stickiness, out int i1, out int j1);
         await Assert.That(i1).IsEqualTo(i0).Because("the second call within the period reuses the cached i");
         await Assert.That(j1).IsEqualTo(j0).Because("the second call within the period reuses the cached j");
-
-        // Reset ends the period; the next call re-samples a fresh distinct in-range pair.
         handle.ResetStickyDequeue();
         handle.NextStickyPair(mask, stickiness, out int i2, out int j2);
         await Assert.That(i2).IsNotEqualTo(j2).Because("a resampled pair is still two distinct indices");
         await Assert.That(i2).IsGreaterThanOrEqualTo(0).And.IsLessThanOrEqualTo(mask);
         await Assert.That(j2).IsGreaterThanOrEqualTo(0).And.IsLessThanOrEqualTo(mask);
-
-        // Prove the reset began a FRESH reuse window: the resampled pair is reused on the next call.
         handle.NextStickyPair(mask, stickiness, out int i3, out int j3);
         await Assert.That(i3).IsEqualTo(i2).Because("post-reset pair begins a new sticky reuse window");
         await Assert.That(j3).IsEqualTo(j2).Because("post-reset pair is reused within that window");

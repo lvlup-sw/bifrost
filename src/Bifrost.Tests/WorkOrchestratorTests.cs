@@ -63,7 +63,7 @@ internal sealed class BlockingWorkHandler : IWorkHandler<string>, IDisposable
     /// <remarks>Signals release before disposing to prevent worker deadlock during cleanup.</remarks>
     public void Dispose()
     {
-        _releaseSignal.Set(); // Ensure workers can exit
+        _releaseSignal.Set();
         _releaseSignal.Dispose();
     }
 }
@@ -106,10 +106,8 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkOrchestrator_Constructor_CreatesChannel()
     {
-        // Arrange & Act
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Assert
         await Assert.That(orchestrator.Capacity).IsEqualTo(128);
         await Assert.That(orchestrator.ActiveWorkers).IsEqualTo(2);
         await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
@@ -126,7 +124,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkOrchestrator_Constructor_ThrowsWhenHandlerNull()
     {
-        // Arrange & Act & Assert
         await Assert.That(() => new WorkOrchestrator<string>(null!, _options, _logger))
             .Throws<ArgumentNullException>();
     }
@@ -142,7 +139,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkOrchestrator_Constructor_ThrowsWhenOptionsNull()
     {
-        // Arrange & Act & Assert
         await Assert.That(() => new WorkOrchestrator<string>(_handler, null!, _logger))
             .Throws<ArgumentNullException>();
     }
@@ -158,7 +154,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkOrchestrator_Constructor_ThrowsWhenLoggerNull()
     {
-        // Arrange & Act & Assert
         await Assert.That(() => new WorkOrchestrator<string>(_handler, _options, null!))
             .Throws<ArgumentNullException>();
     }
@@ -170,12 +165,13 @@ public class WorkOrchestratorTests
     /// <remarks>
     /// Arranges an orchestrator with mock handler that signals completion, acts by enqueueing work,
     /// asserts the handler received the work item.
+    /// This wall-clock probe must not compete with unrelated blocking fixtures, so it is
+    /// <c>NotInParallel</c>.
     /// </remarks>
     [Test]
-    [NotInParallel] // This wall-clock probe must not compete with unrelated blocking fixtures.
+    [NotInParallel]
     public async Task EnqueueAsync_ValidWork_WritesToChannel()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var tcs = new TaskCompletionSource();
         _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -185,11 +181,9 @@ public class WorkOrchestratorTests
                 return ValueTask.CompletedTask;
             });
 
-        // Act
         await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
         await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }
 
@@ -204,13 +198,10 @@ public class WorkOrchestratorTests
     [Test]
     public async Task TryEnqueue_ChannelNotFull_ReturnsTrue()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act
         var result = orchestrator.TryEnqueue("test-work");
 
-        // Assert
         await Assert.That(result).IsTrue();
     }
 
@@ -221,44 +212,39 @@ public class WorkOrchestratorTests
     /// <remarks>
     /// Arranges an orchestrator with blocking handler and small capacity, fills the channel,
     /// acts by attempting another enqueue, asserts false is returned when full.
+    /// <para>
+    /// The blocking handler stops the worker from draining the channel. With capacity 2 and one worker,
+    /// the worker takes work-1 out of the channel and blocks on it. Then work-2 makes the pending count 1,
+    /// and work-3 makes it 2, which is the capacity. Thus work-4 must fail. The test waits until
+    /// <c>HandleCallCount</c> shows that the worker took work-1. At the end it releases the blocked
+    /// handler, so the orchestrator can dispose cleanly.
+    /// </para>
     /// </remarks>
     [Test]
     public async Task TryEnqueue_ChannelFull_ReturnsFalse()
     {
-        // Arrange - Use blocking handler to prevent workers from draining the channel.
-        // With capacity=2 and 1 worker:
-        // - work-1 is picked up by worker (removed from channel, being processed)
-        // - work-2 goes into channel (pending count = 1)
-        // - work-3 goes into channel (pending count = 2 = capacity)
-        // - work-4 should fail since channel is full
         using var blockingHandler = new BlockingWorkHandler();
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 2, WorkerCount = 1 });
         await using var orchestrator = new WorkOrchestrator<string>(blockingHandler, options, _logger);
 
-        // First enqueue succeeds - worker picks it up and blocks
         var firstResult = orchestrator.TryEnqueue("work-1");
 
-        // Wait for worker to pick up work-1 (handler increments call count)
         SpinWait spinWait = default;
         while (blockingHandler.HandleCallCount == 0)
         {
             spinWait.SpinOnce();
         }
 
-        // Second and third enqueue succeed - fill the channel to capacity
         var secondResult = orchestrator.TryEnqueue("work-2");
         var thirdResult = orchestrator.TryEnqueue("work-3");
 
-        // Act - Fourth enqueue should fail since channel is full (2 pending = capacity)
         var fourthResult = orchestrator.TryEnqueue("work-4");
 
-        // Assert
         await Assert.That(firstResult).IsTrue();
         await Assert.That(secondResult).IsTrue();
         await Assert.That(thirdResult).IsTrue();
         await Assert.That(fourthResult).IsFalse();
 
-        // Cleanup - release the blocked handler so orchestrator can dispose cleanly
         blockingHandler.ReleaseAll();
     }
 
@@ -273,7 +259,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkerLoop_ProcessesMultipleItems()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var processedCount = 0;
         var allProcessed = new TaskCompletionSource();
@@ -289,13 +274,11 @@ public class WorkOrchestratorTests
                 return ValueTask.CompletedTask;
             });
 
-        // Act
         await orchestrator.EnqueueAsync("work-1").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("work-2").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("work-3").ConfigureAwait(false);
         await allProcessed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(processedCount).IsEqualTo(3);
     }
 
@@ -310,7 +293,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task WorkerLoop_ContinuesAfterHandlerException()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var processedCount = 0;
         var allProcessed = new TaskCompletionSource();
@@ -332,12 +314,10 @@ public class WorkOrchestratorTests
                 return ValueTask.CompletedTask;
             });
 
-        // Act
         await orchestrator.EnqueueAsync("work-1").ConfigureAwait(false);
         await orchestrator.EnqueueAsync("work-2").ConfigureAwait(false);
         await allProcessed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(processedCount).IsEqualTo(2);
     }
 
@@ -348,34 +328,32 @@ public class WorkOrchestratorTests
     /// <remarks>
     /// Arranges an orchestrator with blocking handler, enqueues items while worker is blocked,
     /// asserts PendingCount matches the number of unprocessed items in the channel.
+    /// <para>
+    /// The blocking handler stops the worker from draining the channel. The worker takes work-1 and
+    /// blocks, so work-2 and work-3 stay pending, and <c>PendingCount</c> is 2. At the end the test
+    /// releases the blocked handler, so the orchestrator can dispose cleanly.
+    /// </para>
     /// </remarks>
     [Test]
     public async Task PendingCount_ReflectsQueueDepth()
     {
-        // Arrange - Use blocking handler to prevent workers from draining the channel.
-        // The worker will pick up work-1 and block, leaving subsequent items pending.
         using var blockingHandler = new BlockingWorkHandler();
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 1 });
         await using var orchestrator = new WorkOrchestrator<string>(blockingHandler, options, _logger);
 
-        // Enqueue first item - worker picks it up and blocks
         orchestrator.TryEnqueue("work-1");
 
-        // Wait for worker to pick up work-1
         SpinWait spinWait = default;
         while (blockingHandler.HandleCallCount == 0)
         {
             spinWait.SpinOnce();
         }
 
-        // Act - Enqueue more items while worker is blocked
         orchestrator.TryEnqueue("work-2");
         orchestrator.TryEnqueue("work-3");
 
-        // Assert - 2 items pending (work-1 is being processed, work-2 and work-3 in queue)
         await Assert.That(orchestrator.PendingCount).IsEqualTo(2);
 
-        // Cleanup - release the blocked handler so orchestrator can dispose cleanly
         blockingHandler.ReleaseAll();
     }
 
@@ -390,11 +368,9 @@ public class WorkOrchestratorTests
     [Test]
     public async Task ActiveWorkers_MatchesConfiguration()
     {
-        // Arrange
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 4 });
         await using var orchestrator = new WorkOrchestrator<string>(_handler, options, _logger);
 
-        // Assert
         await Assert.That(orchestrator.ActiveWorkers).IsEqualTo(4);
     }
 
@@ -409,11 +385,9 @@ public class WorkOrchestratorTests
     [Test]
     public async Task Capacity_ReturnsConfiguredValue()
     {
-        // Arrange
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 256 });
         await using var orchestrator = new WorkOrchestrator<string>(_handler, options, _logger);
 
-        // Assert
         await Assert.That(orchestrator.Capacity).IsEqualTo(256);
     }
 
@@ -425,7 +399,6 @@ public class WorkOrchestratorTests
     [Test]
     public async Task Writer_EscapeHatch_Removed()
     {
-        // Assert
         await Assert.That(typeof(WorkOrchestrator<string>).GetProperty("Writer")).IsNull();
     }
 
@@ -436,12 +409,13 @@ public class WorkOrchestratorTests
     /// <remarks>
     /// Arranges an orchestrator, enqueues work and waits for processing, calls StopAsync,
     /// asserts StopAsync completes before timeout indicating graceful shutdown.
+    /// This wall-clock probe must not compete with unrelated blocking fixtures, so it is
+    /// <c>NotInParallel</c>.
     /// </remarks>
     [Test]
-    [NotInParallel] // This wall-clock probe must not compete with unrelated blocking fixtures.
+    [NotInParallel]
     public async Task StopAsync_CompletesGracefully()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var processed = new TaskCompletionSource();
         _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -454,11 +428,9 @@ public class WorkOrchestratorTests
         await orchestrator.EnqueueAsync("work-1").ConfigureAwait(false);
         await processed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Act
         var stopTask = orchestrator.AbortAsync();
         var completed = await Task.WhenAny(stopTask, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
 
-        // Assert - StopAsync should complete before the delay
         await Assert.That(ReferenceEquals(completed, stopTask)).IsTrue();
     }
 
@@ -473,13 +445,10 @@ public class WorkOrchestratorTests
     [Test]
     public async Task DisposeAsync_DisposesResources()
     {
-        // Arrange
         var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
-        // Assert - TryEnqueue should return false after dispose
         var result = orchestrator.TryEnqueue("test");
         await Assert.That(result).IsFalse();
     }
@@ -491,11 +460,11 @@ public class WorkOrchestratorTests
     /// <remarks>
     /// Arranges a handler that throws for a specific work item, enqueues that item,
     /// waits for processing, then asserts the error log message contains the work item value.
+    /// The 100 ms delay gives the log call time to complete after the exception.
     /// </remarks>
     [Test]
     public async Task WorkerLoop_HandlerThrows_LogsWorkItemContext()
     {
-        // Arrange
         var processed = new TaskCompletionSource();
         _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
@@ -506,14 +475,11 @@ public class WorkOrchestratorTests
 
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act
         await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
         await processed.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-        // Allow a brief moment for the log call to complete after the exception
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Assert - verify error log contains the work item "test-item"
         _logger.Received().Log(
             LogLevel.Error,
             Arg.Any<EventId>(),

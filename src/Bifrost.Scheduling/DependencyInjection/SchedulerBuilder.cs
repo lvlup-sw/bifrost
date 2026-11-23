@@ -72,24 +72,28 @@ internal sealed class SchedulerBuilder : ISchedulerBuilder
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The last <c>UseStore</c> call wins. This method removes any prior <see cref="IScheduleStore"/>
+    /// descriptor (the default in-memory store or an earlier selection), then registers the new
+    /// store as a singleton.
+    /// </remarks>
     public ISchedulerBuilder UseStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>()
         where TStore : class, IScheduleStore
     {
-        // Replace the store registration so the last UseStore wins: remove any prior
-        // IScheduleStore descriptor (the default in-memory store or an earlier
-        // selection), then register the new store as a singleton.
         this.services.RemoveAll<IScheduleStore>();
         this.services.AddSingleton<IScheduleStore, TStore>();
         return this;
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Multiple calls compose into one delegate that runs them in order, so a later call sees (and
+    /// can override) the values that an earlier call set.
+    /// </remarks>
     public ISchedulerBuilder ConfigureOptions(Action<SchedulerOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
 
-        // Compose multiple calls into one delegate run in order, so a later call sees
-        // (and can override) the values an earlier one set.
         var previous = this.configureOptions;
         this.configureOptions = previous is null
             ? configure
@@ -130,6 +134,21 @@ internal sealed class SchedulerBuilder : ISchedulerBuilder
     /// </summary>
     /// <param name="options">The configured options to validate.</param>
     /// <exception cref="InvalidOperationException">A constraint is violated.</exception>
+    /// <remarks>
+    /// <para>
+    /// Why the cross-field check (DR-10) exists: a backoff that spaces consecutive faults at least as
+    /// far apart as the window can let each fault slide out of the sliding <c>RestartWindow</c> before
+    /// the next fault arrives. Then the restart count never exceeds <c>MaxRestartsInWindow</c>, and
+    /// the loop backs off forever and never reaches its give-up (faulted) state.
+    /// </para>
+    /// <para>
+    /// This is a CONSERVATIVE SUFFICIENT bound, not the exact necessary boundary. The runtime
+    /// tolerates more, because the first fault is not backed off and give-up triggers at
+    /// <c>Count &gt; MaxRestartsInWindow</c>. The margin is deliberate, so the give-up guarantee is
+    /// robust. The check requires the spacing to stay strictly inside the window. A zero backoff
+    /// disables spacing, so the constraint does not apply to it.
+    /// </para>
+    /// </remarks>
     private static void Validate(SchedulerOptions options)
     {
         if (options.RestartBackoff < TimeSpan.Zero)
@@ -153,15 +172,6 @@ internal sealed class SchedulerBuilder : ISchedulerBuilder
                 $"but was {options.RestartWindow}.");
         }
 
-        // Cross-field (DR-10): a backoff that spaces consecutive faults at least as far
-        // apart as the window can let each fault slide out of the sliding RestartWindow
-        // before the next arrives, so the restart count never exceeds
-        // MaxRestartsInWindow and the loop backs off forever instead of ever reaching
-        // its give-up/faulted state. This is a CONSERVATIVE SUFFICIENT bound, not the exact
-        // necessary boundary (the runtime tolerates more — the first fault is not backed off
-        // and give-up triggers at Count > MaxRestartsInWindow), but it is enforced with margin
-        // deliberately so the give-up guarantee is robust. Require the spacing to stay strictly
-        // inside the window. (A zero backoff disables spacing, so the constraint does not apply.)
         if (options.RestartBackoff > TimeSpan.Zero &&
             options.RestartBackoff * options.MaxRestartsInWindow >= options.RestartWindow)
         {

@@ -76,6 +76,12 @@ public sealed class AddSchedulerTestingTests
     /// calling both in sequence produces a working scheduler that the harness can
     /// drive deterministically end-to-end.
     /// </summary>
+    /// <remarks>
+    /// The test starts all hosted services (the registration service and the tick loop) inside the
+    /// guarded scope. So if a later <c>StartAsync</c> throws, the <c>finally</c> block stops any
+    /// services that already started. Then the test waits for the initial idle (loop started, job
+    /// registered) and advances past the interval of the job, so the job fires.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task AddSchedulerTesting_CompatibleWithAddScheduler()
@@ -98,9 +104,6 @@ public sealed class AddSchedulerTestingTests
 
         try
         {
-            // Start all hosted services (registration service + tick loop). Kept inside
-            // the guarded scope so the finally stops any services already started if a
-            // later StartAsync throws.
             foreach (var hosted in provider.GetServices<IHostedService>())
             {
                 await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -108,10 +111,8 @@ public sealed class AddSchedulerTestingTests
 
             var harness = provider.GetRequiredService<ISchedulerTestHarness>();
 
-            // Wait for initial idle (loop started, job registered).
             await harness.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Advance past the job's interval; it should fire.
             await harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
 
             var completed = await Task.WhenAny(fired.Task, Task.Delay(TestTimeout)).ConfigureAwait(false);

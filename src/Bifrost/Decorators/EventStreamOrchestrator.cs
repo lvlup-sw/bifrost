@@ -94,6 +94,11 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
         => _inner.GetShutdownToken();
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// After the inner drain, the method completes and clears all subscriber channels under
+    /// <c>_subscriptionGate</c>, so the step is atomic with respect to
+    /// <see cref="GetEventStreamAsync{TEvent}"/>.
+    /// </remarks>
     public async Task DrainAsync(CancellationToken ct = default)
     {
         lock (_subscriptionGate)
@@ -103,7 +108,6 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
 
         await _inner.DrainAsync(ct).ConfigureAwait(false);
 
-        // Complete and clear all subscriber channels atomically with respect to GetEventStreamAsync.
         lock (_subscriptionGate)
         {
             foreach (var subscriber in _eventSubscribers.Values)
@@ -140,6 +144,10 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
 
     /// <inheritdoc/>
     /// <exception cref="ObjectDisposedException">Thrown when the orchestrator has been disposed.</exception>
+    /// <remarks>
+    /// Registration, drain, and disposal must be atomic under <c>_subscriptionGate</c>. Otherwise a
+    /// channel that is added after the snapshot of a drain or a disposal is never completed.
+    /// </remarks>
     public IAsyncEnumerable<TEvent> GetEventStreamAsync<TEvent>(
         string? correlationId = null,
         CancellationToken cancellationToken = default)
@@ -156,8 +164,6 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
                 SingleWriter = false,
             });
 
-        // Registration, drain, and disposal must be atomic: a channel added after
-        // drain or disposal's snapshot would otherwise never be completed.
         lock (_subscriptionGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -174,6 +180,9 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
         return ReadWithCleanup<TEvent>(subscriberId, subscriberChannel.Reader, correlationId, cancellationToken);
     }
 
+    // Yields only events of type TEvent. When correlationId is set, it also skips events whose
+    // correlation ID differs, and events that do not implement ICorrelatedEvent. On completion or
+    // cancellation, the finally block removes and completes the subscriber channel (M13).
     private async IAsyncEnumerable<TEvent> ReadWithCleanup<TEvent>(
         Guid subscriberId,
         ChannelReader<IOrchestratorEvent> reader,
@@ -185,13 +194,11 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
         {
             await foreach (var evt in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
-                // Type filtering
                 if (evt is not TEvent typedEvent)
                 {
                     continue;
                 }
 
-                // Correlation ID filtering (only when correlationId is specified)
                 if (correlationId is not null)
                 {
                     if (evt is ICorrelatedEvent correlated)
@@ -203,7 +210,6 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
                     }
                     else
                     {
-                        // Event doesn't implement ICorrelatedEvent, skip when filtering by correlationId
                         continue;
                     }
                 }
@@ -213,7 +219,6 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
         }
         finally
         {
-            // Cleanup subscriber on completion or cancellation (M13: log on failure)
             if (_eventSubscribers.TryRemove(subscriberId, out var channel))
             {
                 channel.Writer.TryComplete();
@@ -226,6 +231,12 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     /// to publish <see cref="WorkCompletedEvent{TWork}"/> events.
     /// </summary>
     /// <param name="evt">The event to publish.</param>
+    /// <remarks>
+    /// The writes do not block, because the subscriber channels use
+    /// <see cref="BoundedChannelFullMode.DropOldest"/>. After the writes, the method removes stale
+    /// subscribers whose buffers are completely full (M10). A full buffer indicates that the consumer
+    /// does not read events.
+    /// </remarks>
     internal void PublishToSubscribers(IOrchestratorEvent evt)
     {
         if (_disposed)
@@ -235,12 +246,9 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
 
         foreach (var subscriber in _eventSubscribers.Values)
         {
-            // Non-blocking write - DropOldest ensures we don't block
             subscriber.Writer.TryWrite(evt);
         }
 
-        // M10: Clean up stale subscribers whose buffers are completely full.
-        // A full buffer indicates the consumer is not reading events.
         foreach (var (id, channel) in _eventSubscribers)
         {
             if (channel.Reader.CanCount && channel.Reader.Count >= SubscriberCapacity)

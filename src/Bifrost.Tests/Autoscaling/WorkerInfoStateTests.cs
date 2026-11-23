@@ -22,10 +22,8 @@ public class WorkerInfoStateTests
     [Test]
     public async Task NewWorker_StartsIdle()
     {
-        // Arrange & Act
         var worker = new WorkerInfo("worker-1");
 
-        // Assert
         await Assert.That(worker.IsIdle).IsTrue();
     }
 
@@ -35,30 +33,27 @@ public class WorkerInfoStateTests
     [Test]
     public async Task MarkBusy_SetsIsIdleToFalse()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
 
-        // Act
         worker.MarkBusy();
 
-        // Assert
         await Assert.That(worker.IsIdle).IsFalse();
     }
 
     /// <summary>
     /// Verifies that MarkIdle sets IsIdle to true.
     /// </summary>
+    /// <remarks>
+    /// The test first marks the worker busy.
+    /// </remarks>
     [Test]
     public async Task MarkIdle_SetsIsIdleToTrue()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
-        worker.MarkBusy(); // First mark busy
+        worker.MarkBusy();
 
-        // Act
         worker.MarkIdle();
 
-        // Assert
         await Assert.That(worker.IsIdle).IsTrue();
     }
 
@@ -68,15 +63,12 @@ public class WorkerInfoStateTests
     [Test]
     public async Task MarkBusy_CalledMultipleTimes_KeepsIsIdleFalse()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
 
-        // Act
         worker.MarkBusy();
         worker.MarkBusy();
         worker.MarkBusy();
 
-        // Assert
         await Assert.That(worker.IsIdle).IsFalse();
     }
 
@@ -86,44 +78,39 @@ public class WorkerInfoStateTests
     [Test]
     public async Task MarkIdle_CalledMultipleTimes_KeepsIsIdleTrue()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
         worker.MarkBusy();
 
-        // Act
         worker.MarkIdle();
         worker.MarkIdle();
         worker.MarkIdle();
 
-        // Assert
         await Assert.That(worker.IsIdle).IsTrue();
     }
 
     /// <summary>
     /// Verifies that state transitions work correctly in a busy-idle-busy-idle sequence.
     /// </summary>
+    /// <remarks>
+    /// The initial state is idle. The test then moves the worker to busy, back to idle, to busy
+    /// again, and back to idle.
+    /// </remarks>
     [Test]
     public async Task StateTransitions_BusyIdleSequence_WorksCorrectly()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
 
-        // Act & Assert - Initial state is idle
         await Assert.That(worker.IsIdle).IsTrue();
 
-        // Transition to busy
         worker.MarkBusy();
         await Assert.That(worker.IsIdle).IsFalse();
 
-        // Transition back to idle
         worker.MarkIdle();
         await Assert.That(worker.IsIdle).IsTrue();
 
-        // Transition to busy again
         worker.MarkBusy();
         await Assert.That(worker.IsIdle).IsFalse();
 
-        // Transition back to idle
         worker.MarkIdle();
         await Assert.That(worker.IsIdle).IsTrue();
     }
@@ -131,16 +118,18 @@ public class WorkerInfoStateTests
     /// <summary>
     /// Verifies that state transitions are thread-safe under concurrent access.
     /// </summary>
+    /// <remarks>
+    /// Two tasks call <c>MarkBusy</c> and <c>MarkIdle</c> concurrently. The calls must not throw,
+    /// and the final state must be valid: either true or false, with no corruption.
+    /// </remarks>
     [Test]
     public async Task StateTransitions_ConcurrentAccess_IsThreadSafe()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
         var iterations = 10000;
         var busyCount = 0;
         var idleCount = 0;
 
-        // Act - Concurrent MarkBusy and MarkIdle calls
         var busyTask = Task.Run(() =>
         {
             for (var i = 0; i < iterations; i++)
@@ -161,11 +150,9 @@ public class WorkerInfoStateTests
 
         await Task.WhenAll(busyTask, idleTask).ConfigureAwait(false);
 
-        // Assert - Should not throw and should have a valid state
         await Assert.That(busyCount).IsEqualTo(iterations);
         await Assert.That(idleCount).IsEqualTo(iterations);
 
-        // The final state should be either true or false (no corruption)
         var finalState = worker.IsIdle;
         await Assert.That(finalState == true || finalState == false).IsTrue();
     }

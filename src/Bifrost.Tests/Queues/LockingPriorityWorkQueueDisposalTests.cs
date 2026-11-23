@@ -39,17 +39,18 @@ public sealed class LockingPriorityWorkQueueDisposalTests
     /// <see cref="ObjectDisposedException"/>.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// On a non-completed, empty queue, a wait parks on the semaphore. After the dispose, that parking
+    /// wait hits a disposed semaphore.
+    /// </remarks>
     [Test]
     public async Task LockingPriorityWorkQueue_Dispose_ThenWait_ThrowsObjectDisposedException()
     {
-        // Arrange — a non-completed, empty queue: a wait would park on the semaphore.
         var queue = new LockingPriorityWorkQueue<int>(
             SmallCapacity, new PriorityDispatchOptions(), TestTimestampFrequency);
 
-        // Act — dispose, releasing the owned semaphore.
         queue.Dispose();
 
-        // Assert — the parking wait now hits a disposed semaphore.
         await Assert.That(async () => await queue.WaitToDequeueAsync(default).ConfigureAwait(false))
             .Throws<ObjectDisposedException>();
     }
@@ -63,11 +64,9 @@ public sealed class LockingPriorityWorkQueueDisposalTests
     [Test]
     public async Task LockingPriorityWorkQueue_DisposeTwice_DoesNotThrow()
     {
-        // Arrange
         var queue = new LockingPriorityWorkQueue<int>(
             SmallCapacity, new PriorityDispatchOptions(), TestTimestampFrequency);
 
-        // Act + Assert — both calls complete without throwing.
         await Assert.That(() =>
             {
                 queue.Dispose();

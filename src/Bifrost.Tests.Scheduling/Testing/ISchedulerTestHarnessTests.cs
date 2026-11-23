@@ -35,6 +35,12 @@ public sealed class ISchedulerTestHarnessTests
     /// interval causes the job's dispatcher to execute before <c>AdvanceAsync</c>
     /// returns. The harness is resolved as the interface type, not the concrete class.
     /// </summary>
+    /// <remarks>
+    /// The test resolves the harness as the interface, not the concrete type, so it exercises the
+    /// contract and not an implementation detail. It waits for idle (loop started, job registered)
+    /// and then advances exactly the interval. The job must fire before <c>AdvanceAsync</c>
+    /// returns.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task AdvanceAsync_DrivesJobToFire_ViaInterface()
@@ -61,14 +67,10 @@ public sealed class ISchedulerTestHarnessTests
 
         try
         {
-            // Resolve as the interface — not the concrete type — to exercise the
-            // contract rather than an implementation detail.
             ISchedulerTestHarness harness = provider.GetRequiredService<ISchedulerTestHarness>();
 
-            // Wait for idle (loop started, job registered).
             await harness.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Advance exactly the interval; the job must fire before AdvanceAsync returns.
             await harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
 
             var completed = await Task.WhenAny(fired.Task, Task.Delay(TestTimeout)).ConfigureAwait(false);
@@ -89,6 +91,13 @@ public sealed class ISchedulerTestHarnessTests
     /// unfired. The clock is advanced to make one job due; a second job scheduled far
     /// in the future is not fired. The harness is resolved as the interface type via DI.
     /// </summary>
+    /// <remarks>
+    /// <c>farFuture</c> is a fixed timestamp that is always later than the start of the fake clock.
+    /// The interval job fires after 1 hour, so it becomes due when the test advances the clock by 1
+    /// hour. The far-future job stays later than any clock advance in this test. The test waits for
+    /// idle (both jobs registered, tick loop at rest), advances the clock by exactly 1 hour, and
+    /// calls <c>FireDueJobsAsync</c>. Only the due job may fire.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task FireDueJobsAsync_OnlyFiresDueJobs_NotFutureJobs_ViaInterface()
@@ -96,14 +105,12 @@ public sealed class ISchedulerTestHarnessTests
         var dueCount = 0;
         var futureCount = 0;
 
-        // A fixed timestamp far in the future — always beyond the fake clock's start.
         var farFuture = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddScheduler(scheduler =>
         {
-            // Due job: fires after 1 hour — will become due when we advance 1 hour.
             scheduler.AddInlineJob("due-after-advance")
                 .Every(TimeSpan.FromHours(1))
                 .Run((_, _) =>
@@ -112,7 +119,6 @@ public sealed class ISchedulerTestHarnessTests
                     return ValueTask.CompletedTask;
                 });
 
-            // Future job: scheduled far beyond any clock advance in this test.
             scheduler.AddInlineJob("far-future-job")
                 .At(farFuture)
                 .Run((_, _) =>
@@ -134,14 +140,10 @@ public sealed class ISchedulerTestHarnessTests
             ISchedulerTestHarness harness = provider.GetRequiredService<ISchedulerTestHarness>();
             var fakeTime = provider.GetRequiredService<FakeTimeProvider>();
 
-            // Wait for idle: both jobs are registered and the tick loop is at rest.
             await harness.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Advance the clock by exactly 1 hour — the interval job is now due;
-            // the far-future job remains in the future.
             fakeTime.Advance(TimeSpan.FromHours(1));
 
-            // FireDueJobsAsync must fire only the due job, not the future one.
             await harness.FireDueJobsAsync().ConfigureAwait(false);
 
             await Assert.That(Volatile.Read(ref dueCount)).IsGreaterThanOrEqualTo(1);

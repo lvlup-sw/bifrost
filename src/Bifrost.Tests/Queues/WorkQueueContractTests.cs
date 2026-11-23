@@ -55,13 +55,10 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task TryEnqueue_WhenBelowCapacity_ReturnsTrue()
     {
-        // Arrange
         var queue = CreateQueue(SmallCapacity);
 
-        // Act
         var accepted = queue.TryEnqueue(1);
 
-        // Assert
         await Assert.That(accepted).IsTrue();
     }
 
@@ -73,7 +70,6 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task TryEnqueue_WhenAtCapacity_ReturnsFalse()
     {
-        // Arrange
         var queue = CreateQueue(SmallCapacity);
         for (var i = 0; i < SmallCapacity; i++)
         {
@@ -81,10 +77,8 @@ public abstract class WorkQueueContractTests
             await Assert.That(filled).IsTrue();
         }
 
-        // Act
         var accepted = queue.TryEnqueue(SmallCapacity);
 
-        // Assert
         await Assert.That(accepted).IsFalse();
     }
 
@@ -96,16 +90,13 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task WaitToDequeueAsync_AfterEnqueue_CompletesTrue()
     {
-        // Arrange
         var queue = CreateQueue(SmallCapacity);
         var enqueued = queue.TryEnqueue(42);
         await Assert.That(enqueued).IsTrue();
         using var timeoutCts = new CancellationTokenSource(WaitTimeout);
 
-        // Act
         var signaled = await queue.WaitToDequeueAsync(timeoutCts.Token).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(signaled).IsTrue();
     }
 
@@ -119,20 +110,21 @@ public abstract class WorkQueueContractTests
     /// covered by each binding's completion tests.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The queue is empty, so no item can satisfy the wait. The parked wait can end with any subtype of
+    /// <see cref="OperationCanceledException"/>. The canceled task of the channel binding rethrows
+    /// <see cref="TaskCanceledException"/>, and the semaphore bindings throw the base type. After that,
+    /// the loop-owned boundary absorbs the cancellation as a clean shutdown result.
+    /// </remarks>
     [Test]
     public async Task WaitToDequeueAsync_OnCancellation_SurfacesOperationCanceled()
     {
-        // Arrange — empty queue, so the wait cannot be satisfied by an item.
         var queue = CreateQueue(SmallCapacity);
         using var shutdownCts = new CancellationTokenSource();
         var waitTask = queue.WaitToDequeueAsync(shutdownCts.Token).AsTask();
 
-        // Act — signal shutdown via the cancellation pathway.
         await shutdownCts.CancelAsync().ConfigureAwait(false);
 
-        // Assert — the parked wait terminates with OperationCanceledException (any
-        // subtype: the channel binding's canceled task rethrows TaskCanceledException,
-        // the semaphore bindings throw the base type).
         var surfaced = false;
         try
         {
@@ -145,7 +137,6 @@ public abstract class WorkQueueContractTests
 
         await Assert.That(surfaced).IsTrue();
 
-        // And the loop-owned boundary absorbs it as a clean shutdown result.
         var (received, _) = await ConsumeOneAsync(queue, shutdownCts.Token).ConfigureAwait(false);
         await Assert.That(received).IsFalse();
     }
@@ -159,16 +150,13 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task TryDequeue_AfterWait_YieldsItem_ToleratesSpuriousMissRetry()
     {
-        // Arrange
         var queue = CreateQueue(SmallCapacity);
         var enqueued = queue.TryEnqueue(99);
         await Assert.That(enqueued).IsTrue();
         using var timeoutCts = new CancellationTokenSource(WaitTimeout);
 
-        // Act — the canonical loop tolerates spurious TryDequeue misses by re-waiting.
         var (received, item) = await ConsumeOneAsync(queue, timeoutCts.Token).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(received).IsTrue();
         await Assert.That(item).IsEqualTo(99);
     }
@@ -182,22 +170,18 @@ public abstract class WorkQueueContractTests
     [Test]
     public async Task Count_Approximate_WithinDocumentedBounds()
     {
-        // Arrange
         const int enqueueCount = 3;
         var queue = CreateQueue(SmallCapacity);
         await Assert.That(queue.Count).IsEqualTo(0);
 
-        // Act — N uncontended enqueues; the queue is quiescent after each operation.
         for (var i = 0; i < enqueueCount; i++)
         {
             var enqueued = queue.TryEnqueue(i);
             await Assert.That(enqueued).IsTrue();
         }
 
-        // Assert — exact at quiescence.
         await Assert.That(queue.Count).IsEqualTo(enqueueCount);
 
-        // Drain back to empty; count must return to exactly zero at quiescence.
         using var timeoutCts = new CancellationTokenSource(WaitTimeout);
         for (var i = 0; i < enqueueCount; i++)
         {
@@ -214,10 +198,13 @@ public abstract class WorkQueueContractTests
     /// once — no loss, no duplication — within a generous timeout.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// A consumer returns when <c>ConsumeOneAsync</c> reports shutdown: all items were received, or the
+    /// timeout fired. Exactly-once means that the count matches and the distinct set is the full range.
+    /// </remarks>
     [Test]
     public async Task Conservation_NItemsIn_NItemsOut_MultiProducerConsumer()
     {
-        // Arrange
         const int producerCount = 4;
         const int consumerCount = 4;
         const int itemsPerProducer = 250;
@@ -262,7 +249,7 @@ public abstract class WorkQueueContractTests
                     var (gotItem, item) = await ConsumeOneAsync(queue, doneCts.Token).ConfigureAwait(false);
                     if (!gotItem)
                     {
-                        return; // Shutdown (all items received) or timeout.
+                        return;
                     }
 
                     received.Enqueue(item);
@@ -274,11 +261,9 @@ public abstract class WorkQueueContractTests
             });
         }
 
-        // Act
         await Task.WhenAll(producers).ConfigureAwait(false);
         await Task.WhenAll(consumers).ConfigureAwait(false);
 
-        // Assert — exactly-once: count matches and the distinct set is the full range.
         await Assert.That(receivedCount).IsEqualTo(totalItems);
         var distinct = new HashSet<int>(received);
         await Assert.That(distinct.Count).IsEqualTo(totalItems);
@@ -310,6 +295,11 @@ public abstract class WorkQueueContractTests
     /// (surfaced as <see cref="OperationCanceledException"/> and absorbed here, at the
     /// loop boundary).
     /// </returns>
+    /// <remarks>
+    /// If <c>TryDequeue</c> misses spuriously under a relaxed binding, the loop goes back to the wait.
+    /// The catch absorbs cancellation-side shutdown once, at the loop boundary, per the contract. The
+    /// wait itself never normalizes it (DR-7).
+    /// </remarks>
     protected static async Task<(bool Received, T Item)> ConsumeOneAsync<T>(
         IWorkQueue<T> queue,
         CancellationToken cancellationToken)
@@ -322,14 +312,10 @@ public abstract class WorkQueueContractTests
                 {
                     return (true, item);
                 }
-
-                // Spurious miss under a relaxed binding — loop back to the wait.
             }
         }
         catch (OperationCanceledException)
         {
-            // Cancellation-side shutdown, absorbed once at the loop boundary per the
-            // contract — the wait itself never normalizes it (DR-7).
         }
 
         return (false, default!);

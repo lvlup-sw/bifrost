@@ -48,6 +48,15 @@ public sealed class ClockJumpTests
     /// <c>FakeTimeProvider.Advance</c>) on the underlying fake clock. After the
     /// skew is cleared the loop must re-arm at the correct delay against the
     /// (un-skewed) current time, so a subsequent advance fires it exactly once.
+    /// <para>
+    /// The test registers a job due in 5 minutes and then injects a backward skew of 3 days. So the
+    /// next <c>GetUtcNow()</c> read of the loop sees a time far in the past. The loop must detect
+    /// the regression (log a warning) and arm again against the skewed time, which extends the
+    /// delay. It must not hang on a stale timer that will never fire. The idle barrier wakes the
+    /// loop, so it evaluates again with the backward clock. Then the test clears the skew, lets the
+    /// loop settle, and advances past the original scheduled instant. The job must fire exactly
+    /// once.
+    /// </para>
     /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
@@ -69,26 +78,18 @@ public sealed class ClockJumpTests
         {
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Register a job due in 5 minutes.
             var dispatcher = new CountingDispatcher();
             await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, dispatcher)
                 .ConfigureAwait(false);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Inject a backward skew of 3 days. The loop's next GetUtcNow() read sees a
-            // time far in the past. The loop must detect the regression (log warning) and
-            // re-arm against the skewed time (extending the delay). It must NOT hang on a
-            // stale timer that will never fire.
             skewable.SkewBy(TimeSpan.FromDays(-3));
 
-            // Wake the loop (idle barrier) so it re-evaluates with the backward clock.
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Clear the skew and let the loop settle.
             skewable.SkewBy(TimeSpan.Zero);
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-            // Now advance past the original scheduled instant: must fire exactly once.
             time.Advance(TimeSpan.FromMinutes(5));
             await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
             await Assert.That(dispatcher.FireCount).IsEqualTo(1);

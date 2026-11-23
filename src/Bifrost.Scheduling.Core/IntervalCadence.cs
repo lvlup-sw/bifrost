@@ -90,12 +90,15 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
     /// <param name="lastFiredAt">The last fire instant, or <see langword="null"/>.</param>
     /// <param name="now">The current instant (DR-7).</param>
     /// <returns>The next aligned occurrence, or null when the representable date range is exhausted.</returns>
+    /// <remarks>
+    /// The range check on <c>steps</c> divides before it multiplies, so the check itself cannot
+    /// overflow. Both the local date and the UTC date must stay representable. Exhaustion is normal, as it is for one-shot and
+    /// cron cadences.
+    /// </remarks>
     private DateTimeOffset? ComputeBaseFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)
     {
         var anchor = lastFiredAt ?? now;
         var steps = anchor > now ? 1 : ((now - anchor).Ticks / this.interval.Ticks) + 1;
-        // Check division before multiplication: both the local date and UTC date must
-        // remain representable. Exhaustion is normal, just as for one-shot/cron cadences.
         if (steps > RemainingTicks(anchor) / this.interval.Ticks)
         {
             return null;
@@ -117,6 +120,20 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
     /// <param name="baseFire">The un-jittered fire instant (always strictly after <paramref name="now"/>).</param>
     /// <param name="now">The current instant (DR-7) the jittered fire must stay strictly after.</param>
     /// <returns>The jittered fire instant, guaranteed strictly greater than <paramref name="now"/>.</returns>
+    /// <remarks>
+    /// <para>
+    /// The offset is symmetric in <c>[-Jitter, +Jitter]</c> of the interval. Production randomness
+    /// uses the shared RNG (<c>Random.Shared</c>). Tests assert only the deterministic bounds.
+    /// </para>
+    /// <para>
+    /// A downward draw can land the jittered instant at or before <paramref name="now"/>, notably
+    /// when <paramref name="baseFire"/> is close to <paramref name="now"/> or <see cref="Jitter"/> is
+    /// near 1. That fire would be immediately due and would churn. The clamp moves it strictly into the
+    /// future. It prefers the un-jittered <paramref name="baseFire"/> (always strictly after
+    /// <paramref name="now"/>). It falls back to <paramref name="now"/> + 1 tick only in the degenerate
+    /// case where <paramref name="baseFire"/> itself is not strictly after <paramref name="now"/>.
+    /// </para>
+    /// </remarks>
     private DateTimeOffset ApplyJitter(DateTimeOffset baseFire, DateTimeOffset now)
     {
         if (this.jitter <= 0)
@@ -124,8 +141,6 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
             return baseFire;
         }
 
-        // Symmetric offset in [-Jitter, +Jitter] of the interval. Production
-        // randomness uses the shared RNG; tests assert only the deterministic bounds.
         var fraction = (Random.Shared.NextDouble() * 2.0) - 1.0;
         var offsetTicks = (long)(this.interval.Ticks * this.jitter * fraction);
         if (offsetTicks > RemainingTicks(baseFire) || offsetTicks < -Math.Min(baseFire.Ticks, baseFire.UtcTicks))
@@ -135,11 +150,6 @@ public sealed record IntervalCadence(TimeSpan Interval, double Jitter = 0) : Cad
 
         var jittered = baseFire.AddTicks(offsetTicks);
 
-        // A downward draw can land the jittered instant at or before now (notably when
-        // baseFire is close to now or Jitter is near 1), which would fire immediately
-        // and churn. Clamp strictly into the future: prefer the un-jittered baseFire
-        // (always strictly after now), falling back to now + 1 tick only in the
-        // degenerate case baseFire itself is not strictly after now.
         if (jittered <= now)
         {
             return baseFire > now ? baseFire : now + TimeSpan.FromTicks(1);

@@ -31,15 +31,18 @@ internal static class CpqTuningResolver
     /// <see cref="System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences{T}"/> result).
     /// </param>
     /// <returns>The stickiness factor and buffer capacity to construct the queue with.</returns>
+    /// <remarks>
+    /// The discard arm covers <see cref="CpqTuningProfile.Balanced"/>, and also any value that a
+    /// future version adds, as a defensive default. It uses the baseline stickiness, with buffering
+    /// keyed off the reference-ness of the element: reference-bearing work gets buffering and
+    /// value-type work does not.
+    /// </remarks>
     internal static (int Stickiness, int BufferCapacity) Resolve(CpqTuningProfile profile, bool elementContainsReferences)
         => profile switch
         {
             CpqTuningProfile.LowConcurrency => (LowConcurrencyStickiness, BufferedCapacity),
             CpqTuningProfile.StrictOrdering => (1, 0),
 
-            // Balanced (and any future-added value, defensively): baseline stickiness, with buffering
-            // keyed off the element's reference-ness so reference-bearing work gets it and value-type
-            // work does not.
             _ => (1, elementContainsReferences ? BufferedCapacity : 0),
         };
 }

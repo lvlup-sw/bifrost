@@ -19,15 +19,12 @@ public class PackageReferenceTests
     [Test]
     public async Task MainPackage_ReferencesCore()
     {
-        // Arrange
         var mainAssembly = typeof(WorkOrchestrator<>).Assembly;
         var referencedAssemblies = mainAssembly.GetReferencedAssemblies();
 
-        // Act
         var coreReference = referencedAssemblies.FirstOrDefault(a =>
             a.Name == "Bifrost.Core");
 
-        // Assert
         await Assert.That(coreReference).IsNotNull();
     }
 }

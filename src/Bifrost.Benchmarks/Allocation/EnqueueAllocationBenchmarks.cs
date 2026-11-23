@@ -31,6 +31,11 @@ public class EnqueueAllocationBenchmarks
     /// <summary>
     /// Creates the orchestrator and runs a warmup phase to stabilize JIT and allocations.
     /// </summary>
+    /// <remarks>
+    /// The warmup uses a countdown handler to confirm reliably that all items are processed. This
+    /// stabilizes the JIT and the async state machines before the real benchmark begins. The
+    /// benchmark orchestrator then uses the no-op handler for the allocation measurement.
+    /// </remarks>
     [GlobalSetup]
     public async Task GlobalSetup()
     {
@@ -38,8 +43,6 @@ public class EnqueueAllocationBenchmarks
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 10000, WorkerCount = 1 });
         var logger = NullLogger<WorkOrchestrator<int>>.Instance;
 
-        // Warmup: use a countdown handler to reliably confirm all items are processed,
-        // stabilizing JIT and async state machines before the real benchmark begins.
         using var countdown = new CountdownEvent(warmupCount);
         var warmupHandler = new CountdownWorkHandler(countdown);
         await using (var warmup = new WorkOrchestrator<int>(warmupHandler, options, logger))
@@ -55,7 +58,6 @@ public class EnqueueAllocationBenchmarks
             }
         }
 
-        // Create the benchmark orchestrator with the no-op handler for allocation measurement.
         var handler = new NoOpWorkHandler();
         _orchestrator = new WorkOrchestrator<int>(handler, options, logger);
     }

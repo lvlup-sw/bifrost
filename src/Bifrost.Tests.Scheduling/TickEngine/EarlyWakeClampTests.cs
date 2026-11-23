@@ -44,6 +44,13 @@ public sealed class EarlyWakeClampTests
     /// scheduled occurrence comes due (R2/DR-7). This codifies the early-wake clamp:
     /// a false-positive wake must not cause an early dispatch.
     /// </summary>
+    /// <remarks>
+    /// The fire is due at Start + 5 min, and the test advances only 3 min, so the job is not due.
+    /// The barrier request of <c>WaitForIdleAsync</c> pokes the loop and simulates a
+    /// command-channel nudge wake. The loop wakes, sees now &lt; <c>NextFireAt</c>, and goes back
+    /// to sleep without a fire, so the early wake causes zero dispatches. Then the test advances to
+    /// the actual scheduled time, and the job must fire exactly once.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task TickLoop_WakesBeforeNextFireAt_ReSleeps_NoDispatch()
@@ -52,17 +59,12 @@ public sealed class EarlyWakeClampTests
         var dispatcher = await fx.RegisterAsync(
             "five-min", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
-        // Fire is due at Start + 5 min. Advance only 3 min — job is not due.
         fx.Time.Advance(TimeSpan.FromMinutes(3));
 
-        // Poke the loop with a barrier request (simulates a command-channel nudge wake).
-        // The loop wakes, sees now < NextFireAt, and goes back to sleep without firing.
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Zero dispatches: the early wake must not fire.
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
 
-        // Now advance to the actual scheduled time; the job should fire exactly once.
         fx.Time.Advance(TimeSpan.FromMinutes(2));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
@@ -74,6 +76,12 @@ public sealed class EarlyWakeClampTests
     /// exact scheduled instant. The loop must deliver exactly one dispatch per
     /// occurrence — no early dispatch and no missed dispatch.
     /// </summary>
+    /// <remarks>
+    /// The scheduled occurrence is Start + 60 s. The test advances to 59.98 s (20 ms early). The
+    /// loop wakes, but the job is not yet due, so the clamp must sleep again and the count stays
+    /// zero. Then the test advances the remaining 20 ms to reach the exact scheduled instant. The
+    /// loop must deliver exactly one dispatch for the occurrence: no duplicate and no miss.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task TickLoop_TimerFires20msEarly_ExactlyOneDispatchPerOccurrence()
@@ -82,19 +90,14 @@ public sealed class EarlyWakeClampTests
         var dispatcher = await fx.RegisterAsync(
             "one-min", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
 
-        // Scheduled occurrence: Start + 60 s.
-        // Advance to 59.98 s (20 ms early) — the loop wakes but the job is not yet due.
         fx.Time.Advance(TimeSpan.FromMilliseconds(59_980));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Still zero: the clamp must re-sleep.
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
 
-        // Advance the remaining 20 ms to reach the exact scheduled instant.
         fx.Time.Advance(TimeSpan.FromMilliseconds(20));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Exactly one dispatch per occurrence — no duplicate, no miss.
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
     }
 
@@ -104,6 +107,12 @@ public sealed class EarlyWakeClampTests
     /// it. Concretely, after an early wake + clamp + re-arm cycle, the job's next
     /// scheduled occurrence is exactly <c>occurrence + interval</c>.
     /// </summary>
+    /// <remarks>
+    /// The scheduled occurrence is Start + 5 min (Start + 300 s). The test advances to the exact
+    /// occurrence, so the loop dispatches the first fire, and that fire time must equal the
+    /// scheduled occurrence. The next scheduled occurrence must be exactly occurrence + interval,
+    /// that is Start + 10 min. The test advances there and requires exactly one more fire.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task TickLoop_NextFire_ComputedFromScheduledOccurrenceTime()
@@ -112,17 +121,12 @@ public sealed class EarlyWakeClampTests
         var dispatcher = await fx.RegisterAsync(
             "five-min", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
-        // Scheduled occurrence: Start + 5 min (= Start + 300 s).
-        // Advance to the exact occurrence so the first fire is dispatched.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
-        // The first fire time must equal the scheduled occurrence.
         await Assert.That(dispatcher.LastFireTime).IsEqualTo(Start.AddMinutes(5));
 
-        // The NEXT scheduled occurrence must be exactly occurrence + interval,
-        // i.e., Start + 10 min. Advance there and confirm exactly one more fire.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(dispatcher.FireCount).IsEqualTo(2);

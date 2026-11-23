@@ -117,11 +117,13 @@ public class DispatchBenchmarks
     /// Builds the <see cref="InlineJobDispatcher"/> used by
     /// <see cref="InlineDispatch_Overhead"/>.
     /// </summary>
+    /// <remarks>
+    /// The delegate completes immediately, so the measurement captures the cost of the
+    /// <c>Task.Run</c> + await path inside <see cref="InlineJobDispatcher.DispatchAsync"/>.
+    /// </remarks>
     [GlobalSetup(Target = nameof(InlineDispatch_Overhead))]
     public void GlobalSetup_Inline()
     {
-        // The delegate completes immediately; the measurement captures the
-        // Task.Run + await path cost inside InlineJobDispatcher.DispatchAsync.
         _inlineDispatcher = new InlineJobDispatcher(
             static (_, _) => ValueTask.CompletedTask);
     }
@@ -199,10 +201,10 @@ public class DispatchBenchmarks
         {
         }
 
+        // Intentionally discards the event.
         public void Publish<TEvent>(in TEvent schedulerEvent)
             where TEvent : struct
         {
-            // Intentionally discards the event.
         }
     }
 

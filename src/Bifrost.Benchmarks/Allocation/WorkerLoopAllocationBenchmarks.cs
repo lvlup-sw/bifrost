@@ -44,8 +44,6 @@ public class WorkerLoopAllocationBenchmarks
 
         _orchestrator = new WorkOrchestrator<int>(handler, options, logger);
 
-        // Warmup: enqueue 1000 items and wait for all to be processed
-        // to stabilize JIT and async state machines.
         for (var i = 0; i < ItemCount; i++)
         {
             _orchestrator.TryEnqueue(i);

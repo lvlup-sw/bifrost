@@ -29,6 +29,21 @@ jobs:
         with:
           fetch-depth: 0 # MinVer needs full history/tags
 
+      # Comment governance (Lvlup.RepositoryPolicy, from the Hierophant template):
+      # comments inside function bodies are forbidden. Post-merge backstop; the
+      # pull-request gate is the Buildkite lane owned by the CI control repo.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: ${{ env.DOTNET_QUALITY }}
+
+      - name: Check source conventions
+        run: |
+          dotnet tool restore
+          dotnet tool run lvlup-policy -- prepare
+          bash scripts/check-conventions.sh ci
+
       # Restore → build → run every test project with --coverage → merge via
       # ReportGenerator → upload the 'coverage-reports' artifact. The action
       # sets up .NET (reused by the smoke steps below in this job). test-filter

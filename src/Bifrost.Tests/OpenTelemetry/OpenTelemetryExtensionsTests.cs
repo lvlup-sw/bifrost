@@ -29,7 +29,6 @@ public class OpenTelemetryExtensionsTests
     [Test]
     public async Task WithOpenTelemetry_NullBuilder_Throws()
     {
-        // Act & Assert
         await Assert.That(() => OpenTelemetryExtensions.WithOpenTelemetry<string>(null!))
             .Throws<ArgumentNullException>();
     }
@@ -40,16 +39,13 @@ public class OpenTelemetryExtensionsTests
     [Test]
     public async Task WithOpenTelemetry_ValidBuilder_ReturnsBuilder()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         var result = builder.WithOpenTelemetry();
 
-        // Assert
         await Assert.That(result).IsNotNull();
         await Assert.That(result).IsEqualTo(builder);
     }
@@ -60,22 +56,18 @@ public class OpenTelemetryExtensionsTests
     [Test]
     public async Task WithOpenTelemetry_RegistersMetrics()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithOpenTelemetry();
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert
         var metrics = provider.GetService<OrchestratorMetrics<string>>();
         await Assert.That(metrics).IsNotNull();
 
-        // Cleanup
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         if (orchestrator is IAsyncDisposable disposable)
         {
@@ -91,25 +83,21 @@ public class OpenTelemetryExtensionsTests
     [Test]
     public async Task WithOpenTelemetry_MultipleCalls_DoesNotDuplicate()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithOpenTelemetry();
         builder.WithOpenTelemetry();
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert - should resolve the same singleton instance
         var metrics1 = provider.GetService<OrchestratorMetrics<string>>();
         var metrics2 = provider.GetService<OrchestratorMetrics<string>>();
         await Assert.That(metrics1).IsNotNull();
         await Assert.That(ReferenceEquals(metrics1, metrics2)).IsTrue();
 
-        // Cleanup
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         if (orchestrator is IAsyncDisposable disposable)
         {
@@ -125,26 +113,22 @@ public class OpenTelemetryExtensionsTests
     [Test]
     public async Task WithOpenTelemetry_CombinesWithOtherExtensions()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder
             .WithOpenTelemetry()
             .WithAutoscaling();
         builder.Build();
         var provider = services.BuildServiceProvider();
 
-        // Assert
         var metrics = provider.GetService<OrchestratorMetrics<string>>();
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         await Assert.That(metrics).IsNotNull();
         await Assert.That(orchestrator).IsNotNull();
 
-        // Cleanup
         if (orchestrator is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync().ConfigureAwait(false);

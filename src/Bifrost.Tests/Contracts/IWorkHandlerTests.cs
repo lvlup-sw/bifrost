@@ -24,15 +24,12 @@ public class IWorkHandlerTests
     [Test]
     public async Task IWorkHandler_Interface_DefinesHandleAsync()
     {
-        // Arrange
         var interfaceType = typeof(IWorkHandler<>);
 
-        // Assert - interface exists and is generic
         await Assert.That(interfaceType).IsNotNull();
         await Assert.That(interfaceType.IsInterface).IsTrue();
         await Assert.That(interfaceType.IsGenericTypeDefinition).IsTrue();
 
-        // Check for HandleAsync method
         var method = interfaceType.GetMethod(
             "HandleAsync",
             BindingFlags.Public | BindingFlags.Instance);
@@ -46,11 +43,9 @@ public class IWorkHandlerTests
     [Test]
     public async Task HandleAsync_HasCorrectSignature()
     {
-        // Arrange
         var interfaceType = typeof(IWorkHandler<>);
         var method = interfaceType.GetMethod("HandleAsync");
 
-        // Assert
         await Assert.That(method).IsNotNull();
         await Assert.That(method!.ReturnType).IsEqualTo(typeof(ValueTask));
 
@@ -67,10 +62,8 @@ public class IWorkHandlerTests
     [Test]
     public async Task Interface_IsPublic()
     {
-        // Arrange
         var interfaceType = typeof(IWorkHandler<>);
 
-        // Assert
         await Assert.That(interfaceType.IsPublic).IsTrue();
     }
 }

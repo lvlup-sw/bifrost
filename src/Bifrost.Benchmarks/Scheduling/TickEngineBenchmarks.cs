@@ -77,6 +77,9 @@ public class TickEngineBenchmarks
     /// advances the clock just before the first fire so dispatch work is
     /// already queued for the benchmark body to trigger.
     /// </summary>
+    /// <remarks>
+    /// Each registered job uses a 60-second interval (<c>FireInterval</c>).
+    /// </remarks>
     /// <returns>A <see cref="Task"/> representing the global-setup operation.</returns>
     [GlobalSetup]
     public async Task GlobalSetup()
@@ -97,7 +100,6 @@ public class TickEngineBenchmarks
         await ((IHostedService)_loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
         await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
-        // Register JobCount jobs, each with a 60-second interval.
         for (var i = 0; i < JobCount; i++)
         {
             await _registry.RegisterAsync(
@@ -127,20 +129,19 @@ public class TickEngineBenchmarks
     /// completing. This corresponds to the gap between <c>NextFireAt</c> and
     /// the dispatch handoff that the scheduler records as fire latency.
     /// </summary>
+    /// <remarks>
+    /// The method advances the fake clock by exactly one interval, so every job
+    /// becomes due. Then <c>WaitForIdleAsync</c> waits until the tick loop drains
+    /// all due jobs and reaches idle. The read of <c>HandoffCount</c> is part of
+    /// the measurement.
+    /// </remarks>
     /// <returns>A <see cref="Task"/> representing the benchmark operation.</returns>
     [Benchmark(Description = "FireLatency — clock advance to dispatch handoff")]
     public async Task FireLatency()
     {
         _router.Reset();
-
-        // Advance the fake clock by exactly one interval so every job becomes due.
         _time.Advance(FireInterval);
-
-        // Wait for the tick loop to drain all due jobs and reach idle.
         await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-
-        // Advance again to re-arm for the next iteration (keeps jobs recurring).
-        // This is part of the measurement but represents realistic steady-state.
         _ = _router.HandoffCount;
     }
 
@@ -195,8 +196,8 @@ public class TickEngineBenchmarks
 
     /// <summary>
     /// A router that records the handoff count but performs no real dispatch.
-    /// Avoids Task.Run overhead so the measurement isolates the tick-loop
-    /// dispatch path rather than thread-pool scheduling.
+    /// It keeps the production <c>Task.Run</c> handoff but skips the I/O of a real
+    /// dispatch, so the measurement isolates the tick-loop dispatch path.
     /// </summary>
     private sealed class NullRecordingRouter : IJobDispatcherRouter
     {
@@ -213,14 +214,15 @@ public class TickEngineBenchmarks
         public void Reset() => Volatile.Write(ref _handoffCount, 0);
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// The method gives the dispatch to <c>Task.Run</c>, so the finally block of
+        /// the in-flight tracking decorator runs promptly and the tick loop can reach
+        /// idle. <c>Task.Run</c> matches the threading model of the production router
+        /// without the I/O cost of a real dispatch.
+        /// </remarks>
         public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)
         {
             Interlocked.Increment(ref _handoffCount);
-
-            // Complete the dispatch synchronously via a Task.Run so the in-flight
-            // tracking decorator's finally block runs promptly and the tick loop
-            // can reach idle. Using Task.Run matches the production router's
-            // threading model without the I/O overhead of a real dispatch.
             _ = Task.Run(
                 () => dispatcher.DispatchAsync(context, ct).AsTask(),
                 CancellationToken.None);
@@ -240,10 +242,10 @@ public class TickEngineBenchmarks
         {
         }
 
+        // Discards the event on purpose.
         public void Publish<TEvent>(in TEvent schedulerEvent)
             where TEvent : struct
         {
-            // Intentionally discards the event.
         }
     }
 }

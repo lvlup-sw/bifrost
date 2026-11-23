@@ -30,10 +30,8 @@ public class IOrchestratorEventTests
     [Test]
     public async Task IOrchestratorEvent_IsMarkerInterface()
     {
-        // Arrange
         var interfaceType = typeof(IOrchestratorEvent);
 
-        // Assert - should be an interface with no members
         await Assert.That(interfaceType.IsInterface).IsTrue();
 
         var methods = interfaceType.GetMethods();
@@ -54,10 +52,8 @@ public class IOrchestratorEventTests
     [Test]
     public async Task Interface_IsPublic()
     {
-        // Arrange
         var interfaceType = typeof(IOrchestratorEvent);
 
-        // Assert
         await Assert.That(interfaceType.IsPublic).IsTrue();
     }
 }

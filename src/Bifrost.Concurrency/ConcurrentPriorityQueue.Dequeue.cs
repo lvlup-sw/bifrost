@@ -124,24 +124,51 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// complete after that observation window may be present by the time the caller reacts).
     /// </returns>
     /// <remarks>
+    /// <para>
     /// Two distinct sampled stripes compete by cached priority; contention resamples. Occupancy
     /// fallback and verification scans retain the existing relaxed algorithm. Removal is not globally
     /// minimum and no fixed rank bound is promised. Verification can retry indefinitely while a
     /// populated stripe remains locked. Use a synchronized BCL PriorityQueue for exact ordering.
+    /// </para>
+    /// <para>
+    /// Two-choice sampling runs a few bounded rounds (<see cref="SampleRounds"/>) of "sample two, pop
+    /// the better top". When <c>mask == 0</c> (one sub-queue), <c>NextStickyPair</c> cannot return
+    /// distinct indices, so the round samples the single sub-queue as both choices. Each round reads
+    /// both cached tops through <c>TryReadTop</c> without locking. An empty or unknown
+    /// (<see langword="false"/>) read counts as +infinity, which loses every comparison, so the round
+    /// prefers the other (finite) sub-queue. If both reads are non-finite, the round pops from
+    /// <c>i</c>, observes Empty or Contended, and advances to the next round.
+    /// </para>
+    /// <para>
+    /// After an Empty or Contended pop, <c>ResetStickyDequeue</c> ends the sticky period. Thus the next
+    /// round re-rolls a FRESH pair and does not re-sample the same drained or contended selection.
+    /// A contended pair therefore never blocks, and stickiness stays retry-based. Neither outcome
+    /// concludes that the queue is globally empty. Only the authoritative scan does that.
+    /// </para>
+    /// <para>
+    /// When sampling misses its budget, sparse-fallback routing (<see cref="TryRouteViaOccupancy"/>)
+    /// runs before the O(n) scan. It consults the occupancy bitmask and routes straight to a populated
+    /// sub-queue. This collapses the sparse-but-non-empty drain case (the common case as the queue
+    /// empties) to an O(n/64)-word read plus one locked pop. Routing is only a hint. It never returns
+    /// <see langword="false"/>, and when no bit is set (or every set bit is stale) it falls through to
+    /// the scan.
+    /// </para>
+    /// <para>
+    /// If sampling and routing did not land a pop, <see cref="TryDequeueVerificationScan"/> settles
+    /// the outcome: either a real pop or an authoritative observed-empty <see langword="false"/>.
+    /// The scan stays the sole authority for returning <see langword="false"/>.
+    /// </para>
     /// </remarks>
     public bool TryDequeue([MaybeNullWhen(false)] out TElement element, [MaybeNullWhen(false)] out TPriority priority)
     {
         ThreadHandle handle = ThreadHandle.Current;
         int mask = _subQueueMask;
 
-        // Two-choice sampling: a few bounded rounds of "sample two, pop the better top".
         for (int round = 0; round < SampleRounds; round++)
         {
             int i, j;
             if (mask == 0)
             {
-                // n == 1 (mask 0): NextTwoDistinct cannot return distinct indices, so sample the
-                // single sub-queue as both choices.
                 i = 0;
                 j = 0;
             }
@@ -150,13 +177,9 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 handle.NextStickyPair(mask, _stickiness, out i, out j);
             }
 
-            // Read both cached tops without locking. An empty or unknown ("false") read is treated
-            // as +infinity, so the other (finite) queue is preferred; if both are non-finite the
-            // round simply pops from i and observes Empty/Contended, advancing to the next round.
             bool iFinite = _queues[i].TryReadTop(out TPriority topI, out bool emptyI) && !emptyI;
             bool jFinite = _queues[j].TryReadTop(out TPriority topJ, out bool emptyJ) && !emptyJ;
 
-            // Choose the index with the smaller finite top; +infinity loses every comparison.
             int chosen;
             if (iFinite && jFinite)
             {
@@ -177,26 +200,14 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 return true;
             }
 
-            // Empty or Contended: end the sticky period so the next round re-rolls a FRESH pair
-            // instead of re-sampling the same drained/contended selection (and so a contended pair
-            // never blocks; stickiness stays retry-based). Neither outcome concludes the queue is
-            // globally empty; only the authoritative scan does that.
             handle.ResetStickyDequeue();
         }
 
-        // Sparse-fallback routing: sampling missed its budget. Before paying for the O(n) scan,
-        // consult the occupancy bitmask and route straight to a populated sub-queue. This collapses
-        // the sparse-but-non-empty drain case (the common one as the queue empties) to an
-        // O(n/64)-word read plus one locked pop. Routing is only a hint: it never returns false, and
-        // when no bit is set (or every set bit is stale) it falls through to the scan below.
         if (TryRouteViaOccupancy(out element, out priority))
         {
             return true;
         }
 
-        // Verification scan: sampling and routing did not land a pop, so settle the outcome here —
-        // either a real pop or an authoritative observed-empty false. The scan stays the sole
-        // authority for returning false.
         return TryDequeueVerificationScan(out element, out priority);
     }
 
@@ -232,6 +243,15 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// Progress is bounded: the loop advances only on a freshly observed set bit, and a pop that
     /// succeeds returns, so it cannot spin without either making progress or running out of set bits.
     /// </para>
+    /// <para>
+    /// Each <c>Volatile.Read</c> of an occupancy word is a snapshot. The loop routes to each set bit
+    /// of the snapshot, lowest-first. A bit that a concurrent drainer cleared after the snapshot
+    /// resolves to Empty under the lock and is skipped. On Empty (a stale-set bit) or Contended (a
+    /// race), <c>bits &amp;= bits - 1</c> drops that bit and the loop tries the next set bit in the
+    /// word. Neither outcome lets routing conclude anything about emptiness. When no set bit yields a
+    /// pop, routing NEVER returns <see langword="false"/> as proof of emptiness. The caller falls
+    /// through to the verification scan, which is the sole authority for <see langword="false"/>.
+    /// </para>
     /// </remarks>
     private bool TryRouteViaOccupancy([MaybeNullWhen(false)] out TElement element, [MaybeNullWhen(false)] out TPriority priority)
     {
@@ -239,8 +259,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
         for (int word = 0; word < occupancy.Length; word++)
         {
-            // Snapshot this word; route to each currently-set bit lowest-first. A bit cleared by a
-            // concurrent drainer after the snapshot resolves to Empty under the lock and is skipped.
             ulong bits = Volatile.Read(ref occupancy[word]);
 
             while (bits != 0)
@@ -257,14 +275,10 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                     return true;
                 }
 
-                // Empty (stale-set bit) or Contended (a race): drop this bit and try the next set
-                // bit in the word. Neither outcome lets routing conclude anything about emptiness.
                 bits &= bits - 1;
             }
         }
 
-        // No set bit yielded a pop. Routing NEVER returns false as proof of emptiness — the caller
-        // falls through to the verification scan, which is the sole false authority.
         element = default;
         priority = default;
         return false;
@@ -299,13 +313,27 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// all-empty pass would violate the observed-empty contract, so no bound may convert
     /// "contended" into "empty".
     /// </para>
+    /// <para>
+    /// The <c>BIFROST_TEST_HOOKS</c> block counts entry into the O(n) scan (test-only
+    /// instrumentation). On the sparse path, routing handles the pop and this count does not move. The
+    /// scan is reached only on a genuinely empty queue, or on one that looks empty for a moment
+    /// because every bit was just cleared. The block is compiled out of the shipped package
+    /// (<c>BIFROST_TEST_HOOKS</c> is undefined; see Bifrost.Concurrency.csproj).
+    /// </para>
+    /// <para>
+    /// The cheap route is a stable seqlock read through <c>TryReadTop</c>. When it says "empty", that
+    /// is the emptiness observation of the sub-queue for the pass, with no lock traffic. A
+    /// published-non-empty or unknown read is settled under the lock. An <c>Empty</c> result from
+    /// <see cref="TryPopFrom"/> means that the sub-queue was emptied between the read and the pop, or
+    /// that the read was "unknown" over an empty queue. The lock makes that observation authoritative.
+    /// A Contended result means that a writer holds the lock of that sub-queue now, so
+    /// <c>passVoided</c> voids the evidence of the pass. The pass restarts and never counts a contended
+    /// sub-queue as empty. A pass also retries when <c>TryValidateEmptySnapshot</c> fails, because an
+    /// item moved behind the scan.
+    /// </para>
     /// </remarks>
     private bool TryDequeueVerificationScan([MaybeNullWhen(false)] out TElement element, [MaybeNullWhen(false)] out TPriority priority)
     {
-        // TEST-ONLY instrumentation: count entry into the O(n) scan. On the sparse path routing
-        // handles the pop and this stays put; the scan is reached only on a genuinely empty queue (or
-        // one that transiently looks empty because every bit was just cleared). Compiled out of the
-        // shipped package (BIFROST_TEST_HOOKS undefined; see Bifrost.Concurrency.csproj).
 #if BIFROST_TEST_HOOKS
         Interlocked.Increment(ref _debugScanEntryCount);
 #endif
@@ -328,15 +356,12 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
             {
                 this.DebugBeforeVerificationIndex?.Invoke(index);
 
-                // Cheap route: a stable seqlock read that says "empty" is this sub-queue's
-                // emptiness observation for the pass, with no lock traffic.
                 if (queues[index].TryReadTop(out _, out bool empty) && empty)
                 {
                     emptyObserved++;
                     continue;
                 }
 
-                // Published-non-empty or unknown: settle under the lock.
                 SubQueuePopStatus status = TryPopFrom(index, out element, out priority);
                 if (status == SubQueuePopStatus.Success)
                 {
@@ -345,14 +370,10 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
 
                 if (status == SubQueuePopStatus.Empty)
                 {
-                    // Emptied between the read and the pop (or the read was "unknown" over an
-                    // empty queue): observed empty under the lock, which is authoritative.
                     emptyObserved++;
                     continue;
                 }
 
-                // Contended: a writer holds this sub-queue's lock right now. The pass's evidence
-                // is void; restart it rather than ever counting a contended queue as empty.
                 passVoided = true;
                 break;
             }
@@ -366,7 +387,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
                 return false;
             }
 
-            // The pass was void, or an item moved behind the scan. Retry.
             spinner.SpinOnce();
         }
         }
@@ -425,14 +445,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// On <see cref="SubQueuePopStatus.Success"/> this releases one bounded-capacity reservation
     /// (<see cref="OnElementRemovedFromBounded"/>), the single release site that covers <i>both</i>
     /// the two-choice sampling pop and the verification scan's pop, since both funnel through here.
+    /// On an unbounded queue the release does nothing.
     /// </remarks>
     private SubQueuePopStatus TryPopFrom(int index, out TElement element, out TPriority priority)
     {
         SubQueuePopStatus status = _queues[index].TryLockedPop(out element, out priority);
         if (status == SubQueuePopStatus.Success)
         {
-            // A successful removal frees a bounded slot (no-op on an unbounded queue). This one site
-            // covers both the sampling and verification-scan pop paths.
             OnElementRemovedFromBounded();
         }
 

@@ -268,11 +268,40 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// the sub-queue count exactly (in particular <c>subQueueCount == 1</c> is honored as-is).
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Always call this constructor with named arguments. A positional <c>(int, int, null)</c>
     /// argument list binds to the public <c>(boundedCapacity, stickiness, comparer)</c> overload
     /// instead, because C# prefers the candidate that needs no default-argument substitution. That
     /// silently reinterprets the first two ints: <c>new ConcurrentPriorityQueue&lt;T, P&gt;(4, -1,
     /// null)</c> builds a bounded-to-4, default-sub-queue-count queue, not a 4-sub-queue unbounded one.
+    /// </para>
+    /// <para>
+    /// Funnel invariant: every overload chains through this constructor, but some internal callers
+    /// pass <c>boundedCapacity</c> unvalidated. The call to <c>ValidateBoundedCapacityOrUnbounded</c>
+    /// enforces the bound here too, so a contradictory value (0, or any value below the <c>-1</c>
+    /// unbounded sentinel) can never construct an instance. The public overloads already validated
+    /// the value, so this check is idempotent. In the same way, <c>ValidateBufferCapacity</c> is
+    /// idempotent for the public buffered overload, and it is the authoritative check for an internal
+    /// caller that pins a sub-queue count with buffering on.
+    /// </para>
+    /// <para>
+    /// The sub-queue count is rounded up to a power of two, so two-choice index selection is
+    /// <c>rng &amp; (count - 1)</c>. Values that are already powers of two (1, 4, the default
+    /// 4×ProcessorCount round-up) are not changed, so the internal-count contract honors them exactly.
+    /// </para>
+    /// <para>
+    /// Comparer normalization is shared with <c>SubQueue</c>, so queue-level ordering code can also
+    /// use the dual path later (see <c>PriorityComparerHelpers.InitializeComparer</c>). Each sub-queue
+    /// gets the ORIGINAL comparer, because <c>SubQueue</c> does the same normalization itself.
+    /// </para>
+    /// <para>
+    /// The <c>_occupancy</c> bitmask has <c>ceil(count/64)</c> words, all zero at the start. Every
+    /// sub-queue begins empty, which matches the initial <c>EmptyFlag = 1</c> of each
+    /// <c>SubQueue</c>. The array is allocated once here and shared by reference with every sub-queue,
+    /// so transition writes and routing reads see the same array. Each sub-queue gets its index and
+    /// this shared array, so its boundary-only transition writes flip the correct bit. It also gets the
+    /// resolved buffer capacity (0 means unbuffered).
+    /// </para>
     /// </remarks>
     /// <param name="subQueueCount">
     /// The requested number of sub-queues; must be at least one. A value that is not already a
@@ -305,41 +334,24 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(subQueueCount, 1);
 
-        // Funnel invariant: this internal ctor is the single point every overload chains through, but
-        // some internal callers pass `boundedCapacity` unvalidated. Enforce the bound here too so a
-        // contradictory value (0, or any value below the -1 unbounded sentinel) can never construct an
-        // instance, regardless of caller. Public overloads already validated; this is idempotent.
         boundedCapacity = ValidateBoundedCapacityOrUnbounded(boundedCapacity);
 
-        // Idempotent for the public buffered overload (already validated); the authoritative check for
-        // any internal caller that pins a sub-queue count with buffering on.
         _bufferCapacity = ValidateBufferCapacity(bufferCapacity);
 
         _stickiness = ResolveStickiness(stickiness);
 
-        // Round up to a power of two so two-choice index selection is `rng & (count - 1)`. Values
-        // that are already powers of two (1, 4, the default 4×ProcessorCount round-up) are returned
-        // unchanged, so the internal-count contract honors them exactly.
         int count = (int)BitOperations.RoundUpToPowerOf2((uint)subQueueCount);
 
-        // Comparer normalization, shared with SubQueue so queue-level ordering code can also
-        // dual-path later (see PriorityComparerHelpers.InitializeComparer).
         _comparer = PriorityComparerHelpers.InitializeComparer(comparer);
 
         _boundedCapacity = boundedCapacity;
         _subQueueMask = count - 1;
 
-        // ceil(count/64) words, all zero to start: every sub-queue begins empty, matching each
-        // SubQueue's initial EmptyFlag = 1. Allocated once here and shared by reference with every
-        // sub-queue so transition writes and routing reads see the same array.
         _occupancy = new ulong[(count + 63) >> 6];
 
         _queues = new SubQueue<TElement, TPriority>[count];
         for (int i = 0; i < count; i++)
         {
-            // Pass the ORIGINAL comparer: SubQueue performs the same normalization itself. Hand each
-            // sub-queue its index and a reference to the shared occupancy array so its boundary-only
-            // transition writes flip the right bit, plus the resolved buffer capacity (0 = unbuffered).
             _queues[i] = new SubQueue<TElement, TPriority>(comparer, i, _occupancy, _bufferCapacity);
         }
     }

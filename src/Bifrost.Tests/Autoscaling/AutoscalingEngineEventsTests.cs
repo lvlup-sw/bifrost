@@ -25,10 +25,12 @@ public class AutoscalingEngineEventsTests
     /// <summary>
     /// Verifies that ScalingDecisionMade event is raised after evaluation.
     /// </summary>
+    /// <remarks>
+    /// The 200 ms delay lets at least one evaluation occur.
+    /// </remarks>
     [Test]
     public async Task ScalingDecisionMade_AfterEvaluation_RaisesEvent()
     {
-        // Arrange
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -36,12 +38,10 @@ public class AutoscalingEngineEventsTests
         ScalingDecisionEventArgs? capturedArgs = null;
         engine.ScalingDecisionMade += (sender, args) => capturedArgs = args;
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
-        await Task.Delay(200).ConfigureAwait(false); // Wait for at least one evaluation
+        await Task.Delay(200).ConfigureAwait(false);
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(capturedArgs).IsNotNull();
         await Assert.That(capturedArgs!.Decision.CurrentWorkers).IsEqualTo(2);
     }
@@ -52,7 +52,6 @@ public class AutoscalingEngineEventsTests
     [Test]
     public async Task ScalingDecisionMade_ContainsCorrelationId()
     {
-        // Arrange
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -60,12 +59,10 @@ public class AutoscalingEngineEventsTests
         ScalingDecisionEventArgs? capturedArgs = null;
         engine.ScalingDecisionMade += (sender, args) => capturedArgs = args;
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
         await Task.Delay(200).ConfigureAwait(false);
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(capturedArgs).IsNotNull();
         await Assert.That(capturedArgs!.CorrelationId).IsNotEmpty();
     }
@@ -73,10 +70,13 @@ public class AutoscalingEngineEventsTests
     /// <summary>
     /// Verifies that each event has a unique correlation ID.
     /// </summary>
+    /// <remarks>
+    /// The test polls until at least 2 evaluations occur, with a generous timeout for CI. Each of
+    /// those evaluations must have a unique correlation ID.
+    /// </remarks>
     [Test]
     public async Task ScalingDecisionMade_EachEventHasUniqueCorrelationId()
     {
-        // Arrange
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -84,10 +84,8 @@ public class AutoscalingEngineEventsTests
         var correlationIds = new List<string>();
         engine.ScalingDecisionMade += (_, args) => correlationIds.Add(args.CorrelationId);
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
 
-        // Poll until we have at least 2 evaluations (generous timeout for CI)
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (correlationIds.Count < 2 && !cts.IsCancellationRequested)
         {
@@ -103,7 +101,6 @@ public class AutoscalingEngineEventsTests
 
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert - Should have at least 2 evaluations with unique IDs
         await Assert.That(correlationIds.Count).IsGreaterThanOrEqualTo(2);
         await Assert.That(correlationIds.Distinct().Count()).IsEqualTo(correlationIds.Count);
     }
@@ -111,10 +108,12 @@ public class AutoscalingEngineEventsTests
     /// <summary>
     /// Verifies that event contains the scaling decision.
     /// </summary>
+    /// <remarks>
+    /// The high utilization triggers a scale up, so the target is 2 + 2 (the step) = 4.
+    /// </remarks>
     [Test]
     public async Task ScalingDecisionMade_ContainsScalingDecision()
     {
-        // Arrange - High utilization to trigger scale up
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.9);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -122,25 +121,25 @@ public class AutoscalingEngineEventsTests
         ScalingDecisionEventArgs? capturedArgs = null;
         engine.ScalingDecisionMade += (_, args) => capturedArgs = args;
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
         await Task.Delay(200).ConfigureAwait(false);
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(capturedArgs).IsNotNull();
         await Assert.That(capturedArgs!.Decision.Action).IsEqualTo(ScalingAction.ScaleUp);
         await Assert.That(capturedArgs.Decision.CurrentWorkers).IsEqualTo(2);
-        await Assert.That(capturedArgs.Decision.TargetWorkers).IsEqualTo(4); // 2 + 2 (step)
+        await Assert.That(capturedArgs.Decision.TargetWorkers).IsEqualTo(4);
     }
 
     /// <summary>
     /// Verifies that no event is raised when engine is stopped.
     /// </summary>
+    /// <remarks>
+    /// The test never starts the engine.
+    /// </remarks>
     [Test]
     public async Task ScalingDecisionMade_WhenStopped_NoEventRaised()
     {
-        // Arrange
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = CreateMockCoordinator(activeWorkers: 2, utilization: 0.5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
@@ -148,10 +147,8 @@ public class AutoscalingEngineEventsTests
         var eventCount = 0;
         engine.ScalingDecisionMade += (_, _) => Interlocked.Increment(ref eventCount);
 
-        // Act - Never start the engine
         await Task.Delay(100).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(eventCount).IsEqualTo(0);
     }
 
@@ -161,20 +158,22 @@ public class AutoscalingEngineEventsTests
     [Test]
     public async Task ScalingDecisionEventArgs_IsSealedRecord()
     {
-        // Arrange
         var type = typeof(ScalingDecisionEventArgs);
 
-        // Assert
         await Assert.That(type.IsSealed).IsTrue();
     }
 
     /// <summary>
     /// Verifies that a faulted scaling decision execution logs the error (M8).
     /// </summary>
+    /// <remarks>
+    /// The high utilization triggers a scale up, and the scale up throws. The 300 ms delay lets the
+    /// evaluation and the fault handling occur. The <c>ContinueWith</c> fault handler must log the
+    /// error.
+    /// </remarks>
     [Test]
     public async Task ExecuteScalingDecisionAsync_OnFault_LogsError()
     {
-        // Arrange - High utilization to trigger scale up
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = Substitute.For<IAutoscalingCoordinator>();
         coordinator.ActiveWorkerCount.Returns(2);
@@ -185,12 +184,10 @@ public class AutoscalingEngineEventsTests
         var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<AutoscalingEngine>>();
         var engine = new AutoscalingEngine(options, coordinator, logger);
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
-        await Task.Delay(300).ConfigureAwait(false); // Wait for evaluation + fault handling
+        await Task.Delay(300).ConfigureAwait(false);
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert - Error should be logged (via ContinueWith fault handler)
         logger.Received().Log(
             Microsoft.Extensions.Logging.LogLevel.Error,
             Arg.Any<Microsoft.Extensions.Logging.EventId>(),
@@ -202,10 +199,16 @@ public class AutoscalingEngineEventsTests
     /// <summary>
     /// Verifies that StopAsync drains pending scaling tasks (M8).
     /// </summary>
+    /// <remarks>
+    /// The high utilization triggers a scale up with a slow handler. The test waits until at least
+    /// one scale up starts. <c>scaleUpStarted</c> fires inside the mock, before the callback does
+    /// <c>_pendingScalingTasks.Add</c>, so the 100 ms delay lets the callback add the task to the
+    /// pending bag. <c>StopAsync</c> must drain the pending tasks, so the scaling task is complete
+    /// when it returns.
+    /// </remarks>
     [Test]
     public async Task StopAsync_DrainsPendingScalingTasks()
     {
-        // Arrange - High utilization to trigger scale up with a slow handler
         var options = CreateOptions(checkInterval: TimeSpan.FromMilliseconds(50));
         var coordinator = Substitute.For<IAutoscalingCoordinator>();
         coordinator.ActiveWorkerCount.Returns(2);
@@ -223,16 +226,11 @@ public class AutoscalingEngineEventsTests
 
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Act
         await engine.StartAsync().ConfigureAwait(false);
-        // Wait for at least one scale up to start
         await scaleUpStarted.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-        // Allow the callback to finish adding the task to the pending bag
-        // (scaleUpStarted fires inside the mock, before the callback does _pendingScalingTasks.Add)
         await Task.Delay(100).ConfigureAwait(false);
         await engine.StopAsync().ConfigureAwait(false);
 
-        // Assert - StopAsync should have drained pending tasks, so the scaling task completed
         await Assert.That(scaleUpCompleted.Task.IsCompleted).IsTrue();
     }
 

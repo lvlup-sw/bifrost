@@ -76,12 +76,21 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     /// exactly N successful wait+dequeue cycles and not one more.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// <para>
+    /// The test fills the queue to capacity and then shows that the over-capacity rejection funds no
+    /// permit. It uses the Interactive class, which the T21 watermark policy admits to hard capacity. The
+    /// class is incidental to the invariant under test.
+    /// </para>
+    /// <para>
+    /// After exactly <c>itemCount</c> wait+dequeue cycles, there are no extra signals. A further wait
+    /// must park until its token cancels, and then surface <see cref="OperationCanceledException"/> per
+    /// the contract. The consume loop owns that catch, so here the test plays the role of the loop.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task WaitToDequeueAsync_SemaphoreCountsItems_ReleasePerEnqueue()
     {
-        // Arrange — fill to capacity, then prove the over-capacity rejection funds no
-        // permit. Interactive class: admitted to hard capacity under the T21 watermark
-        // policy (the class is incidental to the invariant under test).
         const int itemCount = 5;
         var queue = CreateEnvelopeQueue(itemCount);
         for (var i = 0; i < itemCount; i++)
@@ -93,7 +102,6 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
         var rejected = queue.TryEnqueue(new WorkEnvelope<int>(999, WorkClass.Interactive, 2_000));
         await Assert.That(rejected).IsFalse();
 
-        // Act + Assert — exactly itemCount wait+dequeue cycles succeed.
         using var timeoutCts = new CancellationTokenSource(BindingWaitTimeout);
         for (var i = 0; i < itemCount; i++)
         {
@@ -103,9 +111,6 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
             await Assert.That(dequeued).IsTrue();
         }
 
-        // No extra signals: a further wait must park until its token cancels, then
-        // surface OperationCanceledException per the contract (the consume loop owns
-        // the catch; here the test plays the loop's role).
         using var extraCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
         var extraSurfacedCancellation = false;
         try
@@ -153,32 +158,51 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     /// statistical margin).
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// <para>
+    /// The group size scales with the sub-queue count of the host, so the margin of the mean position is
+    /// larger than the per-pop rank noise on any core count.
+    /// </para>
+    /// <para>
+    /// The queue has 2× headroom, so the T21 class watermarks (Batch 0.90, Default 0.95 of capacity)
+    /// never trip during the interleaved fill. This test isolates dequeue-side ordering. The
+    /// <c>WatermarkAdmissionTests</c> cover admission-side shedding.
+    /// </para>
+    /// <para>
+    /// The virtual-time layout uses ticks at 1 kHz, so <c>InteractiveBoostWindow</c> is 30_000 ticks and
+    /// <c>BatchPenaltyWindow</c> is 60_000 ticks. A smaller key is dequeued sooner:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Interactive has the freshest timestamps (1_520_000+i) and key 1_490_000+i (boost −30_000).</description></item>
+    /// <item><description>Default has the middle timestamps (1_500_000+i) and key 1_500_000+i (no boost).</description></item>
+    /// <item><description>Batch has the oldest timestamps (1_450_000+i) and key 1_510_000+i (penalty +60_000).</description></item>
+    /// </list>
+    /// <para>
+    /// The ids are interactive [0, g), default [g, 2g), and batch [2g, 3g).
+    /// </para>
+    /// <para>
+    /// The drain is quiescent and single-threaded. With no contention, <c>TryDequeue</c> of the CPQ
+    /// reports false only on an authoritative observed-empty scan, so every call pops. At quiescence the
+    /// drained set must be exactly the full range. The mean drain position per class group must respect
+    /// the key order Interactive &lt; Default &lt; Batch. The relaxation noise averages out over a group
+    /// sized to 3× the sub-queue count (see the class remarks).
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task PriorityOrdering_QuiescentDrain_RespectsVirtualTimeKey()
     {
-        // Arrange — group size scales with the host's sub-queue count so the mean-position
-        // margin dominates the per-pop rank noise on any core count.
         var subQueueCount = (int)BitOperations.RoundUpToPowerOf2((uint)(4 * Environment.ProcessorCount));
         var groupSize = Math.Max(200, 3 * subQueueCount);
         var totalItems = 3 * groupSize;
 
         var options = new PriorityDispatchOptions
         {
-            InteractiveBoostWindow = TimeSpan.FromSeconds(30), // 30_000 ticks at 1 kHz
-            BatchPenaltyWindow = TimeSpan.FromSeconds(60),     // 60_000 ticks at 1 kHz
+            InteractiveBoostWindow = TimeSpan.FromSeconds(30),
+            BatchPenaltyWindow = TimeSpan.FromSeconds(60),
         };
 
-        // 2× headroom so the T21 class watermarks (Batch 0.90, Default 0.95 of
-        // capacity) never trip during the interleaved fill — this test isolates
-        // dequeue-side ORDERING; admission-side shedding is covered by
-        // WatermarkAdmissionTests.
         var queue = CreateEnvelopeQueue(2 * totalItems, options);
 
-        // Virtual-time layout (ticks at 1 kHz; smaller key = sooner):
-        //   Interactive — FRESHEST timestamps (1_520_000+i), key 1_490_000+i (boost −30_000)
-        //   Default     — middle timestamps   (1_500_000+i), key 1_500_000+i (no boost)
-        //   Batch       — OLDEST timestamps   (1_450_000+i), key 1_510_000+i (penalty +60_000)
-        // Ids: interactive [0, g), default [g, 2g), batch [2g, 3g).
         for (var i = 0; i < groupSize; i++)
         {
             var batchOk = queue.TryEnqueue(
@@ -192,8 +216,6 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
             await Assert.That(interactiveOk).IsTrue();
         }
 
-        // Act — quiescent single-threaded drain: with no contention the CPQ's TryDequeue
-        // only reports false on an authoritative observed-empty scan, so every call pops.
         var drainOrder = new List<int>(totalItems);
         for (var pos = 0; pos < totalItems; pos++)
         {
@@ -204,14 +226,10 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
 
         await Assert.That(queue.Count).IsEqualTo(0);
 
-        // Assert — conservation at quiescence: the drained set is exactly the full range.
         var distinct = new HashSet<int>(drainOrder);
         await Assert.That(distinct.Count).IsEqualTo(totalItems);
         await Assert.That(distinct.SetEquals(Enumerable.Range(0, totalItems))).IsTrue();
 
-        // Rank-bounded virtual-time ordering: mean drain position per class group must
-        // respect the key order Interactive < Default < Batch (relaxation noise averages
-        // out over a group sized to 3× the sub-queue count — see class remarks).
         var meanInteractive = MeanDrainPosition(drainOrder, id => id < groupSize);
         var meanDefault = MeanDrainPosition(drainOrder, id => id >= groupSize && id < 2 * groupSize);
         var meanBatch = MeanDrainPosition(drainOrder, id => id >= 2 * groupSize);
@@ -227,10 +245,13 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     /// consumer is left waiting forever.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// Three consumers park on an empty queue with a non-cancellable token. The 100 ms delay gives the
+    /// consumers time to actually park on the semaphore before <c>Complete()</c> runs.
+    /// </remarks>
     [Test]
     public async Task Complete_WakesParkedConsumers_NoHang()
     {
-        // Arrange — three consumers parked on an empty queue with a non-cancellable token.
         const int consumerCount = 3;
         var queue = CreateEnvelopeQueue(SmallCapacity);
         var waits = new Task<bool>[consumerCount];
@@ -239,15 +260,12 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
             waits[c] = queue.WaitToDequeueAsync(CancellationToken.None).AsTask();
         }
 
-        // Give the consumers time to actually park on the semaphore.
         await Task.Delay(TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
         await Assert.That(waits.Any(w => w.IsCompleted)).IsFalse();
 
-        // Act — completion must wake every parked waiter.
         queue.Complete();
         var results = await Task.WhenAll(waits).WaitAsync(BindingWaitTimeout).ConfigureAwait(false);
 
-        // Assert — completed AND empty: every wait reports shutdown via false.
         foreach (var signaled in results)
         {
             await Assert.That(signaled).IsFalse();
@@ -261,17 +279,19 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     /// wait completes <c>false</c> without cancellation and without throwing.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// Priority order is relaxed, so the test asserts the set of drained items, not their order. When the
+    /// queue is complete and empty, the wait reports shutdown through <c>false</c>. It never throws and
+    /// needs no cancellation to unblock.
+    /// </remarks>
     [Test]
     public async Task Complete_DrainsResidual_ThenWaitReturnsFalse()
     {
-        // Arrange — two residual envelopes, then complete the queue.
         var queue = CreateEnvelopeQueue(SmallCapacity);
         await Assert.That(queue.TryEnqueue(new WorkEnvelope<int>(1, WorkClass.Default, 100))).IsTrue();
         await Assert.That(queue.TryEnqueue(new WorkEnvelope<int>(2, WorkClass.Default, 101))).IsTrue();
         queue.Complete();
 
-        // Act + Assert — residual items drain through the canonical loop: the wait stays
-        // true while items remain (priority order is relaxed, so assert the SET, not order).
         var drained = new HashSet<int>();
         using var timeoutCts = new CancellationTokenSource(BindingWaitTimeout);
         while (drained.Count < 2)
@@ -283,8 +303,6 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
 
         await Assert.That(drained.SetEquals(new[] { 1, 2 })).IsTrue();
 
-        // Completed AND empty: the wait reports shutdown via false — never throws, and
-        // needs no cancellation to unblock.
         var signaled = await queue.WaitToDequeueAsync(CancellationToken.None)
             .AsTask()
             .WaitAsync(BindingWaitTimeout)
@@ -298,17 +316,17 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     /// behavior, and that the rejection funds no wake-up permit.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The queue stays empty after the rejection: no phantom item and no permit.
+    /// </remarks>
     [Test]
     public async Task TryEnqueue_AfterComplete_ReturnsFalse()
     {
-        // Arrange
         var queue = CreateEnvelopeQueue(SmallCapacity);
         queue.Complete();
 
-        // Act
         var accepted = queue.TryEnqueue(new WorkEnvelope<int>(1, WorkClass.Default, 100));
 
-        // Assert — rejected, and the queue stays empty (no phantom item, no permit).
         await Assert.That(accepted).IsFalse();
         await Assert.That(queue.Count).IsEqualTo(0);
     }
@@ -383,12 +401,16 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     /// <param name="itemsPerProducer">The number of envelopes each producer enqueues.</param>
     /// <param name="consumerCount">The number of concurrent canonical-loop consumers.</param>
     /// <returns>A task representing the asynchronous scenario.</returns>
+    /// <remarks>
+    /// The producers cycle the work class through Interactive, Default, and Batch. A consumer returns when
+    /// <c>ConsumeOneAsync</c> reports shutdown: all items were received, or the timeout fired.
+    /// Exactly-once means that the count matches and the distinct set is the full range.
+    /// </remarks>
     private static async Task RunComposedConservationAsync(
         int producerCount,
         int itemsPerProducer,
         int consumerCount)
     {
-        // Arrange
         var totalItems = producerCount * itemsPerProducer;
         var queue = CreateEnvelopeQueue(totalItems);
         using var timeoutCts = new CancellationTokenSource(StressTimeout);
@@ -409,7 +431,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
                     var id = (producerIndex * itemsPerProducer) + i;
                     var envelope = new WorkEnvelope<int>(
                         id,
-                        (WorkClass)(id % 3), // cycle Interactive/Default/Batch
+                        (WorkClass)(id % 3),
                         Interlocked.Increment(ref stampSource));
                     while (!queue.TryEnqueue(envelope))
                     {
@@ -434,7 +456,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
                     var (gotItem, envelope) = await ConsumeOneAsync(queue, doneCts.Token).ConfigureAwait(false);
                     if (!gotItem)
                     {
-                        return; // Shutdown (all items received) or timeout.
+                        return;
                     }
 
                     received.Enqueue(envelope.Work);
@@ -446,11 +468,9 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
             });
         }
 
-        // Act
         await Task.WhenAll(producers).ConfigureAwait(false);
         await Task.WhenAll(consumers).ConfigureAwait(false);
 
-        // Assert — exactly-once: count matches and the distinct set is the full range.
         await Assert.That(receivedCount).IsEqualTo(totalItems);
         var distinct = new HashSet<int>(received);
         await Assert.That(distinct.Count).IsEqualTo(totalItems);

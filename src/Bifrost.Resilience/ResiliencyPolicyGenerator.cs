@@ -137,12 +137,10 @@ public static class ResiliencyPolicyGenerator
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(exceptionPredicate);
 
-        // First layer: timeouts
         var timeoutPolicy = Policy.TimeoutAsync(
             TimeSpan.FromSeconds(settings.TimeoutIntervalSeconds),
             TimeoutStrategy.Optimistic);
 
-        // Second layer: automatic retries
         var retryPolicy = Policy
             .Handle(exceptionPredicate)
             .WaitAndRetryAsync(
@@ -154,25 +152,27 @@ public static class ResiliencyPolicyGenerator
                     return Task.CompletedTask;
                 });
 
-        // Wrap policies in order (outermost first)
         return Policy.WrapAsync(retryPolicy, timeoutPolicy);
     }
 
     /// <summary>
     /// Creates a pre-configured Polly resilience strategy combining multiple policies.
     /// </summary>
+    /// <remarks>
+    /// The policies combine from outermost to innermost: fallback (returns the fallback value),
+    /// circuit breaker, retry, bulkhead isolation, and timeout. The fallback is the outermost policy,
+    /// so it runs last.
+    /// </remarks>
     private static AsyncPolicyWrap<T> GetResiliencyPattern<T>(
         ILogger logger,
         ResiliencySettings settings,
         T fallbackValue,
         Func<Exception, bool> exceptionPredicate)
     {
-        // First layer: timeouts
         var timeoutPolicy = Policy.TimeoutAsync(
             TimeSpan.FromSeconds(settings.TimeoutIntervalSeconds),
             TimeoutStrategy.Optimistic);
 
-        // Second layer: bulkhead isolation
         var bulkheadPolicy = Policy.BulkheadAsync(
              settings.BulkheadMaxParallelization,
              settings.BulkheadMaxQueuingActions,
@@ -182,7 +182,6 @@ public static class ResiliencyPolicyGenerator
                  return Task.CompletedTask;
              });
 
-        // Third layer: automatic retries
         var retryPolicy = Policy
             .Handle(exceptionPredicate)
             .WaitAndRetryAsync(
@@ -194,7 +193,6 @@ public static class ResiliencyPolicyGenerator
                     return Task.CompletedTask;
                 });
 
-        // Fourth layer: circuit breaker
         var circuitBreakerPolicy = Policy
             .Handle(exceptionPredicate)
             .CircuitBreakerAsync(
@@ -205,7 +203,6 @@ public static class ResiliencyPolicyGenerator
                 onReset: context => logger.LogDebug("Circuit breaker reset. OperationKey: {OperationKey}", context.OperationKey),
                 onHalfOpen: () => logger.LogDebug("Circuit breaker half-open."));
 
-        // Final layer: return default value
         var fallbackPolicy = Policy<T>
             .Handle(exceptionPredicate)
             .FallbackAsync(
@@ -216,32 +213,32 @@ public static class ResiliencyPolicyGenerator
                     return Task.CompletedTask;
                 });
 
-        // Wrap policies in order (outermost first)
         var combinedPolicy = Policy.WrapAsync(
             circuitBreakerPolicy,
             retryPolicy,
             bulkheadPolicy,
             timeoutPolicy);
 
-        // Ensure fallback is the outermost policy (executed last)
         return fallbackPolicy.WrapAsync(combinedPolicy);
     }
 
     /// <summary>
     /// Calculates the delay TimeSpan for the next retry attempt.
     /// </summary>
+    /// <remarks>
+    /// The base delay is 2^<paramref name="retryAttempt"/> seconds with exponential backoff, and
+    /// <c>RetryIntervalSeconds</c> otherwise. The method adds a random jitter of -100 ms to +100 ms.
+    /// If the result is not positive, the method returns 100 ms.
+    /// </remarks>
     private static TimeSpan CalculateRetryDelay(ResiliencySettings settings, int retryAttempt)
     {
-        // Calculate base delay
         TimeSpan baseDelay = settings.UseExponentialBackoff
             ? TimeSpan.FromSeconds(Math.Pow(2, retryAttempt))
             : TimeSpan.FromSeconds(settings.RetryIntervalSeconds);
 
-        // Add jitter: random +/- 0-100ms
         var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(-100, 100));
         var calculatedDelay = baseDelay + jitter;
 
-        // Ensure delay is not negative
         return calculatedDelay > TimeSpan.Zero
             ? calculatedDelay
             : TimeSpan.FromMilliseconds(100);

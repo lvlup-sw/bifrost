@@ -21,13 +21,10 @@ public class PackageSmokeTests
     [Test]
     public async Task PackageSmoke_Builds_NamespaceResolves()
     {
-        // Arrange
         var assembly = typeof(AssemblyMarker).Assembly;
 
-        // Act
         var assemblyName = assembly.GetName().Name;
 
-        // Assert
         await Assert.That(assemblyName).IsEqualTo("Bifrost.Concurrency");
     }
 }

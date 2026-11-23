@@ -41,11 +41,15 @@ public class QueueWaitMetricsTests
     /// value in milliseconds and a <c>work.class</c> tag carrying the enum name.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// <see cref="FakeTimeProvider"/> makes the queue-wait duration deterministic. <c>WorkerCount = 0</c>
+    /// defers the dequeue until the dynamic worker starts. The instrument name and unit are part of the
+    /// evidence-recipe contract. The test expects one measurement of 250 ms with the tag
+    /// <c>work.class="Batch"</c>.
+    /// </remarks>
     [Test]
     public async Task QueueWait_RecordedAtDequeue_TaggedByClass()
     {
-        // Arrange — FakeTimeProvider makes the queue-wait duration deterministic;
-        // WorkerCount = 0 defers dequeue until the dynamic worker starts.
         var fakeTime = new FakeTimeProvider();
         var handler = new CountingHandler(expected: 1);
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
@@ -56,7 +60,6 @@ public class QueueWaitMetricsTests
         orchestrator.QueueWaitObserved = metrics.RecordQueueWait;
         using var collector = new QueueWaitCollector(metrics.QueueWait);
 
-        // Instrument identity: name and unit are part of the evidence-recipe contract.
         await Assert.That(metrics.QueueWait.Name).IsEqualTo("bifrost.orchestrator.queue_wait");
         await Assert.That(metrics.QueueWait.Unit).IsEqualTo("ms");
 
@@ -64,19 +67,16 @@ public class QueueWaitMetricsTests
         await Assert.That(enqueued).IsEqualTo(EnqueueResult.Accepted);
         fakeTime.Advance(TimeSpan.FromMilliseconds(250));
 
-        // Act — start a worker; dequeueing the envelope must record the histogram.
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("MetricsWorker", cts.Token), cts.Token);
         await handler.Done.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Assert — recorded once, value 250 ms, tagged work.class="Batch".
         var measurements = collector.Snapshot();
         await Assert.That(measurements.Count).IsEqualTo(1);
         await Assert.That(measurements[0].Value).IsEqualTo(250.0);
         await Assert.That(measurements[0].WorkClassTag).IsEqualTo("Batch");
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
     }
@@ -87,10 +87,13 @@ public class QueueWaitMetricsTests
     /// enqueue and dequeue must not leak into the measurement.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The fake clock stays frozen while 50 ms of real time pass. Any nonzero measurement is wall-clock
+    /// leakage, so the measurement must be exactly zero.
+    /// </remarks>
     [Test]
     public async Task QueueWait_UsesTimeProviderTicks_NotWallClock()
     {
-        // Arrange — frozen fake clock; any nonzero measurement is wall-clock leakage.
         var fakeTime = new FakeTimeProvider();
         var handler = new CountingHandler(expected: 1);
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
@@ -104,21 +107,17 @@ public class QueueWaitMetricsTests
         var enqueued = await orchestrator.EnqueueAsync("frozen-item").ConfigureAwait(false);
         await Assert.That(enqueued).IsEqualTo(EnqueueResult.Accepted);
 
-        // Real wall-clock time elapses while the fake clock stays frozen.
         await Task.Delay(50).ConfigureAwait(false);
 
-        // Act
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("FrozenWorker", cts.Token), cts.Token);
         await handler.Done.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Assert — exactly the fake elapsed (zero), never wall-clock-derived.
         var measurements = collector.Snapshot();
         await Assert.That(measurements.Count).IsEqualTo(1);
         await Assert.That(measurements[0].Value).IsEqualTo(0.0);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
     }
@@ -128,11 +127,13 @@ public class QueueWaitMetricsTests
     /// tagged measurements with each envelope's own queue wait.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The test staggers the enqueues on the fake clock. Each class then has a distinct expected wait when
+    /// the worker drains the FIFO queue at T0 + 300 ms.
+    /// </remarks>
     [Test]
     public async Task QueueWait_MultipleClasses_TaggedSeparately()
     {
-        // Arrange — stagger enqueues on the fake clock so each class has a distinct
-        // expected wait once the worker drains the FIFO queue at T0+300ms.
         var fakeTime = new FakeTimeProvider();
         var handler = new CountingHandler(expected: 3);
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
@@ -150,13 +151,11 @@ public class QueueWaitMetricsTests
         await orchestrator.EnqueueAsync("batch-item", WorkClass.Batch).ConfigureAwait(false);
         fakeTime.Advance(TimeSpan.FromMilliseconds(100));
 
-        // Act
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("MixedWorker", cts.Token), cts.Token);
         await handler.Done.WaitAsync(WaitTimeout).ConfigureAwait(false);
 
-        // Assert — three measurements, one per class, each with its own wait.
         var measurements = collector.Snapshot();
         await Assert.That(measurements.Count).IsEqualTo(3);
 
@@ -170,7 +169,6 @@ public class QueueWaitMetricsTests
         await Assert.That(defaults[0].Value).IsEqualTo(200.0);
         await Assert.That(batch[0].Value).IsEqualTo(100.0);
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
     }
@@ -184,10 +182,8 @@ public class QueueWaitMetricsTests
     [Test]
     public async Task ExistingMetrics_DepthDurationWorkers_Unchanged()
     {
-        // Arrange & Act
         using var metrics = new OrchestratorMetrics<string>(() => null, () => 0);
 
-        // Assert — meter name pattern and every pre-existing instrument identity.
         await Assert.That(metrics.ItemsEnqueued.Meter.Name).IsEqualTo("Bifrost.String");
         await Assert.That(metrics.ItemsEnqueued.Name).IsEqualTo("orchestrator.items.enqueued");
         await Assert.That(metrics.ItemsEnqueued.Unit).IsEqualTo("{item}");
@@ -213,32 +209,30 @@ public class QueueWaitMetricsTests
     /// when the orchestrator is built through DI.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// <c>WithOpenTelemetry</c> makes sure that the rejection-routing decorator wraps the concrete
+    /// orchestrator (T23, DR-6: rejections are always counted). The queue-wait hook still attaches to the
+    /// bare <c>WorkOrchestrator</c> beneath it, through the pass-through factory at the innermost order.
+    /// </remarks>
     [Test]
     public async Task WithOpenTelemetry_AttachesQueueWaitHook()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IWorkHandler<string>>(Substitute.For<IWorkHandler<string>>());
         services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.WithOpenTelemetry();
         builder.Build();
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert — WithOpenTelemetry ensures the rejection-routing decorator (T23,
-        // DR-6: rejections are always counted) wraps the concrete orchestrator; the
-        // queue-wait hook still attaches to the bare WorkOrchestrator beneath it via
-        // the pass-through factory at the innermost order.
         var routing = orchestrator as Bifrost.Decorators.RejectionRoutingOrchestrator<string>;
         await Assert.That(routing).IsNotNull();
         var concrete = routing!.Inner as WorkOrchestrator<string>;
         await Assert.That(concrete).IsNotNull();
         await Assert.That(concrete!.QueueWaitObserved).IsNotNull();
 
-        // Cleanup
         if (orchestrator is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync().ConfigureAwait(false);
@@ -262,11 +256,15 @@ public class QueueWaitMetricsTests
         /// Initializes a new instance of the <see cref="QueueWaitCollector"/> class.
         /// </summary>
         /// <param name="instrument">The exact instrument instance to observe.</param>
+        /// <remarks>
+        /// The constructor must call <c>Start</c> on the listener. Without this call, <c>OnMeasurement</c>
+        /// does not fire.
+        /// </remarks>
         public QueueWaitCollector(Instrument instrument)
         {
             _listener.SetMeasurementEventCallback<double>(OnMeasurement);
             _listener.EnableMeasurementEvents(instrument);
-            _listener.Start(); // Required to activate the listener so OnMeasurement fires.
+            _listener.Start();
         }
 
         /// <summary>

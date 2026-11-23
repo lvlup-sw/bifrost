@@ -70,11 +70,14 @@ public sealed class SchedulerOrchestratorDlqTests
     /// enqueues the work item, and the real work orchestrator delivers it to the
     /// handler.
     /// </summary>
+    /// <remarks>
+    /// The worker runs on the thread pool, not on the tick thread. So after the tick loop is idle,
+    /// the test still waits up to <c>TestTimeout</c> for the handler to process the work.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ScheduledJob_DispatchesToOrchestrator_WorkProcessedByHandler()
     {
-        // Arrange
         var processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var fx = await Fixture.StartAsync(services =>
@@ -101,15 +104,12 @@ public sealed class SchedulerOrchestratorDlqTests
                     _ => new ScheduledWork("hello"),
                     WorkClass.Batch)).ConfigureAwait(false);
 
-        // Act — advance clock past the interval; loop picks it up and dispatches.
         fx.Time.Advance(FireInterval);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Give the worker time to process (it runs on the thread pool, not the tick thread).
         var completed = await Task.WhenAny(processed.Task, Task.Delay(TestTimeout))
             .ConfigureAwait(false);
 
-        // Assert
         await Assert.That(completed == processed.Task).IsTrue();
     }
 
@@ -124,11 +124,22 @@ public sealed class SchedulerOrchestratorDlqTests
     /// <c>MaxRetries</c>, and the item lands in the dead-letter queue after all
     /// attempts are exhausted.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The handler always throws. The DLQ allows one retry (<c>MaxRetries</c> = 1), so the handler
+    /// runs two times in total: one initial call and one DLQ retry.
+    /// </para>
+    /// <para>
+    /// Resilience retries enqueue failures, not handler failures. So its <c>RetryCount</c> of 5
+    /// must not add to the DLQ retry count. The handler is asynchronous and runs on the pool, so
+    /// the test polls until the item lands in the DLQ. Exactly 2 handler calls prove that the
+    /// resilience retries do not compound with the DLQ retries.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ScheduledJob_HandlerThrows_ResilienceRetries_ThenDeadLetters()
     {
-        // Arrange — handler always throws; DLQ allows 1 retry (= 2 handler calls total).
         var handlerCallCount = 0;
         var dlqReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -144,13 +155,11 @@ public sealed class SchedulerOrchestratorDlqTests
                 })
                 .WithResilience(s =>
                 {
-                    // Resilience retries enqueue failures, not handler failures —
-                    // its retry count must not add to the DLQ retry count.
                     s.RetryCount = 5;
                     s.RetryIntervalSeconds = 0;
                     s.TimeoutIntervalSeconds = 30;
                 })
-                .WithDeadLetterQueue(opts => opts.MaxRetries = 1) // 1 retry = 2 total handler calls
+                .WithDeadLetterQueue(opts => opts.MaxRetries = 1)
                 .Build();
         }, scheduler =>
             scheduler.AddJob<ScheduledWork>("failing-job")
@@ -161,21 +170,17 @@ public sealed class SchedulerOrchestratorDlqTests
 
         var dlq = fx.Provider.GetRequiredService<IDeadLetterQueue<ScheduledWork>>();
 
-        // Act — fire the job once.
         fx.Time.Advance(FireInterval);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Poll until the item lands in the DLQ (handler is async, runs on the pool).
         using var pollCts = new CancellationTokenSource(TestTimeout);
         while (dlq.Count == 0 && !pollCts.IsCancellationRequested)
         {
             await Task.Delay(20, pollCts.Token).ConfigureAwait(false);
         }
 
-        // Assert — resilience did NOT retry the handler (its RetryCount=5 does not
-        // compound with DLQ retries); DLQ with MaxRetries=1 yielded exactly 2 calls.
         await Assert.That(dlq.Count).IsEqualTo(1);
-        await Assert.That(handlerCallCount).IsEqualTo(2); // 1 initial + 1 DLQ retry
+        await Assert.That(handlerCallCount).IsEqualTo(2);
 
         var entries = new List<DeadLetteredWork<ScheduledWork>>();
         await foreach (var entry in dlq.ReadAllAsync().ConfigureAwait(false))
@@ -198,11 +203,16 @@ public sealed class SchedulerOrchestratorDlqTests
     /// occurrence is still scheduled and fires on its next interval. The tick loop
     /// must not be poisoned by a work-side failure.
     /// </summary>
+    /// <remarks>
+    /// The handler always throws, and <c>MaxRetries</c> = 0 makes each fire fail at once and
+    /// dead-letter one item. The test fires the job one time and waits for the first handler call
+    /// to fail and dead-letter. Then it advances one more interval, and the schedule must still be
+    /// live. The second handler call proves that the schedule survived the failure.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ScheduledJob_KeepsFiring_EvenAfterHandlerFailures()
     {
-        // Arrange — handler always throws; each fire dead-letters one item.
         var fireCount = 0;
         var secondFireReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -227,7 +237,7 @@ public sealed class SchedulerOrchestratorDlqTests
                     s.RetryIntervalSeconds = 0;
                     s.TimeoutIntervalSeconds = 30;
                 })
-                .WithDeadLetterQueue(opts => opts.MaxRetries = 0) // 0 retries = fail immediately
+                .WithDeadLetterQueue(opts => opts.MaxRetries = 0)
                 .Build();
         }, scheduler =>
             scheduler.AddJob<ScheduledWork>("resilient-schedule")
@@ -236,11 +246,9 @@ public sealed class SchedulerOrchestratorDlqTests
                     _ => new ScheduledWork("fire"),
                     WorkClass.Batch)).ConfigureAwait(false);
 
-        // Act — fire 1: advance one interval; let the handler fail.
         fx.Time.Advance(FireInterval);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Wait for the first handler call to fail and dead-letter.
         using var pollCts = new CancellationTokenSource(TestTimeout);
         while (Volatile.Read(ref fireCount) < 1 && !pollCts.IsCancellationRequested)
         {
@@ -249,15 +257,12 @@ public sealed class SchedulerOrchestratorDlqTests
 
         await Assert.That(Volatile.Read(ref fireCount)).IsGreaterThanOrEqualTo(1);
 
-        // Act — fire 2: advance another interval; schedule must still be live.
         fx.Time.Advance(FireInterval);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Await the second handler invocation (proves the schedule survived the failure).
         var reached = await Task.WhenAny(secondFireReady.Task, Task.Delay(TestTimeout))
             .ConfigureAwait(false);
 
-        // Assert
         await Assert.That(reached == secondFireReady.Task).IsTrue();
         await Assert.That(Volatile.Read(ref fireCount)).IsGreaterThanOrEqualTo(2);
     }
@@ -286,13 +291,25 @@ public sealed class SchedulerOrchestratorDlqTests
     ///   </item>
     /// </list>
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The test subscribes to both streams before it advances the clock, so it cannot miss an
+    /// event. <c>SchedulerEventStream</c> channels buffer eagerly at <c>Subscribe</c> time.
+    /// <c>EventStreamOrchestrator</c> channels buffer eagerly at <c>GetEventStreamAsync</c> time.
+    /// The orchestrator is built with <c>WithEventStream()</c>, so it implements
+    /// <c>IEventStreamOrchestrator&lt;TWork&gt;</c>.
+    /// </para>
+    /// <para>
+    /// Each subscription task captures the first event and then stops. If a subscription times out,
+    /// its task catches the <see cref="OperationCanceledException"/>, and the test then fails on
+    /// the assertion on the matching <c>TaskCompletionSource</c>. At the end, the test cancels both
+    /// subscriptions and awaits their tasks.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ScheduledJob_EventStream_PublishesJobFiredAndWorkCompleted()
     {
-        // Arrange — set up subscriptions BEFORE advancing the clock so no event
-        // can be missed (SchedulerEventStream channels buffer eagerly at Subscribe time;
-        // EventStreamOrchestrator channels buffer eagerly at GetEventStreamAsync time).
         var schedulerJobFired = new TaskCompletionSource<JobFiredEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var workCompleted = new TaskCompletionSource<WorkCompletedEvent<ScheduledWork>>(
@@ -319,7 +336,6 @@ public sealed class SchedulerOrchestratorDlqTests
                     _ => new ScheduledWork("ping"),
                     WorkClass.Batch)).ConfigureAwait(false);
 
-        // Subscribe to the SCHEDULER event stream before the fire.
         using var schedulerEventCts = new CancellationTokenSource(TestTimeout);
         var schedulerSubscription = fx.SchedulerEvents.Subscribe<JobFiredEvent>(
             schedulerEventCts.Token);
@@ -330,17 +346,14 @@ public sealed class SchedulerOrchestratorDlqTests
                 await foreach (var evt in schedulerSubscription.ConfigureAwait(false))
                 {
                     schedulerJobFired.TrySetResult(evt);
-                    break; // capture the first one
+                    break;
                 }
             }
             catch (OperationCanceledException)
             {
-                // subscription timeout — test will fail on the TCS assertion below
             }
         });
 
-        // Subscribe to the WORK event stream before the fire. The orchestrator is
-        // built with WithEventStream() so it implements IEventStreamOrchestrator<TWork>.
         var eventOrchestrator = fx.Provider.GetRequiredService<IWorkOrchestrator<ScheduledWork>>()
             as IEventStreamOrchestrator<ScheduledWork>;
         await Assert.That(eventOrchestrator).IsNotNull();
@@ -355,20 +368,17 @@ public sealed class SchedulerOrchestratorDlqTests
                 await foreach (var evt in workCompletedStream.ConfigureAwait(false))
                 {
                     workCompleted.TrySetResult(evt);
-                    break; // capture the first one
+                    break;
                 }
             }
             catch (OperationCanceledException)
             {
-                // subscription timeout — test will fail on the TCS assertion below
             }
         });
 
-        // Act — advance the clock past the interval; the tick loop fires the job.
         fx.Time.Advance(FireInterval);
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
-        // Assert — both event streams received their respective events.
         var schedulerEventResult = await Task
             .WhenAny(schedulerJobFired.Task, Task.Delay(TestTimeout))
             .ConfigureAwait(false);
@@ -386,7 +396,6 @@ public sealed class SchedulerOrchestratorDlqTests
         await Assert.That(workDone.Work.Payload).IsEqualTo("ping");
         await Assert.That(workDone.Success).IsTrue();
 
-        // Cleanup subscription tasks.
         await schedulerEventCts.CancelAsync().ConfigureAwait(false);
         await workEventCts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAll(schedulerTask, workTask).ConfigureAwait(false);
@@ -451,6 +460,23 @@ public sealed class SchedulerOrchestratorDlqTests
         /// <param name="configureScheduler">
         /// Callback passed to <c>AddScheduler</c> to register DI-time jobs.
         /// </param>
+        /// <remarks>
+        /// <para>
+        /// The method wires the orchestrator and decorator stack first, so that
+        /// <c>IWorkOrchestrator&lt;ScheduledWork&gt;</c> is registered before <c>AddScheduler</c>
+        /// resolves its <c>DispatchTo&lt;…&gt;</c> factory. Then it wires the scheduler with the
+        /// inline job definition.
+        /// </para>
+        /// <para>
+        /// The provider must outlive this method, so the method does not use <c>await using</c>.
+        /// <c>DisposeAsync</c> disposes the provider.
+        /// </para>
+        /// <para>
+        /// The method starts all hosted services in registration order: the registration service
+        /// first, then the tick loop. This matches the production host startup sequence. Then it
+        /// waits for the loop to settle (initial registry load and any startup jobs).
+        /// </para>
+        /// </remarks>
         /// <returns>A started fixture ready for clock advances.</returns>
         public static async Task<Fixture> StartAsync(
             Action<IServiceCollection>? configureOrchestrator,
@@ -461,38 +487,32 @@ public sealed class SchedulerOrchestratorDlqTests
             services.AddLogging();
             services.AddSingleton<TimeProvider>(time);
 
-            // Wire the orchestrator + decorator stack first so IWorkOrchestrator<ScheduledWork>
-            // is registered before AddScheduler resolves its DispatchTo<…> factory.
             configureOrchestrator?.Invoke(services);
 
-            // Wire the scheduler with the inline job definition.
             services.AddScheduler(configureScheduler);
 
-            // Do NOT use `await using` here — we need the provider to outlive StartAsync.
-            // Fixture.DisposeAsync is responsible for disposing the provider.
             var provider = services.BuildServiceProvider();
 
             var loop = provider.GetServices<IHostedService>().OfType<ScheduleTickLoop>().Single();
             var schedulerEvents = provider.GetRequiredService<SchedulerEventStream>();
             var hostedServices = provider.GetServices<IHostedService>().ToList();
 
-            // Start all hosted services in registration order (registration service first,
-            // then tick loop — matching the production host startup sequence).
             foreach (var hosted in hostedServices)
             {
                 await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
             }
 
-            // Wait for the loop to settle (initial registry load, any startup jobs).
             await loop.WaitForIdleAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
             return new Fixture(time, loop, schedulerEvents, provider, hostedServices);
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Stops the hosted services in reverse order before it disposes the provider.
+        /// </remarks>
         public async ValueTask DisposeAsync()
         {
-            // Stop hosted services in reverse order before disposing the provider.
             foreach (var hosted in this.hostedServices.AsEnumerable().Reverse())
             {
                 await hosted.StopAsync(CancellationToken.None).ConfigureAwait(false);

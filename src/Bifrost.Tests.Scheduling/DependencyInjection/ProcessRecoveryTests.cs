@@ -84,6 +84,10 @@ public class ProcessRecoveryTests
     }
 
     /// <summary>Child entry point selected explicitly by the parent process.</summary>
+    /// <remarks>
+    /// The synchronous <c>BoundaryRouter</c> pins the before/after effect boundary. Production
+    /// dispatch is asynchronous, and these tests do not assert exactly-once application effects.
+    /// </remarks>
     [Test]
     public async Task ProcessProbeChild()
     {
@@ -94,8 +98,6 @@ public class ProcessRecoveryTests
         services.AddLogging();
         services.AddSingleton<IScheduleStore>(new FileStore(directory, cut));
         services.AddSingleton<TimeProvider>(new FakeTimeProvider(Epoch.AddMinutes(1).AddSeconds(10)));
-        // Synchronous fixture dispatch pins the before/after effect boundary. Production
-        // dispatch is asynchronous; these tests do not assert exactly-once application effects.
         services.AddSingleton<IJobDispatcherRouter>(new BoundaryRouter(directory, cut));
         services.AddScheduler(builder => builder.AddInlineJob("job").Every(TimeSpan.FromMinutes(1))
             .WithMissedFirePolicy(MissedFirePolicy.FireAllMissed).Run((context, _) =>
@@ -125,20 +127,23 @@ public class ProcessRecoveryTests
         => new("job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.FireAllMissed, JobState.Running,
             last, last.AddMinutes(1), "inline", null, new Dictionary<string, string>());
 
+    // Writes the "reached" marker and then parks forever. This is the kill boundary that the parent
+    // process observes from outside. The child never releases it.
     private static void ReachCut(string directory)
     {
         File.WriteAllText(Path.Combine(directory, "reached"), "ready");
-        // This is the externally observed kill boundary, never released in the child.
         using var parked = new ManualResetEventSlim();
         parked.Wait();
     }
 
     private sealed class BoundaryRouter(string directory, string cut) : IJobDispatcherRouter
     {
+        // VSTHRD002 is suppressed on purpose: the synchronous wait pins the fixture effect before
+        // the checkpoint handoff.
         public void Dispatch(IJobDispatcher dispatcher, JobFireContext context, CancellationToken ct)
         {
             if (cut == "before-dispatch") ReachCut(directory);
-#pragma warning disable VSTHRD002 // Deliberately pin the fixture effect before checkpoint handoff.
+#pragma warning disable VSTHRD002
             dispatcher.DispatchAsync(context, ct).AsTask().GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
             if (cut == "after-dispatch") ReachCut(directory);
@@ -158,6 +163,8 @@ public class ProcessRecoveryTests
             return ValueTask.FromResult<IReadOnlyList<JobRecord>>([NewRecord(new DateTimeOffset(ticks, TimeSpan.Zero))]);
         }
 
+        // VSTHRD103 is suppressed on purpose: the crash fixture requires a synchronous durable
+        // flush before its kill boundary.
         public ValueTask SaveAsync(JobRecord job, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
@@ -165,7 +172,7 @@ public class ProcessRecoveryTests
             using (var file = new FileStream(temporary, FileMode.Create, FileAccess.Write))
             {
                 using var writer = new StreamWriter(file, leaveOpen: true);
-#pragma warning disable VSTHRD103 // The crash fixture requires a synchronous durable flush before its kill boundary.
+#pragma warning disable VSTHRD103
                 writer.Write((job.LastFiredAt ?? Epoch).UtcTicks.ToString(CultureInfo.InvariantCulture));
                 writer.Flush();
                 file.Flush(flushToDisk: true);

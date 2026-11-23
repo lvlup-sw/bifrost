@@ -22,31 +22,28 @@ public class WorkerInfoTests
     [Test]
     public async Task RequestStop_SetsFlagAtomically()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
         await Assert.That(worker.StopRequested).IsFalse();
 
-        // Act
         worker.RequestStop();
 
-        // Assert
         await Assert.That(worker.StopRequested).IsTrue();
     }
 
     /// <summary>
     /// Verifies that calling RequestStop multiple times is idempotent and does not throw.
     /// </summary>
+    /// <remarks>
+    /// The test calls <c>RequestStop</c> two times. The calls must not throw.
+    /// </remarks>
     [Test]
     public async Task RequestStop_IsIdempotent()
     {
-        // Arrange
         var worker = new WorkerInfo("worker-1");
 
-        // Act - call twice, should not throw
         worker.RequestStop();
         worker.RequestStop();
 
-        // Assert
         await Assert.That(worker.StopRequested).IsTrue();
     }
 }

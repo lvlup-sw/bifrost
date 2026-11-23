@@ -53,6 +53,17 @@ public sealed class BackoffBetweenRestartsTests
     /// critical and surfaced as a <see cref="SchedulerFaultedEvent"/>, then the next
     /// occurrence fires normally with no clock movement across the backoff.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One fire faults the loop. Because of the first-fault skip, the loop recovers without a
+    /// backoff: <c>WaitForIdleAsync</c> returns even though the fake clock never advanced past the
+    /// would-be backoff. A regression that backed off on the first fault would park on the
+    /// fake-clock delay, and this <c>WaitForIdleAsync</c> would time out.
+    /// </para>
+    /// <para>
+    /// After the transient fault clears, the next occurrence fires normally.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task IsolatedFirstFault_DoesNotBackOff_RecoversImmediately()
@@ -63,10 +74,6 @@ public sealed class BackoffBetweenRestartsTests
             sink, new SchedulerOptions { RestartBackoff = TimeSpan.FromSeconds(1) }, logger).ConfigureAwait(false);
         var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
-        // One fire faults the loop. With the first-fault skip, the loop recovers WITHOUT a
-        // backoff: WaitForIdleAsync returns even though the fake clock never advanced past
-        // the (would-be) backoff. A regression that backed off on the first fault would
-        // park on the fake-clock delay and this WaitForIdleAsync would time out.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
@@ -74,7 +81,6 @@ public sealed class BackoffBetweenRestartsTests
         await Assert.That(sink.FaultCount).IsEqualTo(1);
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
 
-        // The next occurrence fires normally after the transient fault clears.
         fx.Time.Advance(TimeSpan.FromMinutes(5));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         await Assert.That(dispatcher.FireCount).IsGreaterThanOrEqualTo(1);
@@ -88,6 +94,26 @@ public sealed class BackoffBetweenRestartsTests
     /// the initial advance" assertion is the proof the backoff is real — a spin would have
     /// burned through all the restarts and given up before any clock advance.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The first advance makes several occurrences due. Fault #1 (the first in the window) does not
+    /// back off, and the loop immediately faults again into fault #2, which arms the backoff.
+    /// Give-up needs more than <c>MaxRestartsInWindow</c> (3) faults, that is a 4th fault, which
+    /// cannot occur until a backoff elapses. So after the first advance and two faults, the loop is
+    /// parked on the backoff and is not yet faulted. That is the backoff doing its job.
+    /// </para>
+    /// <para>
+    /// Then the test drives the fake clock across each remaining per-restart backoff until the loop
+    /// gives up. The loop arms each backoff on its own thread, so a backoff is possibly not armed
+    /// yet when the test advances. For this reason, the test advances and yields until the faulted
+    /// barrier completes (bounded by <c>TestTimeout</c>). It does not assume that a single advance
+    /// crosses a backoff.
+    /// </para>
+    /// <para>
+    /// When the loop is faulted, advancing time no longer ticks, so the loop attempts no further
+    /// fires.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task GiveUp_IsDelayedByBackoff_ThenReached_WhenClockDriven()
@@ -104,19 +130,10 @@ public sealed class BackoffBetweenRestartsTests
             }).ConfigureAwait(false);
         var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
-        // Make several occurrences due in one advance. Fault #1 (first in window) does not
-        // back off and immediately re-faults into fault #2, which arms the backoff. Give-up
-        // needs more than MaxRestartsInWindow (3) faults, i.e. a 4th — which cannot happen
-        // until a backoff elapses. So after the initial advance and two faults the loop is
-        // parked on the backoff and is NOT yet faulted: that is the backoff doing its job.
         fx.Time.Advance(TimeSpan.FromMinutes(30));
         await sink.WaitForFaultCountAsync(2, TestTimeout).ConfigureAwait(false);
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
 
-        // Now drive the fake clock across each remaining per-restart backoff until the loop
-        // gives up. The loop arms each backoff on its own thread, so advance-and-yield until
-        // the faulted barrier completes (bounded by TestTimeout) rather than assuming a
-        // single advance crosses a backoff that may not be armed yet.
         var faulted = fx.Loop.WaitForFaultedAsync(TestTimeout);
         while (!faulted.IsCompleted)
         {
@@ -127,7 +144,6 @@ public sealed class BackoffBetweenRestartsTests
         await faulted.ConfigureAwait(false);
         await Assert.That(fx.Loop.IsFaulted).IsTrue();
 
-        // Faulted: advancing time no longer ticks (no further fires attempted).
         var firesBefore = dispatcher.FireCount;
         fx.Time.Advance(TimeSpan.FromMinutes(30));
         await Assert.That(dispatcher.FireCount).IsEqualTo(firesBefore);
@@ -140,12 +156,28 @@ public sealed class BackoffBetweenRestartsTests
     /// backoff delay. <c>StopAsync</c> returns promptly without the cancellation leaking as a
     /// fault, and the loop is not in its faulted state.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The backoff (1 hour) is far longer than the test can ever advance. So when the loop parks
+    /// on it, only cancellation can release it. Fault #1 (no backoff) faults again into fault #2,
+    /// which arms the hour-long backoff.
+    /// </para>
+    /// <para>
+    /// The test stops the loop while it is parked on the backoff. <c>StopAsync</c> cancels the
+    /// stopping token, the backoff delay observes the cancellation, and the loop exits cleanly.
+    /// <c>StopAsync</c> must return within the real-wall-clock timeout with no exception leak. The
+    /// final <c>await stop</c> rethrows any exception that the loop leaked on stop.
+    /// </para>
+    /// <para>
+    /// A clean cancellation is not a fault. The loop must not go to the faulted state and must not
+    /// log the loop-gave-up message. The test asserts only <c>IsFaulted</c>. It creates a
+    /// <c>CapturingLogger</c> but does not assert on the log.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task CancellationDuringBackoff_ExitsCleanly()
     {
-        // A backoff far longer than the test could ever advance, so once the loop parks on
-        // it the ONLY thing that can release it is cancellation.
         var sink = new FaultRecordingEventSink { ThrowOnFiredCount = int.MaxValue };
         var logger = new CapturingLogger<ScheduleTickLoop>();
         var fx = await Fixture.StartAsync(
@@ -159,20 +191,14 @@ public sealed class BackoffBetweenRestartsTests
             logger).ConfigureAwait(false);
         _ = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
-        // Fault #1 (no backoff) re-faults into fault #2, which arms the hour-long backoff.
         fx.Time.Advance(TimeSpan.FromMinutes(30));
         await sink.WaitForFaultCountAsync(2, TestTimeout).ConfigureAwait(false);
 
-        // Stop while the loop is parked on the backoff. StopAsync cancels the stopping
-        // token; the backoff delay observes the cancellation, the loop exits cleanly, and
-        // StopAsync returns within the real-wall-clock timeout with no exception leak.
         var stop = ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
         var completed = await Task.WhenAny(stop, Task.Delay(TestTimeout, TimeProvider.System)).ConfigureAwait(false);
         await Assert.That(completed).IsEqualTo((Task)stop);
-        await stop.ConfigureAwait(false); // re-throws if the loop leaked an exception on stop
+        await stop.ConfigureAwait(false);
 
-        // A clean cancellation is not a fault: the loop did not transition to faulted, and
-        // nothing logged the loop-gave-up message.
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
         fx.Loop.Dispose();
     }
@@ -188,12 +214,19 @@ public sealed class BackoffBetweenRestartsTests
     /// loop waits out the full (hour-long) backoff that the fake clock never advances, so
     /// <c>ExecuteTask</c> never completes and the bounded wait times out, failing the test.
     /// </summary>
+    /// <remarks>
+    /// The backoff (1 hour) is far longer than the test can ever advance. So when the loop parks
+    /// on it, only the channel completion from the registry dispose can release it. Fault #1 (the
+    /// first in the window, no backoff) faults again into fault #2, which arms the hour-long
+    /// backoff. After two faults, the loop is parked on the backoff. The test then disposes the
+    /// registry without cancelling the stopping token and without advancing the fake clock past the
+    /// backoff. The completion of the command-channel writer must wake the loop out of the backoff,
+    /// so that it checks <c>ShouldStop</c> again and exits cleanly.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DisposeRegistryDuringBackoff_WithoutCancel_StopsLoopPromptly()
     {
-        // A backoff far longer than the test could ever advance, so once the loop parks on it
-        // the only thing that can release it is the registry-dispose channel completion.
         var sink = new FaultRecordingEventSink { ThrowOnFiredCount = int.MaxValue };
         var fx = await Fixture.StartAsync(
             sink,
@@ -205,17 +238,12 @@ public sealed class BackoffBetweenRestartsTests
             }).ConfigureAwait(false);
         _ = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
 
-        // Fault #1 (first in window, no backoff) re-faults into fault #2, which arms the
-        // hour-long backoff. After two faults the loop is parked on the backoff.
         fx.Time.Advance(TimeSpan.FromMinutes(30));
         await sink.WaitForFaultCountAsync(2, TestTimeout).ConfigureAwait(false);
 
         var executeTask = ((BackgroundService)fx.Loop).ExecuteTask;
         await Assert.That(executeTask is not null).IsTrue();
 
-        // Dispose the registry WITHOUT cancelling the stopping token and WITHOUT advancing the
-        // fake clock past the backoff. Completing the command-channel writer must wake the loop
-        // out of the backoff so it re-checks ShouldStop and exits cleanly.
         await fx.Registry.DisposeAsync().ConfigureAwait(false);
 
         await Assert.That(async () => await executeTask!.WaitAsync(TestTimeout).ConfigureAwait(false))

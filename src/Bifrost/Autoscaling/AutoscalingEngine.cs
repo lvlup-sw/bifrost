@@ -68,6 +68,9 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     {
     }
 
+    // The effective minimum is the larger of the initial worker count and MinWorkers, and a mismatch
+    // between the two logs a warning. The evaluation timer is created stopped (infinite due time)
+    // and starts only in StartAsync.
     internal AutoscalingEngine(
         IOptions<AutoscalingOptions> options,
         IAutoscalingCoordinator coordinator,
@@ -84,11 +87,9 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
         _coordinator = coordinator;
         _logger = logger;
 
-        // Calculate effective minimum workers
         var initialWorkerCount = _coordinator.ActiveWorkerCount;
         EffectiveMinWorkers = Math.Max(initialWorkerCount, _options.MinWorkers);
 
-        // Log warning if there's a mismatch
         if (initialWorkerCount != _options.MinWorkers)
         {
             _logger.LogWarning(
@@ -98,7 +99,6 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
                 EffectiveMinWorkers);
         }
 
-        // Create timer but don't start it yet
         _evaluationTimer = _timeProvider.CreateTimer(
             EvaluateScalingCallback,
             state: null,
@@ -175,6 +175,11 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// A blocked scaling callback must not outlive the shutdown timeout of the host, so the wait for
+    /// the callbacks observes <paramref name="cancellationToken"/>. After the callbacks drain, the
+    /// method waits for the pending scaling tasks.
+    /// </remarks>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         Task callbacks;
@@ -189,10 +194,8 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
             callbacks = _callbacksDrained?.Task ?? Task.CompletedTask;
         }
 
-        // A blocked scaling callback must not outlive the host shutdown timeout.
         await callbacks.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-        // Drain pending scaling tasks
         await Task.WhenAll(_pendingScalingTasks.Values).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
         _logger.LogInformation("Autoscaling engine stopped");
@@ -216,13 +219,14 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     /// <returns>A scaling decision indicating what action to take.</returns>
     /// <remarks>
     /// This method is thread-safe. Concurrent calls are serialized to ensure the cooldown
-    /// period is respected and only one scaling decision is made per cooldown interval.
+    /// period is respected and only one scaling decision is made per cooldown interval. The
+    /// scale-down floor is <see cref="EffectiveMinWorkers"/>, not the raw
+    /// <see cref="AutoscalingOptions.MinWorkers"/> option.
     /// </remarks>
     public ScalingDecision EvaluateScaling(int currentWorkers, double utilization, int maxBacklog)
     {
         lock (_scalingLock)
         {
-            // Check cooldown period
             var now = _timeProvider.GetUtcNow();
             if (_lastScalingTime is { } lastScaling && (now - lastScaling) < _options.CooldownPeriod)
             {
@@ -234,7 +238,6 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
                     $"In cooldown period ({_options.CooldownPeriod.TotalSeconds:F0}s remaining)");
             }
 
-            // Check for scale up
             if (utilization > _options.HighWatermark)
             {
                 if (currentWorkers >= _options.MaxWorkers)
@@ -258,7 +261,6 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
                     $"Utilization ({utilization:P0}) exceeds high watermark ({_options.HighWatermark:P0})");
             }
 
-            // Check for scale down - use EffectiveMinWorkers instead of raw MinWorkers
             if (utilization < _options.LowWatermark)
             {
                 if (currentWorkers <= EffectiveMinWorkers)
@@ -282,7 +284,6 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
                     $"Utilization ({utilization:P0}) below low watermark ({_options.LowWatermark:P0})");
             }
 
-            // No scaling needed
             return new ScalingDecision(
                 ScalingAction.None,
                 currentWorkers,
@@ -342,6 +343,9 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
         }
     }
 
+    // The scaling action starts and goes into _pendingScalingTasks before EvaluateScalingCallback
+    // releases _activeCallbacks. So the callbacks-drain barrier in StopAsync guarantees that
+    // _pendingScalingTasks is already populated before StopAsync reads _pendingScalingTasks.Values.
     private void EvaluateScalingCallbackCore()
     {
         try
@@ -349,12 +353,8 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
             var decision = EvaluateScaling();
             var correlationId = Guid.NewGuid().ToString();
 
-            // Raise the event
             OnScalingDecisionMade(new ScalingDecisionEventArgs(decision, correlationId));
 
-            // Execute the scaling action if needed before releasing _activeCallbacks so
-            // StopAsync's callbacks-drain barrier guarantees _pendingScalingTasks is
-            // already populated before StopAsync reads _pendingScalingTasks.Values.
             if (decision.Action != ScalingAction.None)
             {
                 var task = ExecuteScalingDecisionAsync(decision);

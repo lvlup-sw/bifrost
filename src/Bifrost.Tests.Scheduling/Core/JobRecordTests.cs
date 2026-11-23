@@ -103,14 +103,16 @@ public sealed class JobRecordTests
     /// Verifies <see cref="JobRecord"/> implements the synthesized
     /// <see cref="IEquatable{T}"/> from the record declaration.
     /// </summary>
+    /// <remarks>
+    /// The two records share the <c>Cadence</c> and <c>Metadata</c> instances. Record equality
+    /// compares reference-typed members (the cadence record and the dictionary) by their own
+    /// <c>Equals</c>, and the <c>Equals</c> of the dictionary is reference identity. So equal
+    /// records must carry the same instance of each.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ImplementsIEquatable()
     {
-        // Share the Cadence and Metadata instances: record equality compares
-        // reference-typed members (the cadence record and the dictionary) by
-        // their own Equals — the dictionary's is reference identity — so equal
-        // records must carry the same instances of each.
         var cadence = new FakeCadence();
         var metadata = new Dictionary<string, string> { ["tenant"] = "acme" };
 

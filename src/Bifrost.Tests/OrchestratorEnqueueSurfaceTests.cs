@@ -24,16 +24,19 @@ public class OrchestratorEnqueueSurfaceTests
     /// Verifies that the default FIFO path returns <see cref="EnqueueResult.Accepted"/>,
     /// including after waiting for capacity under backpressure.
     /// </summary>
+    /// <remarks>
+    /// The orchestrator has one worker and capacity 1, and the handler parks on a gate. The sentinel item
+    /// parks the single worker inside the handler, so the channel can fill. The next enqueue must then
+    /// wait for space, and it succeeds when capacity frees up.
+    /// </remarks>
     [Test]
     public async Task EnqueueAsync_Fifo_ReturnsAcceptedAfterWait()
     {
-        // Arrange — single worker, capacity 1, handler parked on a gate
         var handler = new GateHandler();
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 1, WorkerCount = 1 });
         var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
         await using var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
 
-        // Park the single worker inside the handler so the channel can fill.
         var sentinelResult = await orchestrator.EnqueueAsync("sentinel").ConfigureAwait(false);
         await Assert.That(sentinelResult).IsEqualTo(EnqueueResult.Accepted);
         await handler.Started.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
@@ -41,14 +44,12 @@ public class OrchestratorEnqueueSurfaceTests
         var fillResult = await orchestrator.EnqueueAsync("fill").ConfigureAwait(false);
         await Assert.That(fillResult).IsEqualTo(EnqueueResult.Accepted);
 
-        // Act — channel is at capacity; this enqueue must wait for space.
         var waiting = orchestrator.EnqueueAsync("waited").AsTask();
         await Assert.That(waiting.IsCompleted).IsFalse();
 
         handler.Release();
         var waitedResult = await waiting.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
-        // Assert — admission succeeds once capacity frees up.
         await Assert.That(waitedResult).IsEqualTo(EnqueueResult.Accepted);
     }
 
@@ -57,22 +58,22 @@ public class OrchestratorEnqueueSurfaceTests
     /// <see cref="EnqueueResult.Rejected"/> with <see cref="RejectionReason.Shutdown"/>
     /// and never throws <see cref="System.Threading.Channels.ChannelClosedException"/>.
     /// </summary>
+    /// <remarks>
+    /// A shut-down queue that refuses work gives an admission outcome (a value). Caller cancellation is
+    /// different: it gives an exception, as the next test shows.
+    /// </remarks>
     [Test]
     public async Task EnqueueAsync_AfterShutdown_ReturnsRejectedShutdown()
     {
-        // Arrange
         var handler = Substitute.For<IWorkHandler<string>>();
-        var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 }); // No default workers
+        var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
         var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
 
         await using var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
         await orchestrator.AbortAsync().ConfigureAwait(false);
 
-        // Act — must not throw ChannelClosedException
         var afterStop = await orchestrator.EnqueueAsync("after-stop").ConfigureAwait(false);
 
-        // Assert — a shut-down queue refusing work is an admission outcome (a value),
-        // distinct from caller cancellation (an exception — see the next test).
         await Assert.That(afterStop.IsAccepted).IsFalse();
         await Assert.That(afterStop.Reason).IsEqualTo(RejectionReason.Shutdown);
     }
@@ -87,7 +88,6 @@ public class OrchestratorEnqueueSurfaceTests
     [Test]
     public async Task EnqueueAsync_CallerTokenCanceled_ThrowsOperationCanceled()
     {
-        // Arrange — a live orchestrator with capacity to spare.
         var handler = Substitute.For<IWorkHandler<string>>();
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
         var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
@@ -96,8 +96,6 @@ public class OrchestratorEnqueueSurfaceTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync().ConfigureAwait(false);
 
-        // Act & Assert — cancellation propagates as OperationCanceledException, not a
-        // rejected result.
         await Assert.That(() => orchestrator.EnqueueAsync("cancelled", ct: cts.Token).AsTask())
             .Throws<OperationCanceledException>();
     }
@@ -107,16 +105,18 @@ public class OrchestratorEnqueueSurfaceTests
     /// <see cref="WorkClass.Default"/>, and that a tagged enqueue round-trips
     /// its work class through the envelope.
     /// </summary>
+    /// <remarks>
+    /// The orchestrator has no workers, so the envelopes stay observable in the channel.
+    /// <c>TryEnqueue</c> also defaults to <c>WorkClass.Default</c>.
+    /// </remarks>
     [Test]
     public async Task EnqueueAsync_DefaultsWorkClassDefault()
     {
-        // Arrange — no workers, so envelopes stay observable in the channel
         var handler = Substitute.For<IWorkHandler<string>>();
-        var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 }); // No default workers
+        var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
         var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
         await using var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
 
-        // Act / Assert — default path carries WorkClass.Default
         var plain = await orchestrator.EnqueueAsync("plain").ConfigureAwait(false);
         await Assert.That(plain).IsEqualTo(EnqueueResult.Accepted);
 
@@ -125,7 +125,6 @@ public class OrchestratorEnqueueSurfaceTests
         await Assert.That(plainEnvelope.Class).IsEqualTo(WorkClass.Default);
         await Assert.That(plainEnvelope.EnqueuedAtTicks).IsNotEqualTo(0L);
 
-        // Act / Assert — a tagged enqueue round-trips its work class
         var tagged = await orchestrator.EnqueueAsync("tagged", WorkClass.Interactive).ConfigureAwait(false);
         await Assert.That(tagged).IsEqualTo(EnqueueResult.Accepted);
 
@@ -133,7 +132,6 @@ public class OrchestratorEnqueueSurfaceTests
         await Assert.That(taggedEnvelope.Work).IsEqualTo("tagged");
         await Assert.That(taggedEnvelope.Class).IsEqualTo(WorkClass.Interactive);
 
-        // Act / Assert — TryEnqueue also defaults to WorkClass.Default
         await Assert.That(orchestrator.TryEnqueue("try-plain")).IsTrue();
         await Assert.That(orchestrator.TryReadEnvelope(out var tryEnvelope)).IsTrue();
         await Assert.That(tryEnvelope.Class).IsEqualTo(WorkClass.Default);
@@ -146,10 +144,8 @@ public class OrchestratorEnqueueSurfaceTests
     [Test]
     public async Task Writer_Property_NoLongerExists()
     {
-        // Act
         var property = typeof(IWorkOrchestrator<string>).GetProperty("Writer");
 
-        // Assert
         await Assert.That(property).IsNull();
     }
 

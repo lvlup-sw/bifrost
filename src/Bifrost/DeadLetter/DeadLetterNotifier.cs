@@ -55,6 +55,12 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
     /// subscribers do not propagate to the caller or affect other subscribers.
     /// </summary>
     /// <param name="evt">The dead-lettered event.</param>
+    /// <remarks>
+    /// A slow subscriber must not schedule unbounded thread-pool work, so a callback runs only when
+    /// <c>_outstanding</c> grants a slot at once. Otherwise the notification is dropped and logged.
+    /// Each delivery is fire-and-forget, so it does not block the handler loop. Errors are logged
+    /// and do not affect the main processing path.
+    /// </remarks>
     public void Notify(WorkDeadLetteredEvent<TWork> evt)
     {
         if (Volatile.Read(ref _disposed) != 0)
@@ -71,7 +77,6 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
 
         foreach (var callback in snapshot)
         {
-            // A slow subscriber must not schedule unbounded thread-pool work.
             if (!_outstanding.Wait(0))
             {
                 _logger.LogWarning(
@@ -80,8 +85,6 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
                 continue;
             }
 
-            // Fire-and-forget to avoid blocking the handler loop.
-            // Errors are logged but don't affect the main processing path.
             _ = Task.Run(() => DeliverBoundedAsync(callback, evt));
         }
     }
@@ -92,11 +95,14 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
     /// </summary>
     /// <param name="callback">The callback to invoke when a work item is dead-lettered.</param>
     /// <returns>A disposable that removes the subscription when disposed.</returns>
+    /// <remarks>
+    /// The <see cref="Action{T}"/> is wrapped in a task-returning delegate, so all subscriptions use
+    /// one storage shape.
+    /// </remarks>
     public IDisposable Subscribe(Action<WorkDeadLetteredEvent<TWork>> callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
 
-        // Wrap Action in a Func<,Task> to unify storage
         Func<WorkDeadLetteredEvent<TWork>, Task> wrapper = evt =>
         {
             callback(evt);

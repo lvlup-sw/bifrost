@@ -7,6 +7,9 @@ namespace Bifrost.Tests.Hosting;
 
 internal class HostedTeardownRegressionTests
 {
+    // A faulting host can reach Stop after another path has disposed the orchestrator, so the test
+    // overlaps a second StopAsync with AbortAsync and DisposeAsync. DisposeAsync caches its task. The
+    // finally block bounds its wait, so a failed assertion cannot await that same task with no limit.
     [Test]
     [Arguments(DispatchStrategy.Fifo)]
     [Arguments(DispatchStrategy.PriorityExact)]
@@ -32,7 +35,6 @@ internal class HostedTeardownRegressionTests
             var disposal = orchestrator.DisposeAsync().AsTask();
             await Task.WhenAll(stopping, disposal).WaitAsync(deadline.Token).ConfigureAwait(false);
 
-            // A faulting host can reach Stop after another path has disposed the orchestrator.
             await Task.WhenAll(service.StopAsync(deadline.Token), orchestrator.AbortAsync(deadline.Token),
                 orchestrator.DisposeAsync().AsTask()).WaitAsync(deadline.Token).ConfigureAwait(false);
             await Assert.That(orchestrator.GetShutdownToken().IsCancellationRequested).IsTrue();
@@ -41,7 +43,6 @@ internal class HostedTeardownRegressionTests
         }
         finally
         {
-            // DisposeAsync is cached. A failed assertion must not await that same task with no bound.
             await orchestrator.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         }
     }

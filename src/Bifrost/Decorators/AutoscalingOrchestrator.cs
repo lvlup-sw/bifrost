@@ -97,6 +97,11 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// Workers are registered with the <see cref="IWorkerRegistry"/> and will be
     /// included in the <see cref="ActiveWorkers"/> count.
     /// </para>
+    /// <para>
+    /// For each worker, the local function <c>StateCallback</c> marks the worker busy or idle and
+    /// records the execution metrics. The local function <c>WorkerFunction</c> gets the worker
+    /// function from the inner orchestrator, which captures the real queue reader.
+    /// </para>
     /// </remarks>
     public async Task RequestScaleUpAsync(int count, CancellationToken cancellationToken = default)
     {
@@ -109,7 +114,6 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
         {
             var workerId = $"AutoScale-{Guid.NewGuid():N}";
 
-            // Create a state callback that marks busy/idle and records metrics
             void StateCallback(bool isBusy)
             {
                 var workerInfo = _registry.GetWorkerInfo(workerId);
@@ -130,7 +134,6 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
                 }
             }
 
-            // Get a worker function from the inner orchestrator, which captures the real channel reader
             Task WorkerFunction(string id, CancellationToken token)
             {
                 var worker = _registry.GetWorkerInfo(id)
@@ -153,7 +156,8 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// Only removes idle workers to avoid interrupting in-progress work.
     /// The actual number of workers removed may be less than requested if
     /// fewer idle workers are available. One consumer stays while admitted
-    /// work is still queued.
+    /// work is still queued. When the registry is not the concrete <see cref="WorkerRegistry"/> (for
+    /// example, a mock <see cref="IWorkerRegistry"/>), the fallback path also stops only idle workers.
     /// </remarks>
     public Task RequestScaleDownAsync(int count, CancellationToken cancellationToken = default)
     {
@@ -174,7 +178,6 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
             return Task.CompletedTask;
         }
 
-        // Only scale down idle workers (fallback for mock IWorkerRegistry)
         var idleCount = _registry.IdleWorkerCount;
         var toStop = Math.Min(count, idleCount);
         if (_inner.PendingCount > 0)

@@ -85,6 +85,10 @@ public class CpqSingleThreadedLatencyBenchmarks
     /// initial capacity and the <c>Enqueue + Dequeue</c> benchmarks run against a realistic steady
     /// state rather than an empty structure.
     /// </summary>
+    /// <remarks>
+    /// The setup precomputes the reference-type priority keys in <c>_stringKeys</c>, so the string
+    /// benchmark measures the comparer path and not per-iteration string formatting.
+    /// </remarks>
     [GlobalSetup]
     public void Setup()
     {
@@ -96,8 +100,6 @@ public class CpqSingleThreadedLatencyBenchmarks
         _rawLock = new Lock();
         _multiQueueString = new ConcurrentPriorityQueue<string, string>();
 
-        // Precompute reference-type priority keys so the string benchmark measures the comparer path,
-        // not per-iteration string formatting.
         _stringKeys = new string[Population];
         for (int i = 0; i < Population; i++)
         {

@@ -41,18 +41,19 @@ public class AotSafetyTests
     /// overloads), or <c>Expression.Compile</c> — all of which are unsafe under
     /// NativeAOT trim analysis.
     /// </summary>
+    /// <remarks>
+    /// <c>Type.GetType</c> looks up a type by string (IL2057 under trim analysis).
+    /// <c>Activator.CreateInstance</c> is reflection-based activation (IL2067 under trim analysis).
+    /// <c>LambdaExpression.Compile</c> and <c>Expression&lt;T&gt;.Compile</c> compile expression trees,
+    /// which generates dynamic IL. NativeAOT does not support dynamic IL.
+    /// </remarks>
     [Test]
     public async Task SchedulingAssemblies_ContainNoTypeGetTypeCalls()
     {
         var banned = new[]
         {
-            // Type lookup by string — IL2057 under trim analysis
             ("System.Type", "GetType"),
-
-            // Reflection-based activation — IL2067 under trim analysis
             ("System.Activator", "CreateInstance"),
-
-            // Expression-tree compilation — generates dynamic IL, unsupported under NativeAOT
             ("System.Linq.Expressions.LambdaExpression", "Compile"),
             ("System.Linq.Expressions.Expression`1", "Compile"),
         };
@@ -74,11 +75,30 @@ public class AotSafetyTests
     /// config time via <c>GetRequiredService&lt;TDispatcher&gt;()</c>), so the field
     /// carries a string label for observability only, never for reflection.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The test makes three assertions. First, <c>JobRecord.DispatcherTypeName</c> is a nullable
+    /// string, not a <see cref="Type"/> or an activation key. This confirms that the shape of the
+    /// record is safe.
+    /// </para>
+    /// <para>
+    /// Second, the router <c>Dispatch</c> method does NOT take a string or <see cref="Type"/> parameter
+    /// for activation. It receives a fully-resolved <c>IJobDispatcher</c>. <c>JobDispatcherRouter</c> is
+    /// internal, so the test reads the method from the public <c>IJobDispatcherRouter</c> interface. The
+    /// first parameter must be an <c>IJobDispatcher</c> (a resolved instance), not a string type name.
+    /// This is the structural proof that <c>DispatcherTypeName</c> is never used for activation.
+    /// </para>
+    /// <para>
+    /// Third, <c>DispatchVia&lt;TDispatcher&gt;</c> in the builder produces a factory that resolves
+    /// through <c>GetRequiredService&lt;TDispatcher&gt;</c> (generic and AOT-safe). The test proves this
+    /// indirectly: it builds a <c>ServiceCollection</c> with a test dispatcher and resolves the registry.
+    /// If <c>DispatchVia</c> used string-based reflection, the resolution would throw or fail to find the
+    /// dispatcher. A clean resolution proves generic DI.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task DispatcherTypeName_IsDiagnosticOnly()
     {
-        // Assert 1 — JobRecord.DispatcherTypeName is a nullable string (not a
-        //   Type or an activation key). This confirms the record's shape is safe.
         var prop = typeof(JobRecord).GetProperty(nameof(JobRecord.DispatcherTypeName));
 
         await Assert.That(prop).IsNotNull()
@@ -88,24 +108,14 @@ public class AotSafetyTests
             .Because(
                 "DispatcherTypeName must be a plain string — not Type, TypeInfo, or " +
                 "any activation-capable handle. It is a diagnostic label only.");
-
-        // Assert 2 — JobDispatcherRouter.Dispatch does NOT take a string/Type
-        //   parameter for activation. It receives a fully-resolved IJobDispatcher.
         var dispatchMethod = typeof(JobDispatcherRouter).GetMethod(
             "Dispatch",
             BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
-
-        // JobDispatcherRouter is internal; get the interface method from
-        // IJobDispatcherRouter which IS public.
         var routerInterface = typeof(IJobDispatcherRouter);
         var routerDispatch = routerInterface.GetMethod("Dispatch");
 
         await Assert.That(routerDispatch).IsNotNull()
             .Because("IJobDispatcherRouter.Dispatch must exist.");
-
-        // The first parameter must be an IJobDispatcher — a resolved instance,
-        // not a string type name. This is the structural proof that DispatcherTypeName
-        // is never used for activation.
         var firstParam = routerDispatch!.GetParameters().FirstOrDefault();
 
         await Assert.That(firstParam).IsNotNull()
@@ -118,11 +128,6 @@ public class AotSafetyTests
                 "Custom dispatchers are resolved at DI-config time via " +
                 "DispatchVia<TDispatcher>() → GetRequiredService<TDispatcher>(), " +
                 "making DispatcherTypeName purely diagnostic.");
-
-        // Assert 3 — DispatchVia<TDispatcher> in the builder produces a factory
-        //   that resolves via GetRequiredService<TDispatcher> (generic, AOT-safe).
-        //   We verify this indirectly by building a ServiceCollection with a test
-        //   dispatcher and confirming the factory resolves without reflection hacks.
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<StubJobDispatcher>();
@@ -132,9 +137,6 @@ public class AotSafetyTests
              .DispatchVia<StubJobDispatcher>());
 
         using var sp = services.BuildServiceProvider();
-
-        // If DispatchVia uses string-based reflection, this would throw at resolve
-        // time or fail to find the dispatcher. A clean resolution proves generic DI.
         var registry = sp.GetRequiredService<IScheduleRegistry>();
 
         await Assert.That(registry).IsNotNull()

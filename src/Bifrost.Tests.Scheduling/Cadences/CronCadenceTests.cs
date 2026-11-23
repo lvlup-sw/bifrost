@@ -49,13 +49,15 @@ public sealed class CronCadenceTests
     /// Verifies the cadence evaluates the expression in a supplied time zone: daily
     /// 9am New York time resolves to 13:00 UTC (EDT, June).
     /// </summary>
+    /// <remarks>
+    /// 12:00 UTC on 2026-06-13 is 08:00 EDT, so the next 09:00 EDT is 13:00 UTC on the same day.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ComputeNextFire_RespectsSuppliedTimeZone()
     {
         var newYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
         var cadence = new CronCadence("0 9 * * *", newYork);
-        // 12:00 UTC on 2026-06-13 is 08:00 EDT — next 9am EDT is 13:00 UTC same day.
         var now = new DateTimeOffset(2026, 6, 13, 12, 0, 0, TimeSpan.Zero);
 
         var next = cadence.ComputeNextFire(lastFiredAt: null, now: now);
@@ -66,6 +68,9 @@ public sealed class CronCadenceTests
     /// <summary>
     /// Verifies the cadence defaults to UTC when no time zone is supplied.
     /// </summary>
+    /// <remarks>
+    /// With the UTC default, the next 09:00 UTC after 12:00 UTC is on the following day.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task ComputeNextFire_DefaultsToUtc_WhenNoTimeZoneGiven()
@@ -75,7 +80,6 @@ public sealed class CronCadenceTests
 
         var next = cadence.ComputeNextFire(lastFiredAt: null, now: now);
 
-        // UTC default: next 9am UTC is the following day.
         await Assert.That(next).IsEqualTo(new DateTimeOffset(2026, 6, 14, 9, 0, 0, TimeSpan.Zero));
     }
 

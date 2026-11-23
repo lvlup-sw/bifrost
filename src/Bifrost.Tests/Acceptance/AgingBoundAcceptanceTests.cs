@@ -128,12 +128,16 @@ public sealed class AgingBoundAcceptanceTests
     /// <c>key(Interactive@T0+30s+1ms) = T0 + 1ms</c> — the aged Batch item has the
     /// strictly smaller key, and the locking binding dequeues the exact minimum, so the
     /// outcome is deterministic with no statistical margin.
+    /// <para>The orchestrator has no static workers. The "gate" is that no consumer exists until
+    /// both items are in the queue. The test uses the default priority options (30 s Interactive
+    /// boost window). It ages the Batch item past the boost window, then enqueues fresh Interactive
+    /// work. It then releases the gate: it starts the single consumer, which drains both items. The
+    /// assertion is strict: the aged Batch item dispatches before the fresh Interactive
+    /// item.</para>
     /// </remarks>
     [Test]
     public async Task Batch_OlderThanBoostWindow_DispatchesBeforeFreshInteractive_Deterministic()
     {
-        // Arrange — no static workers: the "gate" is that no consumer exists until both
-        // items are queued. Default priority options (30 s interactive boost window).
         var fakeTime = new FakeTimeProvider();
         var handler = new RecordingHandler(expectedCount: 2);
         await using var orchestrator = CreateOrchestrator(
@@ -150,12 +154,10 @@ public sealed class AgingBoundAcceptanceTests
         var batch = await orchestrator.EnqueueAsync("batch-old", WorkClass.Batch).ConfigureAwait(false);
         await Assert.That(batch).IsEqualTo(EnqueueResult.Accepted);
 
-        // Age the Batch item past the boost window, then enqueue fresh Interactive work.
         fakeTime.Advance(TimeSpan.FromSeconds(30) + TimeSpan.FromMilliseconds(1));
         var interactive = await orchestrator.EnqueueAsync("interactive-fresh", WorkClass.Interactive).ConfigureAwait(false);
         await Assert.That(interactive).IsEqualTo(EnqueueResult.Accepted);
 
-        // Act — release the gate: start the single consumer and let it drain both items.
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("AgingWorker", cts.Token), cts.Token);
@@ -163,11 +165,9 @@ public sealed class AgingBoundAcceptanceTests
         await handler.DoneTask.WaitAsync(WaitTimeout).ConfigureAwait(false);
         var sequence = handler.Snapshot();
 
-        // Assert — strict: the aged Batch item dispatches before the fresh Interactive.
         await Assert.That(sequence[0]).IsEqualTo("batch-old");
         await Assert.That(sequence[1]).IsEqualTo("interactive-fresh");
 
-        // Cleanup
         await cts.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
     }
@@ -198,11 +198,18 @@ public sealed class AgingBoundAcceptanceTests
     /// (kill-probe: positions concentrate near <c>6n</c>, several multiples past the
     /// bound).
     /// </para>
+    /// <para><b>Test mechanics.</b> The statistical parameters come from the sub-queue count of the
+    /// host. Each trial ages the Batch item past the default 30 s window and then floods the queue
+    /// with fresh Interactive items. All Interactive items share one fresh timestamp, because only
+    /// the relative keys are important. The drain is single-threaded and uses the same
+    /// <c>TryDequeue</c> that the worker loop uses. On a single thread, a false return is an
+    /// authoritative empty result, never a spurious one. The drain records the dispatch position of
+    /// the Batch item, and the Batch item must surface within the drain (conservation). The final
+    /// assertion compares the upper median (the 11th smallest of 20) with the derived bound.</para>
     /// </remarks>
     [Test]
     public async Task Batch_OlderThanBoostWindow_OutranksFreshInteractive_MultiQueue_MedianPositionBounded()
     {
-        // Arrange — statistical parameters derived from the host's sub-queue count.
         var n = SubQueueCount;
         var freshInteractiveCount = 6 * n;
         var positionBound = (3 * n) / 2;
@@ -227,8 +234,6 @@ public sealed class AgingBoundAcceptanceTests
                 await Assert.That(batch).IsEqualTo(EnqueueResult.Accepted);
             }
 
-            // Age the Batch item past the default 30 s window, then flood with fresh
-            // Interactive items (all share one fresh timestamp; only relative keys matter).
             fakeTime.Advance(TimeSpan.FromSeconds(30) + TimeSpan.FromMilliseconds(1));
             for (var i = 0; i < freshInteractiveCount; i++)
             {
@@ -239,9 +244,6 @@ public sealed class AgingBoundAcceptanceTests
                 }
             }
 
-            // Act — drain single-threaded (the same TryDequeue the worker loop uses;
-            // single-threaded, a false return is authoritative-empty, never spurious)
-            // and record the Batch item's dispatch position.
             var position = -1;
             for (var i = 0; i <= freshInteractiveCount; i++)
             {
@@ -257,12 +259,10 @@ public sealed class AgingBoundAcceptanceTests
                 }
             }
 
-            // The Batch item must surface within the drain (conservation).
             await Assert.That(position).IsGreaterThanOrEqualTo(0);
             positions.Add(position);
         }
 
-        // Assert — upper median (11th smallest of 20) within the derived bound.
         positions.Sort();
         var upperMedian = positions[MedianTrialCount / 2];
         Console.WriteLine(
@@ -319,18 +319,29 @@ public sealed class AgingBoundAcceptanceTests
     /// sub-queue — required so the kill-probe is meaningful, see class remarks), bound
     /// = 8n + 11 + 4 + 12n = 20n + 15.
     /// </para>
+    /// <para><b>Test mechanics.</b> The load shape and the bound are per binding (derivation
+    /// above). <c>capacity</c> keeps the backlog below the 0.90 Batch watermark, and
+    /// <c>boostedArrivalAllowance</c> is ⌈W/Δ⌉ = ⌈105/10⌉ = 11. The test runs in three phases.
+    /// Phase 1 makes a sustained Interactive load: it fills to the backlog target while the worker
+    /// drains continuously, and each arrival advances fake time by Δ. Phase 2 takes a snapshot of
+    /// the dispatch count and then enqueues the one Batch item under full backlog (count ≈ B, well
+    /// below the 0.90 × capacity Batch watermark). Phase 3 continues the Interactive stream until
+    /// the Batch item dispatches, the dispatch cutoff proves starvation, or the real-time failsafe
+    /// trips. In phase 3, acceptance is structurally guaranteed (count &lt; B ≪ watermark). A
+    /// rejection can only make the load smaller, and the bound polices that case. The assertion
+    /// requires that the Batch item dispatched (not starved past the cutoff) within the derived
+    /// bound of later dispatches.</para>
     /// </remarks>
     [Test]
     [Arguments(DispatchStrategy.PriorityExact)]
     [Arguments(DispatchStrategy.PriorityRelaxed)]
     public async Task Batch_UnderSustainedInteractiveLoad_DispatchedWithinBoundedDispatches(DispatchStrategy strategy)
     {
-        // Arrange — per-binding load shape and bound (derivation in the remarks).
         var n = SubQueueCount;
         var isMultiQueue = strategy == DispatchStrategy.PriorityRelaxed;
         var backlogTarget = isMultiQueue ? 8 * n : 8;
-        var capacity = isMultiQueue ? 10 * n : 1024; // backlog stays below the 0.90 Batch watermark
-        var boostedArrivalAllowance = 11; // ⌈W/Δ⌉ = ⌈105/10⌉
+        var capacity = isMultiQueue ? 10 * n : 1024;
+        var boostedArrivalAllowance = 11;
         var rankErrorMargin = isMultiQueue ? (12 * n) + 2 : 0;
         var bound = backlogTarget + boostedArrivalAllowance + 2 + rankErrorMargin;
         var cutoff = bound + 16;
@@ -352,8 +363,6 @@ public sealed class AgingBoundAcceptanceTests
         var stopwatch = Stopwatch.StartNew();
         var arrivals = 0;
 
-        // Phase 1 — establish sustained Interactive load: fill to the backlog target
-        // while the worker drains continuously. Each arrival advances fake time by Δ.
         while (orchestrator.PendingCount < backlogTarget && stopwatch.Elapsed < ProducerFailsafe)
         {
             fakeTime.Advance(InterArrival);
@@ -364,15 +373,11 @@ public sealed class AgingBoundAcceptanceTests
             }
         }
 
-        // Phase 2 — snapshot the dispatch count, then enqueue the one Batch item under
-        // full backlog (count ≈ B, well below the 0.90 × capacity Batch watermark).
         var dispatchedBeforeBatch = handler.Count;
         fakeTime.Advance(InterArrival);
         var batch = await orchestrator.EnqueueAsync(BatchMarker, WorkClass.Batch).ConfigureAwait(false);
         await Assert.That(batch).IsEqualTo(EnqueueResult.Accepted);
 
-        // Phase 3 — sustain the Interactive stream until the Batch item dispatches, the
-        // dispatch cutoff proves starvation, or the real-time failsafe trips.
         while (!handler.MarkerSeenTask.IsCompleted
             && handler.Count - dispatchedBeforeBatch <= cutoff
             && stopwatch.Elapsed < ProducerFailsafe)
@@ -381,8 +386,6 @@ public sealed class AgingBoundAcceptanceTests
             {
                 fakeTime.Advance(InterArrival);
 
-                // Acceptance is structurally guaranteed here (count < B ≪ watermark);
-                // a rejection would only shrink the load and is policed by the bound.
                 _ = await orchestrator.EnqueueAsync($"interactive-{arrivals++}", WorkClass.Interactive).ConfigureAwait(false);
             }
             else
@@ -391,8 +394,6 @@ public sealed class AgingBoundAcceptanceTests
             }
         }
 
-        // Assert — the Batch item dispatched (not starved past the cutoff), within the
-        // derived bound of subsequent dispatches.
         var sequence = handler.Snapshot();
         var batchIndex = Array.IndexOf(sequence, BatchMarker);
         await Assert.That(batchIndex).IsGreaterThanOrEqualTo(0);
@@ -429,15 +430,15 @@ public sealed class AgingBoundAcceptanceTests
     /// shared verbatim by both bindings, and the MultiQueue's realization of it is
     /// covered statistically by the other two scenarios.
     /// </para>
+    /// <para>The test runs the identical lockstep stream with the full window and then with the
+    /// half window. The observed bound is ⌊W/Δ⌋ and halves with the window.</para>
     /// </remarks>
     [Test]
     public async Task BoostWindow_Configurable_ChangesTheBound()
     {
-        // Act — identical lockstep stream, full window then half window.
         var dispatchesAtFullWindow = await MeasureLockstepDispatchesBeforeBatchAsync(SmallBoostWindow).ConfigureAwait(false);
         var dispatchesAtHalfWindow = await MeasureLockstepDispatchesBeforeBatchAsync(SmallBoostWindow / 2).ConfigureAwait(false);
 
-        // Assert — the observed bound is ⌊W/Δ⌋ and halves with the window.
         Console.WriteLine($"[T26-DATA] lockstep: full={dispatchesAtFullWindow} half={dispatchesAtHalfWindow}");
         await Assert.That(dispatchesAtFullWindow).IsEqualTo(10);
         await Assert.That(dispatchesAtHalfWindow).IsEqualTo(5);
@@ -456,6 +457,10 @@ public sealed class AgingBoundAcceptanceTests
     /// <see cref="LockstepRoundCutoff"/> when it never surfaced (starvation —
     /// surfaced loudly by the caller's equality assertions).
     /// </returns>
+    /// <remarks>
+    /// If <c>TryReadEnvelope</c> returns false, conservation failed. The loop breaks, and the
+    /// cutoff return value makes the assertions of the caller fail.
+    /// </remarks>
     private static async Task<int> MeasureLockstepDispatchesBeforeBatchAsync(TimeSpan boostWindow)
     {
         var fakeTime = new FakeTimeProvider();
@@ -484,7 +489,7 @@ public sealed class AgingBoundAcceptanceTests
 
             if (!orchestrator.TryReadEnvelope(out var envelope))
             {
-                break; // conservation failure — the cutoff return fails the caller's asserts
+                break;
             }
 
             if (envelope.Class == WorkClass.Batch)
@@ -566,6 +571,11 @@ public sealed class AgingBoundAcceptanceTests
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// When <c>_delayPerItem</c> is set, the 1 ms <c>Task.Delay</c> is small real work. It keeps
+        /// the dispatch cadence slow enough that the producer (µs-scale enqueues) reliably keeps
+        /// the backlog target.
+        /// </remarks>
         public async ValueTask HandleAsync(string work, CancellationToken ct)
         {
             int recorded;
@@ -587,8 +597,6 @@ public sealed class AgingBoundAcceptanceTests
 
             if (_delayPerItem)
             {
-                // Small real work: keeps the dispatch cadence slow enough that the
-                // producer (µs-scale enqueues) reliably sustains the backlog target.
                 await Task.Delay(TimeSpan.FromMilliseconds(1), ct).ConfigureAwait(false);
             }
         }

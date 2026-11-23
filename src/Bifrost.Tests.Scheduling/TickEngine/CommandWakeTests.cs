@@ -43,22 +43,23 @@ public sealed class CommandWakeTests
     /// pending from the first job's park, must complete on the new command. The newly
     /// registered job then fires at its occurrence.
     /// </summary>
+    /// <remarks>
+    /// The first job arms a far-future timer, so the loop parks on the delay task while the cached
+    /// command wait stays pending. The second registration is a registry command that must wake the
+    /// loop off its delay park through the reused command wait. The occurrence of the second job
+    /// comes due first. It must fire, which proves that the command armed it and that the loop
+    /// parked again on the nearer timer.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task CommandArrivesWhileParkedOnTimer_WakesLoop_NoLostWakeup()
     {
         await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
 
-        // First job: arms a far-future timer, so the loop parks on the delay task while
-        // the cached command wait stays pending.
         var first = await fx.RegisterAsync("first", Cadence.Interval(TimeSpan.FromHours(1))).ConfigureAwait(false);
 
-        // Second registration is a registry command that must wake the loop off its
-        // delay park via the (reused) command wait.
         var second = await fx.RegisterAsync("second", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
 
-        // The second job's occurrence comes due first; it must fire (proving the command
-        // armed it and the loop re-parked on the nearer timer).
         fx.Time.Advance(TimeSpan.FromMinutes(1));
         await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
 
@@ -71,14 +72,17 @@ public sealed class CommandWakeTests
     /// command completes the cached wait, the loop must recreate a fresh wait that the
     /// next command completes in turn — exercising the complete-then-recreate path.
     /// </summary>
+    /// <remarks>
+    /// The test does three registrations in a row, and each one is a distinct command wake.
+    /// <c>RegisterAsync</c> of the fixture waits for idle after each one, so a lost wakeup would
+    /// hang the test.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task SequentialCommands_EachWakesLoop_NoLostWakeup()
     {
         await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
 
-        // Three registrations in a row; each is a distinct command wake. The fixture's
-        // RegisterAsync waits for idle after each, so a lost wakeup would hang the test.
         var a = await fx.RegisterAsync("a", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
         var b = await fx.RegisterAsync("b", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
         var c = await fx.RegisterAsync("c", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);

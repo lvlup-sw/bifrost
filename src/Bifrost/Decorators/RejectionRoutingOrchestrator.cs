@@ -189,6 +189,11 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
     /// <param name="reason">The non-shutdown rejection reason.</param>
     /// <param name="correlationId">Producer correlation metadata.</param>
     /// <returns>A ValueTask that completes when the entry is persisted.</returns>
+    /// <remarks>
+    /// The enqueue uses <see cref="CancellationToken.None"/>, so the dead-letter persistence is
+    /// guaranteed also when the token of the producer is cancelled. This mirrors
+    /// <see cref="DeadLetterHandler{TWork}"/>.
+    /// </remarks>
     private async ValueTask RouteToDeadLetterAsync(TWork work, RejectionReason reason, string? correlationId)
     {
         var marker = MarkerFor(reason);
@@ -200,8 +205,6 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
             DateTimeOffset.UtcNow,
             CorrelationId: correlationId);
 
-        // CancellationToken.None: dead-letter persistence is guaranteed even if
-        // the producer's token is cancelled, mirroring DeadLetterHandler.
         await _dlq!.EnqueueAsync(deadLettered, CancellationToken.None).ConfigureAwait(false);
 
         var evt = new WorkDeadLetteredEvent<TWork>(work, marker, 0, DateTimeOffset.UtcNow, correlationId);

@@ -42,6 +42,9 @@ public sealed class ScheduleRegistryQueryTests
     /// Verifies <see cref="ScheduleRegistry.GetJobs"/> returns every registered job,
     /// sorted by name regardless of registration order.
     /// </summary>
+    /// <remarks>
+    /// The assertion is ordered: <c>GetJobs</c> must return the names sorted, not only all present.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task GetJobs_WithMultipleJobs_ReturnsAllSortedByName()
@@ -53,7 +56,6 @@ public sealed class ScheduleRegistryQueryTests
 
         var names = registry.GetJobs().Select(j => j.Name).ToList();
 
-        // Ordered assertion: GetJobs must return names sorted, not merely all present.
         await Assert.That(names).HasCount(3);
         await Assert.That(names[0]).IsEqualTo("alpha");
         await Assert.That(names[1]).IsEqualTo("bravo");
@@ -97,6 +99,10 @@ public sealed class ScheduleRegistryQueryTests
     /// Verifies a returned descriptor is a snapshot: mutating the registry afterward
     /// (here, pausing the job) does not change a descriptor already returned.
     /// </summary>
+    /// <remarks>
+    /// The descriptor returned before the pause still shows the running state, and the registry now
+    /// shows the paused state.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task GetJob_ReturnsSnapshot_UnaffectedByLaterMutation()
@@ -107,10 +113,8 @@ public sealed class ScheduleRegistryQueryTests
 
         await registry.PauseAsync("daily-report").ConfigureAwait(false);
 
-        // The previously returned descriptor still reflects the running state.
         await Assert.That(snapshot.State).IsEqualTo(JobState.Running);
         await Assert.That(snapshot.IsRunning).IsTrue();
-        // The registry now reflects the new state.
         await Assert.That(registry.GetJob("daily-report")!.Value.State).IsEqualTo(JobState.Paused);
     }
 

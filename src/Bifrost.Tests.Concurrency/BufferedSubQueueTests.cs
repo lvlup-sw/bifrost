@@ -42,23 +42,23 @@ public class BufferedSubQueueTests
     /// slots; writing all 16 through the <c>AsSpan</c> view and reading them back round-trips every
     /// slot in order, and a length-<c>n</c> span exposes exactly the first <c>n</c> logical slots.
     /// </summary>
+    /// <remarks>
+    /// A span cannot cross an <c>await</c>. Thus the test captures the lengths and copies into locals
+    /// first, and asserts after. <c>WriteSlots</c> writes 16 distinct tuples through the full-length span.
+    /// <c>CopyOut</c> reads them back through a fresh span over the same storage into managed arrays. A
+    /// length-n span honors the logical <c>n &lt;= 16</c> and aliases the same leading storage.
+    /// </remarks>
     [Test]
     public async Task BufferLayout_InlineArray16_RoundTripsAllSlots()
     {
         SubQueueBuffer<int, int> buffer = default;
 
-        // A span cannot cross an `await`; capture the lengths and copies into locals first, then assert.
         int fullLength = SubQueueBuffer<int, int>.AsSpan(ref buffer, SubQueue<int, int>.BufferCapacityMax).Length;
-
-        // Write 16 distinct (element, priority) tuples through the full-length span.
         WriteSlots(ref buffer);
 
-        // Read them back through a fresh span over the same storage into managed arrays.
         var readbackElements = new int[SubQueue<int, int>.BufferCapacityMax];
         var readbackPriorities = new int[SubQueue<int, int>.BufferCapacityMax];
         CopyOut(ref buffer, SubQueue<int, int>.BufferCapacityMax, readbackElements, readbackPriorities);
-
-        // A length-n span honors the logical n <= 16 and aliases the same leading storage.
         int partialLength = SubQueueBuffer<int, int>.AsSpan(ref buffer, 5).Length;
         var partialPriorities = new int[5];
         CopyOut(ref buffer, 5, new int[5], partialPriorities);
@@ -124,6 +124,13 @@ public class BufferedSubQueueTests
     /// element flows through the insertion buffer <c>I</c> (flushing to the heap when full); the
     /// differential drain pins that the buffered path reorders nothing.
     /// </summary>
+    /// <remarks>
+    /// The 500 pushes go well past the cap, so <c>I</c> flushes to the heap many times. The test then
+    /// proves that buffering is genuinely engaged. The deletion buffer holds the published front
+    /// (<c>D</c> is non-empty), and the heap holds at most a flush short of all elements, so fewer than
+    /// <c>n</c>. The unbuffered queue keeps ALL elements in the heap. A <c>bufferCapacity</c> that did
+    /// nothing would leave <c>D</c> empty and the heap holding all <c>n</c> elements.
+    /// </remarks>
     [Test]
     public async Task Push_Buffered_MatchesUnbufferedOrder_InsertOnly()
     {
@@ -131,7 +138,7 @@ public class BufferedSubQueueTests
         var unbuffered = NewSubQueue(bufferCapacity: 0);
 
         var rng = new Random(0x3357);
-        const int n = 500; // well past the cap so I flushes to the heap many times.
+        const int n = 500;
         for (int i = 0; i < n; i++)
         {
             int p = rng.Next(0, 10_000);
@@ -139,9 +146,6 @@ public class BufferedSubQueueTests
             unbuffered.TryLockedPush(p, p);
         }
 
-        // Buffering is genuinely engaged: the deletion buffer holds the published front (D non-empty),
-        // and the heap holds at most a flush short of everything (the unbuffered queue keeps it ALL in
-        // the heap). A no-op bufferCapacity would leave D empty and the heap holding all n elements.
         await Assert.That(buffered.DeletionCountForTest).IsGreaterThan(0).Because(
             "the buffered push routes the minimum into the sorted deletion buffer D");
         await Assert.That(buffered.HeapSize).IsLessThan(n).Because(
@@ -161,6 +165,9 @@ public class BufferedSubQueueTests
     /// deletion buffer is refilled from the heap at least twice over the drain (a population of
     /// <c>3·C + 1</c> needs ≥ 2 refills after the initial fill). Pinned through the refill counter.
     /// </summary>
+    /// <remarks>
+    /// The population is larger than <c>C</c>, so it forces the heap path and multiple refills.
+    /// </remarks>
     [Test]
     public async Task Pop_Buffered_DrainsInPriorityOrder_WithRefill()
     {
@@ -168,7 +175,7 @@ public class BufferedSubQueueTests
         var buffered = NewSubQueue(bufferCapacity: cap);
 
         var rng = new Random(0x9001);
-        const int n = (3 * cap) + 1; // > C, forcing the heap path and multiple refills.
+        const int n = (3 * cap) + 1;
         for (int i = 0; i < n; i++)
         {
             int p = rng.Next(0, 1_000);
@@ -205,15 +212,16 @@ public class BufferedSubQueueTests
     /// insert preserves global order, and the sorted-insert path is exercised (no direct-to-D seeds
     /// beyond the first, and zero flushes because nothing ever reaches the heap).
     /// </summary>
+    /// <remarks>
+    /// There are fewer descending keys than the cap, so <c>D</c> never fills and the heap is never
+    /// touched. Every key after the first is <c>&lt;= max(D)</c> and sorted-inserts ahead of the residents.
+    /// </remarks>
     [Test]
     public async Task Push_SmallElement_InsertsIntoDeletionBufferSorted()
     {
         const int cap = 16;
         var buffered = NewSubQueue(bufferCapacity: cap);
         var unbuffered = NewSubQueue(bufferCapacity: 0);
-
-        // Descending keys, fewer than the cap, so D never fills and the heap is never touched: every
-        // key after the first is <= max(D) and sorted-inserts ahead of the residents.
         int[] descending = [100, 90, 80, 70, 60, 50, 40, 30];
         foreach (int p in descending)
         {
@@ -246,16 +254,20 @@ public class BufferedSubQueueTests
     /// element and the full differential drain against an unbuffered sub-queue over the identical
     /// random script proves the global order is exact.
     /// </summary>
+    /// <remarks>
+    /// The large random push/pop script repeatedly saturates <c>D</c> and <c>I</c> and pushes small keys.
+    /// About 75% of the steps are pushes and 25% are pops, which keeps the structure full and
+    /// small-key-heavy. The small key range (0..199) makes <c>v &lt;= max(D)</c> frequent, so the sorted
+    /// inserts evict from a full <c>D</c>. The bursts of pushes fill <c>I</c>, so the eviction cascades
+    /// through a heap flush. At the end the test drains what remains. The multiset and the order must
+    /// match the unbuffered heap exactly.
+    /// </remarks>
     [Test]
     public async Task Push_DFullIFull_EvictsMaxThroughHeap()
     {
         const int cap = 16;
         var buffered = NewSubQueue(bufferCapacity: cap);
         var unbuffered = NewSubQueue(bufferCapacity: 0);
-
-        // A large random push/pop script that repeatedly saturates D and I and pushes small keys (the
-        // skew toward small keys forces v <= max(D) sorted inserts that evict a full D, and the bursts
-        // of pushes fill I so the eviction cascades through a heap flush).
         var rng = new Random(0xCA5C);
         var residentBuffered = 0;
         var residentUnbuffered = 0;
@@ -263,10 +275,9 @@ public class BufferedSubQueueTests
 
         for (int step = 0; step < 4_000; step++)
         {
-            // 75% pushes (skewed small), 25% pops: keeps the structure full and small-key-heavy.
             if (rng.Next(4) != 0 || residentBuffered == 0)
             {
-                int p = rng.Next(0, 200); // small range => frequent v <= max(D)
+                int p = rng.Next(0, 200);
                 buffered.TryLockedPush(p, p);
                 unbuffered.TryLockedPush(p, p);
                 residentBuffered++;
@@ -290,8 +301,6 @@ public class BufferedSubQueueTests
         }
 
         long evictionsAfter = buffered.DebugBufferEvictionCountForTest;
-
-        // Drain whatever remains; the multiset and order must match the unbuffered heap exactly.
         List<int> bufferedDrain = DrainAll(buffered);
         List<int> unbufferedDrain = DrainAll(unbuffered);
 
@@ -311,6 +320,11 @@ public class BufferedSubQueueTests
     /// a non-empty D — carries no constraint: a tiny structure may live entirely in D.) The invariant is
     /// also debug-asserted inside the pop path.
     /// </summary>
+    /// <remarks>
+    /// The script always pushes when the sub-queue is empty and is balanced otherwise, so <c>D</c>
+    /// repeatedly empties and refills. The converse of the invariant does NOT hold: <c>D</c> can
+    /// legitimately hold the entire small population while <c>I</c> and the heap are empty.
+    /// </remarks>
     [Test]
     public async Task Invariant_DeletionBufferEmpty_ImpliesSubQueueEmpty()
     {
@@ -323,7 +337,6 @@ public class BufferedSubQueueTests
 
         for (int step = 0; step < 10_000 && invariantHeld; step++)
         {
-            // Bias toward pushes when empty, balanced otherwise, so D repeatedly empties and refills.
             bool push = resident == 0 || rng.Next(2) == 0;
             if (push)
             {
@@ -345,10 +358,6 @@ public class BufferedSubQueueTests
             int d = buffered.DeletionCountForTest;
             int iBuf = buffered.InsertionCountForTest;
             int heap = buffered.HeapSize;
-
-            // The load-bearing invariant: D empty ⟹ I empty AND heap empty (a populated I/heap behind
-            // an empty D would be a refill-ordering bug). The converse does NOT hold — D may legitimately
-            // hold the entire small population while I and the heap are empty (the tiny-structure case).
             bool dEmpty = d == 0;
             bool restEmpty = iBuf == 0 && heap == 0;
             if (dEmpty && !restEmpty)
@@ -367,32 +376,28 @@ public class BufferedSubQueueTests
     /// reader yields exactly the current minimum after pushes, after a front-changing push, after a pop,
     /// and reports empty once <c>D</c> drains — all without the reader touching any buffer field.
     /// </summary>
+    /// <remarks>
+    /// A fresh sub-queue publishes empty. The first push seeds <c>D</c> directly, and the published top is
+    /// that single minimum. A front-changing push (a smaller key) republishes the new minimum. A non-front
+    /// push (a larger key) leaves the published front unchanged. A pop of the front republishes the next
+    /// minimum. After the final drain, the sub-queue publishes empty.
+    /// </remarks>
     [Test]
     public async Task TryReadTop_Buffered_ReturnsDeletionBufferFront()
     {
         var buffered = NewSubQueue(bufferCapacity: 16);
-
-        // Fresh sub-queue publishes empty.
         await Assert.That(buffered.TryReadTop(out _, out bool empty0)).IsTrue();
         await Assert.That(empty0).IsTrue().Because("a fresh buffered sub-queue publishes the empty state");
-
-        // First push seeds D directly; the published top is that single minimum.
         buffered.TryLockedPush(50, 50);
         await Assert.That(buffered.TryReadTop(out int top1, out bool empty1)).IsTrue();
         await Assert.That(empty1).IsFalse();
         await Assert.That(top1).IsEqualTo(50).Because("the published top is D.front()");
-
-        // A front-changing push (smaller key) re-publishes the new minimum.
         buffered.TryLockedPush(20, 20);
         await Assert.That(buffered.TryReadTop(out int top2, out _)).IsTrue();
         await Assert.That(top2).IsEqualTo(20).Because("a smaller key becomes the new D.front() and is republished");
-
-        // A non-front push (larger key) leaves the published front unchanged.
         buffered.TryLockedPush(90, 90);
         await Assert.That(buffered.TryReadTop(out int top3, out _)).IsTrue();
         await Assert.That(top3).IsEqualTo(20).Because("a larger key does not change D.front(), so the publication stays 20");
-
-        // Pop the front: the next minimum is republished.
         lock (buffered.SyncLock)
         {
             buffered.PopHeldRoot(out _, out _);
@@ -400,8 +405,6 @@ public class BufferedSubQueueTests
 
         await Assert.That(buffered.TryReadTop(out int top4, out _)).IsTrue();
         await Assert.That(top4).IsEqualTo(50).Because("popping D.front() republishes the next minimum");
-
-        // Drain the rest; the final state publishes empty.
         DrainAll(buffered);
         await Assert.That(buffered.TryReadTop(out _, out bool emptyEnd)).IsTrue();
         await Assert.That(emptyEnd).IsTrue().Because("a fully drained buffered sub-queue publishes the empty state");
@@ -414,6 +417,11 @@ public class BufferedSubQueueTests
     /// random push/pop run asserts the published count tracks enqueued-minus-dequeued exactly at every
     /// step, and the collection surface (<c>SnapshotTo</c>) carries the same multiset of resident entries.
     /// </summary>
+    /// <remarks>
+    /// <c>VolatileCount</c> is the published striped count, which is <c>I + D + heap</c>. The sum of the
+    /// components must also reconcile, which defends against a stale published count. The collection
+    /// surface includes the buffered residents: <c>SnapshotTo</c> copies <c>I + D + heap</c>.
+    /// </remarks>
     [Test]
     public async Task Count_Buffered_EqualsTotalResident()
     {
@@ -443,13 +451,11 @@ public class BufferedSubQueueTests
                 }
             }
 
-            // VolatileCount is the published striped count = I + D + heap.
             if (buffered.VolatileCount != expected)
             {
                 conserved = false;
             }
 
-            // The component sum must also reconcile (defends against a stale published count).
             int components = buffered.InsertionCountForTest + buffered.DeletionCountForTest + buffered.HeapSize;
             if (components != expected)
             {
@@ -459,8 +465,6 @@ public class BufferedSubQueueTests
 
         await Assert.That(conserved).IsTrue().Because(
             "the published Count equals I + D + heap and tracks enqueued-minus-dequeued at every step");
-
-        // The collection surface includes the buffered residents: SnapshotTo copies I + D + heap.
         var snapshot = new List<(int Element, int Priority)>();
         buffered.SnapshotTo(snapshot);
         await Assert.That(snapshot.Count).IsEqualTo(expected).Because(
@@ -474,19 +478,21 @@ public class BufferedSubQueueTests
     /// (its <see cref="WeakReference"/> reports dead), proving the gated <c>Span.Clear</c> dropped the
     /// dead reference rather than letting a stale buffer slot pin it.
     /// </summary>
+    /// <remarks>
+    /// The <see cref="string"/> element makes the tuple reference-containing, so all the gated slot and
+    /// block clears run. The elements are distinct, non-interned instances, so a
+    /// <see cref="WeakReference"/> can observe collectibility. The priorities span a range that drives
+    /// flushes, refills, and sorted inserts and evictions. The drain empties the whole sub-queue, and every
+    /// move vacates its source slots, which must be cleared. After the forced collection, no buffer slot
+    /// can still pin a popped element.
+    /// </remarks>
     [Test]
     public async Task BufferMoves_ReferenceElements_NoStaleRetention()
     {
-        // string elements (reference-containing tuple) => the gated slot/block clears all run.
         var sub = new SubQueue<string, int>(comparer: null, index: 0, occupancy: new ulong[1], bufferCapacity: 16);
-
-        // Distinct, non-interned element instances so a WeakReference can observe collectibility; the
-        // priorities span a range that drives flushes, refills, and sorted inserts/evictions.
         const int n = 200;
         var weakRefs = new List<WeakReference>(n);
         PopulateReferenceSubQueue(sub, n, weakRefs);
-
-        // Drain the whole sub-queue: every move vacates its source slots, which must be cleared.
         lock (sub.SyncLock)
         {
             while (sub.PopHeldRoot(out _, out _) == SubQueuePopStatus.Success)
@@ -497,8 +503,6 @@ public class BufferedSubQueueTests
         await Assert.That(sub.DeletionCountForTest).IsEqualTo(0).Because("the sub-queue is fully drained");
         await Assert.That(sub.InsertionCountForTest).IsEqualTo(0).Because("the insertion buffer drained too");
         await Assert.That(sub.HeapSize).IsEqualTo(0).Because("the heap drained too");
-
-        // Force collection: no buffer slot may still pin a popped element.
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
@@ -514,6 +518,9 @@ public class BufferedSubQueueTests
     /// be observed after the drain. Kept in a separate non-inlined frame so no JIT-rooted local pins an
     /// element past the populate step. Priorities are shuffled to drive flushes/refills/evictions.
     /// </summary>
+    /// <remarks>
+    /// Each element is a fresh, non-interned string instance, because the concatenation defeats interning.
+    /// </remarks>
     /// <param name="sub">The buffered sub-queue to populate.</param>
     /// <param name="n">The number of elements to push.</param>
     /// <param name="weakRefs">The list that receives a weak reference to each pushed element.</param>
@@ -530,7 +537,6 @@ public class BufferedSubQueueTests
 
         foreach (int p in order)
         {
-            // A fresh, non-interned string instance per element (concatenation defeats interning).
             string element = "elem-" + p.ToString();
             weakRefs.Add(new WeakReference(element));
             sub.TryLockedPush(element, p);
@@ -544,6 +550,11 @@ public class BufferedSubQueueTests
     /// identical drain order and identical published count at every step; their buffers stay empty
     /// throughout (the predictable single compare took the off branch).
     /// </summary>
+    /// <remarks>
+    /// The push/pop steps interleave with identical seeds, and the published counts must track step for
+    /// step. The off path never touches the buffers. On the off path, <c>Count</c> equals the heap size,
+    /// because there are no buffer residents.
+    /// </remarks>
     [Test]
     public async Task DefaultOff_MatchesPreFeature_OrderCountRankError()
     {
@@ -552,8 +563,6 @@ public class BufferedSubQueueTests
 
         var rng = new Random(0x0FF0);
         bool countsMatch = true;
-
-        // Interleaved push/pop with identical seeds; assert published counts track step-for-step.
         for (int step = 0; step < 5_000; step++)
         {
             int p = rng.Next(0, 5_000);
@@ -565,7 +574,6 @@ public class BufferedSubQueueTests
                 countsMatch = false;
             }
 
-            // The off-path never touches the buffers.
             if (off.DeletionCountForTest != 0 || off.InsertionCountForTest != 0)
             {
                 countsMatch = false;
@@ -587,8 +595,6 @@ public class BufferedSubQueueTests
 
         await Assert.That(countsMatch).IsTrue().Because(
             "an off (bufferCapacity 0) sub-queue's Count matches the baseline at every step and never touches the buffers");
-
-        // Count = heap size on the off path (no buffer residents).
         await Assert.That(off.VolatileCount).IsEqualTo(off.HeapSize).Because("the off path's Count is exactly the heap size");
 
         List<int> offDrain = DrainAll(off);
@@ -602,12 +608,13 @@ public class BufferedSubQueueTests
     /// <c>I + D + heap</c> (not just the heap), so the owning queue releases the correct number of
     /// bounded reservations, and the cleared sub-queue is genuinely empty across all three structures.
     /// </summary>
+    /// <remarks>
+    /// The 100 seeded elements populate <c>D</c>, <c>I</c>, and the heap at the same time.
+    /// </remarks>
     [Test]
     public async Task LockedClear_Buffered_ReturnsFullResidentCount()
     {
         var buffered = NewSubQueue(bufferCapacity: 16);
-
-        // Seed enough to populate D, I, and the heap simultaneously.
         const int n = 100;
         var rng = new Random(0x4242);
         for (int i = 0; i < n; i++)
@@ -640,45 +647,50 @@ public class BufferedSubQueueTests
     /// from <c>D.front()</c> count as hits; and the pop that empties <c>D</c> with the heap populated
     /// triggers a refill. Asserted against exact expected counts.
     /// </summary>
+    /// <remarks>
+    /// The scripted states, with <c>C = 2</c>:
+    /// <list type="bullet">
+    /// <item>Push 10: a direct-to-<c>D</c> seed. <c>D=[10]</c>, direct=1.</item>
+    /// <item>Push 9 (<c>&lt;= max(D)=10</c>): a sorted insert, and <c>D</c> is not yet full.
+    /// <c>D=[9,10]</c>, evict=0.</item>
+    /// <item>Push 8 (<c>&lt;= max(D)=10</c>) with <c>D</c> full: evict <c>max(D)=10</c> into <c>I</c>,
+    /// then sorted-insert 8. evict=1, <c>I=[10]</c> (count 1, not full), <c>D=[8,9]</c>.</item>
+    /// <item>Push 7 (<c>&lt;= max(D)=9</c>) with <c>D</c> full: evict 9 into <c>I</c>. <c>I=[10,9]</c>
+    /// reaches the cap (full), but it does not flush until the NEXT append. Then sorted-insert 7.
+    /// evict=2, <c>I</c> count=2, flush=0, <c>D=[7,8]</c>.</item>
+    /// <item>Push 6 (<c>&lt;= max(D)=8</c>) with <c>D</c> full: evict 8. <c>EvictToInsertion</c> sees
+    /// <c>I</c> full and FLUSHES <c>I</c> to the heap (flush=1, heap now {10,9}), then appends 8
+    /// (<c>I=[8]</c>). Then sorted-insert 6. evict=3, <c>D=[6,7]</c>.</item>
+    /// <item>Pop both <c>D.front()</c> entries: hits=2. The pushed multiset is {10,9,8,7,6}, and
+    /// <c>D=[6,7]</c> pops 6 and then 7. After the pop of 7, <c>D</c> is empty while <c>I=[8]</c> and
+    /// heap={10,9} are populated, so a refill occurs (refill=1).</item>
+    /// <item>Drain the rest. The list starts with 6 and 7, which the previous step popped. The full
+    /// pushed multiset {6,7,8,9,10} must come out in ascending order.</item>
+    /// </list>
+    /// </remarks>
     [Test]
     public async Task Counters_BufferedRun_RecordFlushRefillHitEvict()
     {
         const int cap = 2;
         var sub = NewSubQueue(bufferCapacity: cap);
-
-        // Push 10 -> direct-to-D seed. D=[10], direct=1.
         sub.TryLockedPush(10, 10);
         await Assert.That(sub.DebugBufferDirectToDeletionCountForTest).IsEqualTo(1L).Because("the first push seeds an empty D directly");
-
-        // Push 9 (<= max(D)=10) -> sorted-insert, D not yet full. D=[9,10], evict=0.
         sub.TryLockedPush(9, 9);
         await Assert.That(sub.DeletionCountForTest).IsEqualTo(2).Because("D holds both small keys, sorted");
         await Assert.That(sub.DebugBufferEvictionCountForTest).IsEqualTo(0L).Because("D was not full, so no eviction");
-
-        // Push 8 (<= max(D)=10), D full (cap 2) -> evict max(D)=10 into I; sorted-insert 8.
-        // evict=1, I=[10] (count 1, not full), D=[8,9].
         sub.TryLockedPush(8, 8);
         await Assert.That(sub.DebugBufferEvictionCountForTest).IsEqualTo(1L).Because("a full D evicts its max on a small-key sorted insert");
         await Assert.That(sub.InsertionCountForTest).IsEqualTo(1).Because("the evicted max landed in I (not yet full)");
         await Assert.That(sub.DebugBufferFlushCountForTest).IsEqualTo(0L).Because("I is not full yet, so nothing flushed");
-
-        // Push 7 (<= max(D)=9), D full -> evict 9 into I; I=[10,9] reaches cap (full) but does not flush
-        // until the NEXT append; sorted-insert 7. evict=2, I count=2, flush=0, D=[7,8].
         sub.TryLockedPush(7, 7);
         await Assert.That(sub.DebugBufferEvictionCountForTest).IsEqualTo(2L).Because("the second full-D sorted insert evicts again");
         await Assert.That(sub.InsertionCountForTest).IsEqualTo(2).Because("I is now full with the two evicted maxima");
         await Assert.That(sub.DebugBufferFlushCountForTest).IsEqualTo(0L).Because("a full I flushes on the next append, not on filling");
-
-        // Push 6 (<= max(D)=8), D full -> evict 8; EvictToInsertion sees I full -> FLUSH I to heap
-        // (flush=1, heap now {10,9}), then append 8 (I=[8]); sorted-insert 6. evict=3, D=[6,7].
         sub.TryLockedPush(6, 6);
         await Assert.That(sub.DebugBufferFlushCountForTest).IsEqualTo(1L).Because("a full I flushes to the heap on the next append (the evicted 8)");
         await Assert.That(sub.DebugBufferEvictionCountForTest).IsEqualTo(3L).Because("a third full-D sorted insert evicts again");
         await Assert.That(sub.InsertionCountForTest).IsEqualTo(1).Because("I emptied on the flush, then took the newly evicted max");
         await Assert.That(sub.HeapSize).IsEqualTo(2).Because("the two flushed entries (10, 9) now live in the heap");
-
-        // Pop both D.front()s: hits=2. The pushed multiset is {10,9,8,7,6}; D=[6,7] pops 6 then 7.
-        // After popping 7, D empties; I=[8] and heap={10,9} are populated -> refill (refill=1).
         long hitsBefore = sub.DebugBufferPopHitCountForTest;
         long refillsBefore = sub.DebugBufferRefillCountForTest;
         lock (sub.SyncLock)
@@ -691,9 +703,7 @@ public class BufferedSubQueueTests
         await Assert.That(sub.DebugBufferPopHitCountForTest - hitsBefore).IsEqualTo(2L).Because("both pops were served from D.front()");
         await Assert.That(sub.DebugBufferRefillCountForTest - refillsBefore).IsEqualTo(1L).Because(
             "emptying D while I/heap are populated triggers exactly one refill");
-
-        // Drain the rest; the full pushed multiset {6,7,8,9,10} must come out in ascending order.
-        var drained = new List<int> { 6, 7 }; // already popped above
+        var drained = new List<int> { 6, 7 };
         lock (sub.SyncLock)
         {
             while (sub.PopHeldRoot(out _, out int p) == SubQueuePopStatus.Success)
@@ -712,17 +722,25 @@ public class BufferedSubQueueTests
     /// past the cap, draining <c>D</c> to force the heap path, then popping until a refill pulls the
     /// final small remainder.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The test pushes seven strictly-descending keys with cap 4. The first key seeds <c>D</c>, the next
+    /// three fill <c>D</c>, and the last three each evict the max of <c>D</c> into <c>I</c>. This fills
+    /// <c>I</c> to 3, one short of full. At rest, <c>D = [94,95,96,97]</c>, <c>I = [100,99,98]</c>
+    /// (3 &lt; cap), and the heap is empty.
+    /// </para>
+    /// <para>
+    /// The test then pops the four <c>D</c> entries. The fourth pop empties <c>D</c> and triggers the
+    /// refill. The refill flushes <c>I</c> (3 entries) into the heap and then takes <c>min(cap, 3) = 3</c>.
+    /// This is the <c>|heap| &lt; C</c> partial-fill path. The rest of the drain stays ascending and
+    /// exhausts the structure.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task Refill_HeapSmallerThanCapacity_FillsExactly()
     {
         const int cap = 4;
         var sub = NewSubQueue(bufferCapacity: cap);
-
-        // Seven strictly-descending keys with cap 4: the first seeds D, the next three fill D, and the
-        // last three each evict D's max into I (filling I to 3, one short of full). At rest:
-        //   D = [94,95,96,97]   I = [100,99,98] (3 < cap)   heap = empty
-        // so the refill that runs when D drains flushes I (3 entries) into the heap then takes
-        // min(cap, 3) = 3 — the |heap| < C partial-fill path.
         int[] descending = [100, 99, 98, 97, 96, 95, 94];
         foreach (int p in descending)
         {
@@ -734,8 +752,6 @@ public class BufferedSubQueueTests
         await Assert.That(sub.HeapSize).IsEqualTo(0).Because("nothing has reached the heap yet");
 
         long refillsBefore = sub.DebugBufferRefillCountForTest;
-
-        // Pop the four D entries; the fourth empties D and triggers the partial refill.
         lock (sub.SyncLock)
         {
             for (int i = 0; i < cap; i++)
@@ -748,8 +764,6 @@ public class BufferedSubQueueTests
         await Assert.That(sub.DeletionCountForTest).IsEqualTo(3).Because(
             "a refill where |heap| (3) < C (4) fills D with exactly |heap| = 3 entries");
         await Assert.That(sub.HeapSize).IsEqualTo(0).Because("the partial refill drained the heap completely");
-
-        // The remaining drain stays ascending and exhausts the structure.
         List<int> rest = DrainAll(sub);
         bool nonDecreasing = true;
         for (int i = 1; i < rest.Count; i++)
@@ -770,27 +784,29 @@ public class BufferedSubQueueTests
     /// into <c>I</c>; every push sorted-inserts into (or seeds) <c>D</c> and every pop is served from
     /// <c>D.front()</c>, so the deep-heap walk is fully avoided — the locality win buffering exists for.
     /// </summary>
+    /// <remarks>
+    /// The lifetime stays below the cap (resident &lt; <c>cap - 1</c> before a push), and it only pushes
+    /// keys that are <c>&lt;=</c> the current <c>D</c> minimum. Thus every push sorted-inserts at or near
+    /// the front of <c>D</c>, and nothing goes into <c>I</c>. With resident below the cap, <c>D</c> never
+    /// fills, so no eviction occurs. Because <c>I</c> is always empty, a pop that drains <c>D</c> never
+    /// triggers a refill, and the heap is never touched. <c>nextKey</c> starts at 1,000,000 and decreases
+    /// monotonically by 1..4 per push, so each key is <c>&lt;= max(D)</c>.
+    /// </remarks>
     [Test]
     public async Task TinyQueue_StaysInDeletionBuffer_NeverTouchesHeap()
     {
         const int cap = 16;
         var sub = NewSubQueue(bufferCapacity: cap);
-
-        // A lifetime that stays below the cap (resident < cap) AND only ever pushes keys <= the current
-        // D minimum, so every push sorted-inserts at (or near) the front of D and nothing is ever routed
-        // into I. With resident < cap, D never fills (no eviction), and since I is always empty, a pop
-        // that drains D never triggers a refill — the heap is never touched. The push key is driven
-        // strictly downward so it is always <= max(D).
         var rng = new Random(0x7149);
         var resident = 0;
-        int nextKey = 1_000_000; // pushed keys strictly descend, so each is <= the current D contents
+        int nextKey = 1_000_000;
         for (int step = 0; step < 2_000; step++)
         {
-            bool canPush = resident < cap - 1; // strictly below the cap: D never fills
+            bool canPush = resident < cap - 1;
             bool push = resident == 0 || (canPush && rng.Next(2) == 0);
             if (push)
             {
-                nextKey -= rng.Next(1, 5); // monotonically decreasing keys
+                nextKey -= rng.Next(1, 5);
                 sub.TryLockedPush(nextKey, nextKey);
                 resident++;
             }
@@ -826,17 +842,32 @@ public class BufferedSubQueueTests
     /// <c>1/C</c> — a heap touched markedly more often (toward once per pop) would blow past the band and
     /// signal that the buffering locality mechanism had regressed.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>popWindows</c> = 64 gives <c>K = 64·C = 1024</c> elements. This is a long steady drain that
+    /// warm-up does not dominate, and the pop count equals the preloaded count (a full drain). The preload
+    /// uses shuffled keys with <c>K ≫ C</c>, so <c>I</c> flushes to the heap many times and the heap is deep
+    /// at rest. There are no pops during the preload, so the refill counter is still zero when the drain
+    /// starts. Refills run only on the pop that empties <c>D</c>, so the measurement is pure steady-state.
+    /// During the drain, the refill counter accumulates exactly the heap touches.
+    /// </para>
+    /// <para>
+    /// The ratio is the framing that the task asks for: refills per pop stay near <c>1/C</c>, NOT near 1
+    /// (once per pop). The tolerance is ±<c>1/C</c>, a full window of slack. The band is wide enough to
+    /// absorb the single boundary window (the initial resident <c>D</c> and the final partial window), but
+    /// far below the "once per pop" failure regime. At <c>C = 16</c> the measured ratio is about 0.0615
+    /// (= 63/1024) against the ideal <c>1/C = 0.0625</c>. The band caps it at <c>2/C = 0.125</c>, an order
+    /// of magnitude under the 1.0 that a regressed (heap-per-pop) path would show.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task Amortization_SteadyBufferedRun_RefillsApproxPopsOverCapacity()
     {
         const int cap = 16;
-        const int popWindows = 64; // K = 64*C = 1024 elements: a long steady drain, not warm-up dominated.
-        const int n = popWindows * cap; // pops == preloaded elements (a full drain).
+        const int popWindows = 64;
+        const int n = popWindows * cap;
         var sub = NewSubQueue(bufferCapacity: cap);
 
-        // Preload K >> C elements with shuffled keys so I flushes to the heap many times and the heap is
-        // deep at rest. No pops during the preload, so the refill counter is still zero when the drain
-        // begins (refills run only on the pop that empties D) — the measurement is pure steady-state.
         var rng = new Random(0x5EED);
         var order = Enumerable.Range(0, n).ToList();
         for (int i = order.Count - 1; i > 0; i--)
@@ -857,8 +888,6 @@ public class BufferedSubQueueTests
             "at rest after preloading K >> C, the deletion buffer holds a full window of C minima");
         await Assert.That(sub.HeapSize).IsGreaterThan(0).Because(
             "K >> C leaves the bulk of the population in the heap, so refills must walk it during the drain");
-
-        // Drain everything; the refill counter accumulates exactly the heap touches.
         var drained = new List<int>(n);
         long popHitsBefore = sub.DebugBufferPopHitCountForTest;
         lock (sub.SyncLock)
@@ -888,22 +917,12 @@ public class BufferedSubQueueTests
 
         await Assert.That(nonDecreasing).IsTrue().Because(
             "the buffered drain serves D.front() (the running minimum), so it is non-decreasing");
-
-        // The locality claim, stated exactly. Draining n = popWindows*C elements from a rest state with a
-        // full D performs popWindows-1 refills: the first C pops drain the resident D, and the remaining
-        // (popWindows-1)*C pops each open a fresh refill of C entries.
         long expectedRefills = popWindows - 1;
         await Assert.That(refills).IsEqualTo(expectedRefills).Because(
             "draining popWindows*C elements refills the heap exactly popWindows-1 times (one heap touch per C pops)");
-
-        // The ratio framing the task asks for: refills per pop hovers at ~1/C, NOT ~1 (once per pop). The
-        // tolerance band is generous enough to absorb the single boundary window (the initial resident D
-        // and the final partial window) yet far below the "once per pop" failure regime: at C = 16 the
-        // measured ratio is ~0.0615 (= 63/1024) against the 1/C = 0.0625 ideal, and the band caps it at
-        // 2/C = 0.125 — an order of magnitude under the 1.0 a regressed (heap-per-pop) path would show.
         double refillRatio = (double)refills / n;
-        const double idealRatio = 1.0 / cap; // 0.0625
-        const double tolerance = idealRatio; // +/- 1/C: a full window of slack, still << the 1.0 failure regime.
+        const double idealRatio = 1.0 / cap;
+        const double tolerance = idealRatio;
         await Assert.That(refillRatio).IsLessThanOrEqualTo(idealRatio + tolerance).Because(
             "the heap is refilled at most ~once per C pops, an order of magnitude below the once-per-pop regression regime");
         await Assert.That(refillRatio).IsGreaterThanOrEqualTo(idealRatio - tolerance).Because(

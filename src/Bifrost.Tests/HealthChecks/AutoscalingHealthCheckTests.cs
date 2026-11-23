@@ -25,10 +25,8 @@ public class AutoscalingHealthCheckTests
     [Test]
     public async Task AutoscalingHealthCheck_Constructor_ThrowsWhenRegistryNull()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions());
 
-        // Act & Assert
         await Assert.That(() => new AutoscalingHealthCheck(null!, options))
             .Throws<ArgumentNullException>();
     }
@@ -39,10 +37,8 @@ public class AutoscalingHealthCheckTests
     [Test]
     public async Task AutoscalingHealthCheck_Constructor_ThrowsWhenOptionsNull()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
 
-        // Act & Assert
         await Assert.That(() => new AutoscalingHealthCheck(registry, null!))
             .Throws<ArgumentNullException>();
     }
@@ -53,7 +49,6 @@ public class AutoscalingHealthCheckTests
     [Test]
     public async Task AutoscalingHealthCheck_CheckHealthAsync_ReturnsUnhealthyWhenNoWorkers()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(0);
         registry.IdleWorkerCount.Returns(0);
@@ -67,12 +62,10 @@ public class AutoscalingHealthCheckTests
 
         var healthCheck = new AutoscalingHealthCheck(registry, options);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
 
@@ -82,7 +75,6 @@ public class AutoscalingHealthCheckTests
     [Test]
     public async Task AutoscalingHealthCheck_CheckHealthAsync_ReturnsDegradedAtMaxWorkers()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(16);
         registry.IdleWorkerCount.Returns(0);
@@ -96,12 +88,10 @@ public class AutoscalingHealthCheckTests
 
         var healthCheck = new AutoscalingHealthCheck(registry, options);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Degraded);
     }
 
@@ -111,7 +101,6 @@ public class AutoscalingHealthCheckTests
     [Test]
     public async Task AutoscalingHealthCheck_CheckHealthAsync_ReturnsDegradedAtMinWorkersAllBusy()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(1);
         registry.IdleWorkerCount.Returns(0);
@@ -125,12 +114,10 @@ public class AutoscalingHealthCheckTests
 
         var healthCheck = new AutoscalingHealthCheck(registry, options);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Degraded);
     }
 
@@ -140,7 +127,6 @@ public class AutoscalingHealthCheckTests
     [Test]
     public async Task AutoscalingHealthCheck_CheckHealthAsync_ReturnsHealthyWhenWithinNormalRange()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(4);
         registry.IdleWorkerCount.Returns(2);
@@ -154,12 +140,10 @@ public class AutoscalingHealthCheckTests
 
         var healthCheck = new AutoscalingHealthCheck(registry, options);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
 
@@ -169,7 +153,6 @@ public class AutoscalingHealthCheckTests
     [Test]
     public async Task AutoscalingHealthCheck_CheckHealthAsync_IncludesAutoscalingDataInResult()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(4);
         registry.IdleWorkerCount.Returns(2);
@@ -183,12 +166,10 @@ public class AutoscalingHealthCheckTests
 
         var healthCheck = new AutoscalingHealthCheck(registry, options);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Data).IsNotNull();
         await Assert.That(result.Data!.ContainsKey("ActiveWorkers")).IsTrue();
         await Assert.That(result.Data!.ContainsKey("MinWorkers")).IsTrue();
@@ -201,7 +182,6 @@ public class AutoscalingHealthCheckTests
     [Test]
     public async Task AutoscalingHealthCheck_CheckHealthAsync_ReturnsCorrectDataValues()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(8);
         registry.IdleWorkerCount.Returns(3);
@@ -215,12 +195,10 @@ public class AutoscalingHealthCheckTests
 
         var healthCheck = new AutoscalingHealthCheck(registry, options);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Data!["ActiveWorkers"]).IsEqualTo(8);
         await Assert.That(result.Data!["MinWorkers"]).IsEqualTo(2);
         await Assert.That(result.Data!["MaxWorkers"]).IsEqualTo(10);
@@ -232,7 +210,6 @@ public class AutoscalingHealthCheckTests
     [Test]
     public async Task AutoscalingHealthCheck_CheckHealthAsync_IncludesDescriptiveMessage()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(4);
         registry.IdleWorkerCount.Returns(2);
@@ -246,12 +223,10 @@ public class AutoscalingHealthCheckTests
 
         var healthCheck = new AutoscalingHealthCheck(registry, options);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Description).IsNotNull();
         await Assert.That(result.Description!.Length).IsGreaterThan(0);
     }
@@ -259,10 +234,12 @@ public class AutoscalingHealthCheckTests
     /// <summary>
     /// Verifies that the health check handles at min workers with some idle as Healthy.
     /// </summary>
+    /// <remarks>
+    /// The pool is at min workers, but some workers are idle, so it has capacity and is Healthy.
+    /// </remarks>
     [Test]
     public async Task AutoscalingHealthCheck_CheckHealthAsync_ReturnsHealthyAtMinWorkersWithIdle()
     {
-        // Arrange
         var registry = Substitute.For<IWorkerRegistry>();
         registry.ActiveWorkerCount.Returns(2);
         registry.IdleWorkerCount.Returns(1);
@@ -276,12 +253,10 @@ public class AutoscalingHealthCheckTests
 
         var healthCheck = new AutoscalingHealthCheck(registry, options);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert - at min workers but with some idle is Healthy (has capacity)
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
 

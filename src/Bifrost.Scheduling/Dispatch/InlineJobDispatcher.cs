@@ -55,12 +55,14 @@ public sealed class InlineJobDispatcher : IJobDispatcher
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <c>Task.Run</c> forces the delegate onto a pool thread, so it never runs on the tick thread.
+    /// The await on that task lets the exceptions and cancellation of the delegate propagate to the
+    /// caller. The handler is copied to <c>localHandler</c>, so the inner lambda does not capture
+    /// <c>this</c>.
+    /// </remarks>
     public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
     {
-        // Force the delegate onto a pool thread so it never runs on the tick
-        // thread. Awaiting the task lets the delegate's exceptions and
-        // cancellation propagate to the caller. The local handler is captured so
-        // the inner lambda does not capture 'this'.
         var localHandler = this.handler;
 
         await Task.Run(

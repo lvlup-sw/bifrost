@@ -283,6 +283,10 @@ public sealed class FluentBuilderTests
     /// the fix the type was resolved but never registered, so building a provider
     /// from the builder's own service collection threw at fire time.
     /// </summary>
+    /// <remarks>
+    /// The consumer does not register <c>CustomDispatcher</c>, so <c>DispatchVia</c> must register
+    /// it.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DispatchVia_RegistersDispatcherInDi_ResolvesWithoutManualRegistration()
@@ -296,7 +300,6 @@ public sealed class FluentBuilderTests
 
         var definition = SingleDefinition(builder);
 
-        // The consumer does NOT register CustomDispatcher; DispatchVia must have.
         var provider = services.BuildServiceProvider();
 
         var dispatcher = definition.DispatcherFactory(provider);

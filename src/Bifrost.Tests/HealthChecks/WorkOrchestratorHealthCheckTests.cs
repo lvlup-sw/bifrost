@@ -24,7 +24,6 @@ public class WorkOrchestratorHealthCheckTests
     [Test]
     public async Task WorkOrchestratorHealthCheck_CheckHealthAsync_ReturnsHealthyWhenQueueNotFull()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         orchestrator.PendingCount.Returns(50);
         orchestrator.Capacity.Returns(100);
@@ -32,12 +31,10 @@ public class WorkOrchestratorHealthCheckTests
 
         var healthCheck = new WorkOrchestratorHealthCheck<string>(orchestrator);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
 
@@ -47,7 +44,6 @@ public class WorkOrchestratorHealthCheckTests
     [Test]
     public async Task WorkOrchestratorHealthCheck_CheckHealthAsync_ReturnsDegradedWhenQueueNearlyFull()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         orchestrator.PendingCount.Returns(96);
         orchestrator.Capacity.Returns(100);
@@ -55,12 +51,10 @@ public class WorkOrchestratorHealthCheckTests
 
         var healthCheck = new WorkOrchestratorHealthCheck<string>(orchestrator);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Degraded);
     }
 
@@ -70,7 +64,6 @@ public class WorkOrchestratorHealthCheckTests
     [Test]
     public async Task WorkOrchestratorHealthCheck_CheckHealthAsync_IncludesQueueStatsInDescription()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         orchestrator.PendingCount.Returns(25);
         orchestrator.Capacity.Returns(100);
@@ -78,12 +71,10 @@ public class WorkOrchestratorHealthCheckTests
 
         var healthCheck = new WorkOrchestratorHealthCheck<string>(orchestrator);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Description).Contains("25");
         await Assert.That(result.Description).Contains("100");
     }
@@ -94,7 +85,6 @@ public class WorkOrchestratorHealthCheckTests
     [Test]
     public async Task WorkOrchestratorHealthCheck_Constructor_ThrowsWhenOrchestratorNull()
     {
-        // Act & Assert
         await Assert.That(() => new WorkOrchestratorHealthCheck<string>(null!))
             .Throws<ArgumentNullException>();
     }
@@ -105,7 +95,6 @@ public class WorkOrchestratorHealthCheckTests
     [Test]
     public async Task WorkOrchestratorHealthCheck_CheckHealthAsync_ReturnsHealthyWhenQueueEmpty()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         orchestrator.PendingCount.Returns(0);
         orchestrator.Capacity.Returns(100);
@@ -113,12 +102,10 @@ public class WorkOrchestratorHealthCheckTests
 
         var healthCheck = new WorkOrchestratorHealthCheck<string>(orchestrator);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
 
@@ -128,7 +115,6 @@ public class WorkOrchestratorHealthCheckTests
     [Test]
     public async Task WorkOrchestratorHealthCheck_CheckHealthAsync_IncludesWorkerCount()
     {
-        // Arrange
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         orchestrator.PendingCount.Returns(10);
         orchestrator.Capacity.Returns(100);
@@ -136,22 +122,23 @@ public class WorkOrchestratorHealthCheckTests
 
         var healthCheck = new WorkOrchestratorHealthCheck<string>(orchestrator);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result.Description).Contains("8");
     }
 
     /// <summary>
     /// Verifies exact threshold behavior at 95% utilization.
     /// </summary>
+    /// <remarks>
+    /// The check is Degraded only above 95%. At exactly 95% the pool is not above the threshold, so it
+    /// is Healthy.
+    /// </remarks>
     [Test]
     public async Task WorkOrchestratorHealthCheck_CheckHealthAsync_ReturnsDegradedAtExactly95Percent()
     {
-        // Arrange - 95% should still be healthy, >95% degraded
         var orchestrator = Substitute.For<IWorkOrchestrator<string>>();
         orchestrator.PendingCount.Returns(95);
         orchestrator.Capacity.Returns(100);
@@ -159,12 +146,10 @@ public class WorkOrchestratorHealthCheckTests
 
         var healthCheck = new WorkOrchestratorHealthCheck<string>(orchestrator);
 
-        // Act
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
             CancellationToken.None).ConfigureAwait(false);
 
-        // Assert - 95% is not > 95%, so should be Healthy
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
 }

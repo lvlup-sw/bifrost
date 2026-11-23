@@ -31,7 +31,6 @@ public class PriorityDispatchExtensionsBindingTests
     [Test]
     public async Task UsePriorityDispatch_DefaultBinding_SetsPrioritySentinelAndAutoIntent()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -46,8 +45,6 @@ public class PriorityDispatchExtensionsBindingTests
         await using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<string>());
 
-        // Assert — DispatchStrategy must be the Priority sentinel (not a concrete one).
-        // And the Binding intent must be Auto (the default).
         await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.PriorityRelaxed);
     }
 
@@ -58,7 +55,6 @@ public class PriorityDispatchExtensionsBindingTests
     [Test]
     public async Task UsePriorityDispatch_ExplicitLocking_SetsBindingLocking()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());

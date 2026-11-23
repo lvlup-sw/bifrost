@@ -89,6 +89,9 @@ public class BoundedCapacityEdgeTests
     /// <see cref="ConcurrentPriorityQueue{TElement, TPriority}.TryEnqueue"/> returns
     /// <see langword="false"/> (the non-throwing variant) — and a rejected enqueue mutates nothing.
     /// </summary>
+    /// <remarks>
+    /// After the rejections, the count and the bounded gate are unchanged.
+    /// </remarks>
     [Test]
     public async Task Enqueue_BoundedFull_ThrowsWhileTryEnqueueReturnsFalse()
     {
@@ -99,16 +102,10 @@ public class BoundedCapacityEdgeTests
         }
 
         await Assert.That(queue.Count).IsEqualTo(3).Because("the queue is filled to its bound");
-
-        // The throwing variant throws on overflow.
         await Assert.That(() => queue.Enqueue(99, 99)).Throws<InvalidOperationException>().Because(
             "Enqueue on a full bounded queue throws InvalidOperationException");
-
-        // The non-throwing variant returns false on overflow.
         await Assert.That(queue.TryEnqueue(98, 98)).IsFalse().Because(
             "TryEnqueue on a full bounded queue returns false rather than throwing");
-
-        // A rejected enqueue mutated nothing: count and the gate are unchanged.
         await Assert.That(queue.Count).IsEqualTo(3).Because("a rejected enqueue does not add an element");
         await Assert.That(queue.DebugBoundedCountForTest).IsEqualTo(3).Because(
             "_boundedCount is conserved across a rejection — the failed reservation was exactly undone, none leaked");
@@ -146,34 +143,35 @@ public class BoundedCapacityEdgeTests
     /// half-sifted node is left behind, the documented <see cref="PriorityQueue{TElement, TPriority}"/>
     /// behavior too — so this test only asserts the <i>reservation</i> accounting the #18 catch owns,
     /// not heap recoverability.)
+    /// <para>
+    /// The <c>ThrowOnDemandComparer</c> throws on demand, and the bounded gate must recover the
+    /// reservation when the throw propagates out of <c>TryLockedPush</c>. The first push seeds one element
+    /// WITHOUT a throw: a push onto an empty heap never invokes the comparer, because index 0 has no
+    /// parent and the sift-up loop does not run. Then the test arms the comparer. The SECOND push sifts
+    /// the new node against the root, invokes the comparer, and throws, so the reservation taken for this
+    /// push must be rolled back.
+    /// </para>
+    /// <para>
+    /// The gate must return to 1, not 2. A leaked reservation would leave it at 2. The #18 catch exactly
+    /// undoes the reservation it took before the doomed push. A further throwing push must not compound
+    /// the gate either. Each rollback is exact, so the gate stays at 1 for any number of doomed pushes.
+    /// This proves that the catch is not one-shot.
+    /// </para>
     /// </remarks>
     [Test]
     public async Task Enqueue_PushThrows_RollsBackReservation()
     {
-        // A comparer that throws on demand; the queue's bounded gate must recover the reservation when
-        // the throw propagates out of TryLockedPush.
         var comparer = new ThrowOnDemandComparer();
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 1, boundedCapacity: 4, comparer: comparer);
 
-        // Seed one element WITHOUT throwing (the first push onto an empty heap never invokes the
-        // comparer — index 0 has no parent, so the sift-up loop does not run).
         queue.Enqueue(0, 0);
         await Assert.That(queue.DebugBoundedCountForTest).IsEqualTo(1).Because("one element reserved one slot");
-
-        // Now arm the comparer to throw: the SECOND push sifts the new node against the root, invoking
-        // the comparer, which throws. The reservation taken for this push must be rolled back.
         comparer.Throw = true;
 
         await Assert.That(() => queue.Enqueue(1, 1)).Throws<InvalidOperationException>().Because(
             "the throwing comparer propagates out of the heap push");
-
-        // The decisive assertion: the gate returned to 1, not 2. A leaked reservation would leave it at
-        // 2 — the #18 catch exactly undoes the reservation it took before the doomed push.
         await Assert.That(queue.DebugBoundedCountForTest).IsEqualTo(1).Because(
             "the reservation taken for the failed push was rolled back by the catch, not leaked");
-
-        // A SECOND throwing push must not compound the gate either: each rollback is exact, so the gate
-        // stays at 1 no matter how many doomed pushes are attempted (proves the catch is not one-shot).
         await Assert.That(() => queue.Enqueue(2, 2)).Throws<InvalidOperationException>();
         await Assert.That(queue.DebugBoundedCountForTest).IsEqualTo(1).Because(
             "a second doomed push rolls back its own reservation too — the gate is never left inflated");
@@ -225,36 +223,42 @@ public class BoundedCapacityEdgeTests
     /// past and over the bound — against both queues. The per-operation admit results and the final
     /// count are then fully reproducible.
     /// </para>
+    /// <para>
+    /// <b>Stream.</b> <c>prioritySpread</c> (32) is narrow enough that small and large keys both route
+    /// through <c>I</c> and <c>D</c>. The buffered queue uses the ESA 2021 §4 cap of 16, and the unbuffered
+    /// queue uses cap 0, at the SAME bound. The test records the admit result of each enqueue
+    /// (<see langword="true"/> = admitted, <see langword="false"/> = shed). An identical seed gives an
+    /// identical stream, so the two admit sequences must coincide element for element if admission is
+    /// buffer-agnostic. About 40% of operations are dequeues and the rest are enqueues. This churns the
+    /// buffered structure through <c>D</c>-refills and <c>I</c>-flushes, so admission is exercised across
+    /// every buffer state. A pop frees at most one reservation. It can drain <c>D</c>, drain the heap, or
+    /// do nothing on an empty queue, but both queues react identically, because the bound tracks only the
+    /// logical element count, not the buffer layout.
+    /// </para>
+    /// <para>
+    /// <b>Assertions.</b> The admit/shed sequences must coincide, and the queues must end at the same
+    /// occupancy. A buffered over-admit would surface as a single diverging <see langword="true"/>. Also,
+    /// neither queue can break its bound, because the watermark/reservation gate holds for both regimes.
+    /// </para>
     /// </remarks>
     [Test]
     public async Task BoundedAdmission_Buffered_MatchesUnbufferedShedding()
     {
         const int bound = 8;
         const int operations = 400;
-        const int prioritySpread = 32; // narrow enough that small/large keys both route through I and D
+        const int prioritySpread = 32;
 
-        // Two bounded single-sub-queue queues at the SAME bound: one buffered (ESA 2021 §4 cap 16),
-        // one unbuffered (cap 0). subQueueCount: 1 forces the whole population through one stripe.
         var buffered = new ConcurrentPriorityQueue<int, int>(subQueueCount: 1, boundedCapacity: bound, comparer: null, bufferCapacity: 16);
         var unbuffered = new ConcurrentPriorityQueue<int, int>(subQueueCount: 1, boundedCapacity: bound, comparer: null, bufferCapacity: 0);
-
-        // Replay ONE fixed operation stream against both queues, recording the per-enqueue admit
-        // result (true = admitted, false = shed). Identical seed ⟹ identical stream ⟹ the recorded
-        // admit sequences must coincide element-for-element if admission is buffer-agnostic.
         var rng = new Random(0xB0_17ED);
         var bufferedAdmits = new List<bool>(operations);
         var unbufferedAdmits = new List<bool>(operations);
 
         for (int op = 0; op < operations; op++)
         {
-            // ~40% of operations are dequeues, the rest enqueues: this churns the buffered structure
-            // through D-refills and I-flushes, so admission is exercised across every buffer state.
             bool isDequeue = rng.Next(100) < 40;
             if (isDequeue)
             {
-                // A pop on either queue frees exactly one reservation; whether it drains D, the heap, or
-                // is a no-op on an empty queue, both queues react identically because the bound only ever
-                // tracks the logical element count, not the buffer layout.
                 buffered.TryDequeue(out _, out _);
                 unbuffered.TryDequeue(out _, out _);
             }
@@ -266,14 +270,10 @@ public class BoundedCapacityEdgeTests
             }
         }
 
-        // The decisive parity assertions: the admit/shed sequences coincide, and the queues end at the
-        // same occupancy. A buffered over-admit would surface as a single diverging `true` here.
         await Assert.That(bufferedAdmits.SequenceEqual(unbufferedAdmits)).IsTrue().Because(
             "buffering on vs off must yield the same per-enqueue admit/shed decision at the same bound over an identical stream");
         await Assert.That(buffered.Count).IsEqualTo(unbuffered.Count).Because(
             "buffered and unbuffered bounded queues must reach the same final occupancy from the same operation stream");
-
-        // And neither queue ever broke its bound (the watermark/reservation gate held for both regimes).
         await Assert.That(buffered.Count).IsLessThanOrEqualTo(bound).Because(
             "the buffered queue never admits beyond its bound");
         await Assert.That(unbuffered.Count).IsLessThanOrEqualTo(bound).Because(

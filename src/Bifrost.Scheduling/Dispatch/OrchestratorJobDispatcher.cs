@@ -86,28 +86,34 @@ public sealed class OrchestratorJobDispatcher<TWork> : IJobDispatcher
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// The fire function builds the work item. If it throws, the exception propagates and the fire
+    /// never reaches admission. Caller-token cancellation throws an
+    /// <see cref="OperationCanceledException"/> from <c>EnqueueAsync</c>. This method intentionally
+    /// does not catch it, so it propagates per the admission-vs-cancellation contract of the
+    /// orchestrator.
+    /// </para>
+    /// <para>
+    /// On acceptance there is nothing to do here, because the tick loop publishes
+    /// <c>JobFiredEvent</c>. An admission rejection is a failed fire, not an exception. This method
+    /// surfaces it as a <c>JobFireFailedEvent</c> that carries the rejection reason as text, and
+    /// completes normally, so the next occurrence of the job is unaffected.
+    /// </para>
+    /// </remarks>
     public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
     {
-        // The fire function builds the work item. If it throws, that propagates —
-        // the fire never reaches admission.
         var work = this.fireFunc(context);
 
-        // Caller-token cancellation throws an OperationCanceledException here and
-        // is intentionally not caught, so it propagates per the orchestrator's
-        // admission-vs-cancellation contract.
         var result = await this.orchestrator
             .EnqueueAsync(work, this.workClass, ct)
             .ConfigureAwait(false);
 
         if (result.IsAccepted)
         {
-            // Success. The tick loop publishes JobFiredEvent; nothing to do here.
             return;
         }
 
-        // An admission rejection is a failed fire, not an exception: surface it as
-        // a JobFireFailedEvent carrying the rejection reason as text, and complete
-        // normally so the job's next occurrence is unaffected.
         var reason = result.Reason?.ToString();
         this.sink.Publish(new JobFireFailedEvent(
             context.JobName,

@@ -44,7 +44,6 @@ public sealed class ISchedulerEventSinkTests
         var generics = method.GetGenericArguments();
         await Assert.That(generics).HasCount(1);
 
-        // The TEvent parameter is constrained to a value type (struct).
         var constraints = generics[0].GenericParameterAttributes;
         await Assert.That(constraints.HasFlag(
             GenericParameterAttributes.NotNullableValueTypeConstraint)).IsTrue();

@@ -35,6 +35,12 @@ public sealed class ScheduleRegistryDisposeTests
     /// than hanging on a writer that is never completed — the exact tick-loop drain the
     /// dispose contract guarantees.
     /// </summary>
+    /// <remarks>
+    /// The test mirrors the wait of the tick loop: it parks on the empty command channel before
+    /// dispose. After dispose the writer is completed, so the parked wait completes and returns
+    /// <see langword="false"/>. That result is the signal that lets the drain loop of the reader
+    /// end instead of blocking forever.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DisposeAsync_CompletesCommandWriter_PendingWaitObservesCompletion()
@@ -42,14 +48,11 @@ public sealed class ScheduleRegistryDisposeTests
         var store = Substitute.For<IScheduleStore>();
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
 
-        // Mirror the tick loop's wait: park on the (empty) command channel before dispose.
         var pendingWait = registry.Commands.WaitToReadAsync().AsTask();
         await Assert.That(pendingWait.IsCompleted).IsFalse();
 
         await registry.DisposeAsync().ConfigureAwait(false);
 
-        // The writer is now completed, so the parked wait completes returning false —
-        // the signal that lets the reader's drain loop end instead of blocking forever.
         var canRead = await pendingWait.ConfigureAwait(false);
         await Assert.That(canRead).IsFalse();
         await Assert.That(registry.Commands.Completion.IsCompletedSuccessfully).IsTrue();
@@ -60,6 +63,10 @@ public sealed class ScheduleRegistryDisposeTests
     /// completing the writer drains the backlog rather than discarding it, and the reader
     /// observes completion only after that backlog is consumed.
     /// </summary>
+    /// <remarks>
+    /// <c>RegisterAsync</c> posted a Register command, and dispose must not drop it. After the test
+    /// consumes the backlog, the reader observes completion and reads nothing more.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DisposeAsync_AfterCommandPosted_DrainsBacklogThenCompletes()
@@ -67,14 +74,12 @@ public sealed class ScheduleRegistryDisposeTests
         var store = Substitute.For<IScheduleStore>();
         var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
 
-        // RegisterAsync posted a Register command; dispose must not drop it.
         await registry.DisposeAsync().ConfigureAwait(false);
 
         var drained = DrainCommands(registry);
         await Assert.That(drained).Contains(
             c => c.Kind == RegistryCommandKind.Register && c.JobName == "daily-report");
 
-        // Backlog consumed: the reader now observes completion (no further read).
         await Assert.That(registry.Commands.TryRead(out _)).IsFalse();
         await Assert.That(registry.Commands.Completion.IsCompletedSuccessfully).IsTrue();
     }
@@ -106,6 +111,11 @@ public sealed class ScheduleRegistryDisposeTests
     /// the disposed object instead of a leaked channel fault — and, critically, no state is
     /// committed before that failure.
     /// </summary>
+    /// <remarks>
+    /// For a registered job, <c>TriggerAsync</c> would post unconditionally. The dispose guard now
+    /// rejects it up front with <see cref="ObjectDisposedException"/>, before it reaches the post
+    /// to the completed writer, which would otherwise throw <see cref="ChannelClosedException"/>.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task PostAfterDispose_FailsFastWithObjectDisposed()
@@ -115,9 +125,6 @@ public sealed class ScheduleRegistryDisposeTests
 
         await registry.DisposeAsync().ConfigureAwait(false);
 
-        // TriggerAsync would post unconditionally for a registered job; the dispose guard
-        // now rejects it up front with ObjectDisposedException, before it reaches the
-        // completed-writer post (which would otherwise throw ChannelClosedException).
         await Assert.That(async () => await registry.TriggerAsync("daily-report").ConfigureAwait(false))
             .Throws<ObjectDisposedException>();
     }
@@ -130,6 +137,10 @@ public sealed class ScheduleRegistryDisposeTests
     /// guards that regression: building a provider with the registry and disposing it via
     /// the synchronous <c>using</c> path must not throw.
     /// </summary>
+    /// <remarks>
+    /// The test resolves the registry so that the container owns a live instance. Then it disposes
+    /// the provider synchronously, which is the path that <c>ServiceProvider.Dispose()</c> takes.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task SynchronousContainerDispose_DoesNotThrow()
@@ -144,8 +155,6 @@ public sealed class ScheduleRegistryDisposeTests
                  .Every(TimeSpan.FromHours(1))
                  .DispatchVia<StubDispatcher>());
 
-            // Resolve the registry so the container owns a live instance, then dispose
-            // the provider synchronously (the path ServiceProvider.Dispose() takes).
             using var sp = services.BuildServiceProvider();
             _ = sp.GetRequiredService<IScheduleRegistry>();
         }).ThrowsNothing();
@@ -160,6 +169,18 @@ public sealed class ScheduleRegistryDisposeTests
     /// <c>ResumeAsync</c>/<c>UnregisterAsync</c>/<c>TriggerAsync</c> (a previously-registered
     /// job) all reject the call rather than committing.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The test clears the <c>SaveAsync</c> call that the setup registration recorded, so the
+    /// no-store assertion covers only the calls made after dispose.
+    /// </para>
+    /// <para>
+    /// <c>RegisterAsync</c> of a new job rejects before it claims the name slot or persists. The
+    /// mutations of the registered job reject before they touch the store. The guard runs before
+    /// any durable mutation, so none of the rejected calls writes through the store (no Save and no
+    /// Delete).
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task MutatingMethods_AfterDispose_Throw()
@@ -169,17 +190,13 @@ public sealed class ScheduleRegistryDisposeTests
 
         await registry.DisposeAsync().ConfigureAwait(false);
 
-        // Forget the SaveAsync the setup registration recorded so the no-store assertion
-        // below scopes only to the calls made AFTER dispose.
         store.ClearReceivedCalls();
 
-        // RegisterAsync of a NEW job rejects before claiming the name slot or persisting.
         await Assert.That(async () => await registry.RegisterAsync(
                 "new-job", new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher())
             .ConfigureAwait(false))
             .Throws<ObjectDisposedException>();
 
-        // Mutations over the already-registered job reject before they touch the store.
         await Assert.That(async () => await registry.PauseAsync("daily-report").ConfigureAwait(false))
             .Throws<ObjectDisposedException>();
         await Assert.That(async () => await registry.ResumeAsync("daily-report").ConfigureAwait(false))
@@ -193,8 +210,6 @@ public sealed class ScheduleRegistryDisposeTests
         await Assert.That(async () => await registry.TriggerAsync("daily-report").ConfigureAwait(false))
             .Throws<ObjectDisposedException>();
 
-        // The guard runs before any durable mutation: the store was never written through
-        // (no Save/Delete) by any of the rejected calls after dispose.
         await store.DidNotReceive().SaveAsync(Arg.Any<JobRecord>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
         await store.DidNotReceive().DeleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
     }

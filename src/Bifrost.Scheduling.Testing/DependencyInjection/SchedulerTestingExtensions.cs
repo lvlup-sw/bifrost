@@ -42,6 +42,15 @@ public static class SchedulerTestingExtensions
     /// safe — it will be constructed lazily — but calling its methods before the
     /// loop is started has no effect.
     /// </para>
+    /// <para>
+    /// The <see cref="TimeProvider"/> replacement mirrors the <c>UseStore&lt;T&gt;</c> pattern:
+    /// <c>RemoveAll</c> clears any prior descriptor (the default <see cref="TimeProvider.System"/> or
+    /// a caller-supplied one), then <c>AddSingleton</c> registers the fake. Because
+    /// <see cref="FakeTimeProvider"/> derives from <see cref="TimeProvider"/>, the concrete type is
+    /// resolvable as both. The harness wraps the tick loop singleton (already in DI from
+    /// <c>AddScheduler</c>) with the fake clock, so tests can advance time and wait for idle without
+    /// real wall-clock delays.
+    /// </para>
     /// </remarks>
     /// <param name="services">The service collection to configure.</param>
     /// <returns>The service collection, for chaining.</returns>
@@ -50,18 +59,10 @@ public static class SchedulerTestingExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Replace any existing TimeProvider registration with FakeTimeProvider.
-        // This mirrors the UseStore<T> pattern: RemoveAll clears any prior
-        // descriptor (the default TimeProvider.System or a caller-supplied one),
-        // then AddSingleton registers the fake. Because FakeTimeProvider derives
-        // from TimeProvider, the concrete type is resolvable as both.
         services.RemoveAll<TimeProvider>();
         services.AddSingleton<FakeTimeProvider>();
         services.AddSingleton<TimeProvider>(static sp => sp.GetRequiredService<FakeTimeProvider>());
 
-        // Register the harness: it wraps the tick loop singleton (already in DI
-        // from AddScheduler) with the fake clock so tests can advance time and
-        // wait for idle without real wall-clock delays.
         services.TryAddSingleton<ISchedulerTestHarness>(static sp =>
             new SchedulerTestHarness(
                 sp.GetRequiredService<ScheduleTickLoop>(),

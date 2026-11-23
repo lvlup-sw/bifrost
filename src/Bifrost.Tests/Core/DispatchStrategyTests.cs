@@ -31,13 +31,16 @@ public class DispatchStrategyTests
     }
 
     /// <summary>
-    /// Verifies that <see cref="DispatchStrategy"/> declares a <c>Priority</c>
-    /// sentinel member, distinct from all other members.
+    /// Verifies that <see cref="DispatchStrategy"/> declares only explicit orderings,
+    /// with no sentinel member.
     /// </summary>
+    /// <remarks>
+    /// <c>PriorityRelaxed</c> must be distinct from <c>Fifo</c> and <c>PriorityExact</c>, and the
+    /// enum must declare exactly these 3 members.
+    /// </remarks>
     [Test]
     public async Task DispatchStrategy_DeclaresOnlyExplicitOrderings()
     {
-        // Priority must exist and be distinct from all concrete strategies.
         var priority = DispatchStrategy.PriorityRelaxed;
         await Assert.That(priority).IsNotEqualTo(DispatchStrategy.Fifo);
         await Assert.That(priority).IsNotEqualTo(DispatchStrategy.PriorityExact);

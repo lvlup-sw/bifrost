@@ -40,6 +40,22 @@ public sealed class PrFixStoreAtomicityTests
     /// Paused commit can never be clobbered. The buggy blind write trips this within a
     /// few iterations; the CAS loop holds on every iteration.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two writers contend on the same key. <c>SaveAsync</c> changes <c>State</c> to Paused, and
+    /// <c>RecordFiredAsync</c> stamps the fire instants and copies <c>State</c> forward. A <see
+    /// cref="Barrier"/> makes the read-modify-write windows of the two writers overlap as much as
+    /// possible.
+    /// </para>
+    /// <para>
+    /// The committed Paused state must never go back to Running through a stale read-modify-write.
+    /// This is the exact discriminator: the state is always Paused under the CAS fix, and
+    /// intermittently Running under the buggy blind write. The test does not assert the fire stamp.
+    /// In a valid serialization where <c>RecordFiredAsync</c> lands before <c>SaveAsync</c>, the
+    /// blind upsert of <c>SaveAsync</c> clears the fire fields, so the fire stamp is not a
+    /// discriminator.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task RecordFired_RacingWithSave_DoesNotClobberConcurrentStateUpdate()
@@ -52,10 +68,6 @@ public sealed class PrFixStoreAtomicityTests
             await store.SaveAsync(MakeJob("daily-report", JobState.Running), CancellationToken.None)
                 .ConfigureAwait(false);
 
-            // Two writers contend on the same key:
-            //  - SaveAsync flips State -> Paused,
-            //  - RecordFiredAsync stamps the fire instants (copying State forward).
-            // A barrier maximizes overlap of the read-modify-write window.
             using var barrier = new Barrier(2);
 
             var pause = Task.Run(async () =>
@@ -81,12 +93,6 @@ public sealed class PrFixStoreAtomicityTests
             var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
             var final = jobs.Single();
 
-            // The committed Paused state must never be silently clobbered back to
-            // Running by a stale read-modify-write. This is the exact discriminator:
-            // ALWAYS Paused under the CAS fix; INTERMITTENTLY Running under the buggy
-            // blind write. (The fire stamp is NOT asserted: a valid serialization where
-            // RecordFiredAsync lands before SaveAsync legitimately leaves the fire
-            // fields cleared by SaveAsync's blind upsert, so it is not a discriminator.)
             await Assert.That(final.State).IsEqualTo(JobState.Paused);
         }
     }

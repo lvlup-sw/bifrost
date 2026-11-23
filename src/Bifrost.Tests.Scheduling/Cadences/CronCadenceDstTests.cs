@@ -26,28 +26,28 @@ public sealed class CronCadenceDstTests
     /// around the transition — successive occurrences advance by a day, never
     /// repeating the skipped instant.
     /// </summary>
+    /// <remarks>
+    /// The expression <c>30 2 * * *</c> fires at 02:30 local every day, and local 02:30 does not
+    /// exist on 2026-03-08. The test starts at 2026-03-07 12:00 UTC, before the transition day. The
+    /// <c>second</c> fire must be strictly later than the <c>first</c>, so the skipped 2026-03-08
+    /// 02:30 instant does not occur a second time. Then the test walks five occurrences and
+    /// requires strict monotonicity, with no duplicate around the transition window.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task SpringForward_SkippedHour_DoesNotDuplicateFire()
     {
-        // 02:30 daily — local 02:30 does not exist on 2026-03-08.
         var cadence = new CronCadence("30 2 * * *", NewYork);
 
-        // Start just before the spring-forward day's transition.
         var start = new DateTimeOffset(2026, 3, 7, 12, 0, 0, TimeSpan.Zero);
 
         var first = cadence.ComputeNextFire(lastFiredAt: null, now: start);
         await Assert.That(first).IsNotNull();
 
-        // The fire immediately after the first must be strictly later (no repeat of
-        // the same instant) and at least roughly a day on — the skipped 03-08 02:30
-        // is not emitted a second time.
         var second = cadence.ComputeNextFire(lastFiredAt: first, now: first!.Value);
         await Assert.That(second).IsNotNull();
         await Assert.That(second!.Value).IsGreaterThan(first.Value);
 
-        // Walk several occurrences and assert strict monotonicity with no duplicate
-        // around the transition window.
         var cursor = first.Value;
         DateTimeOffset? previous = null;
         for (var i = 0; i < 5; i++)
@@ -69,28 +69,29 @@ public sealed class CronCadenceDstTests
     /// 01:30 local would map to a repeated wall-clock instant. Cronos must emit a
     /// single occurrence for the day, not one per repeated hour.
     /// </summary>
+    /// <remarks>
+    /// The expression <c>30 1 * * *</c> fires at 01:30 local every day, and local 01:30 occurs two
+    /// times on 2026-11-01. The test starts on 2026-10-31, the day before fall-back. The next
+    /// occurrence after <c>transitionDayFire</c> must be on the following calendar day, more than
+    /// 20 hours later. This proves that the repeated 01:30 instant does not fire a second time
+    /// inside the repeated hour.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task FallBack_RepeatedHour_DoesNotDoubleFire()
     {
-        // 01:30 daily — local 01:30 occurs twice on 2026-11-01.
         var cadence = new CronCadence("30 1 * * *", NewYork);
 
-        // Start the day before fall-back.
         var start = new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero);
 
         var transitionDayFire = cadence.ComputeNextFire(lastFiredAt: null, now: start);
         await Assert.That(transitionDayFire).IsNotNull();
 
-        // The very next occurrence after the transition-day fire must advance to the
-        // following day — the repeated 01:30 instant is not emitted a second time.
         var afterTransition = cadence.ComputeNextFire(
             lastFiredAt: transitionDayFire,
             now: transitionDayFire!.Value);
         await Assert.That(afterTransition).IsNotNull();
 
-        // Strictly later, and at least ~20 hours on (i.e. the next calendar day),
-        // proving no second fire inside the repeated hour.
         await Assert.That(afterTransition!.Value).IsGreaterThan(transitionDayFire.Value);
         await Assert.That(afterTransition.Value - transitionDayFire.Value)
             .IsGreaterThan(TimeSpan.FromHours(20));
@@ -100,13 +101,16 @@ public sealed class CronCadenceDstTests
     /// Sanity check on the transition window itself: an hourly job during the
     /// fall-back repeated hour emits strictly increasing, non-duplicated instants.
     /// </summary>
+    /// <remarks>
+    /// The test starts at 05:30 UTC on 2026-11-01, just before the 02:00 EDT fall-back. After each
+    /// occurrence, the loop moves <c>cursor</c> one second past it to request the following one.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task FallBack_HourlyJob_EmitsStrictlyIncreasingInstants()
     {
         var cadence = new CronCadence("0 * * * *", NewYork);
 
-        // Just before the 02:00 EDT fall-back on 2026-11-01 (05:30 UTC).
         var cursor = new DateTimeOffset(2026, 11, 1, 5, 30, 0, TimeSpan.Zero);
 
         DateTimeOffset? previous = null;
@@ -120,7 +124,6 @@ public sealed class CronCadenceDstTests
             }
 
             previous = next;
-            // Advance one second past this occurrence to request the following one.
             cursor = next!.Value + TimeSpan.FromSeconds(1);
         }
     }

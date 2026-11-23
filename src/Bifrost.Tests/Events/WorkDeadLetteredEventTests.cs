@@ -22,13 +22,10 @@ public class WorkDeadLetteredEventTests
     [Test]
     public async Task WorkDeadLetteredEvent_IsSealedRecordClass()
     {
-        // Arrange
         var type = typeof(WorkDeadLetteredEvent<>);
 
-        // Assert - check it's a reference type (class), not a value type (struct)
         await Assert.That(type.IsValueType).IsFalse();
 
-        // Check it's a record (has IEquatable<T>)
         var interfaces = type.GetInterfaces();
         await Assert.That(interfaces.Any(i =>
             i.IsGenericType
@@ -41,10 +38,8 @@ public class WorkDeadLetteredEventTests
     [Test]
     public async Task WorkDeadLetteredEvent_HasCorrectProperties()
     {
-        // Arrange
         var type = typeof(WorkDeadLetteredEvent<>);
 
-        // Assert
         var workProperty = type.GetProperty("Work");
         var exceptionProperty = type.GetProperty("Exception");
         var attemptCountProperty = type.GetProperty("AttemptCount");
@@ -69,10 +64,8 @@ public class WorkDeadLetteredEventTests
     [Test]
     public async Task WorkDeadLetteredEvent_ImplementsIOrchestratorEvent()
     {
-        // Arrange
         var type = typeof(WorkDeadLetteredEvent<>);
 
-        // Assert
         await Assert.That(typeof(IOrchestratorEvent).IsAssignableFrom(type)).IsTrue();
     }
 
@@ -82,10 +75,8 @@ public class WorkDeadLetteredEventTests
     [Test]
     public async Task WorkDeadLetteredEvent_ImplementsICorrelatedEvent()
     {
-        // Arrange
         var type = typeof(WorkDeadLetteredEvent<>);
 
-        // Assert
         await Assert.That(typeof(ICorrelatedEvent).IsAssignableFrom(type)).IsTrue();
     }
 
@@ -95,17 +86,14 @@ public class WorkDeadLetteredEventTests
     [Test]
     public async Task Constructor_SetsPropertiesCorrectly()
     {
-        // Arrange
         var work = "test-work";
         var exception = new InvalidOperationException("test");
         var attemptCount = 3;
         var timestamp = DateTimeOffset.UtcNow;
         var correlationId = "corr-123";
 
-        // Act
         var evt = new WorkDeadLetteredEvent<string>(work, exception, attemptCount, timestamp, correlationId);
 
-        // Assert
         await Assert.That(evt.Work).IsEqualTo(work);
         await Assert.That(evt.Exception).IsEqualTo(exception);
         await Assert.That(evt.AttemptCount).IsEqualTo(attemptCount);
@@ -119,10 +107,8 @@ public class WorkDeadLetteredEventTests
     [Test]
     public async Task Type_IsPublic()
     {
-        // Arrange
         var type = typeof(WorkDeadLetteredEvent<>);
 
-        // Assert
         await Assert.That(type.IsPublic).IsTrue();
     }
 }

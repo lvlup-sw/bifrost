@@ -108,10 +108,14 @@ public class DecoratorOverheadBenchmarks
     /// <summary>
     /// Disposes orchestrator instances after each iteration.
     /// </summary>
+    /// <remarks>
+    /// VSTHRD002 is suppressed for the blocking wait: BenchmarkDotNet requires that
+    /// <c>IterationCleanup</c> is synchronous.
+    /// </remarks>
     [IterationCleanup]
     public void IterationCleanup()
     {
-#pragma warning disable VSTHRD002 // BenchmarkDotNet IterationCleanup must be synchronous
+#pragma warning disable VSTHRD002
         _fullStack?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _withEventStream?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _withAutoscaling?.DisposeAsync().AsTask().GetAwaiter().GetResult();

@@ -25,6 +25,11 @@ internal static class TestThreadPoolInitializer
     /// <summary>
     /// Sets the minimum worker/IO thread counts to a generous multiple of the core count.
     /// </summary>
+    /// <remarks>
+    /// If <c>SetMinThreads</c> fails, the method throws. A failed thread-pool floor must not pass
+    /// silently, because the tests rely on this minimum to avoid injection stalls under
+    /// <c>--coverage</c> on few-core runners.
+    /// </remarks>
     [ModuleInitializer]
     internal static void RaiseThreadPoolFloor()
     {
@@ -32,8 +37,6 @@ internal static class TestThreadPoolInitializer
         int target = Math.Max(workerThreads, Environment.ProcessorCount * 8);
         if (!ThreadPool.SetMinThreads(target, Math.Max(completionPortThreads, target)))
         {
-            // A failed thread-pool floor must not pass silently: the tests rely on this
-            // minimum to avoid injection stalls under --coverage on few-core runners.
             throw new InvalidOperationException(
                 $"Failed to raise the thread-pool floor to {target} worker/IO threads.");
         }

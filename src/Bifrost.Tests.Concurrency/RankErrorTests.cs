@@ -74,6 +74,13 @@ public class RankErrorTests
     /// sit within 2× the <c>(5/6)·n·s</c> theoretical mean and its P99 within <c>10·n·s</c>, at
     /// every pinned <c>(n, s)</c> combination.
     /// </summary>
+    /// <remarks>
+    /// The test drains the full population and records the true rank of every pop. Then it asserts that
+    /// the empirical mean and P99 sit within the generous multiples of the <c>(5/6)·n·s</c> theoretical
+    /// mean. Both bounds are <c>s</c>-aware. For an inverted (max-heap) build, every pop is near the top of
+    /// the remaining population, so the mean lands near N/2 ≈ 5000. That is orders of magnitude above
+    /// either bound at every <c>(n, s)</c>.
+    /// </remarks>
     /// <param name="subQueueCount">The exact sub-queue count to pin.</param>
     /// <param name="stickiness">The stickiness factor <c>s</c> to pin.</param>
     [Test]
@@ -82,17 +89,13 @@ public class RankErrorTests
     [Arguments(16, 4)]
     public async Task TryDequeue_SingleThreadDrain_EmpiricalMeanRankWithinTheoreticalBound(int subQueueCount, int stickiness)
     {
-        // Drain the full population recording every pop's true rank, then assert the empirical mean
-        // and P99 sit within the generous multiples of the (5/6)·n·s theoretical mean. For an inverted
-        // (max-heap) build every pop is near the top of the remaining population, so the mean lands
-        // near N/2 ≈ 5000 — orders of magnitude above either bound at every (n, s).
         int[] ranks = DrainAndMeasureRanks(subQueueCount, stickiness);
 
         double meanRank = ranks.Average();
         int p99Rank = Percentile(ranks, 0.99);
 
-        double meanBound = 2.0 * TheoreticalMeanRank(subQueueCount, stickiness);   // ×s-aware
-        double p99Bound = 10.0 * subQueueCount * stickiness;                       // ×s-aware
+        double meanBound = 2.0 * TheoreticalMeanRank(subQueueCount, stickiness);
+        double p99Bound = 10.0 * subQueueCount * stickiness;
 
         await Assert.That(ranks.Length).IsEqualTo(Population).Because(
             "the drain must record exactly one rank per element in the population");
@@ -110,13 +113,15 @@ public class RankErrorTests
     /// <c>s=4</c> must strictly exceed that under <c>s=1</c>, so a dequeue that silently ignored
     /// <c>s</c> would be caught.
     /// </summary>
+    /// <remarks>
+    /// The gate must be SENSITIVE to stickiness, because looseness grows with <c>s</c> (the linear-in-<c>s</c>
+    /// relaxation). This proves that stickiness genuinely trades quality for throughput and does not
+    /// silently do nothing. It also proves that the gate would catch a build where the dequeue ignored
+    /// <c>s</c>.
+    /// </remarks>
     [Test]
     public async Task TryDequeue_StickinessIncreasesMeanRank_Monotonic()
     {
-        // The gate must be SENSITIVE to stickiness: looseness grows with s. At a fixed sub-queue count
-        // the empirical mean rank under s=4 must exceed that under s=1 (the linear-in-s relaxation),
-        // proving stickiness genuinely trades quality for throughput rather than silently doing nothing
-        // — and that the gate would catch a build where the dequeue ignored s.
         const int subQueueCount = 16;
 
         double meanS1 = DrainAndMeasureRanks(subQueueCount, stickiness: 1).Average();
@@ -131,21 +136,27 @@ public class RankErrorTests
     /// pops may land in the top decile of the remaining population — an inverted (max-heap) build
     /// puts essentially every pop there.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For a correct two-choice min-heap, a pop near the TOP of the remaining population is vanishingly
+    /// rare, even at <c>s=8</c> (mean ≈ (5/6)·16·8 ≈ 107 ≪ N/2). For the v1-style inversion, EVERY pop is
+    /// at or near the maximum, so this fraction would be about 100%. The test requires less than 1% at
+    /// every <c>s</c>.
+    /// </para>
+    /// <para>
+    /// At the i-th pop (0-based), the remaining population, including the element being popped, is
+    /// <c>Population − i</c>. A rank in the top decile means rank ≥ 0.9 × that remaining count.
+    /// </para>
+    /// </remarks>
     /// <param name="stickiness">The stickiness factor <c>s</c> to pin.</param>
     [Test]
     [Arguments(1)]
     [Arguments(8)]
     public async Task TryDequeue_RankDistribution_NotPointMassedAtMaximum(int stickiness)
     {
-        // The explicit anti-F-7 inversion alarm, verified to still fire across stickiness levels. For a
-        // correct two-choice min-heap, popping near the TOP of the remaining population is vanishingly
-        // rare even at s=8 (mean ≈ (5/6)·16·8 ≈ 107 ≪ N/2); for the v1-style inversion EVERY pop is at
-        // (or near) the maximum, so this fraction would be ~100%. We require < 1% at every s.
         const int subQueueCount = 16;
         int[] ranks = DrainAndMeasureRanks(subQueueCount, stickiness);
 
-        // At the i-th pop (0-based) the remaining population — including the element being popped —
-        // is Population − i. A rank in the top decile means rank ≥ 0.9 × that remaining count.
         long topDecilePops = 0;
         for (int i = 0; i < ranks.Length; i++)
         {
@@ -168,18 +179,23 @@ public class RankErrorTests
     /// and decay strictly across the first four <c>n</c>-wide buckets — an inverted build puts
     /// essentially no mass in those low buckets at all.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is a generous shape check. The test puts the ranks into the buckets [0,n) [n,2n) [2n,3n)
+    /// [3n,4n), and the counts must decrease strictly across these four buckets. An inverted build puts
+    /// essentially no mass in these low buckets (every rank is near N/2), so the monotone-decay relation
+    /// collapses.
+    /// </para>
+    /// <para>
+    /// The test is pinned at <c>s = 1</c> on purpose. A sticky pair drains <c>s</c> ranks in a row and
+    /// lumps the low-rank mass, so the clean monotone-decay shape is asserted only for the default path.
+    /// Coverage for <c>s &gt; 1</c> comes from the <c>s</c>-aware mean/P99 bounds, the monotonicity test,
+    /// and the anti-F-7 alarm (parameterized up to <c>s = 8</c>).
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task TryDequeue_RankDistribution_DecaysGeometrically()
     {
-        // A generous shape check: two-choice rank mass concentrates near 0 and decays. Bucketing
-        // ranks into [0,n) [n,2n) [2n,3n) [3n,4n), the counts must be strictly decreasing across the
-        // first four buckets. An inverted build puts essentially no mass in these low buckets at all
-        // (every rank is near N/2), so the monotone-decay relation collapses.
-        //
-        // Deliberately pinned at s = 1: a sticky pair drains s ranks in a row, lumping the low-rank
-        // mass, so the clean monotone-decay shape is only asserted for the default path. Coverage
-        // for s > 1 comes from the s-aware mean/P99 bounds, the monotonicity test, and the anti-F-7
-        // alarm (parameterized up to s = 8) above.
         const int subQueueCount = 16;
         int[] ranks = DrainAndMeasureRanks(subQueueCount, stickiness: 1);
 
@@ -209,19 +225,22 @@ public class RankErrorTests
     /// recording each pop's true rank through a Fenwick tree over priority presence (O(log N) per
     /// pop). Returns the rank sequence in pop order.
     /// </summary>
+    /// <remarks>
+    /// The deterministic shuffle gives the relaxation a realistic (not pre-sorted) scatter across
+    /// sub-queues and keeps the drain reproducible. The BIT covers priorities 1..Population (1-based
+    /// internally), and every priority starts present. Element equals priority by construction. The true
+    /// rank of a pop is the number of still-present priorities strictly smaller than <c>priority</c>. After
+    /// each pop, <c>presence.Add(priority, -1)</c> removes the priority from the presence set, so later
+    /// ranks reflect the shrinking pool.
+    /// </remarks>
     /// <param name="subQueueCount">The exact sub-queue count to pin via the internal constructor.</param>
     /// <param name="stickiness">The stickiness factor <c>s</c> to pin via the internal constructor.</param>
     /// <returns>The true rank of every popped element, in the order popped.</returns>
     private static int[] DrainAndMeasureRanks(int subQueueCount, int stickiness)
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount, boundedCapacity: -1, comparer: null, stickiness: stickiness);
-
-        // Distinct priorities 0..N-1, shuffled deterministically so the relaxation sees a realistic
-        // (not pre-sorted) scatter across sub-queues while staying reproducible.
         int[] priorities = Enumerable.Range(0, Population).ToArray();
         Shuffle(priorities, ShuffleSeed);
-
-        // The BIT covers priorities 1..Population (1-based internally); every priority starts present.
         var presence = new BinaryIndexedTree(Population);
         foreach (int p in priorities)
         {
@@ -234,17 +253,13 @@ public class RankErrorTests
 
         while (queue.TryDequeue(out int element, out int priority))
         {
-            // element == priority by construction.
             if (element != priority)
             {
                 throw new InvalidOperationException(
                     $"element ({element}) and priority ({priority}) diverged — the drain invariant is broken.");
             }
 
-            // True rank = number of still-present priorities strictly smaller than `priority`.
             ranks[popCount++] = presence.PrefixSum(priority - 1);
-
-            // Remove this priority from the presence set so later ranks reflect the shrinking pool.
             presence.Add(priority, -1);
         }
 
@@ -274,6 +289,9 @@ public class RankErrorTests
     /// Returns the value at the given percentile of <paramref name="values"/> (nearest-rank, on a
     /// sorted copy). Used for the P99 bound; never mutates the caller's array.
     /// </summary>
+    /// <remarks>
+    /// The nearest-rank index is <c>ceil(p × N) − 1</c>, clamped into range.
+    /// </remarks>
     /// <param name="values">The rank samples.</param>
     /// <param name="percentile">The percentile in <c>[0, 1]</c>.</param>
     /// <returns>The value at that percentile.</returns>
@@ -281,8 +299,6 @@ public class RankErrorTests
     {
         int[] sorted = (int[])values.Clone();
         Array.Sort(sorted);
-
-        // Nearest-rank: index = ceil(p × N) − 1, clamped into range.
         int index = (int)Math.Ceiling(percentile * sorted.Length) - 1;
         index = Math.Clamp(index, 0, sorted.Length - 1);
         return sorted[index];
@@ -304,10 +320,12 @@ public class RankErrorTests
         /// Initializes a new instance of the <see cref="BinaryIndexedTree"/> class covering
         /// priorities <c>0..maxValue−1</c>.
         /// </summary>
+        /// <remarks>
+        /// Slots 1..maxValue map priorities 0..maxValue−1 (priority <c>p</c> maps to slot <c>p + 1</c>).
+        /// </remarks>
         /// <param name="maxValue">The exclusive upper bound on priority values (the population size).</param>
         internal BinaryIndexedTree(int maxValue)
         {
-            // Slots 1..maxValue map priorities 0..maxValue-1 (priority p -> slot p+1).
             this.length = maxValue;
             this.tree = new int[maxValue + 1];
         }

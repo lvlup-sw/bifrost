@@ -123,6 +123,9 @@ public sealed class OrchestratorJobDispatcherTests
     /// admission — leaves the job's next occurrence unaffected (the dispatcher
     /// completes normally so the tick loop schedules the next fire as usual).
     /// </summary>
+    /// <remarks>
+    /// A rejected admission is not an exception, so <c>DispatchAsync</c> must complete normally.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DispatchAsync_EnqueueRejected_PublishesJobFireFailedEvent_DoesNotThrow_NextOccurrenceUnaffected()
@@ -139,7 +142,6 @@ public sealed class OrchestratorJobDispatcherTests
             WorkClass.Batch,
             sink:sink);
 
-        // Must complete normally — a rejected admission is not an exception.
         await dispatcher.DispatchAsync(Context("watermarked"), CancellationToken.None).ConfigureAwait(false);
 
         await Assert.That(sink.Any<JobFireFailedEvent>()).IsTrue();
@@ -154,6 +156,9 @@ public sealed class OrchestratorJobDispatcherTests
     /// Verifies an exception thrown by the fire function propagates out of
     /// <see cref="OrchestratorJobDispatcher{TWork}.DispatchAsync"/>.
     /// </summary>
+    /// <remarks>
+    /// The fire never reached admission, so the orchestrator must not receive <c>EnqueueAsync</c>.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DispatchAsync_FireFuncThrows_BubblesException()
@@ -172,7 +177,6 @@ public sealed class OrchestratorJobDispatcherTests
 
         await Assert.That(thrown).IsSameReferenceAs(boom);
 
-        // The fire never reached admission.
         _ = orchestrator.DidNotReceive().EnqueueAsync(
             Arg.Any<Payload>(), Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>());
     }
@@ -183,6 +187,9 @@ public sealed class OrchestratorJobDispatcherTests
     /// <see cref="OperationCanceledException"/>, it is not swallowed — unlike an
     /// admission rejection, which does not throw.
     /// </summary>
+    /// <remarks>
+    /// A cancelled enqueue is not a failed fire, so the dispatcher publishes no event.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DispatchAsync_EnqueueThrowsOperationCanceled_Bubbles()
@@ -202,7 +209,6 @@ public sealed class OrchestratorJobDispatcherTests
         await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false));
 
-        // A cancelled enqueue is not a failed fire — no event is published.
         await Assert.That(sink.Any<JobFireFailedEvent>()).IsFalse();
     }
 
@@ -256,8 +262,6 @@ public sealed class OrchestratorJobDispatcherTests
 
         var sinkParameter = ctor.GetParameters().Single(p => p.Name == "sink");
 
-        // A required dependency must not carry a compiler-supplied default, so an
-        // omitted sink fails to compile rather than throwing at runtime.
         await Assert.That(sinkParameter.HasDefaultValue).IsFalse();
         await Assert.That(sinkParameter.IsOptional).IsFalse();
         await Assert.That(sinkParameter.ParameterType).IsEqualTo(typeof(ISchedulerEventSink));

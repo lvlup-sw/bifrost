@@ -54,6 +54,9 @@ public sealed class SchedulerTestHarnessTests
     /// Verifies that when multiple jobs are registered, advancing the clock past all
     /// their intervals fires each one the correct number of times.
     /// </summary>
+    /// <remarks>
+    /// The advance passes both jobs, so each must fire exactly once.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task AdvanceAsync_MultipleJobs_AllFireInOrder()
@@ -64,7 +67,6 @@ public sealed class SchedulerTestHarnessTests
         var lateDispatcher = await fx.RegisterAsync("late", Cadence.At(Start.AddMinutes(8)))
             .ConfigureAwait(false);
 
-        // Advance past both: both should fire exactly once.
         await fx.Harness.AdvanceAsync(TimeSpan.FromMinutes(10)).ConfigureAwait(false);
 
         await Assert.That(earlyDispatcher.FireCount).IsEqualTo(1);
@@ -78,12 +80,15 @@ public sealed class SchedulerTestHarnessTests
     /// in-flight dispatches to complete before returning, so the caller can safely
     /// assert on dispatch outcomes immediately after it returns.
     /// </summary>
+    /// <remarks>
+    /// The dispatcher takes some time to complete (simulated asynchronous work of 20 ms). The fire
+    /// count must be 1 after <c>AdvanceAsync</c> returns, because <c>AdvanceAsync</c> waited for
+    /// the dispatch.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task AdvanceAsync_WaitsForInFlightDispatches_BeforeReturn()
     {
-        // Use a dispatcher that takes some time to complete (simulated async work),
-        // then verify the fire count is observed after AdvanceAsync returns.
         var delayed = new DelayedDispatcher(delay: TimeSpan.FromMilliseconds(20));
         await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
         await fx.RegisterAsync("slow", Cadence.Interval(TimeSpan.FromMinutes(5)), delayed)
@@ -91,7 +96,6 @@ public sealed class SchedulerTestHarnessTests
 
         await fx.Harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
 
-        // The dispatch must be complete (fire count = 1) because AdvanceAsync waited.
         await Assert.That(delayed.FireCount).IsEqualTo(1);
     }
 
@@ -100,22 +104,23 @@ public sealed class SchedulerTestHarnessTests
     /// jobs whose scheduled time is at or before the current fake-clock instant, and
     /// leaves future jobs unfired.
     /// </summary>
+    /// <remarks>
+    /// The test registers one job due at Start (the current fake-clock instant) and one job due at
+    /// T+10m, and does not advance time. Only the job due at Start fires. The future job is not yet
+    /// due and does not fire.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task FireDueJobsAsync_OnlyFiresDueJobs_NotFutureJobs()
     {
         await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
 
-        // Register a job due at T+5m and one at T+10m; do not advance time.
         var nowJob = await fx.RegisterAsync("now", Cadence.At(Start)).ConfigureAwait(false);
         var futureJob = await fx.RegisterAsync("future", Cadence.At(Start.AddMinutes(10)))
             .ConfigureAwait(false);
 
-        // The "now" job is due at Start (the current fake-clock instant).
-        // The "future" job is not yet due.
         await fx.Harness.FireDueJobsAsync().ConfigureAwait(false);
 
-        // Only the job due at Start fires; the future job does not.
         await Assert.That(nowJob.FireCount).IsEqualTo(1);
         await Assert.That(futureJob.FireCount).IsEqualTo(0);
     }
@@ -126,30 +131,37 @@ public sealed class SchedulerTestHarnessTests
     /// timeout. This is exercised by providing a near-zero timeout while a long-running
     /// dispatch is in flight.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A semaphore blocks the dispatcher until the test releases it. The job is due at T+1ms, so it
+    /// fires after a tiny advance, and then the dispatcher blocks on the semaphore. The test waits
+    /// until the dispatcher has actually started (in flight). With a timeout of 1 tick, the loop
+    /// cannot go idle while the dispatcher blocks.
+    /// </para>
+    /// <para>
+    /// The <c>finally</c> block always releases the gate, so the loop can drain and
+    /// <c>DisposeAsync</c> succeeds.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task WaitForIdleAsync_Timeout_Throws()
     {
-        // A semaphore blocks the dispatcher until we choose to release it.
         var gate = new SemaphoreSlim(0, 1);
         var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var blocking = new GatedDispatcher(gate, dispatchStarted);
         await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
 
-        // Register the job at T+1ms so it fires immediately after a tiny advance.
         await fx.RegisterAsync("block", Cadence.At(Start.AddMilliseconds(1)), blocking)
             .ConfigureAwait(false);
 
-        // Advance so the job becomes due; the dispatcher will block on the semaphore.
         fx.Time.Advance(TimeSpan.FromMilliseconds(1));
 
-        // Wait until the dispatcher has actually started (in-flight).
         await dispatchStarted.Task.WaitAsync(TestTimeout).ConfigureAwait(false);
 
         try
         {
-            // With a 1-tick timeout the loop cannot go idle while the dispatcher blocks.
             await Assert.That(
                 async () => await fx.Harness.WaitForIdleAsync(TimeSpan.FromTicks(1)).ConfigureAwait(false))
                 .ThrowsException()
@@ -157,7 +169,6 @@ public sealed class SchedulerTestHarnessTests
         }
         finally
         {
-            // Always release the gate so the loop can drain and DisposeAsync succeeds.
             gate.Release();
         }
     }
@@ -166,15 +177,16 @@ public sealed class SchedulerTestHarnessTests
     /// Verifies that <see cref="ISchedulerTestHarness.WaitForIdleAsync"/> returns
     /// promptly when the tick loop is already idle.
     /// </summary>
+    /// <remarks>
+    /// No job is registered, so the loop is idle immediately. The wait must complete well within
+    /// the generous timeout, and the test shows this by asserting that it does not throw.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task WaitForIdleAsync_TickLoopIdle_ReturnsImmediately()
     {
         await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
-        // No jobs registered; the loop is idle immediately.
 
-        // Should complete well within the generous timeout.
-        // Verify it completes by asserting it does not throw.
         var completed = false;
         await fx.Harness.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
         completed = true;
@@ -213,17 +225,21 @@ public sealed class SchedulerTestHarnessTests
     /// complete their dispatch before <see cref="ISchedulerTestHarness.AdvanceAsync"/>
     /// returns.
     /// </summary>
+    /// <remarks>
+    /// Mode 1 (<c>job-a</c>) is a direct <see cref="IJobDispatcher"/>, the "orchestrator" or custom
+    /// mode. Mode 2 (<c>job-b</c>) is an <see cref="InlineJobDispatcher"/> that wraps a delegate.
+    /// Mode 3 (<c>job-c</c>) is another direct <see cref="IJobDispatcher"/>, with an interval
+    /// cadence.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Harness_AllDispatchModes_Deterministic()
     {
         await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
 
-        // Mode 1: direct IJobDispatcher (the "orchestrator" / custom mode)
         var countingA = await fx.RegisterAsync("job-a", Cadence.At(Start.AddMinutes(5)))
             .ConfigureAwait(false);
 
-        // Mode 2: InlineJobDispatcher wrapping a delegate
         var inlineFireCount = 0;
         var inlineB = new InlineJobDispatcher((ctx, ct) =>
         {
@@ -233,7 +249,6 @@ public sealed class SchedulerTestHarnessTests
         await fx.RegisterAsync("job-b", Cadence.At(Start.AddMinutes(5)), inlineB)
             .ConfigureAwait(false);
 
-        // Mode 3: another direct IJobDispatcher (interval-based)
         var countingC = await fx.RegisterAsync("job-c", Cadence.Interval(TimeSpan.FromMinutes(5)))
             .ConfigureAwait(false);
 
@@ -377,11 +392,11 @@ public sealed class SchedulerTestHarnessTests
         SemaphoreSlim gate,
         TaskCompletionSource started) : IJobDispatcher
     {
+        // Blocks on the gate without a cancellation token (CancellationToken.None), so the harness
+        // cannot release the dispatcher by accident through cancellation.
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
             started.TrySetResult();
-            // Block on real wall-clock (CancellationToken.None) so the harness does not
-            // accidentally release us via cancellation.
             await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         }
     }

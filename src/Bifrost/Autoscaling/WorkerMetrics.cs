@@ -27,11 +27,13 @@ public sealed class WorkerMetrics : IWorkerMetrics
     public long InFlightCount => Interlocked.Read(ref _inFlightCount);
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// This method does nothing. Enqueue tracking is only a signal for the autoscaling decorator.
+    /// <see cref="AutoscalingCoordinator{TWork}.GetUtilizationRatio"/> computes the utilization, and it reads
+    /// the actual <c>PendingCount</c> directly.
+    /// </remarks>
     public void RecordEnqueue()
     {
-        // Enqueue tracking is a signal for the autoscaling decorator.
-        // Utilization is computed by AutoscalingCoordinator.GetUtilizationRatio()
-        // which reads the channel's actual PendingCount directly.
     }
 
     /// <inheritdoc/>

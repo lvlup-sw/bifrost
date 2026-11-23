@@ -40,14 +40,16 @@ public sealed class GracefulShutdownTests
     /// <summary>
     /// Verifies <c>StopAsync</c> completes promptly when nothing is in flight.
     /// </summary>
+    /// <remarks>
+    /// The wait is bounded: <c>StopAsync</c> must return well inside the timeout when nothing is in
+    /// flight. The assertion is that the wait does not throw a <see cref="TimeoutException"/>.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task NoInFlight_StopCompletesPromptly()
     {
         var fx = await Fixture.StartAsync().ConfigureAwait(false);
 
-        // A bounded wait: StopAsync must return well inside the timeout when nothing
-        // is in flight (the assertion is that this does not throw a TimeoutException).
         var stop = ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
         await Assert.That(async () => await stop.WaitAsync(TestTimeout).ConfigureAwait(false))
             .ThrowsNothing();
@@ -58,6 +60,11 @@ public sealed class GracefulShutdownTests
     /// Verifies <c>StopAsync</c> waits for an in-flight dispatch that completes within
     /// the shutdown window.
     /// </summary>
+    /// <remarks>
+    /// The test makes the job due and lets the loop hand the blocking dispatch to the pool. When
+    /// the test releases the dispatch, the in-flight fire completes, and then <c>StopAsync</c>
+    /// returns.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task InFlightCompletesWithinWindow_StopWaitsForIt()
@@ -66,14 +73,12 @@ public sealed class GracefulShutdownTests
         var fx = await Fixture.StartAsync().ConfigureAwait(false);
         await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher).ConfigureAwait(false);
 
-        // Make the job due and let the loop hand the (blocking) dispatch to the pool.
         fx.Time.Advance(TimeSpan.FromMinutes(1));
         await dispatcher.WaitUntilEnteredAsync(TestTimeout).ConfigureAwait(false);
 
         var stop = ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
         await Assert.That(stop.IsCompleted).IsFalse();
 
-        // Releasing the dispatch lets the in-flight fire complete; StopAsync then returns.
         dispatcher.Release();
         await stop.ConfigureAwait(false);
         await Assert.That(dispatcher.Completed).IsTrue();
@@ -84,6 +89,11 @@ public sealed class GracefulShutdownTests
     /// Verifies a dispatch exceeding the shutdown window is abandoned and
     /// <c>StopAsync</c> returns after the timeout.
     /// </summary>
+    /// <remarks>
+    /// The test stops the loop while the dispatch is still blocked. Advancing past the shutdown
+    /// timeout (5 s) makes <c>StopAsync</c> abandon the in-flight dispatch and return. The dispatch
+    /// never completed, because the loop abandoned it.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task InFlightExceedsTimeout_StopReturnsAfterTimeout()
@@ -96,15 +106,12 @@ public sealed class GracefulShutdownTests
         fx.Time.Advance(TimeSpan.FromMinutes(1));
         await dispatcher.WaitUntilEnteredAsync(TestTimeout).ConfigureAwait(false);
 
-        // Stop while the dispatch is still blocked. Advancing past the shutdown timeout
-        // makes StopAsync abandon the in-flight dispatch and return.
         var stop = ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
         await Assert.That(stop.IsCompleted).IsFalse();
 
         fx.Time.Advance(TimeSpan.FromSeconds(5));
         await stop.ConfigureAwait(false);
 
-        // The dispatch never completed: it was abandoned.
         await Assert.That(dispatcher.Completed).IsFalse();
         dispatcher.Release();
         fx.Loop.Dispose();

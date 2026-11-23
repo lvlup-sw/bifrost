@@ -53,7 +53,10 @@ public static class BifrostHttpResilienceExtensions
     /// including a blanket default inherited from <c>ConfigureHttpClientDefaults</c> — so a per-client
     /// override never double-stacks a second pipeline. <c>RemoveAllResilienceHandlers</c> is the platform's
     /// documented override primitive; its <c>[Experimental]</c> (EXTEXP0001) surface is confined to this
-    /// method so consumers never write it themselves.
+    /// method so consumers never write it themselves. The options bind from configuration, so the
+    /// policies are config-driven by default. When the section is absent, every policy uses the
+    /// <see cref="BifrostHttpResiliencePolicy"/> defaults. Repeated calls (per client) register the
+    /// same binding again without harm.
     /// </remarks>
     public static IHttpClientBuilder AddBifrostResilienceHandler(
         this IHttpClientBuilder builder,
@@ -62,13 +65,9 @@ public static class BifrostHttpResilienceExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(pipelineName);
 
-        // Bind the options from configuration so policies are config-driven out of the box; when the
-        // section is absent every policy simply uses the BifrostHttpResiliencePolicy defaults. Repeated
-        // calls (per client) re-register the same binding harmlessly.
         builder.Services.AddOptions<BifrostHttpResilienceOptions>()
             .BindConfiguration(BifrostHttpResilienceOptions.SectionName);
 
-        // Strip any existing handler (e.g. an inherited blanket default) so Bifrost is the single pipeline.
 #pragma warning disable EXTEXP0001
         builder.RemoveAllResilienceHandlers();
 #pragma warning restore EXTEXP0001

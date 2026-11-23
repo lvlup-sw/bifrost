@@ -29,7 +29,6 @@ public class AutoscalingEngineEffectiveMinTests
     [Test]
     public async Task EffectiveMinWorkers_WhenInitialCountMatchesConfig_EqualsMinWorkers()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -39,17 +38,18 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Assert
         await Assert.That(engine.EffectiveMinWorkers).IsEqualTo(2);
     }
 
     /// <summary>
     /// Verifies that EffectiveMinWorkers uses initial count when greater than config.
     /// </summary>
+    /// <remarks>
+    /// The initial worker count (5) is more than the configured minimum (2).
+    /// </remarks>
     [Test]
     public async Task EffectiveMinWorkers_WhenInitialCountGreaterThanConfig_UsesInitialCount()
     {
-        // Arrange - Initial workers (5) > configured min (2)
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -59,17 +59,18 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 5);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Assert
         await Assert.That(engine.EffectiveMinWorkers).IsEqualTo(5);
     }
 
     /// <summary>
     /// Verifies that EffectiveMinWorkers uses config when initial count is less.
     /// </summary>
+    /// <remarks>
+    /// The initial worker count (1) is less than the configured minimum (3).
+    /// </remarks>
     [Test]
     public async Task EffectiveMinWorkers_WhenInitialCountLessThanConfig_UsesConfig()
     {
-        // Arrange - Initial workers (1) < configured min (3)
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 3,
@@ -79,7 +80,6 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 1);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Assert
         await Assert.That(engine.EffectiveMinWorkers).IsEqualTo(3);
     }
 
@@ -89,7 +89,6 @@ public class AutoscalingEngineEffectiveMinTests
     [Test]
     public async Task Constructor_WhenMismatch_LogsWarning()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -99,10 +98,8 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 5);
         var logger = Substitute.For<ILogger<AutoscalingEngine>>();
 
-        // Act
         _ = new AutoscalingEngine(options, coordinator, logger);
 
-        // Assert - Verify warning was logged
         logger.Received().Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
@@ -110,7 +107,6 @@ public class AutoscalingEngineEffectiveMinTests
             Arg.Any<Exception>(),
             Arg.Any<Func<object, Exception?, string>>());
 
-        // Verify logger was called at least once
         var callCount = logger.ReceivedCalls().Count();
         await Assert.That(callCount).IsGreaterThan(0);
     }
@@ -118,10 +114,12 @@ public class AutoscalingEngineEffectiveMinTests
     /// <summary>
     /// Verifies that no warning is logged when initial count matches config.
     /// </summary>
+    /// <remarks>
+    /// Only informational logs are expected, so the logger must not receive a warning.
+    /// </remarks>
     [Test]
     public async Task Constructor_WhenMatch_NoWarningLogged()
     {
-        // Arrange
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -131,10 +129,8 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var logger = Substitute.For<ILogger<AutoscalingEngine>>();
 
-        // Act
         var engine = new AutoscalingEngine(options, coordinator, logger);
 
-        // Assert - Verify warning was NOT logged (only informational logs expected)
         logger.DidNotReceive().Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
@@ -142,17 +138,20 @@ public class AutoscalingEngineEffectiveMinTests
             Arg.Any<Exception>(),
             Arg.Any<Func<object, Exception?, string>>());
 
-        // Verify engine was created successfully
         await Assert.That(engine.EffectiveMinWorkers).IsEqualTo(2);
     }
 
     /// <summary>
     /// Verifies that scale down respects EffectiveMinWorkers.
     /// </summary>
+    /// <remarks>
+    /// The initial worker count (5) is more than the configured minimum (2), so the effective
+    /// minimum is 5. The utilization is low, but the engine is already at the effective minimum, so
+    /// it must not scale down.
+    /// </remarks>
     [Test]
     public async Task EvaluateScaling_ScaleDown_RespectsEffectiveMinWorkers()
     {
-        // Arrange - Initial workers (5) > configured min (2), so effective min is 5
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
@@ -166,10 +165,8 @@ public class AutoscalingEngineEffectiveMinTests
         var coordinator = CreateMockCoordinator(activeWorkers: 5, utilization: 0.1);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Act - Low utilization, but at effective min
         var decision = engine.EvaluateScaling();
 
-        // Assert - Should not scale below effective min
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.None);
         await Assert.That(decision.Reason).Contains("min");
     }
@@ -177,38 +174,39 @@ public class AutoscalingEngineEffectiveMinTests
     /// <summary>
     /// Verifies that scale down targets EffectiveMinWorkers, not raw MinWorkers.
     /// </summary>
+    /// <remarks>
+    /// The initial worker count (5) is more than the configured minimum (2), so the effective
+    /// minimum is 5. The coordinator first returns 5 for the effective-minimum calculation in the
+    /// constructor. Then it returns 7 current workers with low utilization, so the engine can scale
+    /// down to 5. <c>ScaleDownStep = 3</c> alone gives 4, but the decision clamps to the effective
+    /// minimum (5), not to the raw minimum (2).
+    /// </remarks>
     [Test]
     public async Task EvaluateScaling_ScaleDown_ClampsToEffectiveMin()
     {
-        // Arrange - Initial workers (5) > configured min (2), so effective min is 5
-        // But current workers is 7, so we can scale down to 5
         var options = Options.Create(new AutoscalingOptions
         {
             MinWorkers = 2,
             MaxWorkers = 10,
             HighWatermark = 0.8,
             LowWatermark = 0.3,
-            ScaleDownStep = 3, // Would go to 4, but clamps to 5
+            ScaleDownStep = 3,
             CheckInterval = TimeSpan.FromSeconds(5),
             CooldownPeriod = TimeSpan.Zero,
         });
 
-        // Note: Initial count is 5, but we'll simulate current at 7
         var coordinator = Substitute.For<IAutoscalingCoordinator>();
-        coordinator.ActiveWorkerCount.Returns(5); // Initial count for effective min calculation
+        coordinator.ActiveWorkerCount.Returns(5);
 
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        // Now change coordinator to return 7 current workers with low utilization
         coordinator.ActiveWorkerCount.Returns(7);
         coordinator.GetUtilizationRatio().Returns(0.1);
 
-        // Act
         var decision = engine.EvaluateScaling();
 
-        // Assert - Should clamp to effective min (5), not raw min (2)
         await Assert.That(decision.Action).IsEqualTo(ScalingAction.ScaleDown);
-        await Assert.That(decision.TargetWorkers).IsEqualTo(5); // Clamped to effective min
+        await Assert.That(decision.TargetWorkers).IsEqualTo(5);
     }
 
     private static IAutoscalingCoordinator CreateMockCoordinator(int activeWorkers, double utilization = 0.5)

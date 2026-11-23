@@ -610,10 +610,11 @@ public sealed class Issue96SchedulerTests
             await this.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
         }
 
+        // StopAsync arms the shutdown deadline before its first await. The method advances the
+        // clock past that deadline, so a dispatcher blocked on the dispatch token can leave during
+        // dispose.
         public async ValueTask DisposeAsync()
         {
-            // StopAsync arms the shutdown deadline before its first await. Advance it
-            // so a dispatcher blocked on the dispatch token can leave during dispose.
             var stop = ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Time.Advance(TimeSpan.FromSeconds(30));
             await stop.ConfigureAwait(false);

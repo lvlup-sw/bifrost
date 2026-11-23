@@ -19,9 +19,11 @@ namespace Bifrost.Tests.Decorators;
 public class ObserverBoundaryTests
 {
     /// <summary>Blocking callback prefixes cannot hold the publisher or another subscriber.</summary>
+    /// <remarks>
+    /// This test deliberately parks a pool thread. <c>NotInParallel</c> keeps it away from the full
+    /// orchestrator suite while it measures whether another callback can start.
+    /// </remarks>
     [Test]
-    // This test deliberately parks a pool thread. Do not compete with the full
-    // orchestrator suite while measuring whether another callback can start.
     [NotInParallel]
     [Arguments(false)]
     [Arguments(true)]
@@ -64,11 +66,13 @@ public class ObserverBoundaryTests
     }
 
     /// <summary>Every successfully registered subscriber is completed by disposal.</summary>
+    /// <remarks>
+    /// The test exercises the check/register boundary from both sides. It publishes no events, so every
+    /// empty reader that registered successfully must finish only through disposal.
+    /// </remarks>
     [Test]
     public async Task SubscriptionRacingDisposalAlwaysTerminates()
     {
-        // Exercise the check/register boundary from both sides. No events are published:
-        // every successfully registered empty reader must finish solely through disposal.
         for (var round = 0; round < 2000; round++)
         {
             var inner = Substitute.For<IWorkOrchestrator<int>>();

@@ -29,7 +29,7 @@ public class WorkOrchestratorShutdownTests
     public Task Setup()
     {
         _handler = Substitute.For<IWorkHandler<string>>();
-        _options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 }); // No default workers
+        _options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 0 });
         _logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
         return Task.CompletedTask;
     }
@@ -40,13 +40,10 @@ public class WorkOrchestratorShutdownTests
     [Test]
     public async Task GetShutdownToken_ReturnsValidToken()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act
         var token = orchestrator.GetShutdownToken();
 
-        // Assert
         await Assert.That(token).IsNotEqualTo(CancellationToken.None);
     }
 
@@ -56,13 +53,10 @@ public class WorkOrchestratorShutdownTests
     [Test]
     public async Task GetShutdownToken_InitiallyNotCanceled()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act
         var token = orchestrator.GetShutdownToken();
 
-        // Assert
         await Assert.That(token.IsCancellationRequested).IsFalse();
     }
 
@@ -72,17 +66,13 @@ public class WorkOrchestratorShutdownTests
     [Test]
     public async Task GetShutdownToken_CanceledAfterStopAsync()
     {
-        // Arrange
         var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var token = orchestrator.GetShutdownToken();
 
-        // Act
         await orchestrator.AbortAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(token.IsCancellationRequested).IsTrue();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -92,14 +82,11 @@ public class WorkOrchestratorShutdownTests
     [Test]
     public async Task GetShutdownToken_CanceledAfterDisposeAsync()
     {
-        // Arrange
         var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var token = orchestrator.GetShutdownToken();
 
-        // Act
         await orchestrator.DisposeAsync().ConfigureAwait(false);
 
-        // Assert
         await Assert.That(token.IsCancellationRequested).IsTrue();
     }
 
@@ -109,14 +96,11 @@ public class WorkOrchestratorShutdownTests
     [Test]
     public async Task GetShutdownToken_ReturnsSameTokenOnMultipleCalls()
     {
-        // Arrange
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        // Act
         var token1 = orchestrator.GetShutdownToken();
         var token2 = orchestrator.GetShutdownToken();
 
-        // Assert
         await Assert.That(token1).IsEqualTo(token2);
     }
 
@@ -126,7 +110,6 @@ public class WorkOrchestratorShutdownTests
     [Test]
     public async Task GetShutdownToken_WorkerReceivesShutdownSignal()
     {
-        // Arrange
         var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var shutdownReceived = new TaskCompletionSource<bool>();
 
@@ -143,14 +126,11 @@ public class WorkOrchestratorShutdownTests
             }
         });
 
-        // Act
         await orchestrator.AbortAsync().ConfigureAwait(false);
         var result = await shutdownReceived.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(result).IsTrue();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 }

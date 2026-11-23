@@ -30,20 +30,21 @@ public class SparseRoutingTests
     /// the occupancy bitmask straight to that sub-queue and pops it, without entering the O(n)
     /// verification scan.
     /// </summary>
+    /// <remarks>
+    /// The target index 70 is word 1, bit 6, so the test also exercises multi-word routing. The test
+    /// places the one item directly, so the populated sub-queue is known and its occupancy bit is set.
+    /// <c>TryDequeueRoutingOnlyForTest</c> drives the post-sampling path directly and skips sampling,
+    /// so routing is exercised deterministically.
+    /// </remarks>
     [Test]
     public async Task TryDequeue_OneItemAfterSamplingMiss_RoutesViaBitmaskWithoutFullScan()
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
-        const int targetIndex = 70; // word 1, bit 6; also exercises multi-word routing.
-
-        // One item, placed directly so the populated sub-queue is known and the occupancy bit set.
+        const int targetIndex = 70;
         await Assert.That(queue.SubQueuesForTest[targetIndex].TryLockedPush(element: 99, priority: 99)).IsTrue();
 
         long routingHitsBefore = queue.DebugRoutingHitCountForTest;
         long scanEntriesBefore = queue.DebugScanEntryCountForTest;
-
-        // Drive the post-sampling path directly (sampling skipped) so routing is deterministically
-        // exercised.
         bool popped = queue.TryDequeueRoutingOnlyForTest(out int element, out int priority);
 
         await Assert.That(popped).IsTrue().Because("routing finds the one populated sub-queue and pops it");
@@ -62,12 +63,13 @@ public class SparseRoutingTests
     /// assertion is that the scan was actually entered: a routing-returns-false implementation would
     /// leave the scan-entry counter at zero.
     /// </summary>
+    /// <remarks>
+    /// A fresh queue has all occupancy words at zero, and every sub-queue is empty.
+    /// </remarks>
     [Test]
     public async Task TryDequeue_EmptyQueue_RoutingFindsNothing_VerificationScanReturnsFalse()
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
-
-        // Fresh queue: occupancy all zero, every sub-queue empty.
         long routingHitsBefore = queue.DebugRoutingHitCountForTest;
         long scanEntriesBefore = queue.DebugScanEntryCountForTest;
 
@@ -106,11 +108,14 @@ public class SparseRoutingTests
     /// this: every sub-queue holds items, so the first sample round pops
     /// successfully and neither the routing-hit nor the scan-entry counter moves.
     /// </summary>
+    /// <remarks>
+    /// All 16 sub-queues are populated, so any sampled pair is non-empty and the first round pops. Each
+    /// sub-queue holds 1000 items, and the test does only 2000 dequeues. Thus the queue stays dense
+    /// throughout, and sampling always lands within budget.
+    /// </remarks>
     [Test]
     public async Task TryDequeue_SamplingSucceeds_DoesNotEnterRoutingPhase()
     {
-        // 16 sub-queues, every one populated, so any sampled pair is non-empty and the first round
-        // pops. Many items per sub-queue so a few thousand dequeues stay dense.
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 16, boundedCapacity: -1, comparer: null);
         for (int i = 0; i < queue.SubQueueCountForTest; i++)
         {
@@ -122,9 +127,6 @@ public class SparseRoutingTests
 
         long routingHitsBefore = queue.DebugRoutingHitCountForTest;
         long scanEntriesBefore = queue.DebugScanEntryCountForTest;
-
-        // Far fewer dequeues than total items, so the queue stays dense throughout and sampling always
-        // lands within budget.
         for (int n = 0; n < 2000; n++)
         {
             await Assert.That(queue.TryDequeue(out _, out _)).IsTrue().Because("a dense queue always yields a pop");
@@ -143,12 +145,14 @@ public class SparseRoutingTests
     /// stale-set bit must therefore resolve to a <see langword="false"/> from the verification scan,
     /// not a bogus <see langword="true"/>.
     /// </summary>
+    /// <remarks>
+    /// <c>DebugForceSetOccupancyBitForTest</c> sets a bit over an empty sub-queue. This is a stale-set
+    /// bit: no element backs it.
+    /// </remarks>
     [Test]
     public async Task Routing_StaleSetBitOverEmptySubQueue_FallsThroughSafely()
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
-
-        // Force a set bit over an empty sub-queue (a stale-set: no element backs it).
         const int staleIndex = 70;
         queue.DebugForceSetOccupancyBitForTest(staleIndex);
         await Assert.That(queue.DebugOccupancyForTest[1]).IsEqualTo(1UL << 6).Because("the stale bit is forced set");
@@ -168,13 +172,24 @@ public class SparseRoutingTests
     /// sub-queue at a higher index: routing skips the stale (lowest-first) bit on
     /// <c>Empty</c> and continues to the real one.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The stale bit is at the lower index (10), so routing reaches it first and must skip it. The
+    /// genuine item is at the higher index (200).
+    /// </para>
+    /// <para>
+    /// The routing-hit and scan-entry counters prove that routing itself popped the real item. The scan
+    /// would also find <c>realIndex</c>, so it must never be entered. Thus a routing-vs-scan regression
+    /// cannot pass this test silently.
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task Routing_StaleSetBitBelowRealItem_SkipsStaleAndPopsReal()
     {
         var queue = new ConcurrentPriorityQueue<int, int>(subQueueCount: 256, boundedCapacity: -1, comparer: null);
 
-        const int staleIndex = 10;  // lower: routed first, must be skipped.
-        const int realIndex = 200;  // higher: the genuine item.
+        const int staleIndex = 10;
+        const int realIndex = 200;
         queue.DebugForceSetOccupancyBitForTest(staleIndex);
         await Assert.That(queue.SubQueuesForTest[realIndex].TryLockedPush(element: 7, priority: 7)).IsTrue();
 
@@ -186,10 +201,6 @@ public class SparseRoutingTests
         await Assert.That(popped).IsTrue().Because("routing skips the stale-set bit and pops the real item");
         await Assert.That(element).IsEqualTo(7);
         await Assert.That(priority).IsEqualTo(7);
-
-        // Prove routing itself popped the real item rather than falling through to the scan: the scan
-        // (which would also have found realIndex) must never have been entered, so a routing-vs-scan
-        // regression can't pass this test silently.
         await Assert.That(queue.DebugRoutingHitCountForTest - routingHitsBefore).IsEqualTo(1L).Because(
             "routing skipped the stale bit, continued to realIndex, and popped it");
         await Assert.That(queue.DebugScanEntryCountForTest - scanEntriesBefore).IsEqualTo(0L).Because(

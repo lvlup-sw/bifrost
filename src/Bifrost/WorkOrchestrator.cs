@@ -159,12 +159,15 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The method waits for both the cancellation signal and <c>Completion</c>. A failure in a
+    /// cancellation callback must not let disposal race workers that still use owned resources.
+    /// </remarks>
     public async Task AbortAsync(CancellationToken ct = default)
     {
         Complete();
         Task signal;
         lock (_lifecycleGate) signal = _abortSignal ??= _cts.CancelAsync();
-        // Callback failures must not let disposal race workers still using owned resources.
         await Task.WhenAll(signal, Completion).WaitAsync(ct).ConfigureAwait(false);
     }
 
@@ -183,9 +186,10 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         else _completion.TrySetResult();
     }
 
+    // No timeout may authorize disposal while a handler still uses the queue or the token, so the
+    // owned resources are disposed only after AbortAsync completes.
     private async Task DisposeCoreAsync()
     {
-        // No timeout may authorize disposal while a handler still uses the queue or token.
         try
         {
             await AbortAsync().ConfigureAwait(false);
@@ -217,11 +221,14 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             return RunRegisteredWorkerAsync(id, stateCallback, token, retirementToken);
         };
 
+    // The method allocates the extra linked source for retirement (dequeueCancellation) once per
+    // dynamic worker, never per item. A priority wait can acquire a permit just as retirement wins.
+    // So the finally block of a retired worker hands a wake to a remaining consumer, and an accepted
+    // item cannot be left without a signal.
     private async Task RunRegisteredWorkerAsync(string id, Action<bool>? callback, CancellationToken token,
         CancellationToken retirementToken = default)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _shutdownToken);
-        // Allocate the additional source once per dynamic worker, never per item.
         using var dequeueCancellation = retirementToken.CanBeCanceled
             ? CancellationTokenSource.CreateLinkedTokenSource(linked.Token, retirementToken)
             : null;
@@ -242,8 +249,6 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         }
         finally
         {
-            // A priority wait can acquire a permit just as retirement wins. Hand a wake
-            // to a remaining consumer so an accepted item cannot be left without a signal.
             if (retirementToken.IsCancellationRequested)
             {
                 switch (_queue)
@@ -266,6 +271,10 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// only consumer left. A stop request must not let <see cref="DrainAsync"/> succeed while
     /// those items are still queued. Future arrivals wait for another consumer.
     /// </summary>
+    /// <remarks>
+    /// The method does not wait for a permit. A missing permit belongs to the wake hand-off in the
+    /// caller, and a blocking wait here stalls that hand-off on the same worker.
+    /// </remarks>
     private async Task DrainRetainedWorkAsync(string id, Action<bool>? callback, CancellationToken handlerToken,
         CancellationToken retirementToken)
     {
@@ -277,8 +286,6 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                     return;
             }
 
-            // Do not wait. A missing permit belongs to the wake hand-off in the caller, and a
-            // blocking wait here would stall that hand-off on the same worker.
             if (!_queue.TryDequeue(out var envelope))
                 return;
 
@@ -354,6 +361,9 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         }
     }
 
+    // The wait consumes one permit. Each further item in the inner loop was funded by its own
+    // enqueue, so ConsumeMatchedWake takes that permit too. Otherwise a drain leaves a surplus of
+    // permits, and later wakes spin on an empty queue.
     private async Task ConsumeQueueAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct, CancellationToken dequeueToken)
     {
         while (!dequeueToken.IsCancellationRequested && await _queue.WaitToDequeueAsync(dequeueToken).ConfigureAwait(false))
@@ -364,9 +374,6 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope).ConfigureAwait(false);
             while (!dequeueToken.IsCancellationRequested && _queue.TryDequeue(out envelope))
             {
-                // The wait above consumed one permit. Each further item was funded by its
-                // own enqueue, so take that permit too. Otherwise a drain leaves a surplus
-                // that later wakes spin on an empty queue.
                 ConsumeMatchedWake();
                 await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope).ConfigureAwait(false);
             }

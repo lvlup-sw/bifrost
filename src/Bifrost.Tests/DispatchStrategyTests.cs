@@ -48,14 +48,15 @@ public sealed class DispatchStrategyTests
     /// eagerly-defaulted <see cref="WorkOrchestratorOptions.Priority"/> bag.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The priority options are eagerly defaulted, so configure delegates can change them without null
+    /// checks.
+    /// </remarks>
     [Test]
     public async Task Options_Default_IsFifo()
     {
-        // Arrange / Act
         var options = new WorkOrchestratorOptions();
 
-        // Assert — FIFO is the default strategy; the priority options are eagerly
-        // defaulted so configure delegates can mutate them without null checks.
         await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.Fifo);
         await Assert.That(options.Priority).IsNotNull();
     }
@@ -68,13 +69,11 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Orchestrator_Fifo_UsesFifoChannelWorkQueue()
     {
-        // Arrange / Act
         await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
         });
 
-        // Assert
         await Assert.That(orchestrator.WorkQueue)
             .IsTypeOf<FifoChannelWorkQueue<WorkEnvelope<string>>>();
     }
@@ -87,7 +86,6 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Orchestrator_PriorityMultiQueue_UsesConcurrentPriorityWorkQueue()
     {
-        // Arrange / Act
         await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
@@ -95,7 +93,6 @@ public sealed class DispatchStrategyTests
             FullMode = QueueFullMode.Reject,
         });
 
-        // Assert
         await Assert.That(orchestrator.WorkQueue)
             .IsTypeOf<ConcurrentPriorityWorkQueue<string>>();
     }
@@ -108,7 +105,6 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Orchestrator_PriorityLocking_UsesLockingPriorityWorkQueue()
     {
-        // Arrange / Act
         await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             WorkerCount = 1,
@@ -116,7 +112,6 @@ public sealed class DispatchStrategyTests
             FullMode = QueueFullMode.Reject,
         });
 
-        // Assert
         await Assert.That(orchestrator.WorkQueue)
             .IsTypeOf<LockingPriorityWorkQueue<string>>();
     }
@@ -130,11 +125,20 @@ public sealed class DispatchStrategyTests
     /// via drain, the rejection reason becomes Shutdown.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// <para>
+    /// The orchestrator has capacity 4 and no workers, so nothing drains the queue. Interactive admits
+    /// to hard capacity, because its watermark is 1.0 by default.
+    /// </para>
+    /// <para>
+    /// The overflow enqueue must not wait for space. Its <c>ValueTask</c> is already complete when
+    /// <c>EnqueueAsync</c> returns (fail-fast admission). After <c>DrainAsync</c> completes the queue,
+    /// the rejection reason changes to Shutdown (DR-6).
+    /// </para>
+    /// </remarks>
     [Test]
     public async Task PriorityStrategy_EnqueueAsync_FailFast_RejectedAtCapacity()
     {
-        // Arrange — capacity 4, no workers, so nothing drains the queue. Interactive
-        // admits to hard capacity (watermark 1.0 by default).
         await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             Capacity = 4,
@@ -149,22 +153,17 @@ public sealed class DispatchStrategyTests
             await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         }
 
-        // Act — the overflow enqueue must NOT wait for space: the ValueTask is
-        // already completed when the method returns (fail-fast admission).
         var overflow = orchestrator.EnqueueAsync("overflow", WorkClass.Interactive);
         var completedSynchronously = overflow.IsCompleted;
         var result = await overflow.ConfigureAwait(false);
 
-        // Assert — synchronous completion and the capacity rejection mapping.
         await Assert.That(completedSynchronously).IsTrue();
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(result.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
 
-        // Act — completing the queue flips the rejection reason to Shutdown (DR-6).
         await orchestrator.DrainAsync().ConfigureAwait(false);
         var afterComplete = await orchestrator.EnqueueAsync("late", WorkClass.Interactive).ConfigureAwait(false);
 
-        // Assert
         await Assert.That(afterComplete.IsAccepted).IsFalse();
         await Assert.That(afterComplete.Reason).IsEqualTo(RejectionReason.Shutdown);
     }
@@ -177,11 +176,14 @@ public sealed class DispatchStrategyTests
     /// Interactive enqueue is still accepted.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The test fills the queue to the Batch threshold (0.90 × 100 = 90) with Default items. There are no
+    /// workers, so the count is exact and the boundary is deterministic. The lowest class sheds first,
+    /// and Interactive still admits.
+    /// </remarks>
     [Test]
     public async Task PriorityStrategy_Enqueue_BatchShedsAtWatermark_ViaOrchestrator()
     {
-        // Arrange — fill to the Batch threshold (0.90 × 100 = 90) with Default items;
-        // quiescent (no workers), so the count is exact and the boundary deterministic.
         await using var orchestrator = CreateOrchestrator(new WorkOrchestratorOptions
         {
             Capacity = 100,
@@ -196,11 +198,9 @@ public sealed class DispatchStrategyTests
             await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         }
 
-        // Act
         var batch = await orchestrator.EnqueueAsync("batch", WorkClass.Batch).ConfigureAwait(false);
         var interactive = await orchestrator.EnqueueAsync("interactive", WorkClass.Interactive).ConfigureAwait(false);
 
-        // Assert — the lowest class sheds first; Interactive still admits.
         await Assert.That(batch.IsAccepted).IsFalse();
         await Assert.That(batch.Reason).IsEqualTo(RejectionReason.WatermarkExceeded);
         await Assert.That(interactive).IsEqualTo(EnqueueResult.Accepted);
@@ -217,12 +217,10 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Builder_UsePriorityDispatch_SetsPrioritySentinelAndAppliesDelegate()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
 
-        // Act
         services.AddWorkOrchestrator<string>(opts =>
         {
             opts.Capacity = 16;
@@ -234,8 +232,6 @@ public sealed class DispatchStrategyTests
         await using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<string>());
 
-        // Assert — DispatchStrategy is the Priority sentinel, binding intent is Auto,
-        // and the configure delegate reached the options.
         await Assert.That(options.DispatchStrategy).IsEqualTo(DispatchStrategy.PriorityRelaxed);
         await Assert.That(options.Priority.InteractiveBoostWindow).IsEqualTo(TimeSpan.FromSeconds(5));
     }
@@ -249,12 +245,10 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Builder_UsePriorityDispatch_Locking_SelectsLocking()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
 
-        // Act
         services.AddWorkOrchestrator<string>(opts =>
         {
             opts.Capacity = 16;
@@ -278,7 +272,6 @@ public sealed class DispatchStrategyTests
     [Test]
     public async Task Bindings_AreSealed_ForDevirtualization()
     {
-        // Assert — every binding is sealed.
         await Assert.That(typeof(FifoChannelWorkQueue<WorkEnvelope<string>>).IsSealed).IsTrue();
         await Assert.That(typeof(ConcurrentPriorityWorkQueue<string>).IsSealed).IsTrue();
         await Assert.That(typeof(LockingPriorityWorkQueue<string>).IsSealed).IsTrue();

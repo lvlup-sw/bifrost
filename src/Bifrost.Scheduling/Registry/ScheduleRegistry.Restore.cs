@@ -14,6 +14,9 @@ public sealed partial class ScheduleRegistry
 {
     // Startup-only attachment: unlike RegisterAsync this does not create or save a new
     // schedule. Durable state is authoritative; the configured dispatcher supplies code.
+    // This method sends no Register wake, because the tick loop seeds restored records itself.
+    // A Register wake would re-arm a reconciled one-shot while its best-effort checkpoint is
+    // still pending.
     internal async ValueTask RestoreAsync(JobRecord record, IJobDispatcher dispatcher, CancellationToken ct)
     {
         this.ThrowIfDisposed();
@@ -30,7 +33,5 @@ public sealed partial class ScheduleRegistry
         this.BindDispatcher(record.Name, dispatcher);
         this.metrics.RecordRegistered();
         this.events.Publish(new JobRegisteredEvent(record.Name));
-        // The tick loop seeds restored records itself. A Register wake would re-arm
-        // a reconciled one-shot while its best-effort checkpoint is still pending.
     }
 }

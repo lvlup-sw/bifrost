@@ -28,21 +28,17 @@ public class WorkOrchestratorBuilderTests
     [Test]
     public async Task WorkOrchestratorBuilder_Build_RegistersOrchestrator()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
         var builder = services.AddWorkOrchestrator<string>();
 
-        // Act
         builder.Build();
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
 
-        // Assert
         await Assert.That(orchestrator).IsNotNull();
 
-        // Cleanup
         if (orchestrator is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync().ConfigureAwait(false);
@@ -55,7 +51,6 @@ public class WorkOrchestratorBuilderTests
     [Test]
     public async Task WorkOrchestratorBuilder_Build_AppliesOptions()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -65,17 +60,14 @@ public class WorkOrchestratorBuilderTests
             opts.WorkerCount = 4;
         });
 
-        // Act
         builder.Build();
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
 
-        // Assert
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(orchestrator!.Capacity).IsEqualTo(64);
         await Assert.That(orchestrator!.ActiveWorkers).IsEqualTo(4);
 
-        // Cleanup
         if (orchestrator is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync().ConfigureAwait(false);
@@ -88,7 +80,6 @@ public class WorkOrchestratorBuilderTests
     [Test]
     public async Task Build_WithDuplicateDecoratorOrder_ThrowsInvalidOperationException()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -101,7 +92,6 @@ public class WorkOrchestratorBuilderTests
             Order: 1,
             Factory: (sp, inner) => inner));
 
-        // Act & Assert
         await Assert.That(() => builder.Build())
             .Throws<InvalidOperationException>();
     }
@@ -112,7 +102,6 @@ public class WorkOrchestratorBuilderTests
     [Test]
     public async Task Build_WithUniqueDecoratorOrders_Succeeds()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -125,7 +114,6 @@ public class WorkOrchestratorBuilderTests
             Order: 2,
             Factory: (sp, inner) => inner));
 
-        // Act & Assert - should not throw
         await Assert.That(() => builder.Build()).ThrowsNothing();
     }
 
@@ -136,57 +124,51 @@ public class WorkOrchestratorBuilderTests
     [Test]
     public async Task Build_WithoutHandlerRegistered_FallsBackToServiceProvider()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         var handler = Substitute.For<IWorkHandler<string>>();
         services.AddSingleton(handler);
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
 
-        // Act
         builder.Build();
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert - orchestrator resolves successfully, handler flag is not set
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(builder.HandlerRegistered).IsFalse();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
     /// Verifies that Build uses ScopedHandlerProxy when HandlerLifetime is Scoped.
     /// </summary>
+    /// <remarks>
+    /// The test registers the handler as scoped, the same as <c>WithHandler</c> does. If the enqueued
+    /// item processes without an exception, the scoped handler proxy resolved the handler correctly.
+    /// </remarks>
     [Test]
     public async Task Build_WithScopedHandlerLifetime_UsesScopedHandlerProxy()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // Register the actual handler as scoped (simulating what WithHandler would do)
         services.AddScoped<IWorkHandler<string>, TestStringHandler>();
 
         var builder = services.AddWorkOrchestrator<string>(opts => opts.WorkerCount = 1);
         builder.HandlerLifetime = ServiceLifetime.Scoped;
         builder.HandlerRegistered = true;
 
-        // Act
         builder.Build();
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Enqueue and process a work item to verify the proxy resolves handlers from scope
         await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
-        await Task.Delay(200).ConfigureAwait(false); // Allow processing
+        await Task.Delay(200).ConfigureAwait(false);
 
-        // Assert - If we got here without exception, the scoped handler proxy resolved correctly
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(TestStringHandler.HandleCallCount).IsGreaterThan(0);
 
-        // Cleanup
         TestStringHandler.Reset();
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
@@ -197,7 +179,6 @@ public class WorkOrchestratorBuilderTests
     [Test]
     public async Task PostBuildActions_ExecutedDuringBuild()
     {
-        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IWorkHandler<string>>());
@@ -209,15 +190,12 @@ public class WorkOrchestratorBuilderTests
             actionExecuted = true;
         });
 
-        // Act
         builder.Build();
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        // Assert
         await Assert.That(actionExecuted).IsTrue();
 
-        // Cleanup
         await orchestrator.DisposeAsync().ConfigureAwait(false);
     }
 

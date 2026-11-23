@@ -60,7 +60,7 @@ public sealed class AutoscalingHealthCheck : IHealthCheck
     /// </para>
     /// <para>
     /// Returns <see cref="HealthStatus.Degraded"/> when at maximum worker capacity
-    /// or at minimum with all workers busy.
+    /// or at minimum with all workers busy (it cannot scale down and has no idle capacity).
     /// </para>
     /// <para>
     /// Returns <see cref="HealthStatus.Healthy"/> when workers are within normal
@@ -76,7 +76,6 @@ public sealed class AutoscalingHealthCheck : IHealthCheck
 
         var data = CreateAutoscalingData(activeWorkers, _options.MinWorkers, _options.MaxWorkers);
 
-        // Check: No active workers
         if (activeWorkers == 0)
         {
             return Task.FromResult(HealthCheckResult.Unhealthy(
@@ -84,7 +83,6 @@ public sealed class AutoscalingHealthCheck : IHealthCheck
                 data: data));
         }
 
-        // Check: At maximum capacity
         if (activeWorkers >= _options.MaxWorkers)
         {
             return Task.FromResult(HealthCheckResult.Degraded(
@@ -92,7 +90,6 @@ public sealed class AutoscalingHealthCheck : IHealthCheck
                 data: data));
         }
 
-        // Check: At minimum workers with all busy (can't scale down and no capacity)
         if (activeWorkers <= _options.MinWorkers && idleWorkers == 0)
         {
             return Task.FromResult(HealthCheckResult.Degraded(
@@ -100,7 +97,6 @@ public sealed class AutoscalingHealthCheck : IHealthCheck
                 data: data));
         }
 
-        // Healthy - within normal range
         return Task.FromResult(HealthCheckResult.Healthy(
             $"Autoscaling healthy: {activeWorkers} workers (min: {_options.MinWorkers}, max: {_options.MaxWorkers})",
             data: data));

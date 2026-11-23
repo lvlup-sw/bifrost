@@ -58,6 +58,13 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// ordered output must sort the result themselves.
     /// </para>
     /// <para>
+    /// The unlocked striped counts give a right-sized starting capacity for the list, which avoids
+    /// most regrowth. The list, not the hint, is the authoritative size, because concurrent mutation
+    /// can change the count of a sub-queue between the hint and the locked copy of that sub-queue.
+    /// The hint accumulates in a <c>long</c> and is clamped to the <c>int</c> range. An <c>int</c>
+    /// sum over many large sub-queues can overflow and throw before any snapshot is taken.
+    /// </para>
+    /// <para>
     /// <b>Thread Safety:</b> This method is thread-safe and may be called concurrently with
     /// enqueues, dequeues, peeks, and other snapshots. It briefly blocks on each sub-queue's lock in
     /// turn while copying that sub-queue; it never holds more than one sub-queue lock at a time.
@@ -65,10 +72,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// </remarks>
     public (TElement Element, TPriority Priority)[] ToArray()
     {
-        // A right-sized starting capacity from the unlocked striped counts avoids most regrowth;
-        // the list is the authoritative size because concurrent mutation may change a sub-queue's
-        // count between the capacity hint and its own locked copy. Accumulate in a `long` and clamp:
-        // an `int` Sum over many large sub-queues can overflow and throw before any snapshot is taken.
         long hint = 0;
         foreach (var t in _queues)
         {
@@ -78,8 +81,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         int capacityHint = hint <= 0 ? 0 : hint >= int.MaxValue ? int.MaxValue : (int)hint;
         var buffer = new List<(TElement Element, TPriority Priority)>(capacityHint);
 
-        // One sub-queue at a time: each SnapshotTo takes that sub-queue's lock, copies its heap
-        // segment, and releases before the next; no global freeze.
         foreach (var t in _queues)
         {
             t.SnapshotTo(buffer);
@@ -104,6 +105,8 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
     /// <para>
     /// On a bounded queue, every removed element releases its bounded-capacity reservation, so
     /// capacity freed by <see cref="Clear"/> is immediately available to concurrent enqueues.
+    /// Each stripe releases the reservations for all the elements it held. On an unbounded queue
+    /// this step does nothing.
     /// </para>
     /// <para>
     /// <b>Thread Safety:</b> This method is thread-safe and may be called concurrently with
@@ -117,7 +120,6 @@ public sealed partial class ConcurrentPriorityQueue<TElement, TPriority>
         {
             int removed = t.LockedClear();
 
-            // Release the bounded reservations for everything this stripe held (no-op unbounded).
             if (_boundedCapacity > 0 && removed > 0)
             {
                 Interlocked.Add(ref _boundedCount, -removed);
