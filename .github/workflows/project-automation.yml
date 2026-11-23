@@ -82,6 +82,7 @@ jobs:
   project-sync:
     if: github.event_name == 'issues' && github.event.action == 'opened'
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       item_id: ${{ steps.add.outputs.itemId }}
     steps:
@@ -99,6 +100,7 @@ jobs:
     needs: project-sync
     if: needs.project-sync.outputs.item_id
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Set project fields
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
