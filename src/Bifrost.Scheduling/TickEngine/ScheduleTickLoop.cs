@@ -356,7 +356,8 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// stops ticking. The loop also stops when the command channel of the registry completes (the
     /// registry was disposed), so a dispose-while-running cannot hot-spin the empty-heap wait over a
     /// completed channel. An <see cref="OperationCanceledException"/> on the stopping token is a
-    /// normal shutdown. The recovery policy must catch every loop fault, which is why CA1031 is
+    /// normal shutdown, including one thrown while <c>SeedAsync</c> walks a missed-fire backlog: the
+    /// loop is then skipped and the usual exit path runs. The recovery policy must catch every loop fault, which is why CA1031 is
     /// suppressed on the general <c>catch</c>.
     /// </para>
     /// <para>
@@ -379,7 +380,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
         this.healthMonitor.RecordLoopStarted(this.timeProvider.GetUtcNow());
 
-        await this.SeedAsync(stoppingToken).ConfigureAwait(false);
+        try
+        {
+            await this.SeedAsync(stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
 
         while (!this.ShouldStop(stoppingToken) && !this.IsFaulted)
         {
@@ -2054,7 +2061,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 continue;
             }
 
-            this.ApplyStartupMissedFirePolicies(record, now);
+            this.ApplyStartupMissedFirePolicies(record, now, stoppingToken);
             this.ArmFromRecord(record, now);
             seeded.Add(record.Name);
         }
@@ -2078,27 +2085,31 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     /// </summary>
     /// <param name="record">The durable record carrying the job's last-fired instant.</param>
     /// <param name="now">The startup instant (DR-7).</param>
+    /// <param name="stoppingToken">The loop's stopping token, observed inside the cadence walk.</param>
     /// <remarks>
     /// <para>
     /// <c>catchUp</c> holds the catch-up occurrences that are actually dispatched, per the configured
     /// policy: the full (capped) backlog for <see cref="MissedFirePolicy.FireAllMissed"/>, a single
     /// coalesced fire for <see cref="MissedFirePolicy.Coalesce"/>, and none for
-    /// <see cref="MissedFirePolicy.SkipMissed"/>. <c>missedCount</c> is the true number of missed
-    /// occurrences, independent of how the policy reconciles them. Thus the event reports "5 missed,
-    /// coalesced" and not the single dispatched fire.
+    /// <see cref="MissedFirePolicy.SkipMissed"/>. <c>missedCount</c> is the number of missed
+    /// occurrences (capped), independent of how the policy reconciles them. Thus the event reports
+    /// "5 missed, coalesced" and not the single dispatched fire. Both come from one capped walk of the
+    /// cadence.
     /// </para>
     /// <para>
     /// Each job gets one <c>CatchUpCursor</c>. <c>DrainRetained</c> walks the occurrences in order, so
     /// a blocked budget cannot retain one entry per missed fire.
     /// </para>
     /// </remarks>
-    private void ApplyStartupMissedFirePolicies(JobRecord record, DateTimeOffset now)
+    private void ApplyStartupMissedFirePolicies(JobRecord record, DateTimeOffset now, CancellationToken stoppingToken)
     {
-        var catchUp = MissedFirePolicyApplier.ComputeMissedFires(
-            record.Cadence, record.LastFiredAt, now, record.MissedFirePolicy);
-
-        var missedCount = MissedFirePolicyApplier.ComputeMissedFires(
-            record.Cadence, record.LastFiredAt, now, MissedFirePolicy.FireAllMissed).Count;
+        var (catchUp, missedCount) = MissedFirePolicyApplier.ComputeBacklog(
+            record.Cadence,
+            record.LastFiredAt,
+            now,
+            record.MissedFirePolicy,
+            MissedFirePolicyApplierCatchUpCap,
+            stoppingToken);
 
         if (missedCount == 0)
         {
