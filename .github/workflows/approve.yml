@@ -30,6 +30,7 @@ jobs:
           PR_NUMBER: ${{ github.event.issue.number }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
           COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
         run: |
           set -euo pipefail
 
@@ -55,9 +56,32 @@ jobs:
           fi
 
           pr_api="$repo_api/pulls/$PR_NUMBER"
-          head_sha=$(gh api "$pr_api" --jq 'select(.state == "open") | .head.sha // empty')
+          pull=$(gh api "$pr_api")
+          head_sha=$(jq -r 'select(.state == "open") | .head.sha // empty' <<< "$pull")
           if [[ -z "$head_sha" ]]; then
             echo '::error::The pull request must be open and have a head commit.'
+            exit 1
+          fi
+
+          head_repo=$(jq -r '.head.repo.full_name // empty' <<< "$pull")
+          head_ref=$(jq -r '.head.ref // empty' <<< "$pull")
+          last_push=''
+          if [[ -n "$head_repo" && -n "$head_ref" ]]; then
+            last_push=$(gh api --method GET "repos/$head_repo/activity" \
+              -f ref="refs/heads/$head_ref" -f direction=desc -F per_page=1 \
+              --jq '.[0] // empty | "\(.after) \(.timestamp)"' || true)
+          fi
+          pushed_sha=''
+          pushed_at=''
+          read -r pushed_sha pushed_at <<< "$last_push" || true
+          if [[ "$pushed_sha" != "$head_sha" || -z "$pushed_at" ]]; then
+            echo "::error::Cannot confirm that head commit $head_sha was pushed before the /approve comment. Review the latest commits and comment again."
+            exit 1
+          fi
+          pushed_epoch=$(date -u -d "$pushed_at" +%s)
+          comment_epoch=$(date -u -d "$COMMENT_CREATED_AT" +%s)
+          if (( pushed_epoch >= comment_epoch )); then
+            echo "::error::Head commit $head_sha was pushed at $pushed_at, not before the /approve comment at $COMMENT_CREATED_AT. Review the new commits and comment again."
             exit 1
           fi
           latest_reviews=$(gh api --paginate --slurp "$pr_api/reviews" | jq -c '
