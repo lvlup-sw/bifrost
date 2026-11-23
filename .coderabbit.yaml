@@ -1,0 +1,5 @@
+# Managed by lvlup-sw/.github. Edit coderabbit/coderabbit.yaml, not this file.
+remote_config:
+  repository: lvlup-sw/.github
+  ref: main
+  path: coderabbit/coderabbit.yaml
