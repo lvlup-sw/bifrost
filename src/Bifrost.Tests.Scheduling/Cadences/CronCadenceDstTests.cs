@@ -29,9 +29,11 @@ public sealed class CronCadenceDstTests
     /// <remarks>
     /// The expression <c>30 2 * * *</c> fires at 02:30 local every day, and local 02:30 does not
     /// exist on 2026-03-08. The test starts at 2026-03-07 12:00 UTC, before the transition day. The
-    /// <c>second</c> fire must be strictly later than the <c>first</c>, so the skipped 2026-03-08
-    /// 02:30 instant does not occur a second time. Then the test walks five occurrences and
-    /// requires strict monotonicity, with no duplicate around the transition window.
+    /// <c>first</c> fire is the shifted 2026-03-08 occurrence (03:00 EDT). The <c>second</c> fire
+    /// must be the 2026-03-09 02:30 EDT occurrence, 23.5 hours later. The test requires a gap of
+    /// 23 to 25 hours, so an extra fire later on the transition day (for example at 03:30 EDT)
+    /// fails it. Then the test walks five occurrences and requires strict monotonicity, with no
+    /// duplicate around the transition window.
     /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
@@ -47,6 +49,8 @@ public sealed class CronCadenceDstTests
         var second = cadence.ComputeNextFire(lastFiredAt: first, now: first!.Value);
         await Assert.That(second).IsNotNull();
         await Assert.That(second!.Value).IsGreaterThan(first.Value);
+        await Assert.That(second.Value - first.Value).IsGreaterThanOrEqualTo(TimeSpan.FromHours(23));
+        await Assert.That(second.Value - first.Value).IsLessThanOrEqualTo(TimeSpan.FromHours(25));
 
         var cursor = first.Value;
         DateTimeOffset? previous = null;

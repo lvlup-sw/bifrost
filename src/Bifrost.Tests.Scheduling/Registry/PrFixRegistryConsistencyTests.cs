@@ -18,9 +18,8 @@ namespace Bifrost.Tests.Scheduling.Registry;
 /// <see cref="ScheduleRegistry"/>:
 /// <list type="bullet">
 /// <item>
-/// FIX A1 — <see cref="ScheduleRegistry.RegisterAsync"/> must claim the in-memory
-/// slot BEFORE persisting, so a losing concurrent same-name registrant never
-/// writes its (different) payload to the store. The store and the in-memory
+/// FIX A1 — <see cref="ScheduleRegistry.RegisterAsync"/> allows one of two
+/// concurrent same-name registrations to persist its payload. The store and
 /// registry must agree on the winner's payload.
 /// </item>
 /// <item>
@@ -36,37 +35,15 @@ public sealed class PrFixRegistryConsistencyTests
         new(2026, 6, 13, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>
-    /// FIX A1. Two concurrent <see cref="ScheduleRegistry.RegisterAsync"/> calls for
-    /// the SAME name with DIFFERENT payloads: exactly one succeeds and the other
-    /// throws <see cref="DuplicateJobNameException"/>. Critically, the LOSER must NOT
-    /// have written its payload to the store — the store and the in-memory registry
-    /// must agree on the winner's payload. With the buggy persist-first ordering, the
-    /// loser's blind upsert can leave loser data in the store; the fix claims the
-    /// in-memory slot first so the loser never reaches the store.
+    /// Exactly one of two concurrent <see cref="ScheduleRegistry.RegisterAsync"/> calls
+    /// for the same name succeeds. The other throws <see cref="DuplicateJobNameException"/>.
+    /// The store records one write, and its payload matches the in-memory winner.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <c>GatingStore.SaveAsync</c> blocks on a gate, so under the buggy persist-first ordering
-    /// both registrants are in <c>SaveAsync</c> at the same time. The store records every record
-    /// that it actually persists, so the test can prove that the loser never wrote.
-    /// </para>
-    /// <para>
-    /// The two payloads differ by their interval. The winner is whichever <c>TryAdd</c> succeeds,
-    /// and the test does not presume which.
-    /// </para>
-    /// <para>
-    /// <c>ReleaseAfterArrivalGraceAsync</c> releases the gate after both registrants have either
-    /// entered <c>SaveAsync</c> or bailed out before it. With the fix, only the winner reaches the
-    /// gate. With the bug, both do. The release comes after a short bounded grace, so the test
-    /// never wedges if only one registrant arrives.
-    /// </para>
-    /// <para>
-    /// The test requires exactly one winner and one loser, and the in-memory registry must hold the
-    /// payload of the winner. The core FIX A1 assertion is that the store holds the payload of the
-    /// winner, not of the loser. Only the winner may call <c>SaveAsync</c> (<c>SaveCount</c> = 1):
-    /// the loser claimed the slot, failed, and did not touch the store. The buggy persist-first
-    /// ordering produces two saves.
-    /// </para>
+    /// A per-name mutation lease holds the second registration until the first completes.
+    /// The duplicate-name check then rejects the second payload before it reaches the store.
+    /// The store gate opens when the first save arrives, and the test accepts either payload
+    /// as the winner.
     /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
@@ -106,7 +83,7 @@ public sealed class PrFixRegistryConsistencyTests
             }
         });
 
-        await store.ReleaseAfterArrivalGraceAsync().ConfigureAwait(false);
+        await store.ReleaseAfterFirstArrivalAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
         var results = await Task.WhenAll(taskA, taskB).ConfigureAwait(false);
 
@@ -172,8 +149,8 @@ public sealed class PrFixRegistryConsistencyTests
     /// <summary>
     /// A store whose <see cref="SaveAsync"/> blocks on a gate and records every
     /// persisted record, so a test can observe whether a losing registrant ever
-    /// wrote. The gate is released by the test once both registrants have arrived,
-    /// or after a bounded grace if only one ever arrives (the fixed code path).
+    /// wrote. The test releases the gate when the arrival count shows that the first
+    /// registrant has reached <see cref="SaveAsync"/>.
     /// </summary>
     private sealed class GatingStore : IScheduleStore
     {
@@ -186,9 +163,8 @@ public sealed class PrFixRegistryConsistencyTests
 
         public int Arrivals => Volatile.Read(ref this.arrivals);
 
-        // Counts each arrival in arrivals (exposed as Arrivals) before it waits on the gate. The
-        // count is there to coordinate the gate release, but no test reads it now:
-        // ReleaseAfterArrivalGraceAsync waits a fixed grace instead.
+        // Counts each arrival in arrivals (exposed as Arrivals) before it waits on the gate.
+        // ReleaseAfterFirstArrivalAsync reads the count to release the gate.
         public async ValueTask SaveAsync(JobRecord job, CancellationToken ct)
         {
             ArgumentNullException.ThrowIfNull(job);
@@ -217,19 +193,29 @@ public sealed class PrFixRegistryConsistencyTests
         }
 
         /// <summary>
-        /// Releases the SaveAsync gate after a short bounded grace, by which point any
-        /// registrant that is going to reach SaveAsync has done so (the winner under
-        /// the fix; both registrants under the bug). Releases generously so no
-        /// registrant blocks. The grace is bounded so the test never wedges.
+        /// Waits until the first registrant has arrived in <see cref="SaveAsync"/>, then
+        /// releases the gate. The wait is bounded by <paramref name="timeout"/> on the real
+        /// wall clock, so a registrant that never arrives fails the test fast.
         /// </summary>
+        /// <param name="timeout">The real-wall-clock bound on the wait for the first arrival.</param>
+        /// <returns>A task that completes when the gate is released.</returns>
         /// <remarks>
-        /// The grace is 250 ms, which gives registrants time to reach <c>SaveAsync</c> or bail out
-        /// before it. Then the method releases 8 permits: enough to unblock any waiter (1 under the
-        /// fix, 2 under the bug), plus slack.
+        /// Extra permits let an unexpected second write complete so the save-count assertion can
+        /// report it.
         /// </remarks>
-        public async Task ReleaseAfterArrivalGraceAsync()
+        /// <exception cref="TimeoutException">No registrant arrived within <paramref name="timeout"/>.</exception>
+        public async Task ReleaseAfterFirstArrivalAsync(TimeSpan timeout)
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+            var deadline = Task.Delay(timeout, TimeProvider.System, CancellationToken.None);
+            while (this.Arrivals < 1)
+            {
+                if (deadline.IsCompleted)
+                {
+                    throw new TimeoutException($"No registrant reached SaveAsync within {timeout}.");
+                }
+
+                await Task.Yield();
+            }
 
             this.gate.Release(8);
         }

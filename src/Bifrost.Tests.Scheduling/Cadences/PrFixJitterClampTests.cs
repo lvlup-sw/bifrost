@@ -64,12 +64,17 @@ public sealed class PrFixJitterClampTests
     /// rescues a draw — the base fire is the strictly-future fallback.
     /// </summary>
     /// <remarks>
-    /// Every result must be strictly future. The intended clamp behavior is that, when the clamp
-    /// engages, it returns the un-jittered base fire, which is strictly future. It must never
-    /// return a value between now and the base fire, because such a value brings back the churn
-    /// risk. If a downward jitter draw is not clamped (<c>next</c> &lt; <c>baseFire</c>), it must
-    /// still be later than now. The test asserts only <c>next</c> &gt; now. The inner branch
-    /// repeats that bound, so the test does not prove that the clamp returns <c>baseFire</c>.
+    /// <para>
+    /// The base fire is <c>now</c> + 1 tick, so every non-zero downward draw lands at or before
+    /// <c>now</c> and engages the clamp. Upward draws land after <c>baseFire</c>. Every result must
+    /// therefore be at or after <c>baseFire</c>. A clamp that returns any other value, earlier or
+    /// later than <c>baseFire</c>, fails the test.
+    /// </para>
+    /// <para>
+    /// About half of the 5000 draws are downward, so about 2500 results must equal <c>baseFire</c>
+    /// exactly. The floor of 1000 is far below that mean, so the check does not flake, but a clamp
+    /// that does not return <c>baseFire</c> produces almost no exact matches and fails it.
+    /// </para>
     /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
@@ -82,15 +87,19 @@ public sealed class PrFixJitterClampTests
         var lastFired = Now - (interval - TimeSpan.FromTicks(1));
         var baseFire = unjittered.ComputeNextFire(lastFired, Now)!.Value;
 
+        var clampedToBaseFire = 0;
         for (var i = 0; i < 5000; i++)
         {
             var next = jittered.ComputeNextFire(lastFiredAt: lastFired, now: Now)!.Value;
 
             await Assert.That(next).IsGreaterThan(Now);
-            if (next < baseFire)
+            await Assert.That(next).IsGreaterThanOrEqualTo(baseFire);
+            if (next == baseFire)
             {
-                await Assert.That(next).IsGreaterThan(Now);
+                clampedToBaseFire++;
             }
         }
+
+        await Assert.That(clampedToBaseFire).IsGreaterThanOrEqualTo(1000);
     }
 }
