@@ -30,13 +30,13 @@ jobs:
       issues: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install js-yaml
         run: npm install --no-save --prefix "$RUNNER_TEMP/label-sync-deps" js-yaml@4.3.2
 
       - name: Sync labels
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           LABELS_FILE: ${{ inputs.labels-file }}
           DELETE_UNLISTED: ${{ inputs.delete-unlisted }}

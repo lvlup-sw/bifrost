@@ -38,7 +38,7 @@ public class HttpFailureBoundaryTests
         await Assert.That(attempts).IsEqualTo(1);
     }
 
-    /// <summary>Attempt timeout can retry, but the outer total budget still ends the operation.</summary>
+    /// <summary>A GET attempt timeout can retry, but the outer total budget still ends the operation.</summary>
     [Test]
     public async Task TotalTimeoutBoundsAttemptRetries()
     {
@@ -49,14 +49,17 @@ public class HttpFailureBoundaryTests
             MaxRetries = 10, RetryBaseDelay = TimeSpan.Zero, UseJitter = false,
         });
         using var cleanup = new CancellationTokenSource();
+        using var message = new HttpRequestMessage(HttpMethod.Get, "https://example.test/health");
+        var context = ResilienceContextPool.Shared.Get(cleanup.Token);
+        context.SetRequestMessage(message);
         var starts = Channel.CreateUnbounded<int>();
         var attempts = 0;
-        var request = pipeline.ExecuteAsync(async token =>
+        var request = pipeline.ExecuteAsync(async attemptContext =>
         {
             starts.Writer.TryWrite(Interlocked.Increment(ref attempts));
-            await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, attemptContext.CancellationToken).ConfigureAwait(false);
             return new HttpResponseMessage(HttpStatusCode.OK);
-        }, cleanup.Token).AsTask();
+        }, context).AsTask();
         try
         {
             await starts.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
@@ -70,6 +73,15 @@ public class HttpFailureBoundaryTests
         finally
         {
             await cleanup.CancelAsync().ConfigureAwait(false);
+
+            // The pipeline reads and restores the context until the request finishes, so the context
+            // goes back to the pool only after that. A request still running here stays out of the pool.
+            await ((Task)request).WaitAsync(TimeSpan.FromSeconds(10))
+                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            if (request.IsCompleted)
+            {
+                ResilienceContextPool.Shared.Return(context);
+            }
         }
     }
 

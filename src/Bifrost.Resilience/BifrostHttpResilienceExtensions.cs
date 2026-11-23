@@ -103,12 +103,26 @@ public static class BifrostHttpResilienceExtensions
     }
 
     /// <summary>
+    /// The HTTP methods the retry strategy may send again. Only safe methods (RFC 9110 §9.2.1) are listed,
+    /// because a timeout, reset, 408, 429, or 5xx can arrive after the server has already applied a request.
+    /// </summary>
+    private static readonly HttpMethod[] RetryableMethods =
+        [HttpMethod.Get, HttpMethod.Head, HttpMethod.Options, HttpMethod.Trace];
+
+    /// <summary>
     /// Configures a resilience pipeline builder from a <see cref="BifrostHttpResiliencePolicy"/>. Ordered
     /// outermost to innermost: total-request timeout → retry (omitted when
     /// <see cref="BifrostHttpResiliencePolicy.MaxRetries"/> is 0) → circuit breaker (when enabled) →
     /// per-attempt timeout. The retry and circuit-breaker strategies use the HTTP-aware
     /// <c>ShouldHandle</c> defaults (transient 5xx/408/429 responses and network exceptions).
     /// </summary>
+    /// <remarks>
+    /// The retry strategy only sends a request again when its method is safe (see
+    /// <see cref="IsRetryableRequest"/>). POST, PUT, PATCH, DELETE, CONNECT, and custom methods are sent
+    /// once, whatever the outcome, so a change the server committed before the client saw a failure is
+    /// never applied twice. The method is read from the request held in the resilience context, so
+    /// exceptions without a response (attempt timeouts, connection resets) are covered too.
+    /// </remarks>
     /// <param name="pipelineBuilder">The pipeline builder to configure.</param>
     /// <param name="policy">The resolved policy.</param>
     internal static void ConfigurePipeline(
@@ -120,7 +134,7 @@ public static class BifrostHttpResilienceExtensions
 
         if (policy.MaxRetries > 0)
         {
-            pipelineBuilder.AddRetry(new HttpRetryStrategyOptions
+            var retryOptions = new HttpRetryStrategyOptions
             {
                 MaxRetryAttempts = policy.MaxRetries,
                 BackoffType = policy.UseExponentialBackoff
@@ -128,7 +142,14 @@ public static class BifrostHttpResilienceExtensions
                     : DelayBackoffType.Constant,
                 Delay = policy.RetryBaseDelay,
                 UseJitter = policy.UseJitter,
-            });
+            };
+
+            var isTransient = retryOptions.ShouldHandle;
+            retryOptions.ShouldHandle = args => IsRetryableRequest(args.Context.GetRequestMessage())
+                ? isTransient(args)
+                : PredicateResult.False();
+
+            pipelineBuilder.AddRetry(retryOptions);
         }
 
         if (policy.EnableCircuitBreaker)
@@ -144,4 +165,15 @@ public static class BifrostHttpResilienceExtensions
 
         pipelineBuilder.AddTimeout(policy.AttemptTimeout);
     }
+
+    /// <summary>
+    /// Decides whether the retry strategy may send <paramref name="request"/> again.
+    /// </summary>
+    /// <param name="request">The request held in the resilience context, if any.</param>
+    /// <returns>
+    /// <see langword="true"/> only when the request is known and its method is in
+    /// <see cref="RetryableMethods"/>; an unknown request is never retried.
+    /// </returns>
+    internal static bool IsRetryableRequest(HttpRequestMessage? request) =>
+        request is not null && Array.IndexOf(RetryableMethods, request.Method) >= 0;
 }
