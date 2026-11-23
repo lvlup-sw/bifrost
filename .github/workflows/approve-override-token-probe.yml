@@ -1,0 +1,42 @@
+name: Approve Override Token Probe
+
+on:
+  push:
+    branches: [codex/approve-override-token-probe]
+
+permissions: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Test review dismissal on the draft fixture
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ATTEMPT: ${{ github.run_attempt }}
+          PROBE_HEAD: codex/approve-override-token-probe
+        run: |
+          set -euo pipefail
+          pulls="repos/$REPOSITORY/pulls"
+          if [[ "$ATTEMPT" == '1' ]]; then
+            gh api --method POST "$pulls" -f base=main -f "head=$PROBE_HEAD" -F draft=true \
+              -f title='test(ci): Verify Actions review dismissal on a temporary draft' \
+              -f body='Temporary draft to check the Actions token against the main branch ruleset.' \
+              --jq .html_url
+            exit 0
+          fi
+
+          pr=$(gh api --method GET "$pulls" -f state=open -f "head=${REPOSITORY%/*}:$PROBE_HEAD" -f base=main \
+            --jq '.[] | select(.draft and .user.login == "github-actions[bot]") | .number')
+          [[ "$pr" =~ ^[0-9]+$ ]]
+          review=$(gh api --paginate --slurp "$pulls/$pr/reviews" | jq -r '
+            add | .[] | select(.state == "CHANGES_REQUESTED" and .body == "Temporary review for the Actions dismissal probe.") | .id
+          ')
+          [[ "$review" =~ ^[0-9]+$ ]]
+          gh api --method PUT "$pulls/$pr/reviews/$review/dismissals" -f event=DISMISS \
+            -f message='Temporary review dismissal probe.' --jq '{id, state, html_url}'
