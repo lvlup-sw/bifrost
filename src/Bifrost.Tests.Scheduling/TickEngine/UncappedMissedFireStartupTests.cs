@@ -125,7 +125,8 @@ public sealed class UncappedMissedFireStartupTests
 
             await Assert.That(cadence.Calls).IsLessThanOrEqualTo(StartupWalkCallBudget);
             await Assert.That(sibling.Count).IsEqualTo(1);
-            await Assert.That(stall.Count).IsLessThanOrEqualTo(1);
+            await Assert.That(stall.Count).IsEqualTo(1);
+            await Assert.That(stall.Times.Single()).IsEqualTo(now.AddTicks(-missedTicks + FireAllMissedCatchUpCap));
         }
         finally
         {
@@ -184,18 +185,23 @@ public sealed class UncappedMissedFireStartupTests
     }
 
     /// <summary>
-    /// <see cref="ScheduleTickLoop.StopAsync"/> is the host shutdown path. It must finish while a
-    /// jittered coalesce walk would otherwise still be stepping.
+    /// <see cref="ScheduleTickLoop.StopAsync"/> is the host shutdown path. When it runs while the
+    /// startup walk is inside a step, the walk must stop before its next step.
     /// </summary>
+    /// <remarks>
+    /// The cadence holds its first step until the test has started <see cref="ScheduleTickLoop.StopAsync"/>,
+    /// so the stop always lands inside the walk.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
-    public async Task JitteredMillisecondInterval_StopAsync_FinishesDuringStartupWalk()
+    public async Task StopAsync_DuringStartupWalk_StopsBeforeTheNextStep()
     {
+        const int naturalSteps = 40;
         var now = Start;
         var time = new FakeTimeProvider(now);
         var store = new InMemoryScheduleStore();
         var registry = new ScheduleRegistry(store, time);
-        var cadence = new IntervalCadence(TimeSpan.FromMilliseconds(1), 0.05);
+        using var cadence = new HeldFirstStepCadence(TimeSpan.FromMinutes(1));
         var dispatcher = new RecordingDispatcher();
 
         await RestoreRunningAsync(
@@ -203,26 +209,31 @@ public sealed class UncappedMissedFireStartupTests
             store,
             "stall",
             cadence,
-            now.AddMilliseconds(-30_000_000),
+            now.AddMinutes(-naturalSteps),
             dispatcher).ConfigureAwait(false);
 
         var loop = CreateLoop(registry, store, time);
         try
         {
             await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await Task.Delay(TimeSpan.FromMilliseconds(50), TimeProvider.System, CancellationToken.None)
+            await cadence.Entered.WaitAsync(TimeSpan.FromSeconds(10), TimeProvider.System, CancellationToken.None)
                 .ConfigureAwait(false);
 
-            using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
-            await loop.StopAsync(stop.Token).ConfigureAwait(false);
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var stopping = loop.StopAsync(stop.Token);
+            cadence.Release();
+            await stopping.ConfigureAwait(false);
 
             var execute = loop.ExecuteTask;
             await Assert.That(execute is not null).IsTrue();
             await Assert.That(execute!.IsCompleted).IsTrue();
             await Assert.That(execute.IsFaulted).IsFalse();
+            await Assert.That(cadence.Calls).IsEqualTo(1);
+            await Assert.That(dispatcher.Count).IsEqualTo(0);
         }
         finally
         {
+            cadence.Release();
             var pending = loop.ExecuteTask;
             if (pending is not null)
             {
@@ -442,6 +453,39 @@ public sealed class UncappedMissedFireStartupTests
             if (call == 1)
             {
                 this.Shutdown.Cancel();
+            }
+
+            var cursor = lastFiredAt ?? now;
+            return cursor + this.Step;
+        }
+    }
+
+    /// <summary>
+    /// Advances by a fixed step. The first call signals <see cref="Entered"/> and then waits for
+    /// <see cref="Release"/>, so a test can act while the startup walk is inside a step.
+    /// </summary>
+    /// <param name="Step">The advance applied to each cursor.</param>
+    private sealed record HeldFirstStepCadence(TimeSpan Step) : Cadence, IDisposable
+    {
+        private readonly TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly ManualResetEventSlim released = new();
+        private int calls;
+
+        public int Calls => Volatile.Read(ref this.calls);
+
+        public Task Entered => this.entered.Task;
+
+        public void Release() => this.released.Set();
+
+        public void Dispose() => this.released.Dispose();
+
+        /// <inheritdoc/>
+        public override DateTimeOffset? ComputeNextFire(DateTimeOffset? lastFiredAt, DateTimeOffset now)
+        {
+            if (Interlocked.Increment(ref this.calls) == 1)
+            {
+                this.entered.TrySetResult();
+                this.released.Wait(TimeSpan.FromSeconds(10));
             }
 
             var cursor = lastFiredAt ?? now;

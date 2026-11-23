@@ -92,9 +92,19 @@ internal static class MissedFirePolicyApplier
     /// count that <see cref="MissedFirePolicy.FireAllMissed"/> would enumerate.
     /// </returns>
     /// <remarks>
-    /// The missed count is the backlog the <see cref="MissedFirePolicy.FireAllMissed"/> walk yields,
-    /// so a coalesce without a constant-time answer takes the latest occurrence of that same walk
-    /// rather than walking the cadence a second time.
+    /// <para>
+    /// For an interval cadence, the missed count is the number of aligned occurrences after the last
+    /// fire, capped at <paramref name="maxCatchUpCount"/>. This is the same arithmetic that selects
+    /// the coalesced catch-up, so jitter on the next live instant cannot report zero missed fires
+    /// while an aligned catch-up is due. Only <see cref="MissedFirePolicy.FireAllMissed"/> walks an
+    /// interval cadence, to list its backlog.
+    /// </para>
+    /// <para>
+    /// For any other cadence, the missed count is the backlog the
+    /// <see cref="MissedFirePolicy.FireAllMissed"/> walk yields, so a coalesce without a constant-time
+    /// answer takes the latest occurrence of that same walk rather than walking the cadence a second
+    /// time.
+    /// </para>
     /// </remarks>
     /// <exception cref="OperationCanceledException">
     /// <paramref name="cancellationToken"/> was cancelled during the walk.
@@ -108,6 +118,19 @@ internal static class MissedFirePolicyApplier
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(cadence);
+
+        if (cadence is IntervalCadence interval)
+        {
+            var latest = LatestAlignedOccurrence(interval, lastFiredAt, now, out var aligned);
+            IReadOnlyList<DateTimeOffset> intervalCatchUp = policy switch
+            {
+                MissedFirePolicy.SkipMissed => [],
+                MissedFirePolicy.Coalesce => latest is { } occurrence ? [occurrence] : [],
+                _ => EnumerateMissed(cadence, lastFiredAt, now, maxCatchUpCount, cancellationToken),
+            };
+
+            return (intervalCatchUp, (int)Math.Min(aligned, maxCatchUpCount));
+        }
 
         var missed = EnumerateMissed(cadence, lastFiredAt, now, maxCatchUpCount, cancellationToken);
         IReadOnlyList<DateTimeOffset> catchUp = policy switch
@@ -148,19 +171,7 @@ internal static class MissedFirePolicyApplier
     {
         if (cadence is IntervalCadence interval)
         {
-            if (lastFiredAt is not { } last || last >= now)
-            {
-                coalesced = [];
-                return true;
-            }
-
-            var remaining = Math.Min(
-                DateTimeOffset.MaxValue.Ticks - last.Ticks,
-                DateTimeOffset.MaxValue.UtcTicks - last.UtcTicks);
-            var count = Math.Min(
-                (now - last).Ticks / interval.Interval.Ticks,
-                remaining / interval.Interval.Ticks);
-            coalesced = count == 0 ? [] : [last.AddTicks(count * interval.Interval.Ticks)];
+            coalesced = LatestAlignedOccurrence(interval, lastFiredAt, now, out _) is { } latest ? [latest] : [];
             return true;
         }
 
@@ -179,6 +190,36 @@ internal static class MissedFirePolicyApplier
 
         coalesced = [];
         return false;
+    }
+
+    /// <summary>
+    /// Counts the aligned interval occurrences strictly after <paramref name="lastFiredAt"/> and at
+    /// or before <paramref name="now"/>, without walking the cadence, and returns the latest one.
+    /// </summary>
+    /// <param name="interval">The interval cadence; its jitter is ignored.</param>
+    /// <param name="lastFiredAt">The last fire instant, or <see langword="null"/>.</param>
+    /// <param name="now">The inclusive upper bound.</param>
+    /// <param name="count">The number of aligned occurrences, or zero when nothing was missed.</param>
+    /// <returns>The latest aligned occurrence, or <see langword="null"/> when nothing was missed.</returns>
+    private static DateTimeOffset? LatestAlignedOccurrence(
+        IntervalCadence interval,
+        DateTimeOffset? lastFiredAt,
+        DateTimeOffset now,
+        out long count)
+    {
+        if (lastFiredAt is not { } last || last >= now)
+        {
+            count = 0;
+            return null;
+        }
+
+        var remaining = Math.Min(
+            DateTimeOffset.MaxValue.Ticks - last.Ticks,
+            DateTimeOffset.MaxValue.UtcTicks - last.UtcTicks);
+        count = Math.Min(
+            (now - last).Ticks / interval.Interval.Ticks,
+            remaining / interval.Interval.Ticks);
+        return count == 0 ? null : last.AddTicks(count * interval.Interval.Ticks);
     }
 
     private static IReadOnlyList<DateTimeOffset> Latest(List<DateTimeOffset> missed)

@@ -165,4 +165,53 @@ public sealed class MissedFirePolicyApplierTests
 
         await Assert.That(missed).HasCount(10);
     }
+
+    /// <summary>
+    /// Verifies a jittered interval reports its aligned catch-up as missed, whatever jitter the next
+    /// live instant draws.
+    /// </summary>
+    /// <remarks>
+    /// The last fire was 65 minutes ago with a one-hour interval, so the aligned occurrence 5 minutes
+    /// ago was missed. A jitter of 0.25 can move the next live instant up to 15 minutes later, past
+    /// now. The count must still be 1, or startup drops the coalesced catch-up. Many draws are taken
+    /// because a single draw lands past now only part of the time.
+    /// </remarks>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task ComputeBacklog_JitteredIntervalCoalesce_CountsTheAlignedCatchUp()
+    {
+        var interval = TimeSpan.FromHours(1);
+        var cadence = new IntervalCadence(interval, 0.25);
+        var lastFired = Now - TimeSpan.FromMinutes(65);
+
+        for (var draw = 0; draw < 200; draw++)
+        {
+            var (catchUp, missedCount) = MissedFirePolicyApplier.ComputeBacklog(
+                cadence, lastFired, Now, MissedFirePolicy.Coalesce, 100, CancellationToken.None);
+
+            await Assert.That(missedCount).IsEqualTo(1);
+            await Assert.That(catchUp).HasCount(1);
+            await Assert.That(catchUp[0]).IsEqualTo(lastFired + interval);
+        }
+    }
+
+    /// <summary>
+    /// Verifies a jittered interval's missed count stops at the cap while the coalesced catch-up is
+    /// still the latest aligned occurrence.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task ComputeBacklog_JitteredIntervalPastCap_CapsTheCountAndKeepsTheLatestCatchUp()
+    {
+        var interval = TimeSpan.FromMinutes(1);
+        var cadence = new IntervalCadence(interval, 0.25);
+        var lastFired = Now - TimeSpan.FromMinutes(500);
+
+        var (catchUp, missedCount) = MissedFirePolicyApplier.ComputeBacklog(
+            cadence, lastFired, Now, MissedFirePolicy.Coalesce, 100, CancellationToken.None);
+
+        await Assert.That(missedCount).IsEqualTo(100);
+        await Assert.That(catchUp).HasCount(1);
+        await Assert.That(catchUp[0]).IsEqualTo(Now);
+    }
 }

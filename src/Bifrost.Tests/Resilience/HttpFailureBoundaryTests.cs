@@ -73,7 +73,15 @@ public class HttpFailureBoundaryTests
         finally
         {
             await cleanup.CancelAsync().ConfigureAwait(false);
-            ResilienceContextPool.Shared.Return(context);
+
+            // The pipeline reads and restores the context until the request finishes, so the context
+            // goes back to the pool only after that. A request still running here stays out of the pool.
+            await ((Task)request).WaitAsync(TimeSpan.FromSeconds(10))
+                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            if (request.IsCompleted)
+            {
+                ResilienceContextPool.Shared.Return(context);
+            }
         }
     }
 
