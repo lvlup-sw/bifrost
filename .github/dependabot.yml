@@ -6,7 +6,9 @@ updates:
   # updating both the 40-char SHA and the trailing `# vN` comment so the
   # supply-chain pins never silently rot.
   - package-ecosystem: github-actions
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: weekly
     commit-message:

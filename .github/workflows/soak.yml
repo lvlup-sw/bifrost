@@ -13,6 +13,9 @@ on:
         required: false
         default: '600'
 
+permissions:
+  contents: read
+
 env:
   DOTNET_VERSION: '10.0.x'
   DOTNET_QUALITY: 'ga'
