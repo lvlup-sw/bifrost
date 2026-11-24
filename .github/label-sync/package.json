@@ -1,0 +1,7 @@
+{
+  "name": "label-sync-deps",
+  "private": true,
+  "dependencies": {
+    "js-yaml": "4.3.2"
+  }
+}

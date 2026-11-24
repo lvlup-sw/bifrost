@@ -34,7 +34,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-    secrets: inherit
 
   # ============================================================
   # AUTO-TRIAGE: Label new issues based on content

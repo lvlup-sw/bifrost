@@ -4,7 +4,9 @@
 #   jobs:
 #     sync-labels:
 #       uses: lvlup-sw/.github/.github/workflows/label-sync.yml@main
-#       secrets: inherit
+#
+# The caller must commit .github/label-sync/package.json and package-lock.json.
+# The workflow reads no secrets, so do not pass `secrets: inherit`.
 
 name: Label Sync
 
@@ -31,9 +33,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
+      # Install only what .github/label-sync/package-lock.json pins, and never
+      # run dependency lifecycle scripts in a job that holds an issues:write token.
       - name: Install js-yaml
-        run: npm install --no-save --prefix "$RUNNER_TEMP/label-sync-deps" js-yaml@4.3.2
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/label-sync-deps"
+          cp .github/label-sync/package.json .github/label-sync/package-lock.json "$RUNNER_TEMP/label-sync-deps/"
+          npm ci --ignore-scripts --no-audit --no-fund --prefix "$RUNNER_TEMP/label-sync-deps"
 
       - name: Sync labels
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
