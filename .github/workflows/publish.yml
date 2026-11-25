@@ -155,21 +155,36 @@ jobs:
         with:
           user: ${{ vars.NUGET_USER }}
 
+      # No --skip-duplicate here: every 409 conflict is checked by the verifier, which
+      # waits for nuget.org to serve the existing package and requires it to be this
+      # release (same id, exact version and commit) before the conflict counts as a replay.
       - name: Push to NuGet
         shell: bash
         env:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_COMMIT: ${{ inputs.commit }}
+          RELEASE_TAG_OBJECT: ${{ steps.bind.outputs.tag_object }}
+          RELEASE_BUILD_NUMBER: ${{ inputs.buildkite_build_number }}
+          RELEASE_BUILD_ID: ${{ inputs.buildkite_build_id }}
+          RELEASE_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
         run: |
           set -euo pipefail
           shopt -s nullglob
           packages=(./nupkgs/*.nupkg)
           [[ ${#packages[@]} -eq 9 ]] || { echo "::error::Expected 9 packages, found ${#packages[@]}." >&2; exit 1; }
+          log="$RUNNER_TEMP/nuget-push.log"
           for pkg in "${packages[@]}"; do
-            dotnet nuget push "$pkg" \
-              --api-key "$NUGET_API_KEY" \
-              --source https://api.nuget.org/v3/index.json \
-              --no-symbols \
-              --skip-duplicate
+            if dotnet nuget push "$pkg" \
+                --api-key "$NUGET_API_KEY" \
+                --source https://api.nuget.org/v3/index.json \
+                --no-symbols >"$log" 2>&1; then
+              cat "$log"
+              continue
+            fi
+            cat "$log"
+            grep -Eq '\b409\b|Conflict' "$log" || { echo "::error::Pushing $pkg failed." >&2; exit 1; }
+            python3 -I .github/scripts/verify-release-handoff.py --confirm-replay "$(basename "$pkg")"
           done
 
       # Symbols are best effort, as before: a symbol-server failure must not fail a release
