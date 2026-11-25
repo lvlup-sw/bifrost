@@ -85,6 +85,9 @@ REQUEST_TIMEOUT_SECONDS = 60
 REDIRECT_CODES = frozenset({301, 302, 303, 307, 308})
 RATE_LIMIT_RESET_HEADERS = ('RateLimit-Reset', 'RateLimit-User-Reset')
 NUGET_FLAT_CONTAINER = 'https://api.nuget.org/v3-flatcontainer'
+REPLAY_WAIT_SECONDS = 900
+REPLAY_POLL_SECONDS = 30
+PUBLIC_ONLY_TOKEN = 'public-only'
 TERMINAL_STATES = frozenset({'passed', 'failed', 'canceled', 'skipped', 'not_run', 'blocked'})
 PENDING_STATES = frozenset({'creating', 'scheduled', 'running', 'canceling', 'failing'})
 
@@ -704,10 +707,54 @@ def summarize(inputs: Inputs, packages: dict[str, bytes]) -> str:
     return '\n'.join(lines) + '\n'
 
 
-def main(env: dict[str, str] | None = None, client_factory: Callable[[Inputs, str], Buildkite] | None = None) -> int:
-    """Verify the dispatched release and write its packages; return the process exit code."""
+def confirm_replay(inputs: Inputs, client: Buildkite, name: str, base: str = NUGET_FLAT_CONTAINER,
+                   wait_seconds: float = REPLAY_WAIT_SECONDS) -> None:
+    """Accept a NuGet push conflict only when the package already published is this release.
+
+    The push answered 409, so the version exists on nuget.org, but the flat container can
+    lag behind a recent push. Poll for the published package until ``wait_seconds`` pass,
+    then require the same nuspec checks as the certified package. A package that never
+    appears fails closed.
+    """
+    entry = expected_files(inputs.version).get(name)
+    require(entry is not None and entry[1] == 'nupkg', f'{name} is not a package of this release')
+    package_id = entry[0]
+    lower, version = package_id.lower(), inputs.version.lower()
+    url = f'{base}/{lower}/{version}/{lower}.{version}.nupkg'
+    deadline = client.clock() + wait_seconds
+    while True:
+        published = client.get_public(url, MAX_PACKAGE_BYTES, f'published {package_id} {inputs.version}')
+        if published is not None:
+            verify_nuspec(f'published {name}', published, package_id, 'nupkg', inputs)
+            print(f'{package_id} {inputs.version} is already on nuget.org from this release; push skipped', flush=True)
+            return
+        require(client.clock() < deadline,
+                f'{package_id} {inputs.version} conflicts on nuget.org but is not served; refusing to treat it as a replay')
+        print(f'Waiting for nuget.org to serve {package_id} {inputs.version}', flush=True)
+        client.sleep(REPLAY_POLL_SECONDS)
+
+
+def main(env: dict[str, str] | None = None, client_factory: Callable[[Inputs, str], Buildkite] | None = None,
+         argv: list[str] | None = None) -> int:
+    """Verify the dispatched release and write its packages, or confirm one push conflict.
+
+    ``--confirm-replay <file>`` checks a single NuGet 409 conflict; it needs no Buildkite token.
+    """
     env = dict(os.environ) if env is None else env
+    argv = sys.argv[1:] if argv is None else argv
     factory = client_factory or (lambda inputs, token: Buildkite(inputs, token))
+    if argv[:1] == ['--confirm-replay']:
+        try:
+            require(len(argv) == 2, 'usage: --confirm-replay <package file name>')
+            inputs = Inputs.from_env(env)
+            wait = env.get('NUGET_REPLAY_WAIT_SECONDS', '')
+            confirm_replay(inputs, factory(inputs, PUBLIC_ONLY_TOKEN), argv[1],
+                           env.get('NUGET_FLAT_CONTAINER') or NUGET_FLAT_CONTAINER,
+                           float(wait) if wait.isdigit() else REPLAY_WAIT_SECONDS)
+        except VerificationError as error:
+            print(f'::error::NuGet replay check failed: {error}', file=sys.stderr)
+            return 1
+        return 0
     try:
         inputs = Inputs.from_env(env)
         client = factory(inputs, env.get('BUILDKITE_RELEASE_READ_TOKEN', ''))
