@@ -62,8 +62,9 @@ public class OrchestratorMetricsTests
         await Assert.That(metrics.ItemsEnqueued).IsNotNull();
     }
 
+#pragma warning disable CS0618
     /// <summary>
-    /// Verifies that RecordProcessed increments counter and records duration.
+    /// Verifies that the obsolete RecordProcessed still increments the counter and records duration.
     /// </summary>
     [Test]
     public async Task RecordProcessed_IncrementsCounterAndRecordsDuration()
@@ -78,7 +79,7 @@ public class OrchestratorMetricsTests
     }
 
     /// <summary>
-    /// Verifies that RecordFailed increments counter and records duration.
+    /// Verifies that the obsolete RecordFailed still increments the counter and records duration.
     /// </summary>
     [Test]
     public async Task RecordFailed_IncrementsCounterAndRecordsDuration()
@@ -90,6 +91,7 @@ public class OrchestratorMetricsTests
         await Assert.That(metrics.ItemsFailed).IsNotNull();
         await Assert.That(metrics.ProcessingDuration).IsNotNull();
     }
+#pragma warning restore CS0618
 
     /// <summary>
     /// Verifies that observable gauges read from orchestrator.
