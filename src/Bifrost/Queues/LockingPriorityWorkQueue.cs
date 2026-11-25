@@ -28,7 +28,7 @@ namespace Bifrost.Queues;
 /// Capacity and class watermarks are exact at admission. Every accepted item funds a semaphore
 /// wake; completion closes admission and wakes readers to drain the remaining items.
 /// </remarks>
-internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<TWork>>, IDisposable
+internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<TWork>>, IWorkQueueLifecycle, IDisposable
 {
     private readonly PriorityQueue<WorkEnvelope<TWork>, long> _queue;
     private readonly int _capacity;
@@ -130,6 +130,12 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
             _signal.Wait(0);
         }
     }
+
+    /// <inheritdoc/>
+    void IWorkQueueLifecycle.WakeConsumer() => WakeConsumer();
+
+    /// <inheritdoc/>
+    void IWorkQueueLifecycle.ConsumeMatchedWake() => ConsumeMatchedWake();
 
     /// <summary>Gets the number of wake permits still available. Test inspection only.</summary>
     internal int PendingWakeCountForTest => _signal.CurrentCount;

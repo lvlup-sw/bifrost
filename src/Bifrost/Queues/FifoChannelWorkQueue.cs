@@ -24,10 +24,12 @@ namespace Bifrost.Queues;
 /// provide the FIFO guarantee.
 /// </para>
 /// <para>
-/// <see cref="WriteAsync(T, CancellationToken)"/> and <see cref="Complete"/> are
-/// concrete-only members — they are not part of <see cref="IWorkQueue{T}"/>. The
-/// orchestrator reaches them via the concrete type (pattern-matched), keeping the
+/// <see cref="WriteAsync(T, CancellationToken)"/> is a concrete-only member — it is not
+/// part of <see cref="IWorkQueue{T}"/>. The orchestrator reaches it via the concrete type,
+/// which it admits only for <see cref="Bifrost.Core.QueueFullMode.Wait"/>, keeping the
 /// strategy contract minimal for bindings that have no waiting accept path.
+/// <see cref="Complete"/> is reached through <see cref="IWorkQueueLifecycle"/>. The channel
+/// has no wake semaphore, so the lifecycle wake members are no-ops.
 /// </para>
 /// <para>
 /// <b>DR-7 (no FIFO regression):</b> both asynchronous members forward the channel's
@@ -43,7 +45,7 @@ namespace Bifrost.Queues;
 /// producer-wait async layer).
 /// </para>
 /// </remarks>
-internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
+internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>, IWorkQueueLifecycle
 {
     private readonly Channel<T> _channel;
     private volatile bool _completed;
@@ -112,7 +114,7 @@ internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
         => _channel.Writer.WriteAsync(item, cancellationToken);
 
     /// <summary>
-    /// Marks the queue as complete for adding (concrete-only member). Residual items
+    /// Marks the queue as complete for adding (<see cref="IWorkQueueLifecycle.Complete"/>). Residual items
     /// remain dequeueable via <see cref="TryDequeue(out T)"/>; once drained,
     /// <see cref="WaitToDequeueAsync(CancellationToken)"/> completes <c>false</c>.
     /// </summary>
@@ -120,5 +122,15 @@ internal sealed class FifoChannelWorkQueue<T> : IWorkQueue<T>
     {
         _completed = true;
         _channel.Writer.TryComplete();
+    }
+
+    /// <summary>Does nothing: the channel has no wake permit to restore.</summary>
+    void IWorkQueueLifecycle.WakeConsumer()
+    {
+    }
+
+    /// <summary>Does nothing: the channel's own read path tracks availability.</summary>
+    void IWorkQueueLifecycle.ConsumeMatchedWake()
+    {
     }
 }
