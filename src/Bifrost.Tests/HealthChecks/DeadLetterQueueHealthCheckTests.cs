@@ -44,7 +44,7 @@ public class DeadLetterQueueHealthCheckTests
         var healthCheck = new DeadLetterQueueHealthCheck<string>(dlq);
 
         var result = await healthCheck.CheckHealthAsync(
-            new HealthCheckContext(), CancellationToken.None).ConfigureAwait(false);
+            new HealthCheckContext(), CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
@@ -60,7 +60,7 @@ public class DeadLetterQueueHealthCheckTests
         var healthCheck = new DeadLetterQueueHealthCheck<string>(dlq);
 
         var result = await healthCheck.CheckHealthAsync(
-            new HealthCheckContext(), CancellationToken.None).ConfigureAwait(false);
+            new HealthCheckContext(), CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
@@ -76,7 +76,7 @@ public class DeadLetterQueueHealthCheckTests
         var healthCheck = new DeadLetterQueueHealthCheck<string>(dlq);
 
         var result = await healthCheck.CheckHealthAsync(
-            new HealthCheckContext(), CancellationToken.None).ConfigureAwait(false);
+            new HealthCheckContext(), CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Degraded);
     }
@@ -92,7 +92,7 @@ public class DeadLetterQueueHealthCheckTests
         var healthCheck = new DeadLetterQueueHealthCheck<string>(dlq);
 
         var result = await healthCheck.CheckHealthAsync(
-            new HealthCheckContext(), CancellationToken.None).ConfigureAwait(false);
+            new HealthCheckContext(), CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
@@ -108,7 +108,7 @@ public class DeadLetterQueueHealthCheckTests
         var healthCheck = new DeadLetterQueueHealthCheck<string>(dlq);
 
         var result = await healthCheck.CheckHealthAsync(
-            new HealthCheckContext(), CancellationToken.None).ConfigureAwait(false);
+            new HealthCheckContext(), CancellationToken.None);
 
         await Assert.That(result.Description).IsNotNull();
         await Assert.That(result.Description!.Length).IsGreaterThan(0);

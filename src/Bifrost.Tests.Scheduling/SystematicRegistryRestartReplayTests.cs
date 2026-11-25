@@ -1,4 +1,4 @@
-#pragma warning disable VSTHRD111, CS1591, SA1600, SA1633, CA2007, VSTHRD002
+#pragma warning disable CS1591, SA1600, SA1633, VSTHRD002
 
 using System.Collections.Concurrent;
 using Bifrost.Tests.Systematic;

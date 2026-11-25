@@ -50,32 +50,32 @@ public sealed class JitteredCoalesceStartupTests
         var store = new InMemoryScheduleStore();
         var time = new FakeTimeProvider(Epoch);
         var firstFires = new ConcurrentQueue<DateTimeOffset>();
-        await using var first = await StartHostAsync(store, time, firstFires).ConfigureAwait(false);
-        await first.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        await using var first = await StartHostAsync(store, time, firstFires);
+        await first.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(10));
         time.Advance(TimeSpan.FromTicks(1));
-        await first.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-        var saved = (await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false))
+        await first.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(10));
+        var saved = (await store.LoadAllAsync(CancellationToken.None))
             .Single(static job => job.Name == "fast");
         await Assert.That(firstFires.Count).IsEqualTo(1);
         await Assert.That(saved.MissedFirePolicy).IsEqualTo(MissedFirePolicy.Coalesce);
         await Assert.That(saved.LastFiredAt.HasValue).IsTrue();
         await Assert.That(saved.Cadence).IsAssignableTo<IntervalCadence>();
         await Assert.That(((IntervalCadence)saved.Cadence).Jitter).IsGreaterThan(0);
-        await first.DisposeAsync().ConfigureAwait(false);
+        await first.DisposeAsync();
 
         var last = saved.LastFiredAt.GetValueOrDefault();
         var restartAt = last.AddTicks(RestartBacklogTicks);
-        var otherSaved = (await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false))
+        var otherSaved = (await store.LoadAllAsync(CancellationToken.None))
             .Single(static job => job.Name == "other");
         await store.SaveAsync(
             otherSaved with { LastFiredAt = restartAt.AddMinutes(-1), NextFireAt = restartAt },
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
         time.AdjustTime(restartAt);
         var restartFires = new ConcurrentQueue<DateTimeOffset>();
         var otherFires = new ConcurrentQueue<DateTimeOffset>();
-        await using var restart = await StartHostAsync(store, time, restartFires, otherFires).ConfigureAwait(false);
+        await using var restart = await StartHostAsync(store, time, restartFires, otherFires);
         var watch = Stopwatch.StartNew();
-        await restart.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        await restart.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(30));
         watch.Stop();
 
         var now = time.GetUtcNow();
@@ -110,14 +110,14 @@ public sealed class JitteredCoalesceStartupTests
                 DispatchKind: "inline",
                 DispatcherTypeName: null,
                 Metadata: new Dictionary<string, string>()),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
         await using var host = await StartHostAsync(
             store,
             new FakeTimeProvider(now),
             fires: null,
             configure: static builder => builder.AddInlineJob("job").Every(TimeSpan.FromHours(1))
-                .Run(static (_, _) => ValueTask.CompletedTask)).ConfigureAwait(false);
-        await host.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+                .Run(static (_, _) => ValueTask.CompletedTask));
+        await host.Loop.WaitForIdleAsync(TimeSpan.FromSeconds(10));
         await Assert.That(host.Registry.GetJob("job")!.Value.Cadence).IsSameReferenceAs(stepping);
         await Assert.That(stepping.WalkCalls).IsLessThanOrEqualTo(CatchUpCap * 2);
     }
@@ -136,7 +136,7 @@ public sealed class JitteredCoalesceStartupTests
         var time = new FakeTimeProvider(now);
         var store = new InMemoryScheduleStore();
         var registry = new ScheduleRegistry(store, time);
-        await registry.RegisterAsync("job", stepping, MissedFirePolicy.Coalesce, new NopDispatcher()).ConfigureAwait(false);
+        await registry.RegisterAsync("job", stepping, MissedFirePolicy.Coalesce, new NopDispatcher());
         await store.SaveAsync(
             new JobRecord(
                 "job",
@@ -148,7 +148,7 @@ public sealed class JitteredCoalesceStartupTests
                 DispatchKind: "custom",
                 DispatcherTypeName: null,
                 Metadata: new Dictionary<string, string>()),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
         var loop = new ScheduleTickLoop(
             registry,
             store,
@@ -159,11 +159,11 @@ public sealed class JitteredCoalesceStartupTests
             new SchedulerOptions());
         try
         {
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await stepping.Started.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await stepping.Started.WaitAsync(TimeSpan.FromSeconds(5));
             var stopping = ((IHostedService)loop).StopAsync(CancellationToken.None);
             stepping.Release();
-            await stopping.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await stopping.WaitAsync(TimeSpan.FromSeconds(10));
             await Assert.That(stepping.WalkCalls).IsLessThanOrEqualTo(8);
         }
         finally
@@ -172,7 +172,7 @@ public sealed class JitteredCoalesceStartupTests
             gate.Dispose();
             if (loop.ExecuteTask is { IsCompleted: false } pending)
             {
-                await pending.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+                await pending.WaitAsync(TimeSpan.FromSeconds(10));
             }
 
             loop.Dispose();
@@ -226,7 +226,7 @@ public sealed class JitteredCoalesceStartupTests
         var hosted = provider.GetServices<IHostedService>().ToArray();
         foreach (var service in hosted)
         {
-            await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            await service.StartAsync(CancellationToken.None);
         }
 
         return new RunningHost(
@@ -250,10 +250,10 @@ public sealed class JitteredCoalesceStartupTests
         {
             foreach (var service in hosted.Reverse())
             {
-                await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await service.StopAsync(CancellationToken.None);
             }
 
-            await provider.DisposeAsync().ConfigureAwait(false);
+            await provider.DisposeAsync();
         }
     }
 

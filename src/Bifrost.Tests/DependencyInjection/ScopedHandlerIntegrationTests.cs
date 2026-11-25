@@ -45,16 +45,16 @@ public class ScopedHandlerIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        await orchestrator.EnqueueAsync("item-1").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("item-2").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("item-3").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("item-1");
+        await orchestrator.EnqueueAsync("item-2");
+        await orchestrator.EnqueueAsync("item-3");
+        await Task.Delay(500);
 
         await Assert.That(tracker.InstanceIds.Count).IsGreaterThanOrEqualTo(3);
         var distinctInstances = tracker.InstanceIds.Distinct().Count();
         await Assert.That(distinctInstances).IsGreaterThanOrEqualTo(3);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -83,13 +83,13 @@ public class ScopedHandlerIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        await orchestrator.EnqueueAsync("failing-item").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("failing-item");
+        await Task.Delay(500);
 
         var distinctInstances = tracker.InstanceIds.Distinct().Count();
         await Assert.That(distinctInstances).IsGreaterThanOrEqualTo(3);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -138,7 +138,7 @@ public class ScopedHandlerIntegrationTests
 
             try
             {
-                while (await enumerator.MoveNextAsync().ConfigureAwait(false))
+                while (await enumerator.MoveNextAsync())
                 {
                     events.Add(enumerator.Current);
                 }
@@ -148,23 +148,23 @@ public class ScopedHandlerIntegrationTests
             }
             finally
             {
-                await enumerator.DisposeAsync().ConfigureAwait(false);
+                await enumerator.DisposeAsync();
             }
         });
 
-        await subscriberReady.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        await subscriberReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("test-item");
 
-        await orchestrator.DrainAsync().ConfigureAwait(false);
+        await orchestrator.DrainAsync();
 
-        await Task.Delay(100).ConfigureAwait(false);
-        await eventCts.CancelAsync().ConfigureAwait(false);
-        await eventTask.ConfigureAwait(false);
+        await Task.Delay(100);
+        await eventCts.CancelAsync();
+        await eventTask;
 
         await Assert.That(events.Count).IsGreaterThan(0);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -190,16 +190,16 @@ public class ScopedHandlerIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        await orchestrator.EnqueueAsync("item-1").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("item-2").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("item-3").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("item-1");
+        await orchestrator.EnqueueAsync("item-2");
+        await orchestrator.EnqueueAsync("item-3");
+        await Task.Delay(500);
 
         await Assert.That(tracker.InstanceIds.Count).IsGreaterThanOrEqualTo(3);
         var distinctInstances = tracker.InstanceIds.Distinct().Count();
         await Assert.That(distinctInstances).IsEqualTo(1);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>

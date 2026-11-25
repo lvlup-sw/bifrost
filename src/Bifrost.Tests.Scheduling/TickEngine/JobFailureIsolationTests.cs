@@ -56,19 +56,18 @@ public sealed class JobFailureIsolationTests
     [Test]
     public async Task ComputeNextFire_Throws_JobMarkedFaulted_PublishesJobFireFailedEvent()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
 
         var failingCadence = new FailOnNextFireCadence(
             FirstNextFire: Start.AddMinutes(5),
             ThrowOnSubsequentCalls: true);
         var dispatcher = new CountingDispatcher();
         await fx.Registry.RegisterAsync(
-            "faulting-job", failingCadence, MissedFirePolicy.Coalesce, dispatcher)
-            .ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            "faulting-job", failingCadence, MissedFirePolicy.Coalesce, dispatcher);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         var failedEvents = fx.Events.OfType<JobFireFailedEvent>().ToList();
         await Assert.That(failedEvents.Count).IsGreaterThanOrEqualTo(1);
@@ -91,31 +90,29 @@ public sealed class JobFailureIsolationTests
     [Test]
     public async Task ComputeNextFire_Throws_OtherJobsKeepFiring()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
 
         var failingCadence = new FailOnNextFireCadence(
             FirstNextFire: Start.AddMinutes(5),
             ThrowOnSubsequentCalls: true);
         await fx.Registry.RegisterAsync(
-            "faulting-job", failingCadence, MissedFirePolicy.Coalesce, new CountingDispatcher())
-            .ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            "faulting-job", failingCadence, MissedFirePolicy.Coalesce, new CountingDispatcher());
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         var healthy = new CountingDispatcher();
         await fx.Registry.RegisterAsync(
-            "healthy-job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, healthy)
-            .ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            "healthy-job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, healthy);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(healthy.FireCount).IsEqualTo(1);
 
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(healthy.FireCount).IsEqualTo(2);
     }
 
@@ -159,14 +156,14 @@ public sealed class JobFailureIsolationTests
                 serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop, sink);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

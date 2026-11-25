@@ -44,12 +44,12 @@ public class HealthCheckExtensionsTests
         var healthCheckService = provider.GetService<HealthCheckService>();
         await Assert.That(healthCheckService).IsNotNull();
 
-        var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
+        var report = await healthCheckService!.CheckHealthAsync();
         await Assert.That(report.Entries).IsNotEmpty();
 
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
     }
 
@@ -72,14 +72,14 @@ public class HealthCheckExtensionsTests
         var healthCheckService = provider.GetService<HealthCheckService>();
         await Assert.That(healthCheckService).IsNotNull();
 
-        var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
+        var report = await healthCheckService!.CheckHealthAsync();
         var hasCustomName = report.Entries.ContainsKey("custom-health-check");
         await Assert.That(hasCustomName).IsTrue();
 
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
     }
 
@@ -123,7 +123,7 @@ public class HealthCheckExtensionsTests
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
     }
 
@@ -153,7 +153,7 @@ public class HealthCheckExtensionsTests
 
         await Assert.That(healthCheckService).IsNotNull();
 
-        var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
+        var report = await healthCheckService!.CheckHealthAsync();
         await Assert.That(report.Entries.ContainsKey("autoscaling-engine-System.String")).IsTrue();
     }
 
@@ -183,7 +183,7 @@ public class HealthCheckExtensionsTests
 
         await Assert.That(healthCheckService).IsNotNull();
 
-        var report = await healthCheckService!.CheckHealthAsync().ConfigureAwait(false);
+        var report = await healthCheckService!.CheckHealthAsync();
         await Assert.That(report.Entries.ContainsKey("worker-registry-System.String")).IsTrue();
     }
 

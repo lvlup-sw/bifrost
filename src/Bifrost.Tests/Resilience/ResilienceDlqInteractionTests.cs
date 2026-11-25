@@ -67,18 +67,18 @@ public class ResilienceDlqInteractionTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("test-work");
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (dlq.Count == 0 && !cts.IsCancellationRequested)
         {
-            await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            await Task.Delay(50, cts.Token);
         }
 
         await Assert.That(handlerCallCount).IsEqualTo(2);
         await Assert.That(dlq.Count).IsEqualTo(1);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -122,18 +122,18 @@ public class ResilienceDlqInteractionTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("test-work");
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (dlq.Count == 0 && !cts.IsCancellationRequested)
         {
-            await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            await Task.Delay(50, cts.Token);
         }
 
         await Assert.That(handlerCallCount).IsEqualTo(1);
         await Assert.That(dlq.Count).IsEqualTo(1);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -187,9 +187,9 @@ public class ResilienceDlqInteractionTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        await orchestrator.EnqueueAsync("item-in-handler").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("item-in-handler");
 
-        await handlerEntered.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        await handlerEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await Assert.That(orchestrator.TryEnqueue("fill-channel")).IsTrue();
 
         var enqueueResult = orchestrator.TryEnqueue("overflow-item");
@@ -198,7 +198,7 @@ public class ResilienceDlqInteractionTests
         await Assert.That(dlq.Count).IsEqualTo(1);
 
         var entries = new List<DeadLetteredWork<string>>();
-        await foreach (var entry in dlq.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var entry in dlq.ReadAllAsync())
         {
             entries.Add(entry);
         }
@@ -208,6 +208,6 @@ public class ResilienceDlqInteractionTests
         await Assert.That(entries[0].AttemptCount).IsEqualTo(0);
         await Assert.That(entries[0].Exception is WorkRejectedException).IsTrue();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 }

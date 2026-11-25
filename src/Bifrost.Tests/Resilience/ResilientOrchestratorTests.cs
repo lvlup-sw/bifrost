@@ -83,10 +83,10 @@ public class ResilientOrchestratorTests
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
-        var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
+        var result = await orchestrator.EnqueueAsync("work");
 
         await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
-        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -118,7 +118,7 @@ public class ResilientOrchestratorTests
                 return new ValueTask<EnqueueResult>(EnqueueResult.Accepted);
             });
 
-        var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
+        var result = await orchestrator.EnqueueAsync("work");
 
         await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(callCount).IsEqualTo(2);
@@ -205,7 +205,7 @@ public class ResilientOrchestratorTests
         _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>())
             .Returns(EnqueueResult.Rejected(RejectionReason.Shutdown));
 
-        var result = await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
+        var result = await orchestrator.EnqueueAsync("work");
 
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(result.Reason).IsEqualTo(RejectionReason.Shutdown);
@@ -220,9 +220,9 @@ public class ResilientOrchestratorTests
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        await orchestrator.AbortAsync().ConfigureAwait(false);
+        await orchestrator.AbortAsync();
 
-        await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -234,9 +234,9 @@ public class ResilientOrchestratorTests
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.DisposeAsync().Returns(ValueTask.CompletedTask);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
 
-        await _inner.Received(1).DisposeAsync().ConfigureAwait(false);
+        await _inner.Received(1).DisposeAsync();
     }
 
     /// <summary>
@@ -259,9 +259,9 @@ public class ResilientOrchestratorTests
         var orchestrator = new ResilientOrchestrator<string>(_inner, _options, _logger);
         _inner.DrainAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        await orchestrator.DrainAsync().ConfigureAwait(false);
+        await orchestrator.DrainAsync();
 
-        await _inner.Received(1).DrainAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).DrainAsync(Arg.Any<CancellationToken>());
     }
 
     /// <summary>

@@ -26,7 +26,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_1()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100000\",\"last\":\"0\",\"now\":\"600000\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_1").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_1");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -35,7 +35,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_2()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"200000\",\"last\":\"0\",\"now\":\"300000\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_2").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_2");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -44,7 +44,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_3()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100000\",\"last\":\"100\",\"now\":\"300100\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_3").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_3");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -53,7 +53,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_4()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"150000\",\"last\":\"99999\",\"now\":\"399999\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_4").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_4");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -62,7 +62,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_5()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100000\",\"last\":\"7\",\"now\":\"700007\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_5").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_5");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -71,7 +71,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_6()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"123456\",\"last\":\"12345\",\"now\":\"312345\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_6").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_6");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -80,7 +80,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_7()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100000\",\"last\":\"0\",\"now\":\"300000\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_7").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_7");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -89,7 +89,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_8()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100000\",\"last\":\"1\",\"now\":\"300000\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_8").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_8");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -98,7 +98,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_9()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100000\",\"last\":\"99999\",\"now\":\"300000\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_9").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_9");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -107,7 +107,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_10()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100000\",\"last\":\"100000\",\"now\":\"300000\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_10").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_10");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -116,7 +116,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_11()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100000\",\"last\":\"0\",\"now\":\"300001\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_11").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_11");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -125,7 +125,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_12()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100000\",\"last\":\"0\",\"now\":\"6399999\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_12").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_12");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -134,7 +134,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_13()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100000\",\"last\":\"0\",\"now\":\"6400000\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_13").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_13");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -143,7 +143,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_14()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"100001\",\"last\":\"0\",\"now\":\"300000\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_14").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_14");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -152,7 +152,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_15()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"199999\",\"last\":\"0\",\"now\":\"300000\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_15").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_15");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -161,7 +161,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_16()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"168885\",\"last\":\"32603\",\"now\":\"4132920\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_16").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_16");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -170,7 +170,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_17()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"125716\",\"last\":\"47377\",\"now\":\"3235225\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_17").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_17");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -179,7 +179,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_18()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"143345\",\"last\":\"59081\",\"now\":\"3617533\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_18").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_18");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -188,7 +188,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_19()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"139627\",\"last\":\"97919\",\"now\":\"4357774\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_19").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_19");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -197,7 +197,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_20()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"116335\",\"last\":\"68431\",\"now\":\"5091183\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_20").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_20");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -206,7 +206,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_21()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"170694\",\"last\":\"86357\",\"now\":\"2322311\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_21").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_21");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -215,7 +215,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_22()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"167531\",\"last\":\"26734\",\"now\":\"2174824\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_22").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_22");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -224,7 +224,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_23()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"173817\",\"last\":\"52735\",\"now\":\"4973225\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_23").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_23");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -233,7 +233,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_24()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"115465\",\"last\":\"51514\",\"now\":\"3853978\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_24").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_24");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -242,7 +242,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_25()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"171233\",\"last\":\"13004\",\"now\":\"5523421\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_25").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_25");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -251,7 +251,7 @@ public sealed class @CoalesceDifferentialTests
     public async Task Case_26()
     {
         using var document = JsonDocument.Parse("{\"interval\":\"104727\",\"last\":\"6395\",\"now\":\"1791042\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_26").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_26");
     }
 
 
@@ -372,15 +372,15 @@ public sealed class @CoalesceDifferentialTests
     private static async Task<bool> Check(JsonElement source)
     {
         if (!InDomain(source) || !global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceDifferentialBinding.IsValid(source)) throw new InvalidCaseException("TestGen invalid case: source is outside the declared domain.");
-        var actual = await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceDifferentialBinding.Observe(source.Clone()).ConfigureAwait(false);
-        var expected = await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceDifferentialBinding.Reference(source.Clone()).ConfigureAwait(false);
-        return await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceDifferentialBinding.Equivalent(source, actual, expected).ConfigureAwait(false);
+        var actual = await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceDifferentialBinding.Observe(source.Clone());
+        var expected = await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceDifferentialBinding.Reference(source.Clone());
+        return await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceDifferentialBinding.Equivalent(source, actual, expected);
     }
 
     internal static async Task RunCase(JsonElement source, string caseId)
     {
         bool passed;
-        try { passed = await Check(source).ConfigureAwait(false); }
+        try { passed = await Check(source); }
         catch (InvalidCaseException error)
         {
             Console.Error.WriteLine("TESTGEN_REJECTED " + JsonSerializer.Serialize(new { caseId, reason = error.Message, cases = new[] { source } }));
@@ -406,7 +406,7 @@ public sealed class @CoalesceDifferentialTests
                 if (!InDomain(candidate)) { rejected++; continue; }
                 try
                 {
-                    if (!await Check(candidate).ConfigureAwait(false))
+                    if (!await Check(candidate))
                     {
                         current = candidate.Clone();
                         changed = true;

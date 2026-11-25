@@ -51,9 +51,9 @@ public sealed class ScheduleRegistryDisposeTests
         var pendingWait = registry.Commands.WaitToReadAsync().AsTask();
         await Assert.That(pendingWait.IsCompleted).IsFalse();
 
-        await registry.DisposeAsync().ConfigureAwait(false);
+        await registry.DisposeAsync();
 
-        var canRead = await pendingWait.ConfigureAwait(false);
+        var canRead = await pendingWait;
         await Assert.That(canRead).IsFalse();
         await Assert.That(registry.Commands.Completion.IsCompletedSuccessfully).IsTrue();
     }
@@ -72,9 +72,9 @@ public sealed class ScheduleRegistryDisposeTests
     public async Task DisposeAsync_AfterCommandPosted_DrainsBacklogThenCompletes()
     {
         var store = Substitute.For<IScheduleStore>();
-        var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
+        var registry = await RegisterJobAsync(store, "daily-report");
 
-        await registry.DisposeAsync().ConfigureAwait(false);
+        await registry.DisposeAsync();
 
         var drained = DrainCommands(registry);
         await Assert.That(drained).Contains(
@@ -95,9 +95,9 @@ public sealed class ScheduleRegistryDisposeTests
         var store = Substitute.For<IScheduleStore>();
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
 
-        await registry.DisposeAsync().ConfigureAwait(false);
+        await registry.DisposeAsync();
 
-        await Assert.That(async () => await registry.DisposeAsync().ConfigureAwait(false))
+        await Assert.That(async () => await registry.DisposeAsync())
             .ThrowsNothing();
         await Assert.That(registry.Commands.Completion.IsCompletedSuccessfully).IsTrue();
     }
@@ -121,11 +121,11 @@ public sealed class ScheduleRegistryDisposeTests
     public async Task PostAfterDispose_FailsFastWithObjectDisposed()
     {
         var store = Substitute.For<IScheduleStore>();
-        var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
+        var registry = await RegisterJobAsync(store, "daily-report");
 
-        await registry.DisposeAsync().ConfigureAwait(false);
+        await registry.DisposeAsync();
 
-        await Assert.That(async () => await registry.TriggerAsync("daily-report").ConfigureAwait(false))
+        await Assert.That(async () => await registry.TriggerAsync("daily-report"))
             .Throws<ObjectDisposedException>();
     }
 
@@ -186,40 +186,37 @@ public sealed class ScheduleRegistryDisposeTests
     public async Task MutatingMethods_AfterDispose_Throw()
     {
         var store = Substitute.For<IScheduleStore>();
-        var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
+        var registry = await RegisterJobAsync(store, "daily-report");
 
-        await registry.DisposeAsync().ConfigureAwait(false);
+        await registry.DisposeAsync();
 
         store.ClearReceivedCalls();
 
         await Assert.That(async () => await registry.RegisterAsync(
-                "new-job", new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher())
-            .ConfigureAwait(false))
+                "new-job", new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher()))
             .Throws<ObjectDisposedException>();
 
-        await Assert.That(async () => await registry.PauseAsync("daily-report").ConfigureAwait(false))
+        await Assert.That(async () => await registry.PauseAsync("daily-report"))
             .Throws<ObjectDisposedException>();
-        await Assert.That(async () => await registry.ResumeAsync("daily-report").ConfigureAwait(false))
+        await Assert.That(async () => await registry.ResumeAsync("daily-report"))
             .Throws<ObjectDisposedException>();
         await Assert.That(async () => await registry.UpdateAsync(
-                "daily-report", new IntervalCadence(TimeSpan.FromMinutes(30)), MissedFirePolicy.Coalesce)
-            .ConfigureAwait(false))
+                "daily-report", new IntervalCadence(TimeSpan.FromMinutes(30)), MissedFirePolicy.Coalesce))
             .Throws<ObjectDisposedException>();
-        await Assert.That(async () => await registry.UnregisterAsync("daily-report").ConfigureAwait(false))
+        await Assert.That(async () => await registry.UnregisterAsync("daily-report"))
             .Throws<ObjectDisposedException>();
-        await Assert.That(async () => await registry.TriggerAsync("daily-report").ConfigureAwait(false))
+        await Assert.That(async () => await registry.TriggerAsync("daily-report"))
             .Throws<ObjectDisposedException>();
 
-        await store.DidNotReceive().SaveAsync(Arg.Any<JobRecord>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
-        await store.DidNotReceive().DeleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await store.DidNotReceive().SaveAsync(Arg.Any<JobRecord>(), Arg.Any<CancellationToken>());
+        await store.DidNotReceive().DeleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     private static async Task<ScheduleRegistry> RegisterJobAsync(IScheduleStore store, string name)
     {
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
         await registry.RegisterAsync(
-                name, new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher())
-            .ConfigureAwait(false);
+                name, new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher());
         return registry;
     }
 

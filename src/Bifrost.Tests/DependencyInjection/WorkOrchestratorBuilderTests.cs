@@ -41,7 +41,7 @@ public class WorkOrchestratorBuilderTests
 
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
     }
 
@@ -70,7 +70,7 @@ public class WorkOrchestratorBuilderTests
 
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
     }
 
@@ -137,7 +137,7 @@ public class WorkOrchestratorBuilderTests
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(builder.HandlerRegistered).IsFalse();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -163,14 +163,14 @@ public class WorkOrchestratorBuilderTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
-        await Task.Delay(200).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("test-item");
+        await Task.Delay(200);
 
         await Assert.That(orchestrator).IsNotNull();
         await Assert.That(TestStringHandler.HandleCallCount).IsGreaterThan(0);
 
         TestStringHandler.Reset();
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -196,7 +196,7 @@ public class WorkOrchestratorBuilderTests
 
         await Assert.That(actionExecuted).IsTrue();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>

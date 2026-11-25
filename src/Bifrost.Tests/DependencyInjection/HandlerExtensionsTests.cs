@@ -40,7 +40,7 @@ public class HandlerExtensionsTests
         await Assert.That(handler).IsTypeOf<TestHandler>();
 
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -177,7 +177,7 @@ public class HandlerExtensionsTests
         await Assert.That(resolved).IsSameReferenceAs(factoryHandler);
 
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -236,7 +236,7 @@ public class HandlerExtensionsTests
         await Assert.That(handler!.GetType().Name).Contains("InlineDelegateWorkHandler");
 
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -259,12 +259,12 @@ public class HandlerExtensionsTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
-        await Task.Delay(200).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("test-work");
+        await Task.Delay(200);
 
         await Assert.That(invoked).IsTrue();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>

@@ -52,7 +52,7 @@ public class BestObservedContractTests
         finally
         {
             release.Set();
-            await writer.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await writer.WaitAsync(TimeSpan.FromSeconds(5));
         }
     }
 }

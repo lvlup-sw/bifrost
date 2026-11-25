@@ -66,7 +66,7 @@ public sealed class InlineJobDispatcher : IJobDispatcher
         var localHandler = this.handler;
 
         await Task.Run(
-            async () => await localHandler(context, ct).ConfigureAwait(false),
-            ct).ConfigureAwait(false);
+            async () => await localHandler(context, ct),
+            ct);
     }
 }

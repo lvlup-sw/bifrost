@@ -47,7 +47,7 @@ using Bifrost.Benchmarks.Scheduling;
 //   dotnet run -c Release -- soak [--seconds 600] [--binding both|locking|multiqueue] [--workers 2,8] ...
 if (args.Length > 0 && args[0].Equals("soak", StringComparison.OrdinalIgnoreCase))
 {
-    await SoakVerbs.RunSoakAsync(args).ConfigureAwait(false);
+    await SoakVerbs.RunSoakAsync(args);
     return;
 }
 

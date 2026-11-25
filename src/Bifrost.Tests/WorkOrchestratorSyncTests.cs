@@ -50,9 +50,9 @@ public class WorkOrchestratorSyncTests
             });
 
         orchestrator.Enqueue("test-work");
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
-        await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -139,9 +139,9 @@ public class WorkOrchestratorSyncTests
             });
 
         var result = orchestrator.TryEnqueue("test-work");
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         await Assert.That(result).IsTrue();
-        await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>());
     }
 }

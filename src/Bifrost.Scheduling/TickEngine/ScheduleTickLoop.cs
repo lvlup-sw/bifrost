@@ -294,7 +294,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         }
 
         var deadline = Task.Delay(timeout, TimeProvider.System, CancellationToken.None);
-        var completed = await Task.WhenAny(request.Task, deadline).ConfigureAwait(false);
+        var completed = await Task.WhenAny(request.Task, deadline);
         if (completed == deadline)
         {
             throw new TimeoutException(
@@ -382,7 +382,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
         try
         {
-            await this.SeedAsync(stoppingToken).ConfigureAwait(false);
+            await this.SeedAsync(stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -392,7 +392,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             try
             {
-                await this.RunTickLoopAsync(stoppingToken).ConfigureAwait(false);
+                await this.RunTickLoopAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -404,13 +404,13 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             {
                 this.HandleTickLoopFault(ex);
 
-                await this.AwaitRestartBackoffAsync(stoppingToken).ConfigureAwait(false);
+                await this.AwaitRestartBackoffAsync(stoppingToken);
             }
         }
 
         try
         {
-            await this.DrainRetainedOnShutdownAsync().ConfigureAwait(false);
+            await this.DrainRetainedOnShutdownAsync();
         }
         finally
         {
@@ -462,7 +462,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     {
         while (!this.ShouldStop(stoppingToken))
         {
-            await this.RunTickAsync(stoppingToken).ConfigureAwait(false);
+            await this.RunTickAsync(stoppingToken);
         }
     }
 
@@ -544,10 +544,10 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         try
         {
             var delay = Task.Delay(backoff, this.timeProvider, stoppingToken);
-            var winner = await Task.WhenAny(delay, this.registry.DisposedTask).ConfigureAwait(false);
+            var winner = await Task.WhenAny(delay, this.registry.DisposedTask);
             if (winner == delay)
             {
-                await delay.ConfigureAwait(false);
+                await delay;
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -588,7 +588,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         }
 
         var deadline = Task.Delay(timeout, TimeProvider.System, CancellationToken.None);
-        var completed = await Task.WhenAny(request.Task, deadline).ConfigureAwait(false);
+        var completed = await Task.WhenAny(request.Task, deadline);
         if (completed == deadline)
         {
             throw new TimeoutException(
@@ -681,9 +681,9 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         this.shutdownDeadline = deadline;
         _ = this.CancelDispatchesAtDeadlineAsync(deadline);
 
-        await base.StopAsync(cancellationToken).ConfigureAwait(false);
+        await base.StopAsync(cancellationToken);
 
-        await this.WaitForInFlightToDrainAsync(deadline).ConfigureAwait(false);
+        await this.WaitForInFlightToDrainAsync(deadline);
     }
 
     /// <summary>
@@ -720,7 +720,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
             try
             {
-                var completed = await Task.WhenAny(drain, deadline).ConfigureAwait(false);
+                var completed = await Task.WhenAny(drain, deadline);
                 if (completed == deadline || deadline.IsCompleted)
                 {
                     return;
@@ -758,7 +758,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
         this.DrainCommands();
         this.DispatchDueJobs(stoppingToken);
-        await this.WaitForNextWakeAsync(stoppingToken, barrierCount, barrierWakeTask).ConfigureAwait(false);
+        await this.WaitForNextWakeAsync(stoppingToken, barrierCount, barrierWakeTask);
     }
 
     /// <summary>
@@ -845,7 +845,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             var blockedCommand = this.CommandReadyTask(stoppingToken);
 
             this.healthMonitor.RecordIdleWait(now);
-            await Task.WhenAny(slot, blockedCommand).ConfigureAwait(false);
+            await Task.WhenAny(slot, blockedCommand);
             return;
         }
 
@@ -883,11 +883,11 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
         {
             if (delayTask is null)
             {
-                await Task.WhenAny(commandReady, drainTask, barrierWakeTask).ConfigureAwait(false);
+                await Task.WhenAny(commandReady, drainTask, barrierWakeTask);
                 return;
             }
 
-            await Task.WhenAny(commandReady, delayTask, drainTask, barrierWakeTask).ConfigureAwait(false);
+            await Task.WhenAny(commandReady, delayTask, drainTask, barrierWakeTask);
         }
         catch (OperationCanceledException)
         {
@@ -898,7 +898,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             {
                 try
                 {
-                    await delayCancellation.CancelAsync().ConfigureAwait(false);
+                    await delayCancellation.CancelAsync();
                 }
                 finally
                 {
@@ -1104,7 +1104,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     {
         try
         {
-            await deadline.ConfigureAwait(false);
+            await deadline;
         }
         catch (OperationCanceledException)
         {
@@ -1112,7 +1112,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
 
         try
         {
-            await this.dispatchLifetime.CancelAsync().ConfigureAwait(false);
+            await this.dispatchLifetime.CancelAsync();
         }
         catch (ObjectDisposedException)
         {
@@ -1325,7 +1325,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                 }
 
                 var slot = this.SlotReleasedTask();
-                var completed = await Task.WhenAny(slot, deadline).ConfigureAwait(false);
+                var completed = await Task.WhenAny(slot, deadline);
                 if (ReferenceEquals(completed, deadline) || deadline.IsCompleted)
                 {
                     break;
@@ -1947,7 +1947,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     {
         try
         {
-            await checkpoint.ConfigureAwait(false);
+            await checkpoint;
         }
 #pragma warning disable CA1031
         catch (Exception ex)
@@ -2051,7 +2051,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
     private async Task SeedAsync(CancellationToken stoppingToken)
     {
         var now = this.timeProvider.GetUtcNow();
-        var persisted = await this.store.LoadAllAsync(stoppingToken).ConfigureAwait(false);
+        var persisted = await this.store.LoadAllAsync(stoppingToken);
 
         var seeded = new HashSet<string>(StringComparer.Ordinal);
         foreach (var record in persisted)
@@ -2342,7 +2342,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
                     {
                         using (DispatchAdmission.Enter())
                         {
-                            await inner.DispatchAsync(context, ct).ConfigureAwait(false);
+                            await inner.DispatchAsync(context, ct);
                         }
 
                         this.fire = context;
@@ -2371,7 +2371,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             {
                 if (Interlocked.Exchange(ref this.completed, 1) == 0)
                 {
-                    await this.DisposeScopeAsync(context.JobName).ConfigureAwait(false);
+                    await this.DisposeScopeAsync(context.JobName);
                     owner.OnDispatchCompleted();
                 }
             }
@@ -2423,7 +2423,7 @@ public sealed partial class ScheduleTickLoop : BackgroundService, IDisposable, I
             {
                 if (scope is IAsyncDisposable asyncScope)
                 {
-                    await asyncScope.DisposeAsync().ConfigureAwait(false);
+                    await asyncScope.DisposeAsync();
                 }
                 else
                 {

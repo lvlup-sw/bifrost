@@ -95,7 +95,7 @@ public abstract class WorkQueueContractTests
         await Assert.That(enqueued).IsTrue();
         using var timeoutCts = new CancellationTokenSource(WaitTimeout);
 
-        var signaled = await queue.WaitToDequeueAsync(timeoutCts.Token).ConfigureAwait(false);
+        var signaled = await queue.WaitToDequeueAsync(timeoutCts.Token);
 
         await Assert.That(signaled).IsTrue();
     }
@@ -123,12 +123,12 @@ public abstract class WorkQueueContractTests
         using var shutdownCts = new CancellationTokenSource();
         var waitTask = queue.WaitToDequeueAsync(shutdownCts.Token).AsTask();
 
-        await shutdownCts.CancelAsync().ConfigureAwait(false);
+        await shutdownCts.CancelAsync();
 
         var surfaced = false;
         try
         {
-            _ = await waitTask.WaitAsync(WaitTimeout).ConfigureAwait(false);
+            _ = await waitTask.WaitAsync(WaitTimeout);
         }
         catch (OperationCanceledException)
         {
@@ -137,7 +137,7 @@ public abstract class WorkQueueContractTests
 
         await Assert.That(surfaced).IsTrue();
 
-        var (received, _) = await ConsumeOneAsync(queue, shutdownCts.Token).ConfigureAwait(false);
+        var (received, _) = await ConsumeOneAsync(queue, shutdownCts.Token);
         await Assert.That(received).IsFalse();
     }
 
@@ -155,7 +155,7 @@ public abstract class WorkQueueContractTests
         await Assert.That(enqueued).IsTrue();
         using var timeoutCts = new CancellationTokenSource(WaitTimeout);
 
-        var (received, item) = await ConsumeOneAsync(queue, timeoutCts.Token).ConfigureAwait(false);
+        var (received, item) = await ConsumeOneAsync(queue, timeoutCts.Token);
 
         await Assert.That(received).IsTrue();
         await Assert.That(item).IsEqualTo(99);
@@ -185,7 +185,7 @@ public abstract class WorkQueueContractTests
         using var timeoutCts = new CancellationTokenSource(WaitTimeout);
         for (var i = 0; i < enqueueCount; i++)
         {
-            var (received, _) = await ConsumeOneAsync(queue, timeoutCts.Token).ConfigureAwait(false);
+            var (received, _) = await ConsumeOneAsync(queue, timeoutCts.Token);
             await Assert.That(received).IsTrue();
         }
 
@@ -246,7 +246,7 @@ public abstract class WorkQueueContractTests
             {
                 while (true)
                 {
-                    var (gotItem, item) = await ConsumeOneAsync(queue, doneCts.Token).ConfigureAwait(false);
+                    var (gotItem, item) = await ConsumeOneAsync(queue, doneCts.Token);
                     if (!gotItem)
                     {
                         return;
@@ -255,14 +255,14 @@ public abstract class WorkQueueContractTests
                     received.Enqueue(item);
                     if (Interlocked.Increment(ref receivedCount) == totalItems)
                     {
-                        await doneCts.CancelAsync().ConfigureAwait(false);
+                        await doneCts.CancelAsync();
                     }
                 }
             });
         }
 
-        await Task.WhenAll(producers).ConfigureAwait(false);
-        await Task.WhenAll(consumers).ConfigureAwait(false);
+        await Task.WhenAll(producers);
+        await Task.WhenAll(consumers);
 
         await Assert.That(receivedCount).IsEqualTo(totalItems);
         var distinct = new HashSet<int>(received);
@@ -306,7 +306,7 @@ public abstract class WorkQueueContractTests
     {
         try
         {
-            while (await queue.WaitToDequeueAsync(cancellationToken).ConfigureAwait(false))
+            while (await queue.WaitToDequeueAsync(cancellationToken))
             {
                 if (queue.TryDequeue(out var item))
                 {

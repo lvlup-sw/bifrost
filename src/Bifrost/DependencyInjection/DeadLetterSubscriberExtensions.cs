@@ -58,7 +58,7 @@ public static class DeadLetterSubscriberExtensions
             notifier.SubscribeAsync(async evt =>
             {
                 var dlw = ToDeadLetteredWork(evt);
-                await subscriber.HandleAsync(dlw, CancellationToken.None).ConfigureAwait(false);
+                await subscriber.HandleAsync(dlw, CancellationToken.None);
             });
         });
 
@@ -97,7 +97,7 @@ public static class DeadLetterSubscriberExtensions
             notifier.SubscribeAsync(async evt =>
             {
                 var dlw = ToDeadLetteredWork(evt);
-                await callback(dlw, CancellationToken.None).ConfigureAwait(false);
+                await callback(dlw, CancellationToken.None);
             });
         });
 

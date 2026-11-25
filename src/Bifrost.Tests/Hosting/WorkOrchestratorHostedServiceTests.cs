@@ -32,7 +32,7 @@ public class WorkOrchestratorHostedServiceTests
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
 
         var task = service.StartAsync(CancellationToken.None);
-        await task.ConfigureAwait(false);
+        await task;
 
         await Assert.That(task.IsCompletedSuccessfully).IsTrue();
     }
@@ -47,9 +47,9 @@ public class WorkOrchestratorHostedServiceTests
         var logger = Substitute.For<ILogger<WorkOrchestratorHostedService<string>>>();
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
 
-        await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await service.StopAsync(CancellationToken.None);
 
-        await orchestrator.Received(1).DrainAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await orchestrator.Received(1).DrainAsync(Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -87,9 +87,9 @@ public class WorkOrchestratorHostedServiceTests
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
         using var cts = new CancellationTokenSource();
 
-        await service.StopAsync(cts.Token).ConfigureAwait(false);
+        await service.StopAsync(cts.Token);
 
-        await orchestrator.Received(1).DrainAsync(cts.Token).ConfigureAwait(false);
+        await orchestrator.Received(1).DrainAsync(cts.Token);
     }
 
     /// <summary>
@@ -103,9 +103,9 @@ public class WorkOrchestratorHostedServiceTests
         var service = new WorkOrchestratorHostedService<string>(orchestrator, logger);
 
         var task1 = service.StartAsync(CancellationToken.None);
-        await task1.ConfigureAwait(false);
+        await task1;
         var task2 = service.StartAsync(CancellationToken.None);
-        await task2.ConfigureAwait(false);
+        await task2;
 
         await Assert.That(task1.IsCompletedSuccessfully).IsTrue();
         await Assert.That(task2.IsCompletedSuccessfully).IsTrue();

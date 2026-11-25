@@ -60,12 +60,11 @@ public sealed class DeliverySemanticsTests
     [Test]
     public async Task JobFireContext_FireTime_IsScheduledOccurrenceTime_NotWallClock()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
-        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)))
-            .ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
+        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)));
 
         fx.Time.Advance(TimeSpan.FromSeconds(60).Add(TimeSpan.FromMilliseconds(20)));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
@@ -135,12 +134,12 @@ public sealed class DeliverySemanticsTests
             "job",
             Cadence.Interval(TimeSpan.FromMinutes(2)),
             MissedFirePolicy.Coalesce,
-            dispatcher).ConfigureAwait(false);
+            dispatcher);
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
+        await loop.WaitForIdleAsync(TestTimeout);
 
-        await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)loop).StopAsync(CancellationToken.None);
         loop.Dispose();
 
         await Assert.That(dispatcher.FireCount).IsGreaterThanOrEqualTo(1);
@@ -187,15 +186,14 @@ public sealed class DeliverySemanticsTests
     [Test]
     public async Task TriggerAsync_FireTime_IsTriggerInstant()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
-        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromHours(1)))
-            .ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
+        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromHours(1)));
 
         var triggerInstant = Start.AddMinutes(30);
         fx.Time.Advance(TimeSpan.FromMinutes(30));
 
-        await fx.Registry.TriggerAsync("job").ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Registry.TriggerAsync("job");
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
@@ -233,23 +231,22 @@ public sealed class DeliverySemanticsTests
                 serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async Task<RecordingDispatcher> RegisterAsync(string name, Cadence cadence)
         {
             var dispatcher = new RecordingDispatcher();
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher);
+            await this.Loop.WaitForIdleAsync(TestTimeout);
             return dispatcher;
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

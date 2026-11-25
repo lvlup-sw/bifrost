@@ -65,20 +65,19 @@ public sealed class JobFireScopeTests
 
         try
         {
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             var dispatcher = new ScopeResolvingDispatcher();
             await registry.RegisterAsync(
-                "job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+                "job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, dispatcher);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             time.Advance(TimeSpan.FromMinutes(1));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             time.Advance(TimeSpan.FromMinutes(1));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await Assert.That(dispatcher.FireCount).IsEqualTo(2);
 
@@ -91,9 +90,9 @@ public sealed class JobFireScopeTests
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
-            await services.DisposeAsync().ConfigureAwait(false);
+            await services.DisposeAsync();
         }
     }
 

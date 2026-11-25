@@ -58,7 +58,7 @@ public class FullBuilderChainIntegrationTests
 
         await Assert.That(orchestrator).IsAssignableTo<AutoscalingOrchestrator<string>>();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -97,7 +97,7 @@ public class FullBuilderChainIntegrationTests
 
         await Assert.That(orchestrator).IsAssignableTo<AutoscalingOrchestrator<string>>();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -176,7 +176,7 @@ public class FullBuilderChainIntegrationTests
         {
             try
             {
-                await foreach (var evt in enqueuedStream.ConfigureAwait(false))
+                await foreach (var evt in enqueuedStream)
                 {
                     enqueuedEvents.Add(evt);
                 }
@@ -190,7 +190,7 @@ public class FullBuilderChainIntegrationTests
         {
             try
             {
-                await foreach (var evt in completedStream.ConfigureAwait(false))
+                await foreach (var evt in completedStream)
                 {
                     completedEvents.Add(evt);
                 }
@@ -204,7 +204,7 @@ public class FullBuilderChainIntegrationTests
         {
             try
             {
-                await foreach (var evt in deadLetteredStream.ConfigureAwait(false))
+                await foreach (var evt in deadLetteredStream)
                 {
                     deadLetteredEvents.Add(evt);
                 }
@@ -214,10 +214,10 @@ public class FullBuilderChainIntegrationTests
             }
         });
 
-        await orchestrator.EnqueueAsync("success-item").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("fail-doomed").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("success-item");
+        await orchestrator.EnqueueAsync("fail-doomed");
 
-        await Task.Delay(2000).ConfigureAwait(false);
+        await Task.Delay(2000);
 
         await Assert.That(handlerInvocations).Contains("success-item");
         await Assert.That(handlerInvocations).Contains("fail-doomed");
@@ -237,12 +237,12 @@ public class FullBuilderChainIntegrationTests
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
         await Assert.That(dlq.Count).IsGreaterThanOrEqualTo(1);
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
+        await orchestrator.DisposeAsync();
 
         try
         {
-            await enqueueTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            await enqueueTask.WaitAsync(TimeSpan.FromSeconds(2));
         }
         catch (OperationCanceledException)
         {
@@ -250,7 +250,7 @@ public class FullBuilderChainIntegrationTests
 
         try
         {
-            await completedTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            await completedTask.WaitAsync(TimeSpan.FromSeconds(2));
         }
         catch (OperationCanceledException)
         {
@@ -258,7 +258,7 @@ public class FullBuilderChainIntegrationTests
 
         try
         {
-            await dlEventTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            await dlEventTask.WaitAsync(TimeSpan.FromSeconds(2));
         }
         catch (OperationCanceledException)
         {
@@ -291,15 +291,15 @@ public class FullBuilderChainIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        await orchestrator.EnqueueAsync("legacy-item").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("legacy-item");
+        await Task.Delay(500);
 
         await Assert.That(handlerInvocations).Contains("legacy-item");
 
         var eventOrchestrator = GetInnerOrchestrator<IEventStreamOrchestrator<string>>(orchestrator);
         await Assert.That(eventOrchestrator).IsNotNull();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     // ---- Helper types ----

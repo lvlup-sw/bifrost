@@ -96,13 +96,13 @@ public sealed class WorkOrchestratorHostedService<TWork> : IHostedService
 
         try
         {
-            await _orchestrator.DrainAsync(ct).ConfigureAwait(false);
+            await _orchestrator.DrainAsync(ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             try
             {
-                await _orchestrator.AbortAsync(ct).ConfigureAwait(false);
+                await _orchestrator.AbortAsync(ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {

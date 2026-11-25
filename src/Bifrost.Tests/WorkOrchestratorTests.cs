@@ -181,10 +181,10 @@ public class WorkOrchestratorTests
                 return ValueTask.CompletedTask;
             });
 
-        await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("test-work");
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
-        await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -274,10 +274,10 @@ public class WorkOrchestratorTests
                 return ValueTask.CompletedTask;
             });
 
-        await orchestrator.EnqueueAsync("work-1").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("work-2").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("work-3").ConfigureAwait(false);
-        await allProcessed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("work-1");
+        await orchestrator.EnqueueAsync("work-2");
+        await orchestrator.EnqueueAsync("work-3");
+        await allProcessed.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         await Assert.That(processedCount).IsEqualTo(3);
     }
@@ -314,9 +314,9 @@ public class WorkOrchestratorTests
                 return ValueTask.CompletedTask;
             });
 
-        await orchestrator.EnqueueAsync("work-1").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("work-2").ConfigureAwait(false);
-        await allProcessed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("work-1");
+        await orchestrator.EnqueueAsync("work-2");
+        await allProcessed.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         await Assert.That(processedCount).IsEqualTo(2);
     }
@@ -425,11 +425,11 @@ public class WorkOrchestratorTests
                 return ValueTask.CompletedTask;
             });
 
-        await orchestrator.EnqueueAsync("work-1").ConfigureAwait(false);
-        await processed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("work-1");
+        await processed.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         var stopTask = orchestrator.AbortAsync();
-        var completed = await Task.WhenAny(stopTask, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
+        var completed = await Task.WhenAny(stopTask, Task.Delay(TimeSpan.FromSeconds(2)));
 
         await Assert.That(ReferenceEquals(completed, stopTask)).IsTrue();
     }
@@ -447,7 +447,7 @@ public class WorkOrchestratorTests
     {
         var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
 
         var result = orchestrator.TryEnqueue("test");
         await Assert.That(result).IsFalse();
@@ -475,10 +475,10 @@ public class WorkOrchestratorTests
 
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        await orchestrator.EnqueueAsync("test-item").ConfigureAwait(false);
-        await processed.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("test-item");
+        await processed.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
         _logger.Received().Log(
             LogLevel.Error,
@@ -512,7 +512,7 @@ public class WorkOrchestratorTests
         var options = Options.Create(new WorkOrchestratorOptions { WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
         orchestrator.Enqueue("blocking-work");
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var disposal = orchestrator.DisposeAsync().AsTask();
         try
         {
@@ -521,7 +521,7 @@ public class WorkOrchestratorTests
         finally
         {
             release.TrySetResult();
-            await disposal.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await disposal.WaitAsync(TimeSpan.FromSeconds(5));
         }
     }
 }

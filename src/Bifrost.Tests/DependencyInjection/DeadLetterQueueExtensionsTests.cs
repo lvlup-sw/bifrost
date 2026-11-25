@@ -43,7 +43,7 @@ public class DeadLetterQueueExtensionsTests
         var dlq = provider.GetService<IDeadLetterQueue<string>>();
         await Assert.That(dlq).IsNotNull();
 
-        await provider.GetRequiredService<IWorkOrchestrator<string>>().DisposeAsync().ConfigureAwait(false);
+        await provider.GetRequiredService<IWorkOrchestrator<string>>().DisposeAsync();
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public class DeadLetterQueueExtensionsTests
         var notifier = provider.GetService<DeadLetterNotifier<string>>();
         await Assert.That(notifier).IsNotNull();
 
-        await provider.GetRequiredService<IWorkOrchestrator<string>>().DisposeAsync().ConfigureAwait(false);
+        await provider.GetRequiredService<IWorkOrchestrator<string>>().DisposeAsync();
     }
 
     /// <summary>
@@ -86,7 +86,7 @@ public class DeadLetterQueueExtensionsTests
         await Assert.That(options).IsNotNull();
         await Assert.That(options!.Value.Capacity).IsEqualTo(1000);
 
-        await provider.GetRequiredService<IWorkOrchestrator<string>>().DisposeAsync().ConfigureAwait(false);
+        await provider.GetRequiredService<IWorkOrchestrator<string>>().DisposeAsync();
     }
 
     /// <summary>
@@ -112,7 +112,7 @@ public class DeadLetterQueueExtensionsTests
         await Assert.That(options.Value.Capacity).IsEqualTo(500);
         await Assert.That(options.Value.MaxRetries).IsEqualTo(5);
 
-        await provider.GetRequiredService<IWorkOrchestrator<string>>().DisposeAsync().ConfigureAwait(false);
+        await provider.GetRequiredService<IWorkOrchestrator<string>>().DisposeAsync();
     }
 
     /// <summary>
@@ -136,17 +136,17 @@ public class DeadLetterQueueExtensionsTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("test-work");
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (dlq.Count == 0 && !cts.IsCancellationRequested)
         {
-            await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            await Task.Delay(50, cts.Token);
         }
 
         await Assert.That(dlq.Count).IsGreaterThanOrEqualTo(1);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>

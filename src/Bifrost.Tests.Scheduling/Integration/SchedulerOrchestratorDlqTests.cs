@@ -102,13 +102,12 @@ public sealed class SchedulerOrchestratorDlqTests
                 .Every(FireInterval)
                 .DispatchTo<IWorkOrchestrator<ScheduledWork>>(
                     _ => new ScheduledWork("hello"),
-                    WorkClass.Batch)).ConfigureAwait(false);
+                    WorkClass.Batch));
 
         fx.Time.Advance(FireInterval);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
-        var completed = await Task.WhenAny(processed.Task, Task.Delay(TestTimeout))
-            .ConfigureAwait(false);
+        var completed = await Task.WhenAny(processed.Task, Task.Delay(TestTimeout));
 
         await Assert.That(completed == processed.Task).IsTrue();
     }
@@ -166,24 +165,24 @@ public sealed class SchedulerOrchestratorDlqTests
                 .Every(FireInterval)
                 .DispatchTo<IWorkOrchestrator<ScheduledWork>>(
                     _ => new ScheduledWork("fail"),
-                    WorkClass.Batch)).ConfigureAwait(false);
+                    WorkClass.Batch));
 
         var dlq = fx.Provider.GetRequiredService<IDeadLetterQueue<ScheduledWork>>();
 
         fx.Time.Advance(FireInterval);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         using var pollCts = new CancellationTokenSource(TestTimeout);
         while (dlq.Count == 0 && !pollCts.IsCancellationRequested)
         {
-            await Task.Delay(20, pollCts.Token).ConfigureAwait(false);
+            await Task.Delay(20, pollCts.Token);
         }
 
         await Assert.That(dlq.Count).IsEqualTo(1);
         await Assert.That(handlerCallCount).IsEqualTo(2);
 
         var entries = new List<DeadLetteredWork<ScheduledWork>>();
-        await foreach (var entry in dlq.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var entry in dlq.ReadAllAsync())
         {
             entries.Add(entry);
         }
@@ -244,24 +243,23 @@ public sealed class SchedulerOrchestratorDlqTests
                 .Every(FireInterval)
                 .DispatchTo<IWorkOrchestrator<ScheduledWork>>(
                     _ => new ScheduledWork("fire"),
-                    WorkClass.Batch)).ConfigureAwait(false);
+                    WorkClass.Batch));
 
         fx.Time.Advance(FireInterval);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         using var pollCts = new CancellationTokenSource(TestTimeout);
         while (Volatile.Read(ref fireCount) < 1 && !pollCts.IsCancellationRequested)
         {
-            await Task.Delay(20, pollCts.Token).ConfigureAwait(false);
+            await Task.Delay(20, pollCts.Token);
         }
 
         await Assert.That(Volatile.Read(ref fireCount)).IsGreaterThanOrEqualTo(1);
 
         fx.Time.Advance(FireInterval);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
-        var reached = await Task.WhenAny(secondFireReady.Task, Task.Delay(TestTimeout))
-            .ConfigureAwait(false);
+        var reached = await Task.WhenAny(secondFireReady.Task, Task.Delay(TestTimeout));
 
         await Assert.That(reached == secondFireReady.Task).IsTrue();
         await Assert.That(Volatile.Read(ref fireCount)).IsGreaterThanOrEqualTo(2);
@@ -334,7 +332,7 @@ public sealed class SchedulerOrchestratorDlqTests
                 .Every(FireInterval)
                 .DispatchTo<IWorkOrchestrator<ScheduledWork>>(
                     _ => new ScheduledWork("ping"),
-                    WorkClass.Batch)).ConfigureAwait(false);
+                    WorkClass.Batch));
 
         using var schedulerEventCts = new CancellationTokenSource(TestTimeout);
         var schedulerSubscription = fx.SchedulerEvents.Subscribe<JobFiredEvent>(
@@ -343,7 +341,7 @@ public sealed class SchedulerOrchestratorDlqTests
         {
             try
             {
-                await foreach (var evt in schedulerSubscription.ConfigureAwait(false))
+                await foreach (var evt in schedulerSubscription)
                 {
                     schedulerJobFired.TrySetResult(evt);
                     break;
@@ -365,7 +363,7 @@ public sealed class SchedulerOrchestratorDlqTests
         {
             try
             {
-                await foreach (var evt in workCompletedStream.ConfigureAwait(false))
+                await foreach (var evt in workCompletedStream)
                 {
                     workCompleted.TrySetResult(evt);
                     break;
@@ -377,28 +375,26 @@ public sealed class SchedulerOrchestratorDlqTests
         });
 
         fx.Time.Advance(FireInterval);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         var schedulerEventResult = await Task
-            .WhenAny(schedulerJobFired.Task, Task.Delay(TestTimeout))
-            .ConfigureAwait(false);
+            .WhenAny(schedulerJobFired.Task, Task.Delay(TestTimeout));
         await Assert.That(schedulerEventResult == schedulerJobFired.Task).IsTrue();
 
-        var schedulerFired = await schedulerJobFired.Task.ConfigureAwait(false);
+        var schedulerFired = await schedulerJobFired.Task;
         await Assert.That(schedulerFired.JobName).IsEqualTo("dual-stream");
 
         var workEventResult = await Task
-            .WhenAny(workCompleted.Task, Task.Delay(TestTimeout))
-            .ConfigureAwait(false);
+            .WhenAny(workCompleted.Task, Task.Delay(TestTimeout));
         await Assert.That(workEventResult == workCompleted.Task).IsTrue();
 
-        var workDone = await workCompleted.Task.ConfigureAwait(false);
+        var workDone = await workCompleted.Task;
         await Assert.That(workDone.Work.Payload).IsEqualTo("ping");
         await Assert.That(workDone.Success).IsTrue();
 
-        await schedulerEventCts.CancelAsync().ConfigureAwait(false);
-        await workEventCts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAll(schedulerTask, workTask).ConfigureAwait(false);
+        await schedulerEventCts.CancelAsync();
+        await workEventCts.CancelAsync();
+        await Task.WhenAll(schedulerTask, workTask);
     }
 
     // =========================================================================
@@ -499,10 +495,10 @@ public sealed class SchedulerOrchestratorDlqTests
 
             foreach (var hosted in hostedServices)
             {
-                await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
+                await hosted.StartAsync(CancellationToken.None);
             }
 
-            await loop.WaitForIdleAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TimeSpan.FromSeconds(10));
 
             return new Fixture(time, loop, schedulerEvents, provider, hostedServices);
         }
@@ -515,11 +511,11 @@ public sealed class SchedulerOrchestratorDlqTests
         {
             foreach (var hosted in this.hostedServices.AsEnumerable().Reverse())
             {
-                await hosted.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await hosted.StopAsync(CancellationToken.None);
             }
 
             this.Loop.Dispose();
-            await this.serviceProvider.DisposeAsync().ConfigureAwait(false);
+            await this.serviceProvider.DisposeAsync();
         }
     }
 }

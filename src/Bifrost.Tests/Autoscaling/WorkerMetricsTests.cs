@@ -99,7 +99,7 @@ public class WorkerMetricsTests
                         metrics.RecordExecutionStart();
                         metrics.RecordExecutionEnd();
                     }
-                }))).ConfigureAwait(false);
+                })));
 
         await Assert.That(metrics.InFlightCount).IsEqualTo(0);
     }

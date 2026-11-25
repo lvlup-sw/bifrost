@@ -74,16 +74,16 @@ public sealed class PrFixPreDispatchHealthTests
 
         try
         {
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await registry.RegisterAsync(
                 "job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce,
-                new CountingDispatcher()).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+                new CountingDispatcher());
+            await loop.WaitForIdleAsync(TestTimeout);
 
             time.Advance(TimeSpan.FromMinutes(1));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await Assert.That(sink.Published.OfType<JobFireFailedEvent>().Count()).IsEqualTo(1);
             await Assert.That(monitor.RecentFireCount).IsEqualTo(1);
@@ -93,7 +93,7 @@ public sealed class PrFixPreDispatchHealthTests
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
         }
     }

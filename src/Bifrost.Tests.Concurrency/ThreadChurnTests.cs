@@ -212,7 +212,7 @@ public class ThreadChurnTests
     /// </summary>
     [Test]
     public async Task Operations_OnThreadPoolWithAsyncYields_BehaveCorrectly()
-        => await AssertAsyncYieldChurnConserves(new ConcurrentPriorityQueue<long, long>()).ConfigureAwait(false);
+        => await AssertAsyncYieldChurnConserves(new ConcurrentPriorityQueue<long, long>());
 
     /// <summary>
     /// The async-yield churn proof re-run with stickiness enabled (<c>s = 4</c>): because each pool
@@ -223,7 +223,7 @@ public class ThreadChurnTests
     /// </summary>
     [Test]
     public async Task Operations_OnThreadPoolWithAsyncYields_WithStickiness_BehaveCorrectly()
-        => await AssertAsyncYieldChurnConserves(new ConcurrentPriorityQueue<long, long>(boundedCapacity: -1, stickiness: 4)).ConfigureAwait(false);
+        => await AssertAsyncYieldChurnConserves(new ConcurrentPriorityQueue<long, long>(boundedCapacity: -1, stickiness: 4));
 
     /// <summary>
     /// The shared body of the async-yield churn proof, parameterized only by the supplied
@@ -316,7 +316,7 @@ public class ThreadChurnTests
             });
         }
 
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        await Task.WhenAll(tasks);
         while (queue.TryDequeue(out long element, out _))
         {
             consumed.Add(element);
@@ -511,7 +511,7 @@ public class ThreadChurnTests
             }
         }
 
-        await done.CancelAsync().ConfigureAwait(false);
+        await done.CancelAsync();
         foreach (var consumer in consumers)
         {
             consumer.Join();

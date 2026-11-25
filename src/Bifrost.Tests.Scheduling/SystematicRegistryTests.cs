@@ -1,4 +1,4 @@
-#pragma warning disable VSTHRD111, CS1591, SA1600, SA1633, VSTHRD002, CA2007
+#pragma warning disable CS1591, SA1600, SA1633, VSTHRD002
 
 using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.Registry;

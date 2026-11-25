@@ -102,8 +102,8 @@ public class WorkEnvelopeTests
 
         await using var orchestrator = new WorkOrchestrator<string>(
             handler, options, NullLogger<WorkOrchestrator<string>>.Instance);
-        await orchestrator.EnqueueAsync("ping").ConfigureAwait(false);
-        var handled = await handler.Handled.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("ping");
+        var handled = await handler.Handled.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(handled).IsEqualTo("ping");
     }
@@ -123,8 +123,8 @@ public class WorkEnvelopeTests
 
         await using var orchestrator = new WorkOrchestrator<string>(
             handler, options, NullLogger<WorkOrchestrator<string>>.Instance, fakeTime);
-        await orchestrator.EnqueueAsync("ping").ConfigureAwait(false);
-        var handled = await handler.Handled.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("ping");
+        var handled = await handler.Handled.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(handled).IsEqualTo("ping");
     }

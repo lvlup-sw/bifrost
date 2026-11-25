@@ -33,7 +33,7 @@ internal class AutoscalingLifecycleInvariantTests
             entered.Set();
             release.Wait(TimeSpan.FromSeconds(10));
         };
-        await engine.StartAsync().ConfigureAwait(false);
+        await engine.StartAsync();
         bool callbackEntered = entered.Wait(TimeSpan.FromSeconds(5));
         bool completedBeforeRelease;
         Task stop;
@@ -47,8 +47,8 @@ internal class AutoscalingLifecycleInvariantTests
             release.Set();
         }
 
-        await stop.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-        await requested.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await stop.WaitAsync(TimeSpan.FromSeconds(5));
+        await requested.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(callbackEntered).IsTrue();
         await Assert.That(completedBeforeRelease).IsFalse();
     }

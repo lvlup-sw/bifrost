@@ -87,7 +87,7 @@ public class ConservationStressTests
     /// </summary>
     [Test]
     public async Task EnqueueDequeue_ManyProducersManyConsumers_EveryElementExactlyOnce()
-        => await AssertManyProducersManyConsumersConserve(new ConcurrentPriorityQueue<int, int>()).ConfigureAwait(false);
+        => await AssertManyProducersManyConsumersConserve(new ConcurrentPriorityQueue<int, int>());
 
     /// <summary>
     /// The headline conservation proof re-run with stickiness enabled (<c>s = 4</c>): every thread
@@ -100,7 +100,7 @@ public class ConservationStressTests
     [Test]
     public async Task EnqueueDequeue_ManyProducersManyConsumers_WithStickiness_EveryElementExactlyOnce()
         => await AssertManyProducersManyConsumersConserve(
-            new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 4)).ConfigureAwait(false);
+            new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 4));
 
     /// <summary>
     /// The shared body of the headline conservation proof, parameterized only by the supplied

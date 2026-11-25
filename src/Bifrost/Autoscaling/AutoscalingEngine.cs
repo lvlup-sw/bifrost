@@ -194,7 +194,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
             callbacks = _callbacksDrained?.Task ?? Task.CompletedTask;
         }
 
-        await callbacks.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await callbacks.WaitAsync(cancellationToken);
 
         await Task.WhenAll(_pendingScalingTasks.Values).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
@@ -401,7 +401,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
             {
                 case ScalingAction.ScaleUp:
                     var countToAdd = decision.TargetWorkers - decision.CurrentWorkers;
-                    await _coordinator.RequestScaleUpAsync(countToAdd).ConfigureAwait(false);
+                    await _coordinator.RequestScaleUpAsync(countToAdd);
                     _logger.LogInformation(
                         "Scaled up by {Count} workers: {CurrentWorkers} -> {TargetWorkers}",
                         countToAdd,
@@ -411,7 +411,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
 
                 case ScalingAction.ScaleDown:
                     var countToRemove = decision.CurrentWorkers - decision.TargetWorkers;
-                    await _coordinator.RequestScaleDownAsync(countToRemove).ConfigureAwait(false);
+                    await _coordinator.RequestScaleDownAsync(countToRemove);
                     _logger.LogInformation(
                         "Scaled down by {Count} workers: {CurrentWorkers} -> {TargetWorkers}",
                         countToRemove,

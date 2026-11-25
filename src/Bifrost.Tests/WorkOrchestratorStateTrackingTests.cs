@@ -80,14 +80,14 @@ public class WorkOrchestratorStateTrackingTests
         var workerTask = Task.Run(() => workerFunc("TestWorker", cts.Token), cts.Token);
         orchestrator.TryEnqueue("test-work");
 
-        await workStarted.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        await workStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         await Assert.That(stateChanges.Count).IsGreaterThanOrEqualTo(1);
         await Assert.That(stateChanges[0]).IsTrue();
 
         continueWork.SetResult();
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(workerTask, Task.Delay(TimeSpan.FromSeconds(1))).ConfigureAwait(false);
+        await cts.CancelAsync();
+        await Task.WhenAny(workerTask, Task.Delay(TimeSpan.FromSeconds(1)));
     }
 
     /// <summary>
@@ -113,15 +113,15 @@ public class WorkOrchestratorStateTrackingTests
         var workerTask = Task.Run(() => workerFunc("TestWorker", cts.Token), cts.Token);
         orchestrator.TryEnqueue("test-work");
 
-        await workCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
-        await Task.Delay(50).ConfigureAwait(false);
+        await workCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await Task.Delay(50);
 
         await Assert.That(stateChanges.Count).IsGreaterThanOrEqualTo(2);
         await Assert.That(stateChanges[0]).IsTrue();
         await Assert.That(stateChanges[1]).IsFalse();
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(workerTask, Task.Delay(TimeSpan.FromSeconds(1))).ConfigureAwait(false);
+        await cts.CancelAsync();
+        await Task.WhenAny(workerTask, Task.Delay(TimeSpan.FromSeconds(1)));
     }
 
     /// <summary>
@@ -147,15 +147,15 @@ public class WorkOrchestratorStateTrackingTests
         var workerTask = Task.Run(() => workerFunc("TestWorker", cts.Token), cts.Token);
         orchestrator.TryEnqueue("test-work");
 
-        await exceptionThrown.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
-        await Task.Delay(50).ConfigureAwait(false);
+        await exceptionThrown.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await Task.Delay(50);
 
         await Assert.That(stateChanges.Count).IsGreaterThanOrEqualTo(2);
         await Assert.That(stateChanges[0]).IsTrue();
         await Assert.That(stateChanges[1]).IsFalse();
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(workerTask, Task.Delay(TimeSpan.FromSeconds(1))).ConfigureAwait(false);
+        await cts.CancelAsync();
+        await Task.WhenAny(workerTask, Task.Delay(TimeSpan.FromSeconds(1)));
     }
 
     /// <summary>
@@ -180,17 +180,17 @@ public class WorkOrchestratorStateTrackingTests
         var workerTask = Task.Run(() => workerFunc("TestWorker", cts.Token), cts.Token);
         orchestrator.TryEnqueue("test-work");
 
-        await workProcessed.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        await workProcessed.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
-        await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _handler.Received(1).HandleAsync("test-work", Arg.Any<CancellationToken>());
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(workerTask, Task.Delay(TimeSpan.FromSeconds(1))).ConfigureAwait(false);
+        await cts.CancelAsync();
+        await Task.WhenAny(workerTask, Task.Delay(TimeSpan.FromSeconds(1)));
     }
 
     private static async ValueTask HandleWorkWithDelayAsync(TaskCompletionSource workStarted, TaskCompletionSource continueWork)
     {
         workStarted.TrySetResult();
-        await continueWork.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await continueWork.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 }

@@ -94,7 +94,7 @@ public sealed class WorkerRegistry : IWorkerRegistry
                 try
                 {
                     ct.ThrowIfCancellationRequested();
-                    await workerFunction(workerId, ct).ConfigureAwait(false);
+                    await workerFunction(workerId, ct);
                 }
                 finally
                 {

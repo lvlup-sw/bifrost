@@ -235,7 +235,7 @@ internal sealed class LockingPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<
                 return Count > 0;
             }
 
-            await _signal.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await _signal.WaitAsync(cancellationToken);
 
             return !_completed || Count > 0;
         }

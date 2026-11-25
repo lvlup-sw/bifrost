@@ -33,7 +33,7 @@ public class WorkOrchestratorHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
@@ -53,7 +53,7 @@ public class WorkOrchestratorHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Degraded);
     }
@@ -73,7 +73,7 @@ public class WorkOrchestratorHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Description).Contains("25");
         await Assert.That(result.Description).Contains("100");
@@ -104,7 +104,7 @@ public class WorkOrchestratorHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
@@ -124,7 +124,7 @@ public class WorkOrchestratorHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Description).Contains("8");
     }
@@ -148,7 +148,7 @@ public class WorkOrchestratorHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }

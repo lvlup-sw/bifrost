@@ -38,7 +38,7 @@ public class WorkerRegistryBenchmarks
             await _registry.CreateWorkerAsync(
                 workerId,
                 static (_, ct) => Task.Delay(Timeout.Infinite, ct),
-                _cts.Token).ConfigureAwait(false);
+                _cts.Token);
 
             if (i % 2 == 0)
             {

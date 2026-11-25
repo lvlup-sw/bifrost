@@ -26,12 +26,12 @@ public class DeadLetterBoundaryTests
     public async Task EitherDrainTokenCancels(bool cancelEnumerationToken)
     {
         var queue = new DeadLetterQueue<int>(Options.Create(new DeadLetterQueueOptions()), NullLogger<DeadLetterQueue<int>>.Instance);
-        await queue.EnqueueAsync(new(1, null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
+        await queue.EnqueueAsync(new(1, null, 1, DateTimeOffset.UtcNow, null));
         using var read = new CancellationTokenSource();
         using var enumeration = new CancellationTokenSource();
         await using var reader = queue.ReadAllAsync(read.Token).GetAsyncEnumerator(enumeration.Token);
-        await (cancelEnumerationToken ? enumeration : read).CancelAsync().ConfigureAwait(false);
-        await Assert.That(async () => await reader.MoveNextAsync().ConfigureAwait(false)).Throws<OperationCanceledException>();
+        await (cancelEnumerationToken ? enumeration : read).CancelAsync();
+        await Assert.That(async () => await reader.MoveNextAsync()).Throws<OperationCanceledException>();
         await Assert.That(queue.Count).IsEqualTo(1);
     }
 
@@ -50,12 +50,12 @@ public class DeadLetterBoundaryTests
         using var subscription = notifier.Subscribe(evt => notified.TrySetResult(evt.CorrelationId));
         await using var routing = new RejectionRoutingOrchestrator<int>(inner, queue, notifier, NullLogger<RejectionRoutingOrchestrator<int>>.Instance);
         var options = new WorkEnqueueOptions(CorrelationId: "request-42");
-        var result = asynchronous ? await routing.EnqueueAsync(1, options).ConfigureAwait(false) : routing.Enqueue(1, options);
+        var result = asynchronous ? await routing.EnqueueAsync(1, options) : routing.Enqueue(1, options);
         await Assert.That(result.IsAccepted).IsFalse();
         await using var reader = queue.ReadAllAsync().GetAsyncEnumerator();
-        await Assert.That(await reader.MoveNextAsync().ConfigureAwait(false)).IsTrue();
+        await Assert.That(await reader.MoveNextAsync()).IsTrue();
         await Assert.That(reader.Current.CorrelationId).IsEqualTo("request-42");
-        await Assert.That(await notified.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false)).IsEqualTo("request-42");
+        await Assert.That(await notified.Task.WaitAsync(TimeSpan.FromSeconds(5))).IsEqualTo("request-42");
     }
 
     /// <summary>A negative retry count cannot silently disable HTTP resilience.</summary>

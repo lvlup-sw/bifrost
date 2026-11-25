@@ -149,20 +149,20 @@ public sealed class DispatchStrategyTests
 
         for (var i = 0; i < 4; i++)
         {
-            var accepted = await orchestrator.EnqueueAsync($"fill-{i}", WorkClass.Interactive).ConfigureAwait(false);
+            var accepted = await orchestrator.EnqueueAsync($"fill-{i}", WorkClass.Interactive);
             await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         }
 
         var overflow = orchestrator.EnqueueAsync("overflow", WorkClass.Interactive);
         var completedSynchronously = overflow.IsCompleted;
-        var result = await overflow.ConfigureAwait(false);
+        var result = await overflow;
 
         await Assert.That(completedSynchronously).IsTrue();
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(result.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
 
-        await orchestrator.DrainAsync().ConfigureAwait(false);
-        var afterComplete = await orchestrator.EnqueueAsync("late", WorkClass.Interactive).ConfigureAwait(false);
+        await orchestrator.DrainAsync();
+        var afterComplete = await orchestrator.EnqueueAsync("late", WorkClass.Interactive);
 
         await Assert.That(afterComplete.IsAccepted).IsFalse();
         await Assert.That(afterComplete.Reason).IsEqualTo(RejectionReason.Shutdown);
@@ -194,12 +194,12 @@ public sealed class DispatchStrategyTests
 
         for (var i = 0; i < 90; i++)
         {
-            var accepted = await orchestrator.EnqueueAsync($"default-{i}").ConfigureAwait(false);
+            var accepted = await orchestrator.EnqueueAsync($"default-{i}");
             await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         }
 
-        var batch = await orchestrator.EnqueueAsync("batch", WorkClass.Batch).ConfigureAwait(false);
-        var interactive = await orchestrator.EnqueueAsync("interactive", WorkClass.Interactive).ConfigureAwait(false);
+        var batch = await orchestrator.EnqueueAsync("batch", WorkClass.Batch);
+        var interactive = await orchestrator.EnqueueAsync("interactive", WorkClass.Interactive);
 
         await Assert.That(batch.IsAccepted).IsFalse();
         await Assert.That(batch.Reason).IsEqualTo(RejectionReason.WatermarkExceeded);

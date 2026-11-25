@@ -105,7 +105,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
         using var timeoutCts = new CancellationTokenSource(BindingWaitTimeout);
         for (var i = 0; i < itemCount; i++)
         {
-            var signaled = await queue.WaitToDequeueAsync(timeoutCts.Token).ConfigureAwait(false);
+            var signaled = await queue.WaitToDequeueAsync(timeoutCts.Token);
             await Assert.That(signaled).IsTrue();
             var dequeued = queue.TryDequeue(out _);
             await Assert.That(dequeued).IsTrue();
@@ -115,7 +115,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
         var extraSurfacedCancellation = false;
         try
         {
-            _ = await queue.WaitToDequeueAsync(extraCts.Token).ConfigureAwait(false);
+            _ = await queue.WaitToDequeueAsync(extraCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -133,8 +133,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task TryDequeue_SpuriousMiss_LoopsBackToWait_NoItemLost()
-        => await RunComposedConservationAsync(producerCount: 2, itemsPerProducer: 100, consumerCount: 2)
-            .ConfigureAwait(false);
+        => await RunComposedConservationAsync(producerCount: 2, itemsPerProducer: 100, consumerCount: 2);
 
     /// <summary>
     /// Adapted conservation under stress for the composed (CPQ + semaphore) queue:
@@ -144,8 +143,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Conservation_ComposedQueue_UnderStress()
-        => await RunComposedConservationAsync(producerCount: 4, itemsPerProducer: 250, consumerCount: 4)
-            .ConfigureAwait(false);
+        => await RunComposedConservationAsync(producerCount: 4, itemsPerProducer: 250, consumerCount: 4);
 
     /// <summary>
     /// Verifies that a quiescent single-threaded drain respects the WFQ virtual-time key
@@ -260,11 +258,11 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
             waits[c] = queue.WaitToDequeueAsync(CancellationToken.None).AsTask();
         }
 
-        await Task.Delay(TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
         await Assert.That(waits.Any(w => w.IsCompleted)).IsFalse();
 
         queue.Complete();
-        var results = await Task.WhenAll(waits).WaitAsync(BindingWaitTimeout).ConfigureAwait(false);
+        var results = await Task.WhenAll(waits).WaitAsync(BindingWaitTimeout);
 
         foreach (var signaled in results)
         {
@@ -296,7 +294,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
         using var timeoutCts = new CancellationTokenSource(BindingWaitTimeout);
         while (drained.Count < 2)
         {
-            var (received, envelope) = await ConsumeOneAsync(queue, timeoutCts.Token).ConfigureAwait(false);
+            var (received, envelope) = await ConsumeOneAsync(queue, timeoutCts.Token);
             await Assert.That(received).IsTrue();
             drained.Add(envelope.Work);
         }
@@ -305,8 +303,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
 
         var signaled = await queue.WaitToDequeueAsync(CancellationToken.None)
             .AsTask()
-            .WaitAsync(BindingWaitTimeout)
-            .ConfigureAwait(false);
+            .WaitAsync(BindingWaitTimeout);
         await Assert.That(signaled).IsFalse();
     }
 
@@ -453,7 +450,7 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
             {
                 while (true)
                 {
-                    var (gotItem, envelope) = await ConsumeOneAsync(queue, doneCts.Token).ConfigureAwait(false);
+                    var (gotItem, envelope) = await ConsumeOneAsync(queue, doneCts.Token);
                     if (!gotItem)
                     {
                         return;
@@ -462,14 +459,14 @@ public sealed class ConcurrentPriorityWorkQueueTests : WorkQueueContractTests
                     received.Enqueue(envelope.Work);
                     if (Interlocked.Increment(ref receivedCount) == totalItems)
                     {
-                        await doneCts.CancelAsync().ConfigureAwait(false);
+                        await doneCts.CancelAsync();
                     }
                 }
             });
         }
 
-        await Task.WhenAll(producers).ConfigureAwait(false);
-        await Task.WhenAll(consumers).ConfigureAwait(false);
+        await Task.WhenAll(producers);
+        await Task.WhenAll(consumers);
 
         await Assert.That(receivedCount).IsEqualTo(totalItems);
         var distinct = new HashSet<int>(received);

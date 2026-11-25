@@ -44,13 +44,13 @@ internal class WorkerRetirementTests
             if (work == 0)
             {
                 baseStarted.TrySetResult();
-                await releaseBase.Task.WaitAsync(token).ConfigureAwait(false);
+                await releaseBase.Task.WaitAsync(token);
             }
             else if (work == 1)
             {
                 handlerToken = token;
                 dynamicStarted.TrySetResult();
-                await releaseDynamic.Task.WaitAsync(token).ConfigureAwait(false);
+                await releaseDynamic.Task.WaitAsync(token);
                 Interlocked.Increment(ref finished);
             }
             else
@@ -65,24 +65,24 @@ internal class WorkerRetirementTests
         try
         {
             Require(orchestrator.TryEnqueue(0), "base admitted");
-            await baseStarted.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
+            await baseStarted.Task.WaitAsync(deadline.Token);
             for (int cycle = 0; cycle < 3; cycle++)
             {
                 dynamicStarted = Signal();
                 releaseDynamic = Signal();
-                if (useDecorator) await orchestrator.RequestScaleUpAsync(1, deadline.Token).ConfigureAwait(false);
-                else await coordinator.RequestScaleUpAsync(1, deadline.Token).ConfigureAwait(false);
+                if (useDecorator) await orchestrator.RequestScaleUpAsync(1, deadline.Token);
+                else await coordinator.RequestScaleUpAsync(1, deadline.Token);
                 Require(orchestrator.TryEnqueue(1), "dynamic admitted");
-                await dynamicStarted.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
+                await dynamicStarted.Task.WaitAsync(deadline.Token);
                 var worker = registry.GetAllWorkers().Single();
                 if (!busy)
                 {
                     releaseDynamic.TrySetResult();
-                    await Until(() => worker.IsIdle, deadline.Token).ConfigureAwait(false);
+                    await Until(() => worker.IsIdle, deadline.Token);
                 }
 
-                if (useDecorator) await orchestrator.RequestScaleDownAsync(1, deadline.Token).ConfigureAwait(false);
-                else await coordinator.RequestScaleDownAsync(1, deadline.Token).ConfigureAwait(false);
+                if (useDecorator) await orchestrator.RequestScaleDownAsync(1, deadline.Token);
+                else await coordinator.RequestScaleDownAsync(1, deadline.Token);
                 Require(worker.StopRequested, "selected worker has a stop request");
                 Require(!handlerToken.IsCancellationRequested, "soft stop must not cancel the handler");
                 if (busy)
@@ -91,7 +91,7 @@ internal class WorkerRetirementTests
                     releaseDynamic.TrySetResult();
                 }
 
-                await Until(() => registry.ActiveWorkerCount == 0, deadline.Token).ConfigureAwait(false);
+                await Until(() => registry.ActiveWorkerCount == 0, deadline.Token);
                 Require(orchestrator.ActiveWorkers == 1, "only the blocked base worker remains");
                 Require(finished == cycle + 1, "current handler completed normally");
                 Require(!afterStop.Task.IsCompleted, "retired worker did not consume queued work");
@@ -100,7 +100,7 @@ internal class WorkerRetirementTests
             if (!busy) Require(orchestrator.TryEnqueue(2), "idle retirement preserved admission");
             Require(orchestrator.PendingCount == 1, "queued work is conserved");
             releaseBase.TrySetResult();
-            await orchestrator.DrainAsync(deadline.Token).ConfigureAwait(false);
+            await orchestrator.DrainAsync(deadline.Token);
             Require(afterStop.Task.IsCompleted && orchestrator.PendingCount == 0, "base worker drained queued work");
             Require(orchestrator.ActiveWorkers == 0, "drain retired all workers");
         }
@@ -136,7 +136,7 @@ internal class WorkerRetirementTests
             if (work == 0)
             {
                 baseStarted.TrySetResult();
-                await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
                 return;
             }
 
@@ -144,7 +144,7 @@ internal class WorkerRetirementTests
             entered.TrySetResult();
             try
             {
-                await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
             }
             finally
             {
@@ -157,17 +157,17 @@ internal class WorkerRetirementTests
         var coordinator = provider.GetRequiredKeyedService<IAutoscalingCoordinator>(typeof(int));
         var registry = provider.GetRequiredKeyedService<IWorkerRegistry>(typeof(int));
         Require(orchestrator.TryEnqueue(0), "base work admitted");
-        await baseStarted.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
-        await coordinator.RequestScaleUpAsync(1, request.Token).ConfigureAwait(false);
+        await baseStarted.Task.WaitAsync(deadline.Token);
+        await coordinator.RequestScaleUpAsync(1, request.Token);
         Require(orchestrator.TryEnqueue(1), "dynamic work admitted");
-        await entered.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
-        await request.CancelAsync().ConfigureAwait(false);
+        await entered.Task.WaitAsync(deadline.Token);
+        await request.CancelAsync();
         Require(!handlerToken.IsCancellationRequested, "completed request does not cancel its worker");
-        await coordinator.RequestScaleDownAsync(1, deadline.Token).ConfigureAwait(false);
+        await coordinator.RequestScaleDownAsync(1, deadline.Token);
         Require(!handlerToken.IsCancellationRequested, "busy retirement leaves handler running");
-        await orchestrator.AbortAsync(deadline.Token).ConfigureAwait(false);
-        await canceled.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
-        await Until(() => registry.ActiveWorkerCount == 0, deadline.Token).ConfigureAwait(false);
+        await orchestrator.AbortAsync(deadline.Token);
+        await canceled.Task.WaitAsync(deadline.Token);
+        await Until(() => registry.ActiveWorkerCount == 0, deadline.Token);
         Require(handlerToken.IsCancellationRequested && orchestrator.ActiveWorkers == 0,
             "host abort still cancels a retiring worker");
     }
@@ -177,12 +177,12 @@ internal class WorkerRetirementTests
     {
         var registry = new WorkerRegistry();
         var release = Signal();
-        var worker = await registry.CreateWorkerAsync("busy", (_, token) => release.Task.WaitAsync(token), CancellationToken.None).ConfigureAwait(false);
+        var worker = await registry.CreateWorkerAsync("busy", (_, token) => release.Task.WaitAsync(token), CancellationToken.None);
         worker.MarkBusy();
         try
         {
             var counts = await Task.WhenAll(Enumerable.Range(0, 16)
-                .Select(_ => Task.Run(() => registry.RequestMultipleWorkerStop(1)))).ConfigureAwait(false);
+                .Select(_ => Task.Run(() => registry.RequestMultipleWorkerStop(1))));
             Require(counts.Sum() == 1, "one worker receives one retirement request");
         }
         finally
@@ -191,7 +191,7 @@ internal class WorkerRetirementTests
         }
 
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await Until(() => registry.ActiveWorkerCount == 0, deadline.Token).ConfigureAwait(false);
+        await Until(() => registry.ActiveWorkerCount == 0, deadline.Token);
         Require(!worker.RequestStop(), "retained metadata cannot cancel a disposed signal");
     }
 
@@ -212,13 +212,13 @@ internal class WorkerRetirementTests
                 WorkerCount = 0, Capacity = 4, DispatchStrategy = strategy, FullMode = QueueFullMode.Reject,
             }), NullLogger<WorkOrchestrator<int>>.Instance);
         Require(orchestrator.TryEnqueue(42), "work admitted");
-        Require(await orchestrator.WorkQueue.WaitToDequeueAsync(deadline.Token).ConfigureAwait(false), "wake acquired");
-        await retirement.CancelAsync().ConfigureAwait(false);
-        await orchestrator.CreateWorkerFunction(null, retirement.Token)("retiring", deadline.Token).ConfigureAwait(false);
+        Require(await orchestrator.WorkQueue.WaitToDequeueAsync(deadline.Token), "wake acquired");
+        await retirement.CancelAsync();
+        await orchestrator.CreateWorkerFunction(null, retirement.Token)("retiring", deadline.Token);
         var survivor = orchestrator.CreateWorkerFunction()("survivor", deadline.Token);
-        await handled.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
-        await orchestrator.DrainAsync(deadline.Token).ConfigureAwait(false);
-        await survivor.ConfigureAwait(false);
+        await handled.Task.WaitAsync(deadline.Token);
+        await orchestrator.DrainAsync(deadline.Token);
+        await survivor;
         Require(orchestrator.PendingCount == 0, "survivor handled the retained envelope");
     }
 
@@ -242,19 +242,19 @@ internal class WorkerRetirementTests
         try
         {
             Require(orchestrator.TryEnqueue(1), "current item admitted");
-            await entered.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
+            await entered.Task.WaitAsync(deadline.Token);
             Require(orchestrator.TryEnqueue(2), "queued item remains admitted");
-            await retirement.CancelAsync().ConfigureAwait(false);
+            await retirement.CancelAsync();
             release.TrySetResult();
-            await finished.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
-            await orchestrator.DrainAsync(deadline.Token).ConfigureAwait(false);
-            await worker.ConfigureAwait(false);
+            await finished.Task.WaitAsync(deadline.Token);
+            await orchestrator.DrainAsync(deadline.Token);
+            await worker;
             Require(orchestrator.PendingCount == 0, "retirement drained the queued item");
         }
         finally
         {
             release.TrySetResult();
-            await orchestrator.AbortAsync(CancellationToken.None).ConfigureAwait(false);
+            await orchestrator.AbortAsync(CancellationToken.None);
         }
     }
 
@@ -266,7 +266,7 @@ internal class WorkerRetirementTests
             if (work == 1)
             {
                 entered.TrySetResult();
-                await release.Task.WaitAsync(ct).ConfigureAwait(false);
+                await release.Task.WaitAsync(ct);
                 return;
             }
 
@@ -288,7 +288,7 @@ internal class WorkerRetirementTests
 
     private static async Task Until(Func<bool> predicate, CancellationToken token)
     {
-        while (!predicate()) await Task.Delay(1, token).ConfigureAwait(false);
+        while (!predicate()) await Task.Delay(1, token);
     }
 
     private static void Require(bool condition, string message)

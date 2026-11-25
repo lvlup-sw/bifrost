@@ -68,7 +68,7 @@ public class MultiDecoratorIntegrationTests
 
         var enqueueSubscriber = Task.Run(async () =>
         {
-            await foreach (var evt in eventStream!.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in eventStream!.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
             {
                 enqueuedEvents.Add(evt);
                 if (enqueuedEvents.Count >= 1) break;
@@ -77,24 +77,23 @@ public class MultiDecoratorIntegrationTests
 
         var completedSubscriber = Task.Run(async () =>
         {
-            await foreach (var evt in eventStream!.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in eventStream!.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token))
             {
                 completedEvents.Add(evt);
                 if (completedEvents.Count >= 1) break;
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
         var workerFunc = orchestrator.CreateWorkerFunction();
         var workerTask = Task.Run(() => workerFunc("integration-worker", cts.Token));
-        await Task.Delay(50).ConfigureAwait(false);
+        await Task.Delay(50);
 
-        await orchestrator.EnqueueAsync("integration-test-item").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("integration-test-item");
 
         await Task.WhenAll(enqueueSubscriber, completedSubscriber)
-            .WaitAsync(TimeSpan.FromSeconds(3))
-            .ConfigureAwait(false);
+            .WaitAsync(TimeSpan.FromSeconds(3));
 
         await Assert.That(handlerInvocations).Contains("integration-test-item");
 
@@ -108,16 +107,16 @@ public class MultiDecoratorIntegrationTests
         var metrics = provider.GetRequiredKeyedService<IWorkerMetrics>(typeof(string));
         await Assert.That(metrics).IsNotNull();
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
         try
         {
-            await workerTask.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+            await workerTask.WaitAsync(TimeSpan.FromSeconds(3));
         }
         catch (OperationCanceledException)
         {
         }
 
-        await orchestrator.AbortAsync(CancellationToken.None).ConfigureAwait(false);
+        await orchestrator.AbortAsync(CancellationToken.None);
     }
 
     /// <summary>

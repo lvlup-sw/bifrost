@@ -53,8 +53,7 @@ public sealed class NextOccurrencesTests
                 "interval-job",
                 Cadence.Interval(TimeSpan.FromMinutes(5)),
                 MissedFirePolicy.Coalesce,
-                new NoopDispatcher())
-            .ConfigureAwait(false);
+                new NoopDispatcher());
 
         var occurrences = inspector.GetNextOccurrences("interval-job", count: 3);
 
@@ -103,8 +102,8 @@ public sealed class NextOccurrencesTests
             NullLogger<ScheduleTickLoop>.Instance,
             new SchedulerOptions());
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
+        await loop.WaitForIdleAsync(TestTimeout);
 
         IBifrostScheduleInspector inspector = new ScheduleInspector(registry);
         var dispatcher = new TimestampingDispatcher();
@@ -115,17 +114,16 @@ public sealed class NextOccurrencesTests
                     "match-job",
                     Cadence.Interval(TimeSpan.FromMinutes(5)),
                     MissedFirePolicy.Coalesce,
-                    dispatcher)
-                .ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+                    dispatcher);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             var previewed = inspector.GetNextOccurrences("match-job", count: 3);
             await Assert.That(previewed).HasCount(3);
 
             var harness = new SchedulerTestHarness(loop, fakeTime);
-            await harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
-            await harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
-            await harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+            await harness.AdvanceAsync(TimeSpan.FromMinutes(5));
+            await harness.AdvanceAsync(TimeSpan.FromMinutes(5));
+            await harness.AdvanceAsync(TimeSpan.FromMinutes(5));
 
             await Assert.That(dispatcher.FireTimes).HasCount(3);
             for (int i = 0; i < 3; i++)
@@ -135,7 +133,7 @@ public sealed class NextOccurrencesTests
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
         }
     }

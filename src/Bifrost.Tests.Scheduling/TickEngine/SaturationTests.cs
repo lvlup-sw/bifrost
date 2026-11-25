@@ -64,8 +64,8 @@ public sealed class SaturationTests
             NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
             serviceProvider: Services);
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
+        await loop.WaitForIdleAsync(TestTimeout);
 
         var dispatchers = new CountingDispatcher[JobCount];
         var fireAt = Start.AddMinutes(1);
@@ -73,17 +73,16 @@ public sealed class SaturationTests
         {
             dispatchers[i] = new CountingDispatcher();
             var name = $"job-{i:D4}";
-            await registry.RegisterAsync(name, Cadence.At(fireAt), MissedFirePolicy.Coalesce, dispatchers[i])
-                .ConfigureAwait(false);
+            await registry.RegisterAsync(name, Cadence.At(fireAt), MissedFirePolicy.Coalesce, dispatchers[i]);
         }
 
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await loop.WaitForIdleAsync(TestTimeout);
 
         time.Advance(TimeSpan.FromMinutes(1));
 
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await loop.WaitForIdleAsync(TestTimeout);
 
-        await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)loop).StopAsync(CancellationToken.None);
         loop.Dispose();
 
         var totalFires = dispatchers.Sum(d => d.FireCount);

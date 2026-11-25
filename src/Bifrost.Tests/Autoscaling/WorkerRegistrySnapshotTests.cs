@@ -61,8 +61,8 @@ public class WorkerRegistrySnapshotTests
         {
             await registry.CreateWorkerAsync(
                 $"worker-{i}",
-                async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-                cts.Token).ConfigureAwait(false);
+                async (id, ct) => await Task.Delay(10000, ct),
+                cts.Token);
         }
 
         var snapshot = registry.GetSnapshot();
@@ -70,7 +70,7 @@ public class WorkerRegistrySnapshotTests
         await Assert.That(snapshot.TotalWorkers).IsEqualTo(5);
         await Assert.That(snapshot.ActiveWorkers).IsEqualTo(5);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -89,8 +89,8 @@ public class WorkerRegistrySnapshotTests
         {
             var worker = await registry.CreateWorkerAsync(
                 $"idle-worker-{i}",
-                async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-                cts.Token).ConfigureAwait(false);
+                async (id, ct) => await Task.Delay(10000, ct),
+                cts.Token);
             worker.MarkIdle();
         }
 
@@ -98,8 +98,8 @@ public class WorkerRegistrySnapshotTests
         {
             var worker = await registry.CreateWorkerAsync(
                 $"busy-worker-{i}",
-                async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-                cts.Token).ConfigureAwait(false);
+                async (id, ct) => await Task.Delay(10000, ct),
+                cts.Token);
             worker.MarkBusy();
         }
 
@@ -110,7 +110,7 @@ public class WorkerRegistrySnapshotTests
         await Assert.That(snapshot.IdleWorkers).IsEqualTo(3);
         await Assert.That(snapshot.BusyWorkers).IsEqualTo(2);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -129,8 +129,8 @@ public class WorkerRegistrySnapshotTests
         {
             await registry.CreateWorkerAsync(
                 $"worker-{i}",
-                async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-                cts.Token).ConfigureAwait(false);
+                async (id, ct) => await Task.Delay(10000, ct),
+                cts.Token);
         }
 
         registry.RequestWorkerStop("worker-0");
@@ -142,7 +142,7 @@ public class WorkerRegistrySnapshotTests
         await Assert.That(snapshot.ActiveWorkers).IsEqualTo(3);
         await Assert.That(snapshot.StoppingWorkers).IsEqualTo(2);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -213,15 +213,15 @@ public class WorkerRegistrySnapshotTests
         {
             var worker = await registry.CreateWorkerAsync(
                 $"idle-worker-{i}",
-                async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-                cts.Token).ConfigureAwait(false);
+                async (id, ct) => await Task.Delay(10000, ct),
+                cts.Token);
             worker.MarkIdle();
         }
 
         var busyWorker = await registry.CreateWorkerAsync(
             "busy-worker",
-            async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(10000, ct),
+            cts.Token);
         busyWorker.MarkBusy();
 
         registry.RequestWorkerStop("idle-worker-0");
@@ -237,7 +237,7 @@ public class WorkerRegistrySnapshotTests
         await Assert.That(snapshot.IdleWorkers + snapshot.BusyWorkers + snapshot.StoppingWorkers)
             .IsEqualTo(snapshot.ActiveWorkers);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -259,8 +259,8 @@ public class WorkerRegistrySnapshotTests
         {
             var worker = await registry.CreateWorkerAsync(
                 $"worker-{i}",
-                async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-                cts.Token).ConfigureAwait(false);
+                async (id, ct) => await Task.Delay(10000, ct),
+                cts.Token);
 
             if (i < 3)
             {
@@ -284,7 +284,7 @@ public class WorkerRegistrySnapshotTests
         await Assert.That(snapshot.BusyWorkers).IsEqualTo(3);
         await Assert.That(snapshot.StoppingWorkers).IsEqualTo(2);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -303,8 +303,8 @@ public class WorkerRegistrySnapshotTests
         {
             var worker = await registry.CreateWorkerAsync(
                 $"worker-{i}",
-                async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-                cts.Token).ConfigureAwait(false);
+                async (id, ct) => await Task.Delay(10000, ct),
+                cts.Token);
             worker.MarkIdle();
         }
 
@@ -317,6 +317,6 @@ public class WorkerRegistrySnapshotTests
         await Assert.That(snapshot1.BusyWorkers).IsEqualTo(snapshot2.BusyWorkers);
         await Assert.That(snapshot1.StoppingWorkers).IsEqualTo(snapshot2.StoppingWorkers);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 }

@@ -54,14 +54,14 @@ public sealed class CommandWakeTests
     [Test]
     public async Task CommandArrivesWhileParkedOnTimer_WakesLoop_NoLostWakeup()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
 
-        var first = await fx.RegisterAsync("first", Cadence.Interval(TimeSpan.FromHours(1))).ConfigureAwait(false);
+        var first = await fx.RegisterAsync("first", Cadence.Interval(TimeSpan.FromHours(1)));
 
-        var second = await fx.RegisterAsync("second", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
+        var second = await fx.RegisterAsync("second", Cadence.Interval(TimeSpan.FromMinutes(1)));
 
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(second.FireCount).IsEqualTo(1);
         await Assert.That(first.FireCount).IsEqualTo(0);
@@ -81,14 +81,14 @@ public sealed class CommandWakeTests
     [Test]
     public async Task SequentialCommands_EachWakesLoop_NoLostWakeup()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
 
-        var a = await fx.RegisterAsync("a", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
-        var b = await fx.RegisterAsync("b", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
-        var c = await fx.RegisterAsync("c", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
+        var a = await fx.RegisterAsync("a", Cadence.Interval(TimeSpan.FromMinutes(1)));
+        var b = await fx.RegisterAsync("b", Cadence.Interval(TimeSpan.FromMinutes(1)));
+        var c = await fx.RegisterAsync("c", Cadence.Interval(TimeSpan.FromMinutes(1)));
 
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(a.FireCount).IsEqualTo(1);
         await Assert.That(b.FireCount).IsEqualTo(1);
@@ -126,23 +126,22 @@ public sealed class CommandWakeTests
                 serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async Task<CountingDispatcher> RegisterAsync(string name, Cadence cadence)
         {
             var dispatcher = new CountingDispatcher();
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher);
+            await this.Loop.WaitForIdleAsync(TestTimeout);
             return dispatcher;
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

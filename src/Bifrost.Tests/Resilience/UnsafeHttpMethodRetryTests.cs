@@ -48,7 +48,7 @@ public class UnsafeHttpMethodRetryTests
             status: 503,
             allClients: true,
             synchronous: false,
-            shortenDelays: false).ConfigureAwait(false);
+            shortenDelays: false);
 
         await Assert.That(observed.Sent).IsEqualTo(observed.OneDelivery);
     }
@@ -66,7 +66,7 @@ public class UnsafeHttpMethodRetryTests
             {
                 try
                 {
-                    var observed = await ObserveAsync(method, PeerBehavior.Status, status, allClients: false, synchronous: false, shortenDelays: true).ConfigureAwait(false);
+                    var observed = await ObserveAsync(method, PeerBehavior.Status, status, allClients: false, synchronous: false, shortenDelays: true);
                     if (observed.Sent != observed.OneDelivery)
                     {
                         failures.Add($"{method} {status}: {observed.Sent}");
@@ -93,7 +93,7 @@ public class UnsafeHttpMethodRetryTests
         {
             try
             {
-                var observed = await ObserveAsync(method, PeerBehavior.Timeout, status: 0, allClients: false, synchronous: false, shortenDelays: true).ConfigureAwait(false);
+                var observed = await ObserveAsync(method, PeerBehavior.Timeout, status: 0, allClients: false, synchronous: false, shortenDelays: true);
                 if (observed.Sent != observed.OneDelivery)
                 {
                     failures.Add($"{method} timeout: {observed.Sent}");
@@ -120,7 +120,7 @@ public class UnsafeHttpMethodRetryTests
         {
             try
             {
-                var observed = await ObserveAsync(method, PeerBehavior.Reset, status: 0, allClients: false, synchronous: false, shortenDelays: true).ConfigureAwait(false);
+                var observed = await ObserveAsync(method, PeerBehavior.Reset, status: 0, allClients: false, synchronous: false, shortenDelays: true);
                 if (observed.Sent != observed.OneDelivery)
                 {
                     failures.Add($"{method} reset: {observed.Sent}");
@@ -139,7 +139,7 @@ public class UnsafeHttpMethodRetryTests
     [Test]
     public async Task SynchronousSend_Post503_IsNotSentAgain()
     {
-        var observed = await ObserveAsync("POST", PeerBehavior.Status, status: 503, allClients: false, synchronous: true, shortenDelays: true).ConfigureAwait(false);
+        var observed = await ObserveAsync("POST", PeerBehavior.Status, status: 503, allClients: false, synchronous: true, shortenDelays: true);
         await Assert.That(observed.Sent).IsEqualTo(observed.OneDelivery);
     }
 
@@ -152,7 +152,7 @@ public class UnsafeHttpMethodRetryTests
         {
             try
             {
-                var observed = await ObserveAsync(method, PeerBehavior.Status, status: 503, allClients: true, synchronous: false, shortenDelays: true).ConfigureAwait(false);
+                var observed = await ObserveAsync(method, PeerBehavior.Status, status: 503, allClients: true, synchronous: false, shortenDelays: true);
                 var expected = string.Join(" | ", Enumerable.Repeat(observed.OneDelivery, 4));
                 if (observed.Sent != expected)
                 {
@@ -176,7 +176,7 @@ public class UnsafeHttpMethodRetryTests
         bool synchronous,
         bool shortenDelays)
     {
-        await using var peer = await LoopbackPeer.StartAsync(behavior, status).ConfigureAwait(false);
+        await using var peer = await LoopbackPeer.StartAsync(behavior, status);
         await using var provider = CreateProvider(allClients, shortenDelays);
         var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient(ClientName);
         using var request = new HttpRequestMessage(new HttpMethod(method), peer.ResourceUri)
@@ -206,7 +206,7 @@ public class UnsafeHttpMethodRetryTests
             }
             else
             {
-                using var response = await client.SendAsync(request, CancellationToken.None).ConfigureAwait(false);
+                using var response = await client.SendAsync(request, CancellationToken.None);
             }
         }
         catch (Exception ex) when (behavior != PeerBehavior.Status && ex is HttpRequestException or TimeoutRejectedException)
@@ -304,9 +304,9 @@ public class UnsafeHttpMethodRetryTests
         {
             _listener.Stop();
 #pragma warning disable VSTHRD003
-            await _acceptLoop.ConfigureAwait(false);
+            await _acceptLoop;
 #pragma warning restore VSTHRD003
-            await _lifetime.CancelAsync().ConfigureAwait(false);
+            await _lifetime.CancelAsync();
             Task[] handlers;
             lock (_gate)
             {
@@ -315,7 +315,7 @@ public class UnsafeHttpMethodRetryTests
 
             try
             {
-                await Task.WhenAll(handlers).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await Task.WhenAll(handlers).WaitAsync(TimeSpan.FromSeconds(5));
             }
             catch (Exception ex) when (ex is TimeoutException or OperationCanceledException or IOException or SocketException)
             {
@@ -331,7 +331,7 @@ public class UnsafeHttpMethodRetryTests
                 TcpClient client;
                 try
                 {
-                    client = await _listener.AcceptTcpClientAsync(_lifetime.Token).ConfigureAwait(false);
+                    client = await _listener.AcceptTcpClientAsync(_lifetime.Token);
                 }
                 catch (Exception ex) when (ex is ObjectDisposedException or SocketException or OperationCanceledException)
                 {
@@ -353,9 +353,9 @@ public class UnsafeHttpMethodRetryTests
                 try
                 {
                     await using var stream = client.GetStream();
-                    var header = await ReadHeaderAsync(stream, _lifetime.Token).ConfigureAwait(false);
+                    var header = await ReadHeaderAsync(stream, _lifetime.Token);
                     var (method, target, contentLength) = ParseHeader(header.Text);
-                    var body = await ReadBodyAsync(stream, header.Remainder, contentLength, _lifetime.Token).ConfigureAwait(false);
+                    var body = await ReadBodyAsync(stream, header.Remainder, contentLength, _lifetime.Token);
                     lock (_gate)
                     {
                         _requests.Add(new CapturedRequest(method, target, Encoding.UTF8.GetString(body)));
@@ -369,13 +369,13 @@ public class UnsafeHttpMethodRetryTests
 
                     if (_behavior == PeerBehavior.Timeout)
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(30), _lifetime.Token).ConfigureAwait(false);
+                        await Task.Delay(TimeSpan.FromSeconds(30), _lifetime.Token);
                         return;
                     }
 
                     var reason = Reason(_status);
                     var response = Encoding.ASCII.GetBytes($"HTTP/1.1 {_status} {reason}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-                    await stream.WriteAsync(response, _lifetime.Token).ConfigureAwait(false);
+                    await stream.WriteAsync(response, _lifetime.Token);
                 }
                 catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException or ObjectDisposedException)
                 {
@@ -417,7 +417,7 @@ public class UnsafeHttpMethodRetryTests
             var buffer = new byte[1024];
             while (true)
             {
-                var read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                var read = await stream.ReadAsync(buffer, cancellationToken);
                 if (read == 0)
                 {
                     throw new IOException("The client closed the connection before the headers ended.");
@@ -457,7 +457,7 @@ public class UnsafeHttpMethodRetryTests
             Buffer.BlockCopy(remainder, 0, body, 0, copied);
             while (copied < contentLength)
             {
-                var read = await stream.ReadAsync(body.AsMemory(copied, contentLength - copied), cancellationToken).ConfigureAwait(false);
+                var read = await stream.ReadAsync(body.AsMemory(copied, contentLength - copied), cancellationToken);
                 if (read == 0)
                 {
                     throw new IOException("The client closed the connection before the body ended.");

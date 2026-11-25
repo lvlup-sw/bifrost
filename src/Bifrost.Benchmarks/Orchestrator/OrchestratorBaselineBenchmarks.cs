@@ -84,7 +84,7 @@ public class OrchestratorBaselineBenchmarks
     {
         for (var i = 0; i < ItemCount; i++)
         {
-            await _orchestrator!.EnqueueAsync(i).ConfigureAwait(false);
+            await _orchestrator!.EnqueueAsync(i);
         }
 
         if (!_countdown!.Wait(TimeSpan.FromSeconds(30)))
@@ -102,7 +102,7 @@ public class OrchestratorBaselineBenchmarks
     {
         if (_orchestrator is not null)
         {
-            await _orchestrator.DisposeAsync().ConfigureAwait(false);
+            await _orchestrator.DisposeAsync();
         }
 
         _countdown?.Dispose();

@@ -55,18 +55,18 @@ public sealed class EarlyWakeClampTests
     [Test]
     public async Task TickLoop_WakesBeforeNextFireAt_ReSleeps_NoDispatch()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
         var dispatcher = await fx.RegisterAsync(
-            "five-min", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
+            "five-min", Cadence.Interval(TimeSpan.FromMinutes(5)));
 
         fx.Time.Advance(TimeSpan.FromMinutes(3));
 
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
 
         fx.Time.Advance(TimeSpan.FromMinutes(2));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
     }
 
@@ -86,17 +86,17 @@ public sealed class EarlyWakeClampTests
     [Test]
     public async Task TickLoop_TimerFires20msEarly_ExactlyOneDispatchPerOccurrence()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
         var dispatcher = await fx.RegisterAsync(
-            "one-min", Cadence.Interval(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
+            "one-min", Cadence.Interval(TimeSpan.FromMinutes(1)));
 
         fx.Time.Advance(TimeSpan.FromMilliseconds(59_980));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
 
         fx.Time.Advance(TimeSpan.FromMilliseconds(20));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
     }
@@ -117,18 +117,18 @@ public sealed class EarlyWakeClampTests
     [Test]
     public async Task TickLoop_NextFire_ComputedFromScheduledOccurrenceTime()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
         var dispatcher = await fx.RegisterAsync(
-            "five-min", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
+            "five-min", Cadence.Interval(TimeSpan.FromMinutes(5)));
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
         await Assert.That(dispatcher.LastFireTime).IsEqualTo(Start.AddMinutes(5));
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(dispatcher.FireCount).IsEqualTo(2);
         await Assert.That(dispatcher.LastFireTime).IsEqualTo(Start.AddMinutes(10));
     }
@@ -164,23 +164,22 @@ public sealed class EarlyWakeClampTests
                 serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async Task<RecordingDispatcher> RegisterAsync(string name, Cadence cadence)
         {
             var dispatcher = new RecordingDispatcher();
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher);
+            await this.Loop.WaitForIdleAsync(TestTimeout);
             return dispatcher;
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

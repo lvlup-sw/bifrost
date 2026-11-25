@@ -171,7 +171,7 @@ public sealed class AddSchedulerTests
                 .Run((_, _) => ValueTask.CompletedTask));
         await using var provider = services.BuildServiceProvider();
 
-        await StartHostedServicesAsync(provider).ConfigureAwait(false);
+        await StartHostedServicesAsync(provider);
         try
         {
             var registry = provider.GetRequiredService<IScheduleRegistry>();
@@ -182,7 +182,7 @@ public sealed class AddSchedulerTests
         }
         finally
         {
-            await StopHostedServicesAsync(provider).ConfigureAwait(false);
+            await StopHostedServicesAsync(provider);
         }
     }
 
@@ -209,21 +209,21 @@ public sealed class AddSchedulerTests
                 }));
         await using var provider = services.BuildServiceProvider();
 
-        await StartHostedServicesAsync(provider).ConfigureAwait(false);
+        await StartHostedServicesAsync(provider);
         try
         {
             var loop = provider.GetServices<IHostedService>().OfType<ScheduleTickLoop>().Single();
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             time.Advance(TimeSpan.FromMinutes(5));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
-            var completed = await Task.WhenAny(fired.Task, Task.Delay(TestTimeout)).ConfigureAwait(false);
+            var completed = await Task.WhenAny(fired.Task, Task.Delay(TestTimeout));
             await Assert.That(completed == fired.Task).IsTrue();
         }
         finally
         {
-            await StopHostedServicesAsync(provider).ConfigureAwait(false);
+            await StopHostedServicesAsync(provider);
         }
     }
 
@@ -306,7 +306,7 @@ public sealed class AddSchedulerTests
     {
         foreach (var hosted in provider.GetServices<IHostedService>())
         {
-            await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            await hosted.StartAsync(CancellationToken.None);
         }
     }
 
@@ -314,7 +314,7 @@ public sealed class AddSchedulerTests
     {
         foreach (var hosted in provider.GetServices<IHostedService>().Reverse())
         {
-            await hosted.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await hosted.StopAsync(CancellationToken.None);
         }
     }
 

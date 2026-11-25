@@ -260,12 +260,12 @@ public class AutoscalingCoordinatorTests
             .Returns(Task.FromResult(new WorkerInfo("test")));
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        await coordinator.RequestScaleUpAsync(3, CancellationToken.None).ConfigureAwait(false);
+        await coordinator.RequestScaleUpAsync(3, CancellationToken.None);
 
         await _mockRegistry.Received(3).CreateWorkerAsync(
             Arg.Any<string>(),
             Arg.Any<Func<string, CancellationToken, Task>>(),
-            Arg.Any<CancellationToken>()).ConfigureAwait(false);
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -277,7 +277,7 @@ public class AutoscalingCoordinatorTests
         _mockRegistry.RequestMultipleWorkerStop(3).Returns(3);
         var coordinator = new AutoscalingCoordinator<string>(_mockOrchestrator, _mockRegistry);
 
-        await coordinator.RequestScaleDownAsync(3, CancellationToken.None).ConfigureAwait(false);
+        await coordinator.RequestScaleDownAsync(3, CancellationToken.None);
 
         _mockRegistry.Received(1).RequestMultipleWorkerStop(3);
     }

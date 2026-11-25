@@ -63,22 +63,22 @@ public class QueueWaitMetricsTests
         await Assert.That(metrics.QueueWait.Name).IsEqualTo("bifrost.orchestrator.queue_wait");
         await Assert.That(metrics.QueueWait.Unit).IsEqualTo("ms");
 
-        var enqueued = await orchestrator.EnqueueAsync("batch-item", WorkClass.Batch).ConfigureAwait(false);
+        var enqueued = await orchestrator.EnqueueAsync("batch-item", WorkClass.Batch);
         await Assert.That(enqueued).IsEqualTo(EnqueueResult.Accepted);
         fakeTime.Advance(TimeSpan.FromMilliseconds(250));
 
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("MetricsWorker", cts.Token), cts.Token);
-        await handler.Done.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.Done.WaitAsync(WaitTimeout);
 
         var measurements = collector.Snapshot();
         await Assert.That(measurements.Count).IsEqualTo(1);
         await Assert.That(measurements[0].Value).IsEqualTo(250.0);
         await Assert.That(measurements[0].WorkClassTag).IsEqualTo("Batch");
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
+        await cts.CancelAsync();
+        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout));
     }
 
     /// <summary>
@@ -104,22 +104,22 @@ public class QueueWaitMetricsTests
         orchestrator.QueueWaitObserved = metrics.RecordQueueWait;
         using var collector = new QueueWaitCollector(metrics.QueueWait);
 
-        var enqueued = await orchestrator.EnqueueAsync("frozen-item").ConfigureAwait(false);
+        var enqueued = await orchestrator.EnqueueAsync("frozen-item");
         await Assert.That(enqueued).IsEqualTo(EnqueueResult.Accepted);
 
-        await Task.Delay(50).ConfigureAwait(false);
+        await Task.Delay(50);
 
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("FrozenWorker", cts.Token), cts.Token);
-        await handler.Done.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.Done.WaitAsync(WaitTimeout);
 
         var measurements = collector.Snapshot();
         await Assert.That(measurements.Count).IsEqualTo(1);
         await Assert.That(measurements[0].Value).IsEqualTo(0.0);
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
+        await cts.CancelAsync();
+        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout));
     }
 
     /// <summary>
@@ -144,17 +144,17 @@ public class QueueWaitMetricsTests
         orchestrator.QueueWaitObserved = metrics.RecordQueueWait;
         using var collector = new QueueWaitCollector(metrics.QueueWait);
 
-        await orchestrator.EnqueueAsync("interactive-item", WorkClass.Interactive).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("interactive-item", WorkClass.Interactive);
         fakeTime.Advance(TimeSpan.FromMilliseconds(100));
-        await orchestrator.EnqueueAsync("default-item", WorkClass.Default).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("default-item", WorkClass.Default);
         fakeTime.Advance(TimeSpan.FromMilliseconds(100));
-        await orchestrator.EnqueueAsync("batch-item", WorkClass.Batch).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("batch-item", WorkClass.Batch);
         fakeTime.Advance(TimeSpan.FromMilliseconds(100));
 
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("MixedWorker", cts.Token), cts.Token);
-        await handler.Done.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.Done.WaitAsync(WaitTimeout);
 
         var measurements = collector.Snapshot();
         await Assert.That(measurements.Count).IsEqualTo(3);
@@ -169,8 +169,8 @@ public class QueueWaitMetricsTests
         await Assert.That(defaults[0].Value).IsEqualTo(200.0);
         await Assert.That(batch[0].Value).IsEqualTo(100.0);
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
+        await cts.CancelAsync();
+        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout));
     }
 
     /// <summary>
@@ -235,7 +235,7 @@ public class QueueWaitMetricsTests
 
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
 
         provider.GetService<OrchestratorMetrics<string>>()?.Dispose();

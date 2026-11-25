@@ -31,15 +31,15 @@ public sealed class ScheduleRegistryControlTests
     public async Task Pause_Running_TransitionsToPausedAndPersists()
     {
         var store = Substitute.For<IScheduleStore>();
-        var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
+        var registry = await RegisterJobAsync(store, "daily-report");
         store.ClearReceivedCalls();
 
-        await registry.PauseAsync("daily-report").ConfigureAwait(false);
+        await registry.PauseAsync("daily-report");
 
         await Assert.That(registry.GetJob("daily-report")!.Value.State).IsEqualTo(JobState.Paused);
         await store.Received(1).SaveAsync(
             Arg.Is<JobRecord>(j => j.State == JobState.Paused),
-            Arg.Any<CancellationToken>()).ConfigureAwait(false);
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -50,10 +50,10 @@ public sealed class ScheduleRegistryControlTests
     public async Task Pause_AlreadyPaused_IsNoOp()
     {
         var store = Substitute.For<IScheduleStore>();
-        var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
-        await registry.PauseAsync("daily-report").ConfigureAwait(false);
+        var registry = await RegisterJobAsync(store, "daily-report");
+        await registry.PauseAsync("daily-report");
 
-        await registry.PauseAsync("daily-report").ConfigureAwait(false);
+        await registry.PauseAsync("daily-report");
 
         await Assert.That(registry.GetJob("daily-report")!.Value.State).IsEqualTo(JobState.Paused);
     }
@@ -68,7 +68,7 @@ public sealed class ScheduleRegistryControlTests
         var store = Substitute.For<IScheduleStore>();
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
 
-        await Assert.That(async () => await registry.PauseAsync("missing").ConfigureAwait(false))
+        await Assert.That(async () => await registry.PauseAsync("missing"))
             .Throws<JobNotFoundException>();
     }
 
@@ -80,16 +80,16 @@ public sealed class ScheduleRegistryControlTests
     public async Task Resume_Paused_TransitionsToRunningAndPersists()
     {
         var store = Substitute.For<IScheduleStore>();
-        var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
-        await registry.PauseAsync("daily-report").ConfigureAwait(false);
+        var registry = await RegisterJobAsync(store, "daily-report");
+        await registry.PauseAsync("daily-report");
         store.ClearReceivedCalls();
 
-        await registry.ResumeAsync("daily-report").ConfigureAwait(false);
+        await registry.ResumeAsync("daily-report");
 
         await Assert.That(registry.GetJob("daily-report")!.Value.State).IsEqualTo(JobState.Running);
         await store.Received(1).SaveAsync(
             Arg.Is<JobRecord>(j => j.State == JobState.Running),
-            Arg.Any<CancellationToken>()).ConfigureAwait(false);
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -100,9 +100,9 @@ public sealed class ScheduleRegistryControlTests
     public async Task Resume_AlreadyRunning_IsNoOp()
     {
         var store = Substitute.For<IScheduleStore>();
-        var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
+        var registry = await RegisterJobAsync(store, "daily-report");
 
-        await registry.ResumeAsync("daily-report").ConfigureAwait(false);
+        await registry.ResumeAsync("daily-report");
 
         await Assert.That(registry.GetJob("daily-report")!.Value.State).IsEqualTo(JobState.Running);
     }
@@ -117,7 +117,7 @@ public sealed class ScheduleRegistryControlTests
         var store = Substitute.For<IScheduleStore>();
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
 
-        await Assert.That(async () => await registry.ResumeAsync("missing").ConfigureAwait(false))
+        await Assert.That(async () => await registry.ResumeAsync("missing"))
             .Throws<JobNotFoundException>();
     }
 
@@ -130,9 +130,9 @@ public sealed class ScheduleRegistryControlTests
     public async Task Trigger_Existing_PostsTriggerCommand()
     {
         var store = Substitute.For<IScheduleStore>();
-        var registry = await RegisterJobAsync(store, "daily-report").ConfigureAwait(false);
+        var registry = await RegisterJobAsync(store, "daily-report");
 
-        await registry.TriggerAsync("daily-report").ConfigureAwait(false);
+        await registry.TriggerAsync("daily-report");
 
         var commands = DrainCommands(registry);
         await Assert.That(commands).Contains(
@@ -149,7 +149,7 @@ public sealed class ScheduleRegistryControlTests
         var store = Substitute.For<IScheduleStore>();
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
 
-        await Assert.That(async () => await registry.TriggerAsync("missing").ConfigureAwait(false))
+        await Assert.That(async () => await registry.TriggerAsync("missing"))
             .Throws<JobNotFoundException>();
     }
 
@@ -157,8 +157,7 @@ public sealed class ScheduleRegistryControlTests
     {
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
         await registry.RegisterAsync(
-                name, new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher())
-            .ConfigureAwait(false);
+                name, new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher());
         return registry;
     }
 

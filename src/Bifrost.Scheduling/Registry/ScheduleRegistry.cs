@@ -324,8 +324,8 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
-        using var lease = await this.mutationGates.EnterAsync(name, ct).ConfigureAwait(false);
-        return await this.UnregisterCoreAsync(name, ct).ConfigureAwait(false);
+        using var lease = await this.mutationGates.EnterAsync(name, ct);
+        return await this.UnregisterCoreAsync(name, ct);
     }
 
     /// <inheritdoc/>
@@ -346,7 +346,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         DateTimeOffset? nextFireAt,
         long registrationId)
     {
-        using var lease = await this.mutationGates.EnterAsync(expected.Name).ConfigureAwait(false);
+        using var lease = await this.mutationGates.EnterAsync(expected.Name);
         if (this.RegistrationId(expected.Name) != registrationId)
         {
             return;
@@ -363,7 +363,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             }
 
             progress.HighestAttempt = firedAt;
-            await this.store.RecordFiredAsync(expected.Name, firedAt, nextFireAt, CancellationToken.None).ConfigureAwait(false);
+            await this.store.RecordFiredAsync(expected.Name, firedAt, nextFireAt, CancellationToken.None);
             var updated = current with { LastFiredAt = firedAt, NextFireAt = nextFireAt };
             this.checkpointOrigins.Add(updated, this.CheckpointOrigin(current));
             this.jobs.TryUpdate(expected.Name, updated, current);
@@ -382,8 +382,8 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(name);
-        using var lease = await this.mutationGates.EnterAsync(name, ct).ConfigureAwait(false);
-        await action().ConfigureAwait(false);
+        using var lease = await this.mutationGates.EnterAsync(name, ct);
+        await action();
     }
 
     // A relative one-shot resolves to an absolute instant through the injected TimeProvider of the
@@ -455,7 +455,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
 
         try
         {
-            await this.store.SaveAsync(record, ct).ConfigureAwait(false);
+            await this.store.SaveAsync(record, ct);
             lock (this.lifecycleGate)
             {
                 this.ThrowIfDisposed();
@@ -487,7 +487,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             return false;
         }
 
-        await this.store.DeleteAsync(name, ct).ConfigureAwait(false);
+        await this.store.DeleteAsync(name, ct);
 
         lock (this.lifecycleGate)
         {
@@ -522,7 +522,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             return;
         }
 
-        await this.TransitionAsync(record, JobState.Paused, RegistryCommandKind.Pause, ct).ConfigureAwait(false);
+        await this.TransitionAsync(record, JobState.Paused, RegistryCommandKind.Pause, ct);
     }
 
     // A job that is already running needs nothing persisted or signaled.
@@ -541,7 +541,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             return;
         }
 
-        await this.TransitionAsync(record, JobState.Running, RegistryCommandKind.Resume, ct).ConfigureAwait(false);
+        await this.TransitionAsync(record, JobState.Running, RegistryCommandKind.Resume, ct);
     }
 
     // An update applies the same resolution and validation as registration: a relative one-shot
@@ -590,7 +590,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             NextFireAt = nextFireAt,
         };
 
-        await this.store.SaveAsync(updated, ct).ConfigureAwait(false);
+        await this.store.SaveAsync(updated, ct);
 
         lock (this.lifecycleGate)
         {
@@ -647,7 +647,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
         {
             if (DispatchAdmission.IsReentrant)
             {
-                if (!await this.triggerAdmission.WaitAsync(TimeSpan.Zero, linked.Token).ConfigureAwait(false))
+                if (!await this.triggerAdmission.WaitAsync(TimeSpan.Zero, linked.Token))
                 {
                     throw new InvalidOperationException(
                         "TriggerAsync cannot wait for an admission slot while a dispatch is running.");
@@ -655,7 +655,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
             }
             else
             {
-                await this.triggerAdmission.WaitAsync(linked.Token).ConfigureAwait(false);
+                await this.triggerAdmission.WaitAsync(linked.Token);
             }
 
             acquired = true;
@@ -762,7 +762,7 @@ public sealed partial class ScheduleRegistry : IScheduleRegistry, IAsyncDisposab
     {
         var updated = record with { State = state };
 
-        await this.store.SaveAsync(updated, ct).ConfigureAwait(false);
+        await this.store.SaveAsync(updated, ct);
 
         lock (this.lifecycleGate)
         {

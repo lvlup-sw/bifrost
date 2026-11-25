@@ -52,7 +52,7 @@ public class EmptySemanticTests
     /// </summary>
     [Test]
     public async Task TryDequeue_AfterAllEnqueuesComplete_NeverFalseWhileElementsRemain()
-        => await AssertNoFalseEmptyWhileElementsRemain(new ConcurrentPriorityQueue<int, int>()).ConfigureAwait(false);
+        => await AssertNoFalseEmptyWhileElementsRemain(new ConcurrentPriorityQueue<int, int>());
 
     /// <summary>
     /// The observed-empty proof (§5.2 / T17) re-run with stickiness enabled (<c>s = 4</c>): every
@@ -66,7 +66,7 @@ public class EmptySemanticTests
     [Test]
     public async Task EmptySemantics_MultiThreaded_WithStickiness_NoFalseEmpty()
         => await AssertNoFalseEmptyWhileElementsRemain(
-            new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 4)).ConfigureAwait(false);
+            new ConcurrentPriorityQueue<int, int>(boundedCapacity: -1, stickiness: 4));
 
     /// <summary>
     /// Reads the queue's <c>Count</c> and re-confirms it stays above <paramref name="inFlightTolerance"/>

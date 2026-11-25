@@ -31,7 +31,7 @@ public class HostedRestartTests
         var store = new InMemoryScheduleStore();
         var record = new JobRecord("job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.FireAllMissed,
             state, Epoch, Epoch.AddMinutes(1), "inline", null, new Dictionary<string, string> { ["owner"] = "retained" });
-        await store.SaveAsync(record, CancellationToken.None).ConfigureAwait(false);
+        await store.SaveAsync(record, CancellationToken.None);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IScheduleStore>(store);
@@ -39,8 +39,8 @@ public class HostedRestartTests
         services.AddScheduler(builder => builder.AddInlineJob("job").Every(TimeSpan.FromHours(1)).Run((_, _) => ValueTask.CompletedTask));
         await using var provider = services.BuildServiceProvider();
         var registration = provider.GetServices<IHostedService>().OfType<SchedulerJobRegistrationService>().Single();
-        await registration.StartAsync(CancellationToken.None).ConfigureAwait(false);
-        var persisted = (await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false)).Single();
+        await registration.StartAsync(CancellationToken.None);
+        var persisted = (await store.LoadAllAsync(CancellationToken.None)).Single();
         await Assert.That(persisted).IsEqualTo(record);
         var live = provider.GetRequiredService<IScheduleRegistry>().GetJob("job")!.Value;
         await Assert.That(live.State).IsEqualTo(state);
@@ -54,7 +54,7 @@ public class HostedRestartTests
     {
         var store = new InMemoryScheduleStore();
         await store.SaveAsync(new("job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.FireAllMissed,
-            JobState.Running, Epoch, Epoch.AddMinutes(1), "inline", null, new Dictionary<string, string>()), CancellationToken.None).ConfigureAwait(false);
+            JobState.Running, Epoch, Epoch.AddMinutes(1), "inline", null, new Dictionary<string, string>()), CancellationToken.None);
         var fires = new ConcurrentQueue<DateTimeOffset>();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -70,13 +70,13 @@ public class HostedRestartTests
         var hosted = provider.GetServices<IHostedService>().ToArray();
         try
         {
-            foreach (var service in hosted) await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await provider.GetRequiredService<ScheduleTickLoop>().WaitForIdleAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            foreach (var service in hosted) await service.StartAsync(CancellationToken.None);
+            await provider.GetRequiredService<ScheduleTickLoop>().WaitForIdleAsync(TimeSpan.FromSeconds(10));
             await Assert.That(fires.Order().ToArray()).IsEquivalentTo(new[] { Epoch.AddMinutes(1), Epoch.AddMinutes(2), Epoch.AddMinutes(3) });
         }
         finally
         {
-            foreach (var service in hosted.Reverse()) await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            foreach (var service in hosted.Reverse()) await service.StopAsync(CancellationToken.None);
         }
     }
 
@@ -92,7 +92,7 @@ public class HostedRestartTests
     {
         var store = new InMemoryScheduleStore();
         await store.SaveAsync(new("job", Cadence.At(Epoch.AddMinutes(1)), policy, JobState.Running,
-            null, Epoch.AddMinutes(1), "inline", null, new Dictionary<string, string>()), CancellationToken.None).ConfigureAwait(false);
+            null, Epoch.AddMinutes(1), "inline", null, new Dictionary<string, string>()), CancellationToken.None);
         var count = 0;
         var services = new ServiceCollection();
         services.AddLogging();
@@ -107,13 +107,13 @@ public class HostedRestartTests
         var hosted = provider.GetServices<IHostedService>().ToArray();
         try
         {
-            foreach (var service in hosted) await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await provider.GetRequiredService<ScheduleTickLoop>().WaitForIdleAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            foreach (var service in hosted) await service.StartAsync(CancellationToken.None);
+            await provider.GetRequiredService<ScheduleTickLoop>().WaitForIdleAsync(TimeSpan.FromSeconds(10));
             await Assert.That(count).IsEqualTo(expected);
         }
         finally
         {
-            foreach (var service in hosted.Reverse()) await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            foreach (var service in hosted.Reverse()) await service.StopAsync(CancellationToken.None);
         }
     }
 

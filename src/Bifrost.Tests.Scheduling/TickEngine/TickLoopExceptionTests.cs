@@ -54,18 +54,18 @@ public sealed class TickLoopExceptionTests
     {
         var sink = new FaultInjectingEventSink { ThrowOnFiredCount = 1 };
         var logger = new CapturingLogger<ScheduleTickLoop>();
-        await using var fx = await Fixture.StartAsync(sink, new SchedulerOptions(), logger).ConfigureAwait(false);
-        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(sink, new SchedulerOptions(), logger);
+        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)));
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(logger.Any(LogLevel.Critical)).IsTrue();
         await Assert.That(sink.Any<SchedulerFaultedEvent>()).IsTrue();
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(dispatcher.FireCount).IsGreaterThanOrEqualTo(1);
     }
 
@@ -99,11 +99,11 @@ public sealed class TickLoopExceptionTests
 
             RestartBackoff = TimeSpan.Zero,
         };
-        await using var fx = await Fixture.StartAsync(sink, options).ConfigureAwait(false);
-        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(sink, options);
+        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)));
 
         fx.Time.Advance(TimeSpan.FromMinutes(30));
-        await fx.Loop.WaitForFaultedAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForFaultedAsync(TestTimeout);
 
         await Assert.That(fx.Loop.IsFaulted).IsTrue();
 
@@ -134,24 +134,24 @@ public sealed class TickLoopExceptionTests
     {
         var sink = new FaultInjectingEventSink();
         var logger = new CapturingLogger<ScheduleTickLoop>();
-        await using var fx = await Fixture.StartSkewableAsync(sink, logger).ConfigureAwait(false);
+        await using var fx = await Fixture.StartSkewableAsync(sink, logger);
 
         await Assert.That(fx.Skew).IsNotNull();
         var skew = fx.Skew!;
 
-        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
+        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)));
 
         skew.SkewBy(TimeSpan.FromMinutes(-10));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(logger.Any(LogLevel.Warning)).IsTrue();
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
 
         skew.SkewBy(TimeSpan.Zero);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
     }
 
@@ -210,23 +210,22 @@ public sealed class TickLoopExceptionTests
                 serviceProvider: Services);
 
             var fx = new Fixture(time, skew, registry, loop);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async Task<CountingDispatcher> RegisterAsync(string name, Cadence cadence)
         {
             var dispatcher = new CountingDispatcher();
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher);
+            await this.Loop.WaitForIdleAsync(TestTimeout);
             return dispatcher;
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

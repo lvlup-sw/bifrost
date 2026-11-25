@@ -26,7 +26,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_1()
     {
         using var document = JsonDocument.Parse("[]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_1").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_1");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -35,7 +35,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_2()
     {
         using var document = JsonDocument.Parse("[\"\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_2").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_2");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -44,7 +44,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_3()
     {
         using var document = JsonDocument.Parse("[\"a\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_3").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_3");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -53,7 +53,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_4()
     {
         using var document = JsonDocument.Parse("[\"a\",\"a\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_4").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_4");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -62,7 +62,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_5()
     {
         using var document = JsonDocument.Parse("[\"a\",\"b\",\"a\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_5").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_5");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -71,7 +71,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_6()
     {
         using var document = JsonDocument.Parse("[\"é\",\"あ\",\"😀\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_6").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_6");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -80,7 +80,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_7()
     {
         using var document = JsonDocument.Parse("[\"😀\",\"😀\",\"é\",\"\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_7").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_7");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -89,7 +89,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_8()
     {
         using var document = JsonDocument.Parse("[\"b\",\"a\",\"b\",\"a\",\"é\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_8").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_8");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -98,7 +98,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_9()
     {
         using var document = JsonDocument.Parse("[\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_9").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_9");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -107,7 +107,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_10()
     {
         using var document = JsonDocument.Parse("[\"aaaaaaaa\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_10").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_10");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -116,7 +116,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_11()
     {
         using var document = JsonDocument.Parse("[\"bbbbbbbb\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_11").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_11");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -125,7 +125,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_12()
     {
         using var document = JsonDocument.Parse("[\"éééééééé\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_12").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_12");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -134,7 +134,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_13()
     {
         using var document = JsonDocument.Parse("[\"ああああああああ\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_13").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_13");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -143,7 +143,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_14()
     {
         using var document = JsonDocument.Parse("[\"😀😀😀😀😀😀😀😀\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_14").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_14");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -152,7 +152,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_15()
     {
         using var document = JsonDocument.Parse("[\"aé😀\",\"\",\"éb\",\"あéaéé\",\"😀é\",\"a😀a😀abあ\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_15").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_15");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -161,7 +161,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_16()
     {
         using var document = JsonDocument.Parse("[\"😀é😀あaé😀\",\"a\",\"éa\",\"あaéabbbあ\",\"😀あ\",\"😀bab\",\"é\",\"😀éééあ\",\"b😀\",\"ああaあ\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_16").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_16");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -170,7 +170,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_17()
     {
         using var document = JsonDocument.Parse("[\"😀ééb😀\",\"abb😀é😀あ😀\",\"bあéb😀😀あ\",\"あ😀ああéb\",\"あ\",\"b\",\"😀a😀baa\",\"😀\",\"bあ\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_17").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_17");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -179,7 +179,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_18()
     {
         using var document = JsonDocument.Parse("[\"aaあ😀éあ😀\",\"bあé\",\"é😀é\",\"😀bあ\",\"😀bあ😀aa\",\"😀\",\"b😀ééあbaa\",\"😀é😀😀あéé\",\"😀éあbéあ\",\"béあ\",\"aéあb\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_18").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_18");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -188,7 +188,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_19()
     {
         using var document = JsonDocument.Parse("[\"あ😀é😀a😀\",\"あ\",\"aあ😀aa\",\"aéab\",\"ébあaéé\",\"😀b😀\",\"ééb😀😀あaあ\",\"é😀あ\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_19").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_19");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -197,7 +197,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_20()
     {
         using var document = JsonDocument.Parse("[\"abéa\",\"bbあ\",\"あb\",\"ééあa😀あ\",\"あ\",\"😀あ😀ああéé\",\"あé😀\",\"あ😀é😀aa\",\"aあéb😀b\",\"\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_20").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_20");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -206,7 +206,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_21()
     {
         using var document = JsonDocument.Parse("[\"😀あ\",\"あ😀\",\"éあaあbあ\",\"あbあb\",\"éあbé\",\"aあa\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_21").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_21");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -215,7 +215,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_22()
     {
         using var document = JsonDocument.Parse("[\"\",\"😀😀\",\"あébbああ😀\",\"bééあ😀😀ab\",\"é\",\"あa\",\"😀😀あb\",\"a😀あabb\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_22").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_22");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -224,7 +224,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_23()
     {
         using var document = JsonDocument.Parse("[\"あ😀あ\",\"😀a\",\"あbéb😀bあ\",\"ba\",\"😀あbあ😀ba\",\"😀\",\"ébé\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_23").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_23");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -233,7 +233,7 @@ public sealed class @FifoPropertyTests
     public async Task Case_24()
     {
         using var document = JsonDocument.Parse("[\"\",\"あéaba\",\"😀bbé\",\"😀😀bé😀ああ\",\"あbああ\",\"あ😀😀😀あb\",\"😀éあ😀😀é😀b\"]");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_24").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_24");
     }
 
 
@@ -354,14 +354,14 @@ public sealed class @FifoPropertyTests
     private static async Task<bool> Check(JsonElement source)
     {
         if (!InDomain(source) || !global::@Bifrost.@Tests.@Systematic.@Testgen.@Campaign.@FifoBinding.IsValid(source)) throw new InvalidCaseException("TestGen invalid case: source is outside the declared domain.");
-        var observed = await global::@Bifrost.@Tests.@Systematic.@Testgen.@Campaign.@FifoBinding.Observe(source).ConfigureAwait(false);
-        return await global::@Bifrost.@Tests.@Systematic.@Testgen.@Campaign.@FifoBinding.Predicate(source, observed).ConfigureAwait(false);
+        var observed = await global::@Bifrost.@Tests.@Systematic.@Testgen.@Campaign.@FifoBinding.Observe(source);
+        return await global::@Bifrost.@Tests.@Systematic.@Testgen.@Campaign.@FifoBinding.Predicate(source, observed);
     }
 
     internal static async Task RunCase(JsonElement source, string caseId)
     {
         bool passed;
-        try { passed = await Check(source).ConfigureAwait(false); }
+        try { passed = await Check(source); }
         catch (InvalidCaseException error)
         {
             Console.Error.WriteLine("TESTGEN_REJECTED " + JsonSerializer.Serialize(new { caseId, reason = error.Message, cases = new[] { source } }));
@@ -387,7 +387,7 @@ public sealed class @FifoPropertyTests
                 if (!InDomain(candidate)) { rejected++; continue; }
                 try
                 {
-                    if (!await Check(candidate).ConfigureAwait(false))
+                    if (!await Check(candidate))
                     {
                         current = candidate.Clone();
                         changed = true;

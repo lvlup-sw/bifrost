@@ -24,7 +24,7 @@ public sealed class PriorityWakePermitTests
     [Test]
     public async Task RelaxedPriorityDrain_LastItem_HasNoSurplusWake()
     {
-        await AssertNoSurplusAfterDrain(DispatchStrategy.PriorityRelaxed).ConfigureAwait(false);
+        await AssertNoSurplusAfterDrain(DispatchStrategy.PriorityRelaxed);
     }
 
     /// <summary>
@@ -33,7 +33,7 @@ public sealed class PriorityWakePermitTests
     [Test]
     public async Task ExactPriorityDrain_LastItem_HasNoSurplusWake()
     {
-        await AssertNoSurplusAfterDrain(DispatchStrategy.PriorityExact).ConfigureAwait(false);
+        await AssertNoSurplusAfterDrain(DispatchStrategy.PriorityExact);
     }
 
     private static async Task AssertNoSurplusAfterDrain(DispatchStrategy strategy)
@@ -53,17 +53,17 @@ public sealed class PriorityWakePermitTests
             NullLogger<WorkOrchestrator<int>>.Instance);
 
         holder.Queue = orchestrator.WorkQueue;
-        await orchestrator.EnqueueAsync(0).ConfigureAwait(false);
-        await handler.FirstEntered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync(0);
+        await handler.FirstEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         for (var i = 1; i < total; i++)
         {
-            var result = await orchestrator.EnqueueAsync(i).ConfigureAwait(false);
+            var result = await orchestrator.EnqueueAsync(i);
             await Assert.That(result.IsAccepted).IsTrue();
         }
 
         handler.Release.TrySetResult();
-        await handler.Finished.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await handler.Finished.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(handler.SurplusAtLastItem).IsEqualTo(0);
     }
 
@@ -90,7 +90,7 @@ public sealed class PriorityWakePermitTests
             if (n == 1)
             {
                 this.FirstEntered.TrySetResult();
-                await this.Release.Task.WaitAsync(ct).ConfigureAwait(false);
+                await this.Release.Task.WaitAsync(ct);
             }
 
             if (n == total)

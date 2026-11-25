@@ -48,10 +48,10 @@ public sealed class GracefulShutdownTests
     [Test]
     public async Task NoInFlight_StopCompletesPromptly()
     {
-        var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        var fx = await Fixture.StartAsync();
 
         var stop = ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
-        await Assert.That(async () => await stop.WaitAsync(TestTimeout).ConfigureAwait(false))
+        await Assert.That(async () => await stop.WaitAsync(TestTimeout))
             .ThrowsNothing();
         fx.Loop.Dispose();
     }
@@ -70,17 +70,17 @@ public sealed class GracefulShutdownTests
     public async Task InFlightCompletesWithinWindow_StopWaitsForIt()
     {
         var dispatcher = new GatedDispatcher();
-        var fx = await Fixture.StartAsync().ConfigureAwait(false);
-        await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher).ConfigureAwait(false);
+        var fx = await Fixture.StartAsync();
+        await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher);
 
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await dispatcher.WaitUntilEnteredAsync(TestTimeout).ConfigureAwait(false);
+        await dispatcher.WaitUntilEnteredAsync(TestTimeout);
 
         var stop = ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
         await Assert.That(stop.IsCompleted).IsFalse();
 
         dispatcher.Release();
-        await stop.ConfigureAwait(false);
+        await stop;
         await Assert.That(dispatcher.Completed).IsTrue();
         fx.Loop.Dispose();
     }
@@ -100,17 +100,17 @@ public sealed class GracefulShutdownTests
     {
         var dispatcher = new GatedDispatcher();
         var fx = await Fixture.StartAsync(
-            new SchedulerOptions { ShutdownTimeout = TimeSpan.FromSeconds(5) }).ConfigureAwait(false);
-        await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher).ConfigureAwait(false);
+            new SchedulerOptions { ShutdownTimeout = TimeSpan.FromSeconds(5) });
+        await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher);
 
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await dispatcher.WaitUntilEnteredAsync(TestTimeout).ConfigureAwait(false);
+        await dispatcher.WaitUntilEnteredAsync(TestTimeout);
 
         var stop = ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
         await Assert.That(stop.IsCompleted).IsFalse();
 
         fx.Time.Advance(TimeSpan.FromSeconds(5));
-        await stop.ConfigureAwait(false);
+        await stop;
 
         await Assert.That(dispatcher.Completed).IsFalse();
         dispatcher.Release();
@@ -125,20 +125,19 @@ public sealed class GracefulShutdownTests
     {
         var dispatcher = new CancelAwareDispatcher();
         var fx = await Fixture.StartAsync(
-            new SchedulerOptions { ShutdownTimeout = TimeSpan.FromSeconds(5) }).ConfigureAwait(false);
-        await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher)
-            .ConfigureAwait(false);
+            new SchedulerOptions { ShutdownTimeout = TimeSpan.FromSeconds(5) });
+        await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher);
 
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await dispatcher.WaitUntilEnteredAsync(TestTimeout).ConfigureAwait(false);
+        await dispatcher.WaitUntilEnteredAsync(TestTimeout);
 
         var stop = ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
         await Assert.That(stop.IsCompleted).IsFalse();
         await Assert.That(dispatcher.WasCancelled).IsFalse();
 
         fx.Time.Advance(TimeSpan.FromSeconds(5));
-        await stop.ConfigureAwait(false);
-        await dispatcher.WaitUntilCancelledAsync(TestTimeout).ConfigureAwait(false);
+        await stop;
+        await dispatcher.WaitUntilCancelledAsync(TestTimeout);
         fx.Loop.Dispose();
     }
 
@@ -150,10 +149,10 @@ public sealed class GracefulShutdownTests
     public async Task AfterStop_AdvancingTime_NoDispatch()
     {
         var dispatcher = new CountingDispatcher();
-        var fx = await Fixture.StartAsync().ConfigureAwait(false);
-        await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)), dispatcher).ConfigureAwait(false);
+        var fx = await Fixture.StartAsync();
+        await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)), dispatcher);
 
-        await ((IHostedService)fx.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
 
         fx.Time.Advance(TimeSpan.FromMinutes(30));
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
@@ -167,12 +166,12 @@ public sealed class GracefulShutdownTests
     [Test]
     public async Task StopAsync_CalledTwice_IsIdempotent()
     {
-        var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        var fx = await Fixture.StartAsync();
 
-        await ((IHostedService)fx.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)fx.Loop).StopAsync(CancellationToken.None);
 
         await Assert.That(async () =>
-                await ((IHostedService)fx.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false))
+                await ((IHostedService)fx.Loop).StopAsync(CancellationToken.None))
             .ThrowsNothing();
         fx.Loop.Dispose();
     }
@@ -195,7 +194,7 @@ public sealed class GracefulShutdownTests
             serviceProvider: Services);
 
         await Assert.That(async () =>
-                await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false))
+                await ((IHostedService)loop).StopAsync(CancellationToken.None))
             .ThrowsNothing();
         loop.Dispose();
     }
@@ -231,16 +230,15 @@ public sealed class GracefulShutdownTests
                 serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async Task RegisterAsync(string name, Cadence cadence, IJobDispatcher dispatcher)
         {
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher);
+            await this.Loop.WaitForIdleAsync(TestTimeout);
         }
     }
 
@@ -268,7 +266,7 @@ public sealed class GracefulShutdownTests
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
             this.entered.TrySetResult();
-            await this.release.Task.ConfigureAwait(false);
+            await this.release.Task;
             Volatile.Write(ref this.completed, 1);
         }
 
@@ -296,7 +294,7 @@ public sealed class GracefulShutdownTests
             this.entered.TrySetResult();
             try
             {
-                await Task.Delay(System.Threading.Timeout.Infinite, ct).ConfigureAwait(false);
+                await Task.Delay(System.Threading.Timeout.Infinite, ct);
             }
             catch (OperationCanceledException)
             {
