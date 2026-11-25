@@ -454,16 +454,17 @@ public class WorkOrchestratorTests
     }
 
     /// <summary>
-    /// Verifies that the worker loop logs work item context when the handler throws.
+    /// Verifies that the worker loop logs the work type, but not the work item, when the handler throws.
     /// </summary>
     /// <returns>A Task representing the async test operation.</returns>
     /// <remarks>
     /// Arranges a handler that throws for a specific work item, enqueues that item,
-    /// waits for processing, then asserts the error log message contains the work item value.
+    /// waits for processing, then asserts the error log message names the work type
+    /// and does not contain the work item value.
     /// The 100 ms delay gives the log call time to complete after the exception.
     /// </remarks>
     [Test]
-    public async Task WorkerLoop_HandlerThrows_LogsWorkItemContext()
+    public async Task WorkerLoop_HandlerThrows_LogsWorkTypeWithoutWorkItem()
     {
         var processed = new TaskCompletionSource();
         _handler.HandleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -482,6 +483,12 @@ public class WorkOrchestratorTests
 
         _logger.Received().Log(
             LogLevel.Error,
+            Arg.Any<EventId>(),
+            Arg.Is<object>(o => o.ToString()!.Contains(nameof(String), StringComparison.Ordinal)),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
+        _logger.DidNotReceive().Log(
+            Arg.Any<LogLevel>(),
             Arg.Any<EventId>(),
             Arg.Is<object>(o => o.ToString()!.Contains("test-item", StringComparison.Ordinal)),
             Arg.Any<Exception?>(),
