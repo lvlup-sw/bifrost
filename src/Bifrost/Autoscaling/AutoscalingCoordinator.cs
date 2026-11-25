@@ -36,6 +36,7 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
     private readonly IWorkOrchestrator<TWork> _orchestrator;
     private readonly IWorkerRegistry _registry;
     private readonly Action<IOrchestratorEvent>? _publishCallback;
+    private readonly Func<int>? _dispatchableBacklog;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AutoscalingCoordinator{TWork}"/> class.
@@ -48,12 +49,38 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
         IWorkOrchestrator<TWork> orchestrator,
         IWorkerRegistry registry,
         Action<IOrchestratorEvent>? publishCallback = null)
+        : this(orchestrator, registry, publishCallback, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AutoscalingCoordinator{TWork}"/> class with a
+    /// dispatchable-backlog signal for scale-up.
+    /// </summary>
+    /// <param name="orchestrator">The work orchestrator to coordinate with.</param>
+    /// <param name="registry">The worker registry for dynamic worker management.</param>
+    /// <param name="publishCallback">Optional callback for publishing events to the event stream.</param>
+    /// <param name="dispatchableBacklog">
+    /// Returns the number of queued items a free worker could take now, or <see langword="null"/>
+    /// when every queued item is dispatchable. Keyed dispatch supplies it.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="orchestrator"/> or <paramref name="registry"/> is null.</exception>
+    /// <remarks>
+    /// This constructor has no optional parameters, so a call with the public constructor's
+    /// arguments never binds to it.
+    /// </remarks>
+    internal AutoscalingCoordinator(
+        IWorkOrchestrator<TWork> orchestrator,
+        IWorkerRegistry registry,
+        Action<IOrchestratorEvent>? publishCallback,
+        Func<int>? dispatchableBacklog)
     {
         ArgumentNullException.ThrowIfNull(orchestrator);
         ArgumentNullException.ThrowIfNull(registry);
         _orchestrator = orchestrator;
         _registry = registry;
         _publishCallback = publishCallback;
+        _dispatchableBacklog = dispatchableBacklog;
     }
 
     #region IAutoscalingMetricsPort
@@ -75,6 +102,21 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
     public long QueuedCount => 0L;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// The denominator is always <see cref="IWorkOrchestrator{TWork}.Capacity"/>. The numerator is
+    /// the pending count, except with keyed dispatch, where it is the dispatchable backlog: the
+    /// queued items that a free worker could take now. Items queued behind a key that is at its
+    /// concurrency limit are not counted, so a backlog that is blocked behind one hot key does not
+    /// scale up. Ready items across keys still do.
+    /// </para>
+    /// <para>
+    /// The engine uses this one ratio for scale-up and scale-down, so a blocked-only keyed backlog
+    /// reads as idle and can scale down to the minimum. <see cref="PendingWorkCount"/> and the
+    /// scale-down guard that keeps one consumer while work is queued still use the total pending
+    /// count.
+    /// </para>
+    /// </remarks>
     public double GetUtilizationRatio()
     {
         if (_orchestrator.Capacity == 0)
@@ -82,7 +124,8 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
             return 0.0;
         }
 
-        return (double)_orchestrator.PendingCount / _orchestrator.Capacity;
+        var backlog = _dispatchableBacklog is { } dispatchable ? dispatchable() : _orchestrator.PendingCount;
+        return (double)backlog / _orchestrator.Capacity;
     }
 
     #endregion

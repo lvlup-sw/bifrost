@@ -22,12 +22,21 @@ namespace Bifrost.Tests;
 /// <summary>Regression tests for API, admission, isolation and lifecycle corrections.</summary>
 public class ApiRemediationTests
 {
-    /// <summary>Exact and relaxed selection are explicit; waiting priority admission is invalid.</summary>
+    /// <summary>
+    /// Exact and relaxed selection are explicit; waiting priority admission is invalid. Keyed
+    /// dispatch has no built-in binding, so the public constructor rejects it.
+    /// </summary>
     [Test]
     public async Task OrderingAndFullModeAreIndependentAndValidated()
     {
         foreach (var ordering in Enum.GetValues<DispatchStrategy>())
         {
+            if (ordering == DispatchStrategy.Keyed)
+            {
+                await Assert.That(() => Create(ordering)).Throws<ArgumentException>();
+                continue;
+            }
+
             await using var queue = Create(ordering);
             await Assert.That(queue.Ordering).IsEqualTo(ordering);
             await Assert.That(queue.Enqueue("first").IsAccepted).IsTrue();
@@ -35,7 +44,8 @@ public class ApiRemediationTests
             {
                 DispatchStrategy.Fifo => "FifoChannelWorkQueue`1",
                 DispatchStrategy.PriorityExact => "LockingPriorityWorkQueue`1",
-                _ => "ConcurrentPriorityWorkQueue`1",
+                DispatchStrategy.PriorityRelaxed => "ConcurrentPriorityWorkQueue`1",
+                _ => throw new InvalidOperationException($"Unmapped dispatch strategy {ordering}."),
             });
         }
 

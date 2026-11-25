@@ -11,8 +11,8 @@ using TUnit.Core;
 namespace Bifrost.Tests.CoreTests;
 
 /// <summary>
-/// Tests for the <see cref="DispatchStrategy"/> enum additions (T2):
-/// specifically the new <c>Priority</c> sentinel member.
+/// Tests for the <see cref="DispatchStrategy"/> enum members: the explicit orderings and the
+/// keyed strategy.
 /// </summary>
 [Property("Category", "Unit")]
 public class DispatchStrategyTests
@@ -35,8 +35,9 @@ public class DispatchStrategyTests
     /// with no sentinel member.
     /// </summary>
     /// <remarks>
-    /// <c>PriorityRelaxed</c> must be distinct from <c>Fifo</c> and <c>PriorityExact</c>, and the
-    /// enum must declare exactly these 3 members.
+    /// <c>PriorityRelaxed</c> must be distinct from <c>Fifo</c> and <c>PriorityExact</c>,
+    /// <c>Keyed</c> must be distinct from all three, and the enum must declare exactly these 4
+    /// members. Existing members keep their numeric values.
     /// </remarks>
     [Test]
     public async Task DispatchStrategy_DeclaresOnlyExplicitOrderings()
@@ -44,6 +45,7 @@ public class DispatchStrategyTests
         var priority = DispatchStrategy.PriorityRelaxed;
         await Assert.That(priority).IsNotEqualTo(DispatchStrategy.Fifo);
         await Assert.That(priority).IsNotEqualTo(DispatchStrategy.PriorityExact);
-        await Assert.That(Enum.GetValues<DispatchStrategy>()).HasCount(3);
+        await Assert.That(Enum.GetValues<DispatchStrategy>()).HasCount(4);
+        await Assert.That(Enum.GetValues<DispatchStrategy>().Select(static s => (int)s)).IsEquivalentTo(new[] { 0, 1, 2, 3 });
     }
 }

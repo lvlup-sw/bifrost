@@ -87,8 +87,9 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <param name="timeProvider">The timestamp source.</param>
     /// <param name="classifier">The class used when per-item options omit it.</param>
     /// <remarks>
-    /// The strategy guard runs before a built-in binding is built, so the public constructor keeps
-    /// its exception order and message. The general guard runs on the resolved queue:
+    /// The strategy guards run before a built-in binding is built, so the public constructor keeps
+    /// its exception order and message. <see cref="DispatchStrategy.Keyed"/> has no built-in
+    /// binding: it needs the key selector and limits that only the factory constructor receives. The general guard runs on the resolved queue:
     /// <see cref="QueueFullMode.Wait"/> needs <see cref="FifoChannelWorkQueue{T}"/>, which makes
     /// the cast in <see cref="EnqueueAsync"/> safe by construction.
     /// </remarks>
@@ -103,6 +104,8 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(opts.Capacity);
         ArgumentOutOfRangeException.ThrowIfNegative(opts.WorkerCount);
         if (!Enum.IsDefined(opts.FullMode)) throw new ArgumentOutOfRangeException(nameof(options));
+        if (queueFactory is null && opts.DispatchStrategy == DispatchStrategy.Keyed)
+            throw new ArgumentException("Keyed dispatch needs a key selector. Configure it with WithKeyedDispatch.", nameof(options));
         if (queueFactory is null && opts.DispatchStrategy != DispatchStrategy.Fifo && opts.FullMode != QueueFullMode.Reject)
             throw new ArgumentException("Priority dispatch supports only Reject full mode.", nameof(options));
         _handler = handler;
@@ -142,9 +145,11 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <para>
     /// Every queue must implement <see cref="IWorkQueueLifecycle"/>. A leased queue (keyed
     /// dispatch) also needs <see cref="QueueFullMode.Reject"/>, because a saturated key must
-    /// reject at once instead of parking the producer, and <see cref="DispatchStrategy.Fifo"/>,
-    /// because keyed dispatch cannot be combined with class priority. These leased checks run
-    /// before the general Wait check so that a keyed misconfiguration gets a keyed message.
+    /// reject at once instead of parking the producer, and <see cref="DispatchStrategy.Keyed"/>
+    /// or <see cref="DispatchStrategy.Fifo"/>, because keyed dispatch cannot be combined with
+    /// class priority. In the other direction, <see cref="DispatchStrategy.Keyed"/> needs a leased
+    /// queue. These keyed checks run before the general Wait check so that a keyed
+    /// misconfiguration gets a keyed message.
     /// </para>
     /// <para>A rejected queue is disposed when it is disposable, because no orchestrator will own it.</para>
     /// </remarks>
@@ -157,8 +162,12 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         {
             if (opts.FullMode != QueueFullMode.Reject)
                 throw RejectQueue(queue, "Keyed dispatch supports only Reject full mode.", "options");
-            if (opts.DispatchStrategy != DispatchStrategy.Fifo)
+            if (opts.DispatchStrategy is not (DispatchStrategy.Fifo or DispatchStrategy.Keyed))
                 throw RejectQueue(queue, "Keyed dispatch cannot be combined with class priority dispatch.", "options");
+        }
+        else if (opts.DispatchStrategy == DispatchStrategy.Keyed)
+        {
+            throw RejectQueue(queue, "Keyed dispatch needs a leased keyed work queue.", "options");
         }
 
         if (opts.FullMode == QueueFullMode.Wait && queue is not FifoChannelWorkQueue<WorkEnvelope<TWork>>)
@@ -188,6 +197,14 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <inheritdoc/>
     public Task Completion => _completion.Task;
     internal IWorkQueue<WorkEnvelope<TWork>> WorkQueue => _queue;
+
+    /// <summary>Gets the number of queued items that a free worker could take now.</summary>
+    /// <remarks>
+    /// For a binding that can hold blocked items (keyed dispatch), this is the dispatchable part of
+    /// the backlog. For every other binding each queued item is dispatchable, so it equals
+    /// <see cref="PendingCount"/>.
+    /// </remarks>
+    internal int DispatchableCount => _queue is IDispatchableBacklog backlog ? backlog.DispatchableCount : _queue.Count;
     internal Action<WorkClass, TimeSpan>? QueueWaitObserved { get; set; }
 
     /// <inheritdoc/>

@@ -92,7 +92,8 @@ internal static class KeyedWorkQueue
 /// </para>
 /// </remarks>
 internal sealed class KeyedWorkQueue<TWork, TKey>
-    : IWorkQueue<WorkEnvelope<TWork>>, ILeasedWorkQueue<WorkEnvelope<TWork>>, IWorkQueueLifecycle, IDisposable
+    : IWorkQueue<WorkEnvelope<TWork>>, ILeasedWorkQueue<WorkEnvelope<TWork>>, IWorkQueueLifecycle, IDispatchableBacklog,
+        IDisposable
     where TKey : notnull
 {
     private readonly Func<TWork, TKey> _selector;
@@ -136,8 +137,12 @@ internal sealed class KeyedWorkQueue<TWork, TKey>
         }
     }
 
-    /// <summary>Gets the number of queued items that a free worker could take now.</summary>
-    internal int DispatchableCount
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The sum over keys of the smaller of the key's queued items and its free slots. Items queued
+    /// behind a saturated key are not counted.
+    /// </remarks>
+    public int DispatchableCount
     {
         get
         {

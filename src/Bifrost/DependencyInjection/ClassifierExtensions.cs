@@ -40,6 +40,10 @@ public static class ClassifierExtensions
     /// The classifier runs synchronously on the enqueue path — keep it cheap and
     /// exception-free; it must not block.
     /// </para>
+    /// <para>
+    /// A classifier cannot be combined with <c>WithKeyedDispatch</c>;
+    /// <see cref="WorkOrchestratorBuilder{TWork}.Build"/> rejects the combination.
+    /// </para>
     /// </remarks>
     public static WorkOrchestratorBuilder<TWork> WithClassifier<TWork>(
         this WorkOrchestratorBuilder<TWork> builder,

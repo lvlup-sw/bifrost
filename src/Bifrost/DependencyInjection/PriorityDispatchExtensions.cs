@@ -19,6 +19,10 @@ public static class PriorityDispatchExtensions
     /// <param name="ordering">PriorityExact or PriorityRelaxed.</param>
     /// <param name="configure">Optional priority policy configuration.</param>
     /// <returns>The builder.</returns>
+    /// <remarks>
+    /// Priority dispatch cannot be combined with <c>WithKeyedDispatch</c>;
+    /// <see cref="WorkOrchestratorBuilder{TWork}.Build"/> rejects the combination.
+    /// </remarks>
     public static WorkOrchestratorBuilder<TWork> UsePriorityDispatch<TWork>(
         this WorkOrchestratorBuilder<TWork> builder, DispatchStrategy ordering,
         Action<PriorityDispatchOptions>? configure = null)
@@ -26,6 +30,7 @@ public static class PriorityDispatchExtensions
         ArgumentNullException.ThrowIfNull(builder);
         if (ordering is not (DispatchStrategy.PriorityExact or DispatchStrategy.PriorityRelaxed))
             throw new ArgumentOutOfRangeException(nameof(ordering));
+        builder.PriorityDispatchConfigured = true;
         builder.Services.Configure<WorkOrchestratorOptions>(WorkOptions.Name<TWork>(), options =>
         {
             options.DispatchStrategy = ordering;
