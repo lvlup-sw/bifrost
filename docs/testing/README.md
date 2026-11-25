@@ -15,7 +15,7 @@ The runner builds three test assemblies and selects 27 invariant suites. Every s
 
 ## CI and generated artifacts
 
-Pull requests run the invariant suites alongside existing build, coverage, stress, and NativeAOT checks. Nightly and manual runs set `BIFROST_INVARIANT_SEED_MULTIPLIER=4` and run these targeted production mutations:
+Buildkite pull-request validation runs the invariant suites alongside the build, coverage, stress, and NativeAOT checks. The stable release train, and `/ci full` on a pull request, run the Buildkite `invariants` suite with `BIFROST_INVARIANT_SEED_MULTIPLIER=4` and then these targeted production mutations:
 
 ```sh
 python3 scripts/invariants/queue-mutation-check.py
@@ -24,7 +24,7 @@ python3 scripts/invariants/lifecycle-mutations.py
 
 Run mutations serially in a disposable checkout. They temporarily change production source, require actual test failures, and restore source in `finally` blocks. Do not run builds, tests, or other mutations concurrently in that checkout. Rebuild after mutation checks before running another suite.
 
-Generated logs, TRX reports, source revision, commands, counters, replay histories, and mutation results belong in ignored `artifacts/invariants/`. CI uploads that directory even after failures and retains it for 30 days. Do not commit run logs or tool-installation output. The queue multiplier expands generated seeds; it does not expand every component domain or reproduce native thread schedules.
+Generated logs, TRX reports, source revision, commands, counters, replay histories, and mutation results belong in ignored `artifacts/invariants/`. Buildkite keeps the invariant summary as a build artifact, including after failures; there is no longer a nightly GitHub Actions run. Do not commit run logs or tool-installation output. The queue multiplier expands generated seeds; it does not expand every component domain or reproduce native thread schedules.
 
 ## Replay and reduction
 

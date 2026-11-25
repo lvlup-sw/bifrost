@@ -4,6 +4,9 @@
 # with domain-specific scope labels for channel-based work orchestration.
 #
 # Sync labels: gh label sync --force
+#
+# Not synced automatically: project-automation.yml and its label-sync workflow were removed.
+# Apply label changes by hand.
 
 # =============================================================================
 # Type Labels - What kind of work is this?
