@@ -1,0 +1,3 @@
+# The PR pipeline and its scripts decide what the required Buildkite check runs.
+/.buildkite/ @rsalus
+/scripts/ci/ @rsalus
