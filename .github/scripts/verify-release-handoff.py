@@ -224,12 +224,18 @@ def default_opener() -> Opener:
 
 
 def read_bounded(response: Any, limit: int) -> bytes:
-    """Read at most ``limit`` bytes from ``response``; fail if the body is larger."""
+    """Read at most ``limit`` bytes from ``response``; fail if the body is larger.
+
+    A body shorter than its ``Content-Length`` raises ``http.client.IncompleteRead``, a
+    transient error the request retry handles, instead of passing a truncated body on.
+    """
     length = response.headers.get('Content-Length')
     if length is not None:
         require(length.isdigit() and int(length) <= limit, f'response is larger than {limit} bytes')
     body = response.read(limit + 1)
     require(len(body) <= limit, f'response is larger than {limit} bytes')
+    if length is not None and len(body) < int(length):
+        raise http.client.IncompleteRead(body, int(length) - len(body))
     return body
 
 

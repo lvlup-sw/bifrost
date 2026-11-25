@@ -66,6 +66,7 @@ jobs:
     outputs:
       tag: ${{ steps.bind.outputs.tag }}
       prerelease: ${{ steps.bind.outputs.prerelease }}
+      commit: ${{ steps.bind.outputs.commit }}
     steps:
       - name: Checkout the release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -121,6 +122,7 @@ jobs:
             echo "tag=$TAG"
             echo "tag_object=$(git rev-parse "refs/tags/$TAG")"
             echo "prerelease=$prerelease"
+            echo "commit=$COMMIT"
           } >> "$GITHUB_OUTPUT"
 
       - name: Setup .NET
@@ -196,14 +198,35 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # --current: the checkout is the validated tag, so the notes cover exactly that
-      # tag's range even when newer tags already exist (a retried older release).
+      # The notes cover the commits from the nearest earlier v* tag to the validated
+      # commit. git-cliff gets a commit range and ignores every tag, so neither newer
+      # tags nor a second tag on the same commit can change what is included.
+      - name: Compute the changelog range
+        id: range
+        shell: bash
+        env:
+          COMMIT: ${{ needs.publish.outputs.commit }}
+        run: |
+          set -euo pipefail
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::commit output is malformed.' >&2; exit 1; }
+          range="$COMMIT"
+          if git rev-parse -q --verify "$COMMIT^" >/dev/null; then
+            previous="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$COMMIT^" 2>/dev/null || true)"
+            if [[ -n "$previous" ]]; then
+              [[ "$previous" =~ ^v[0-9A-Za-z.-]+$ ]] || { echo '::error::previous tag name is unexpected.' >&2; exit 1; }
+              range="$(git rev-parse "$previous^{commit}")..$COMMIT"
+            fi
+          fi
+          echo "range=$range" >> "$GITHUB_OUTPUT"
+
       - name: Generate changelog
         id: changelog
         uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        env:
+          GIT_CLIFF_IGNORE_TAGS: '.*'
         with:
           config: .github/cliff.toml
-          args: --current --strip header
+          args: --strip header ${{ steps.range.outputs.range }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
