@@ -324,6 +324,13 @@ public class UnsafeHttpMethodRetryTests
             _lifetime.Dispose();
         }
 
+        /// <summary>Accepts connections until the listener stops or the peer is disposed.</summary>
+        /// <remarks>
+        /// <see cref="DisposeAsync"/> can stop the listener while this loop is between accepts. The next
+        /// <see cref="TcpListener.AcceptTcpClientAsync(CancellationToken)"/> then throws
+        /// <see cref="InvalidOperationException"/> ("Not listening") instead of a socket error, so that
+        /// exception also ends the loop.
+        /// </remarks>
         private async Task AcceptLoopAsync()
         {
             while (!_lifetime.IsCancellationRequested)
@@ -333,7 +340,7 @@ public class UnsafeHttpMethodRetryTests
                 {
                     client = await _listener.AcceptTcpClientAsync(_lifetime.Token);
                 }
-                catch (Exception ex) when (ex is ObjectDisposedException or SocketException or OperationCanceledException)
+                catch (Exception ex) when (ex is ObjectDisposedException or SocketException or OperationCanceledException or InvalidOperationException)
                 {
                     break;
                 }
