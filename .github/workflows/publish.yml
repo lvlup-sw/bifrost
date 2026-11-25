@@ -74,6 +74,8 @@ jobs:
           persist-credentials: false
 
       # Inputs arrive through env only, never interpolated into the script.
+      # grep reads all of rev-list's output: under pipefail, grep -q would exit
+      # early and fail the pipeline with SIGPIPE on a long history.
       - name: Bind the dispatch to the release tag
         id: bind
         shell: bash
@@ -110,7 +112,7 @@ jobs:
           [[ "$GITHUB_SHA" == "$COMMIT" ]] || fail 'The dispatched commit is not the commit input.'
           [[ "$(git rev-parse "refs/tags/$TAG^{commit}")" == "$COMMIT" ]] || fail 'The tag does not point to the commit input.'
           [[ "$(git rev-parse 'HEAD^{commit}')" == "$COMMIT" ]] || fail 'The checkout is not the tagged commit.'
-          git rev-list --first-parent origin/main | grep -Fxq "$COMMIT" || fail 'The tagged commit is not on the first-parent history of main.'
+          git rev-list --first-parent origin/main | grep -Fx "$COMMIT" >/dev/null || fail 'The tagged commit is not on the first-parent history of main.'
 
           {
             echo "tag=$TAG"

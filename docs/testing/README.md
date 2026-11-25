@@ -15,9 +15,10 @@ The runner builds three test assemblies and selects 27 invariant suites. Every s
 
 ## CI and generated artifacts
 
-Buildkite pull-request validation runs the invariant suites alongside the build, coverage, stress, and NativeAOT checks. The stable release train, and `/ci full` on a pull request, run the Buildkite `invariants` suite with `BIFROST_INVARIANT_SEED_MULTIPLIER=4` and then these targeted production mutations:
+Buildkite pull-request validation runs the invariant tests at the default seed count, as part of the coverage tests, alongside the build, stress, and NativeAOT checks. Only the stable release train runs the Buildkite `invariants` suite. It runs `scripts/run-invariant-tests.py` with `BIFROST_INVARIANT_SEED_MULTIPLIER=4` and then these targeted production mutations. Pull-request validation runs neither. To get the same coverage before a release, run them locally:
 
 ```sh
+BIFROST_INVARIANT_SEED_MULTIPLIER=4 python3 scripts/run-invariant-tests.py
 python3 scripts/invariants/queue-mutation-check.py
 python3 scripts/invariants/lifecycle-mutations.py
 ```

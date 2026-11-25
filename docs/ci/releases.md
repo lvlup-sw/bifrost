@@ -27,9 +27,14 @@ The release runs in two parts.
 Certification evidence (coverage, invariant summary, soak results) is kept as Buildkite
 build artifacts.
 
-If the dispatch fails, a maintainer can start `publish.yml` again by hand. Use the
-manifest digest from the Buildkite build annotation. The workflow checks everything
-again, and `--skip-duplicate` makes a repeated push do nothing:
+If the dispatch fails or times out, the handoff job fails, so the Buildkite build
+fails. `publish.yml` refuses any build that did not pass, so starting it by hand does
+not help. Rebuild the Buildkite build instead.
+
+If the build passed but the `publish.yml` run failed, rerun that run or start
+`publish.yml` again by hand. Use the manifest digest from the Buildkite build
+annotation. The workflow checks everything again, and `--skip-duplicate` makes a
+repeated push do nothing:
 
 ```sh
 gh workflow run publish.yml --ref <tag> -f tag=<tag> -f commit=<sha> \
