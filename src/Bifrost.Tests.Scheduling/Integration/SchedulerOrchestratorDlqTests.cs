@@ -377,15 +377,13 @@ public sealed class SchedulerOrchestratorDlqTests
         fx.Time.Advance(FireInterval);
         await fx.Loop.WaitForIdleAsync(TestTimeout);
 
-        var schedulerEventResult = await Task
-            .WhenAny(schedulerJobFired.Task, Task.Delay(TestTimeout));
+        var schedulerEventResult = await Task.WhenAny(schedulerJobFired.Task, Task.Delay(TestTimeout));
         await Assert.That(schedulerEventResult == schedulerJobFired.Task).IsTrue();
 
         var schedulerFired = await schedulerJobFired.Task;
         await Assert.That(schedulerFired.JobName).IsEqualTo("dual-stream");
 
-        var workEventResult = await Task
-            .WhenAny(workCompleted.Task, Task.Delay(TestTimeout));
+        var workEventResult = await Task.WhenAny(workCompleted.Task, Task.Delay(TestTimeout));
         await Assert.That(workEventResult == workCompleted.Task).IsTrue();
 
         var workDone = await workCompleted.Task;

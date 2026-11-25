@@ -263,8 +263,7 @@ public sealed class PriorityDispatchAcceptanceTests
                 for (var i = 0; i < itemsPerProducer; i++)
                 {
                     var workClass = (WorkClass)(NextXorShift(ref state) % 3u);
-                    var result = await orchestrator
-                        .EnqueueAsync($"p{p}-i{i}", workClass);
+                    var result = await orchestrator.EnqueueAsync($"p{p}-i{i}", workClass);
                     if (!result.IsAccepted)
                     {
                         rejected++;

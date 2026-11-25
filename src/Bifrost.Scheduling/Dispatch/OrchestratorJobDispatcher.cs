@@ -105,8 +105,7 @@ public sealed class OrchestratorJobDispatcher<TWork> : IJobDispatcher
     {
         var work = this.fireFunc(context);
 
-        var result = await this.orchestrator
-            .EnqueueAsync(work, this.workClass, ct);
+        var result = await this.orchestrator.EnqueueAsync(work, this.workClass, ct);
 
         if (result.IsAccepted)
         {

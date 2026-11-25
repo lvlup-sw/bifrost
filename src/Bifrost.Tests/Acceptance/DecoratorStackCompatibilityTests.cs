@@ -100,8 +100,7 @@ public sealed class DecoratorStackCompatibilityTests
         const int itemCount = 12;
         for (var i = 0; i < itemCount; i++)
         {
-            var result = await orchestrator
-                .EnqueueAsync($"item-{i:D2}", (WorkClass)(i % 3));
+            var result = await orchestrator.EnqueueAsync($"item-{i:D2}", (WorkClass)(i % 3));
             await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         }
 
@@ -168,8 +167,7 @@ public sealed class DecoratorStackCompatibilityTests
         const int depth = 10;
         for (var i = 0; i < depth; i++)
         {
-            var result = await orchestrator
-                .EnqueueAsync($"item-{i:D2}", (WorkClass)(i % 3));
+            var result = await orchestrator.EnqueueAsync($"item-{i:D2}", (WorkClass)(i % 3));
             await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         }
 
@@ -447,8 +445,7 @@ public sealed class DecoratorStackCompatibilityTests
 
         for (var i = 0; i < 4; i++)
         {
-            var accepted = await orchestrator
-                .EnqueueAsync($"fill-{i}", WorkClass.Interactive);
+            var accepted = await orchestrator.EnqueueAsync($"fill-{i}", WorkClass.Interactive);
             await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         }
 
@@ -580,8 +577,7 @@ public sealed class DecoratorStackCompatibilityTests
         const int itemCount = 6;
         for (var i = 0; i < itemCount; i++)
         {
-            var result = await orchestrator
-                .EnqueueAsync($"item-{i}", (WorkClass)(i % 3));
+            var result = await orchestrator.EnqueueAsync($"item-{i}", (WorkClass)(i % 3));
             await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         }
 
