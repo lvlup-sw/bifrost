@@ -5,6 +5,11 @@ history of `main`. Use `vX.Y.Z` for a stable release and `vX.Y.Z-<prerelease>` f
 prerelease. Build metadata (`+...`) and numeric prerelease parts with a leading zero
 (`rc.01`) are rejected.
 
+Tag only commits that already contain this Buildkite handoff `publish.yml`. A tag on an
+older commit runs that commit's old workflow, which pushed to NuGet directly and skipped
+the Buildkite checks. The `release-tags` ruleset lets only organization admins and
+repository admins or maintainers create, move or delete `v*` tags.
+
 The release runs in two parts.
 
 1. **Buildkite `bifrost-release`.** The controller in lvlup-sw/.github owns this
@@ -29,7 +34,10 @@ build artifacts.
 
 If the dispatch fails or times out, the handoff job fails, so the Buildkite build
 fails. `publish.yml` refuses any build that did not pass, so starting it by hand does
-not help. Rebuild the Buildkite build instead.
+not help. Start a new tag build instead: delete the tag and push it again at the same
+commit. Do not use Buildkite's Rebuild button. Both the release train and
+`publish.yml` accept only builds started by the tag webhook, and a rebuild may report
+another source (lvlup-sw/.github `infra/buildkite/bifrost/RELEASE.md`, activation step 9).
 
 If the build passed but the `publish.yml` run failed, rerun that run or start
 `publish.yml` again by hand. Use the manifest digest from the Buildkite build

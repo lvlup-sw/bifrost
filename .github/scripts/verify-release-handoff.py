@@ -27,7 +27,9 @@ Python standard library only.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import http.client
 import io
 import json
 import os
@@ -267,37 +269,49 @@ class Buildkite:
         return f'/organizations/{i.organization}/pipelines/{i.pipeline}/builds/{i.build_number}'
 
     def _open(self, url: str, *, authorized: bool) -> Any:
-        """Open ``url`` and return the response, or the HTTPError that carries a redirect."""
+        """Open ``url`` once. Non-2xx answers, redirects included, raise ``HTTPError``."""
         headers = {'Accept': 'application/json', 'User-Agent': 'bifrost-release-verifier'}
         if authorized:
             require(urllib.parse.urlsplit(url)[:2] == self.api_origin, f'refusing to send the token to {url}')
             headers['Authorization'] = f'Bearer {self.token}'
         request = urllib.request.Request(url, headers=headers, method='GET')
+        return self.opener(request, REQUEST_TIMEOUT_SECONDS)
+
+    def _retrying(self, what: str, attempt: Callable[[], Any]) -> Any:
+        """Run one whole request ``attempt`` (open, status check and body read) with bounded retries.
+
+        HTTP 429, 5xx and network or truncated-body errors are retried with back-off. Every
+        other HTTP status and every ``VerificationError`` (size, digest or content checks)
+        fails at once. Errors name ``what`` and the status or exception type only, never a
+        URL, so a signed storage URL cannot reach the workflow log.
+        """
         attempts = 4
-        for attempt in range(1, attempts + 1):
+        for number in range(1, attempts + 1):
             try:
-                return self.opener(request, REQUEST_TIMEOUT_SECONDS)
+                return attempt()
             except urllib.error.HTTPError as error:
-                if error.code in REDIRECT_CODES:
-                    return error
-                retryable = error.code == 429 or error.code >= 500
-                if not retryable or attempt == attempts:
-                    raise VerificationError(f'GET {url} failed with HTTP {error.code}') from error
-                reset = error.headers.get('RateLimit-Reset', '') if error.headers else ''
-                self.sleep(min(int(reset), 60) if reset.isdigit() else 5 * attempt)
-            except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
-                if attempt == attempts:
-                    raise VerificationError(f'GET {url} failed: {error}') from error
-                self.sleep(5 * attempt)
-        raise VerificationError(f'GET {url} failed')
+                with contextlib.closing(error):
+                    code = error.code
+                    reset = error.headers.get('RateLimit-Reset', '') if error.headers else ''
+                if not (code == 429 or code >= 500) or number == attempts:
+                    raise VerificationError(f'{what} failed with HTTP {code}') from None
+                self.sleep(min(int(reset), 60) if reset.isdigit() else 5 * number)
+            except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ConnectionError) as error:
+                if number == attempts:
+                    raise VerificationError(f'{what} failed: {type(error).__name__}') from None
+                self.sleep(5 * number)
+        raise VerificationError(f'{what} failed')
 
     def get_json(self, path_or_url: str) -> tuple[Any, Any]:
         """GET an API resource as strict JSON; return ``(body, headers)``."""
         url = path_or_url if path_or_url.startswith(('http://', 'https://')) else self.api_base + path_or_url
-        response = self._open(url, authorized=True)
-        require(status_of(response) == 200, f'GET {url} returned HTTP {status_of(response)}')
-        with response:
-            return strict_json(read_bounded(response, MAX_API_BYTES)), response.headers
+
+        def attempt() -> tuple[Any, Any]:
+            with self._open(url, authorized=True) as response:
+                require(status_of(response) == 200, f'GET {url} returned HTTP {status_of(response)}')
+                return strict_json(read_bounded(response, MAX_API_BYTES)), response.headers
+
+        return self._retrying(f'GET {url}', attempt)
 
     def wait_for_build(self) -> dict[str, Any]:
         """Poll the build until it reaches a terminal state and return it.
@@ -331,19 +345,37 @@ class Buildkite:
         require(url is None, 'artifact listing has too many pages')
         return artifacts
 
+    def _storage_location(self, url: str, artifact_id: str) -> str:
+        """Ask the API for a fresh storage redirect for one artifact and return its location."""
+        try:
+            response = self._open(url, authorized=True)
+        except urllib.error.HTTPError as error:
+            if error.code not in REDIRECT_CODES:
+                raise
+            with contextlib.closing(error):
+                return error.headers.get('Location', '') or ''
+        with response:
+            raise VerificationError(
+                f'artifact {artifact_id} download returned HTTP {status_of(response)}, expected a redirect')
+
     def download(self, job_id: str, artifact_id: str, limit: int) -> bytes:
-        """Download one artifact: resolve the API redirect, then fetch storage without credentials."""
+        """Download one artifact: resolve the API redirect, then fetch storage without credentials.
+
+        Every attempt asks for a new redirect, because a signed storage URL expires after
+        about a minute and a rate-limit back-off can outlast it.
+        """
         url = self.api_base + f'{self.build_path}/jobs/{job_id}/artifacts/{artifact_id}/download'
-        response = self._open(url, authorized=True)
-        require(status_of(response) in REDIRECT_CODES, f'artifact download returned HTTP {status_of(response)}, expected a redirect')
-        location = response.headers.get('Location', '') or ''
-        response.close()
-        scheme = urllib.parse.urlsplit(location).scheme
-        require(scheme == 'https' or (self.allow_insecure_storage and scheme == 'http'), 'artifact redirect is not https')
-        storage = self._open(location, authorized=False)
-        require(status_of(storage) == 200, f'artifact storage returned HTTP {status_of(storage)}')
-        with storage:
-            return read_bounded(storage, limit)
+
+        def attempt() -> bytes:
+            location = self._storage_location(url, artifact_id)
+            scheme = urllib.parse.urlsplit(location).scheme
+            require(scheme == 'https' or (self.allow_insecure_storage and scheme == 'http'),
+                    f'artifact {artifact_id} redirect is not https')
+            with self._open(location, authorized=False) as storage:
+                require(status_of(storage) == 200, f'artifact {artifact_id} storage returned HTTP {status_of(storage)}')
+                return read_bounded(storage, limit)
+
+        return self._retrying(f'artifact {artifact_id} download', attempt)
 
 
 def final_script_jobs(build: dict[str, Any]) -> dict[str, dict[str, Any]]:

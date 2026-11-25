@@ -65,6 +65,7 @@ jobs:
       contents: read
     outputs:
       tag: ${{ steps.bind.outputs.tag }}
+      prerelease: ${{ steps.bind.outputs.prerelease }}
     steps:
       - name: Checkout the release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -101,7 +102,9 @@ jobs:
           [[ "$MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]] || fail 'manifest_sha256 is malformed.'
 
           version="${TAG#v}"
+          prerelease=false
           if [[ "$version" == *-* ]]; then
+            prerelease=true
             IFS='.' read -ra identifiers <<<"${version#*-}"
             for identifier in "${identifiers[@]}"; do
               [[ ! "$identifier" =~ ^0[0-9]+$ ]] || fail 'tag has a leading-zero prerelease identifier.'
@@ -117,6 +120,7 @@ jobs:
           {
             echo "tag=$TAG"
             echo "tag_object=$(git rev-parse "refs/tags/$TAG")"
+            echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
 
       - name: Setup .NET
@@ -156,6 +160,7 @@ jobs:
             dotnet nuget push "$pkg" \
               --api-key "$NUGET_API_KEY" \
               --source https://api.nuget.org/v3/index.json \
+              --no-symbols \
               --skip-duplicate
           done
 
@@ -191,16 +196,19 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # --current: the checkout is the validated tag, so the notes cover exactly that
+      # tag's range even when newer tags already exist (a retried older release).
       - name: Generate changelog
         id: changelog
         uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
         with:
           config: .github/cliff.toml
-          args: --latest --strip header
+          args: --current --strip header
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.publish.outputs.tag }}
           body: ${{ steps.changelog.outputs.content }}
+          prerelease: ${{ needs.publish.outputs.prerelease == 'true' }}
           generate_release_notes: false
