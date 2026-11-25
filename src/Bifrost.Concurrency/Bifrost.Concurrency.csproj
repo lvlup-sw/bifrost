@@ -20,7 +20,7 @@
   <!--
     Test-only observability counters (occupancy-write / routing-hit / scan-entry, DR-2/DR-3) are
     compiled in only behind BIFROST_TEST_HOOKS, so the InternalsVisibleTo test suite can read them
-    in every normal build — Debug AND Release (the concurrency suite runs in Release, see ci.yml).
+    in every normal build — Debug AND Release (the Buildkite stress suite runs the concurrency tests in Release).
     The publish workflow builds with BifrostTestHooks=false, stripping the instrumentation from the
     shipped NuGet binary (the same artifact that the no-build `dotnet pack` step packages). The
     counter fields and their ...ForTest getters are intentionally left ungated so the test project
