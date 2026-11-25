@@ -41,8 +41,14 @@ on:
 
 permissions: {}
 
+# One group for every release, not one per tag. Trusted publishing makes this workflow
+# the only NuGet publisher, so serializing it means nothing can push a conflicting
+# version between the verifier's nuget.org replay check and the push (NuGet versions
+# ignore case, so two tags can map to one version). GitHub keeps at most one pending
+# run per group; a newer dispatch cancels an older pending one before it pushes
+# anything, and that release is dispatched again.
 concurrency:
-  group: publish-${{ inputs.tag }}
+  group: nuget-publish
   cancel-in-progress: false
 
 env:
