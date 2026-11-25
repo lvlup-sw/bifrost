@@ -83,7 +83,7 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
             try
             {
                 attempts++;
-                await _inner.HandleAsync(work, ct).ConfigureAwait(false);
+                await _inner.HandleAsync(work, ct);
                 return;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -104,7 +104,7 @@ internal sealed class DeadLetterHandler<TWork> : IWorkHandler<TWork>
             DateTimeOffset.UtcNow,
             CorrelationId: null);
 
-        await _dlq.EnqueueAsync(deadLetteredWork, CancellationToken.None).ConfigureAwait(false);
+        await _dlq.EnqueueAsync(deadLetteredWork, CancellationToken.None);
 
         var evt = new WorkDeadLetteredEvent<TWork>(
             work,

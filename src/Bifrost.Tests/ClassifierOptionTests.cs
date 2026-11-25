@@ -49,8 +49,8 @@ public sealed class ClassifierOptionTests
                 ? WorkClass.Batch
                 : WorkClass.Default);
 
-        var classified = await orchestrator.EnqueueAsync("batch-report").ConfigureAwait(false);
-        var unclassified = await orchestrator.EnqueueAsync("plain-item").ConfigureAwait(false);
+        var classified = await orchestrator.EnqueueAsync("batch-report");
+        var unclassified = await orchestrator.EnqueueAsync("plain-item");
 
         await Assert.That(classified).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(unclassified).IsEqualTo(EnqueueResult.Accepted);
@@ -85,7 +85,7 @@ public sealed class ClassifierOptionTests
             return WorkClass.Batch;
         });
 
-        var result = await orchestrator.EnqueueAsync("urgent", WorkClass.Interactive).ConfigureAwait(false);
+        var result = await orchestrator.EnqueueAsync("urgent", WorkClass.Interactive);
 
         await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(orchestrator.TryReadEnvelope(out var envelope)).IsTrue();
@@ -103,7 +103,7 @@ public sealed class ClassifierOptionTests
     {
         await using var orchestrator = CreateOrchestrator(classifier: null);
 
-        var result = await orchestrator.EnqueueAsync("plain").ConfigureAwait(false);
+        var result = await orchestrator.EnqueueAsync("plain");
 
         await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(orchestrator.TryReadEnvelope(out var envelope)).IsTrue();
@@ -182,13 +182,13 @@ public sealed class ClassifierOptionTests
         var observed = new TaskCompletionSource<WorkClass>(TaskCreationOptions.RunContinuationsAsynchronously);
         concrete.QueueWaitObserved = (workClass, _) => observed.TrySetResult(workClass);
 
-        var result = await concrete.EnqueueAsync("classify-me").ConfigureAwait(false);
+        var result = await concrete.EnqueueAsync("classify-me");
 
         await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
-        var dequeuedClass = await observed.Task.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        var dequeuedClass = await observed.Task.WaitAsync(WaitTimeout);
         await Assert.That(dequeuedClass).IsEqualTo(WorkClass.Batch);
 
-        await concrete.DisposeAsync().ConfigureAwait(false);
+        await concrete.DisposeAsync();
     }
 
     /// <summary>

@@ -146,7 +146,7 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
             BeforeDeliveryForTest?.Invoke();
             if (TryBeginCallback())
             {
-                await NotifySafe(callback, evt).ConfigureAwait(false);
+                await NotifySafe(callback, evt);
             }
         }
         finally
@@ -174,7 +174,7 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
     {
         try
         {
-            await callback(evt).ConfigureAwait(false);
+            await callback(evt);
         }
         catch (Exception ex)
         {

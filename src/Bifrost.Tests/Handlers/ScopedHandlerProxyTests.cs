@@ -53,7 +53,7 @@ public class ScopedHandlerProxyTests
     {
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        await proxy.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await proxy.HandleAsync("work", CancellationToken.None);
 
         _scopeFactory.Received(1).CreateScope();
     }
@@ -66,7 +66,7 @@ public class ScopedHandlerProxyTests
     {
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        await proxy.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await proxy.HandleAsync("work", CancellationToken.None);
 
         _scopedServiceProvider.Received(1).GetService(typeof(IWorkHandler<string>));
     }
@@ -79,9 +79,9 @@ public class ScopedHandlerProxyTests
     {
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        await proxy.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await proxy.HandleAsync("work", CancellationToken.None);
 
-        await ((IAsyncDisposable)_scope).Received(1).DisposeAsync().ConfigureAwait(false);
+        await ((IAsyncDisposable)_scope).Received(1).DisposeAsync();
     }
 
     /// <summary>
@@ -97,7 +97,7 @@ public class ScopedHandlerProxyTests
         await Assert.That(() => proxy.HandleAsync("work", CancellationToken.None).AsTask())
             .Throws<InvalidOperationException>();
 
-        await ((IAsyncDisposable)_scope).Received(1).DisposeAsync().ConfigureAwait(false);
+        await ((IAsyncDisposable)_scope).Received(1).DisposeAsync();
     }
 
     /// <summary>
@@ -120,8 +120,8 @@ public class ScopedHandlerProxyTests
 
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        await proxy.HandleAsync("work1", CancellationToken.None).ConfigureAwait(false);
-        await proxy.HandleAsync("work2", CancellationToken.None).ConfigureAwait(false);
+        await proxy.HandleAsync("work1", CancellationToken.None);
+        await proxy.HandleAsync("work2", CancellationToken.None);
 
         _scopeFactory.Received(2).CreateScope();
     }
@@ -135,9 +135,9 @@ public class ScopedHandlerProxyTests
         using var cts = new CancellationTokenSource();
         var proxy = new ScopedHandlerProxy<string>(_scopeFactory);
 
-        await proxy.HandleAsync("my-work", cts.Token).ConfigureAwait(false);
+        await proxy.HandleAsync("my-work", cts.Token);
 
-        await _innerHandler.Received(1).HandleAsync("my-work", cts.Token).ConfigureAwait(false);
+        await _innerHandler.Received(1).HandleAsync("my-work", cts.Token);
     }
 
     /// <summary>

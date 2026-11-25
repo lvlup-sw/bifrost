@@ -1,4 +1,4 @@
-#pragma warning disable CS1591, SA1600, SA1633, VSTHRD003, VSTHRD111
+#pragma warning disable CS1591, SA1600, SA1633, VSTHRD003
 
 using Bifrost.Scheduling.Core;
 using Bifrost.Scheduling.Registry;
@@ -40,7 +40,7 @@ public sealed class CheckpointOrderingTests
         await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, new SystematicRegistryTests.NoopDispatcher());
         var generation = registry.TryGetRecord("job")!;
         var id = registry.RegistrationId("job");
-        await Assert.That(async () => await registry.CheckpointAsync(generation, At(3), At(4), id).ConfigureAwait(false)).Throws<IOException>();
+        await Assert.That(async () => await registry.CheckpointAsync(generation, At(3), At(4), id)).Throws<IOException>();
         await registry.CheckpointAsync(generation, At(2), At(3), id);
         await Assert.That(store.Writes).IsEqualTo(1);
         await Assert.That(store.Record!.LastFiredAt).IsEqualTo(afterEffect ? At(3) : (DateTimeOffset?)null);
@@ -60,10 +60,10 @@ public sealed class CheckpointOrderingTests
             Cadence.Interval(TimeSpan.FromMinutes(1)),
             MissedFirePolicy.Coalesce,
             new SystematicRegistryTests.NoopDispatcher());
-        await store.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await store.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         try
         {
-            await Assert.That(async () => await registry.TriggerAsync("job").ConfigureAwait(false))
+            await Assert.That(async () => await registry.TriggerAsync("job"))
                 .Throws<InvalidOperationException>();
         }
         finally
@@ -71,7 +71,7 @@ public sealed class CheckpointOrderingTests
             store.Release.TrySetResult();
         }
 
-        await register.AsTask().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await register.AsTask().WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Test]
@@ -83,16 +83,16 @@ public sealed class CheckpointOrderingTests
             "job",
             Cadence.Interval(TimeSpan.FromMinutes(1)),
             MissedFirePolicy.Coalesce,
-            new SystematicRegistryTests.NoopDispatcher()).ConfigureAwait(false);
+            new SystematicRegistryTests.NoopDispatcher());
         var firstId = registry.RegistrationId("job");
-        await registry.UnregisterAsync("job").ConfigureAwait(false);
+        await registry.UnregisterAsync("job");
         await registry.RegisterAsync(
             "job",
             Cadence.Interval(TimeSpan.FromMinutes(1)),
             MissedFirePolicy.Coalesce,
-            new SystematicRegistryTests.NoopDispatcher()).ConfigureAwait(false);
+            new SystematicRegistryTests.NoopDispatcher());
         var replacement = registry.TryGetRecord("job")!;
-        await registry.CheckpointAsync(replacement, At(9), At(10), firstId).ConfigureAwait(false);
+        await registry.CheckpointAsync(replacement, At(9), At(10), firstId);
         await Assert.That(store.Writes).IsEqualTo(0);
         await Assert.That(registry.TryGetRecord("job")!.LastFiredAt).IsNull();
     }

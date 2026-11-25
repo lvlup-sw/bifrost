@@ -57,7 +57,7 @@ public class RegistryRegistrationBenchmarks
             "bench-single",
             Cadence.Interval(TimeSpan.FromMinutes(1)),
             MissedFirePolicy.SkipMissed,
-            NoOpDispatcher.Instance).ConfigureAwait(false);
+            NoOpDispatcher.Instance);
     }
 
     // -----------------------------------------------------------------------
@@ -83,7 +83,7 @@ public class RegistryRegistrationBenchmarks
                 $"bulk-{i:D5}",
                 Cadence.Interval(TimeSpan.FromMinutes(1)),
                 MissedFirePolicy.SkipMissed,
-                NoOpDispatcher.Instance).ConfigureAwait(false);
+                NoOpDispatcher.Instance);
         }
     }
 
@@ -142,7 +142,7 @@ public class RegistryRegistrationBenchmarks
             "warm-job",
             Cadence.Interval(TimeSpan.FromMinutes(5)),
             MissedFirePolicy.SkipMissed,
-            NoOpDispatcher.Instance).ConfigureAwait(false);
+            NoOpDispatcher.Instance);
 
         for (var i = 0; i < BulkJobCount; i++)
         {
@@ -150,7 +150,7 @@ public class RegistryRegistrationBenchmarks
                 $"getjobs-{i:D5}",
                 Cadence.Interval(TimeSpan.FromSeconds(30)),
                 MissedFirePolicy.Coalesce,
-                NoOpDispatcher.Instance).ConfigureAwait(false);
+                NoOpDispatcher.Instance);
         }
     }
 
@@ -166,8 +166,8 @@ public class RegistryRegistrationBenchmarks
     [Benchmark]
     public async ValueTask Pause_Single()
     {
-        await _warmRegistry!.PauseAsync("warm-job").ConfigureAwait(false);
-        await _warmRegistry!.ResumeAsync("warm-job").ConfigureAwait(false);
+        await _warmRegistry!.PauseAsync("warm-job");
+        await _warmRegistry!.ResumeAsync("warm-job");
 
         DrainWarmCommands();
     }
@@ -184,8 +184,8 @@ public class RegistryRegistrationBenchmarks
     [Benchmark]
     public async ValueTask Resume_Single()
     {
-        await _warmRegistry!.PauseAsync("warm-job").ConfigureAwait(false);
-        await _warmRegistry!.ResumeAsync("warm-job").ConfigureAwait(false);
+        await _warmRegistry!.PauseAsync("warm-job");
+        await _warmRegistry!.ResumeAsync("warm-job");
 
         DrainWarmCommands();
     }
@@ -200,7 +200,7 @@ public class RegistryRegistrationBenchmarks
     [Benchmark]
     public async ValueTask Trigger_Single()
     {
-        await _warmRegistry!.TriggerAsync("warm-job").ConfigureAwait(false);
+        await _warmRegistry!.TriggerAsync("warm-job");
 
         DrainWarmCommands();
     }

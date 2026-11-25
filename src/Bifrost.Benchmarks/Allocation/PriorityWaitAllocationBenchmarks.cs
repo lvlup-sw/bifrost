@@ -69,7 +69,7 @@ public class PriorityWaitAllocationBenchmarks
 
         for (var i = 0; i < 64; i++)
         {
-            await ParkWakeCycleAsync().ConfigureAwait(false);
+            await ParkWakeCycleAsync();
         }
     }
 
@@ -83,7 +83,7 @@ public class PriorityWaitAllocationBenchmarks
     {
         for (var i = 0; i < Cycles; i++)
         {
-            await ParkWakeCycleAsync().ConfigureAwait(false);
+            await ParkWakeCycleAsync();
         }
     }
 
@@ -118,7 +118,7 @@ public class PriorityWaitAllocationBenchmarks
 
         queue.TryEnqueue(new WorkEnvelope<int>(0, WorkClass.Interactive, 0));
 
-        await waitTask.ConfigureAwait(false);
+        await waitTask;
 
         queue.TryDequeue(out _);
     }

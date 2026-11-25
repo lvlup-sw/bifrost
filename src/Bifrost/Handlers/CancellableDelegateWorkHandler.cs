@@ -59,6 +59,6 @@ public sealed class CancellableDelegateWorkHandler : IWorkHandler<Func<Cancellat
     public async ValueTask HandleAsync(Func<CancellationToken, Task> work, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(work);
-        await work(ct).ConfigureAwait(false);
+        await work(ct);
     }
 }

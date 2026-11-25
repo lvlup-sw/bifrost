@@ -44,11 +44,11 @@ public class AutoscalingEngineTimerTests
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        await engine.StartAsync().ConfigureAwait(false);
+        await engine.StartAsync();
 
         await Assert.That(engine.IsRunning).IsTrue();
 
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StopAsync();
     }
 
     /// <summary>
@@ -64,12 +64,12 @@ public class AutoscalingEngineTimerTests
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        await engine.StartAsync().ConfigureAwait(false);
-        await engine.StartAsync().ConfigureAwait(false);
+        await engine.StartAsync();
+        await engine.StartAsync();
 
         await Assert.That(engine.IsRunning).IsTrue();
 
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StopAsync();
     }
 
     /// <summary>
@@ -81,9 +81,9 @@ public class AutoscalingEngineTimerTests
         var options = CreateOptions();
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
-        await engine.StartAsync().ConfigureAwait(false);
+        await engine.StartAsync();
 
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StopAsync();
 
         await Assert.That(engine.IsRunning).IsFalse();
     }
@@ -101,7 +101,7 @@ public class AutoscalingEngineTimerTests
         var coordinator = CreateMockCoordinator(activeWorkers: 2);
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StopAsync();
 
         await Assert.That(engine.IsRunning).IsFalse();
     }
@@ -130,13 +130,13 @@ public class AutoscalingEngineTimerTests
             }
         };
 
-        await engine.StartAsync().ConfigureAwait(false);
+        await engine.StartAsync();
 
         var completed = await Task.WhenAny(
             twoEventsReceived.Task,
-            Task.Delay(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
+            Task.Delay(TimeSpan.FromSeconds(10)));
 
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StopAsync();
 
         await Assert.That(ReferenceEquals(completed, twoEventsReceived.Task)).IsTrue();
         await Assert.That(eventCount).IsGreaterThanOrEqualTo(2);
@@ -164,13 +164,13 @@ public class AutoscalingEngineTimerTests
             firstEventReceived.TrySetResult();
         };
 
-        await engine.StartAsync().ConfigureAwait(false);
+        await engine.StartAsync();
 
-        await firstEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        await firstEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StopAsync();
         var countAfterStop = eventCount;
-        await Task.Delay(300).ConfigureAwait(false);
+        await Task.Delay(300);
 
         await Assert.That(eventCount).IsEqualTo(countAfterStop);
     }

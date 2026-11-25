@@ -127,7 +127,7 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .Build();
 
-await host.StartAsync().ConfigureAwait(false);
+await host.StartAsync();
 
 var registry = host.Services.GetRequiredService<IScheduleRegistry>();
 var runtimeDispatcher = new PrintingDispatcher();
@@ -137,7 +137,7 @@ await registry.RegisterAsync(
     Cadence.Interval(TimeSpan.FromHours(24)),
     MissedFirePolicy.SkipMissed,
     runtimeDispatcher,
-    CancellationToken.None).ConfigureAwait(false);
+    CancellationToken.None);
 
 Console.WriteLine("Registered runtime job 'smoke-runtime'.");
 
@@ -183,7 +183,7 @@ var fireTimeout = TimeSpan.FromSeconds(5);
 var orchestratorFired = true;
 try
 {
-    await SmokeSignals.OrchestratorHandled.Task.WaitAsync(fireTimeout).ConfigureAwait(false);
+    await SmokeSignals.OrchestratorHandled.Task.WaitAsync(fireTimeout);
     Console.WriteLine("Verified fire: 'smoke-orchestrator (mode 1 — orchestrator dispatch)' executed.");
 }
 catch (TimeoutException)
@@ -196,7 +196,7 @@ catch (TimeoutException)
 var inlineFired = true;
 try
 {
-    await SmokeSignals.InlineFired.Task.WaitAsync(fireTimeout).ConfigureAwait(false);
+    await SmokeSignals.InlineFired.Task.WaitAsync(fireTimeout);
     Console.WriteLine("Verified fire: 'smoke-inline (mode 2 — inline dispatch)' executed.");
 }
 catch (TimeoutException)
@@ -208,7 +208,7 @@ catch (TimeoutException)
 
 if (!orchestratorFired || !inlineFired)
 {
-    await host.StopAsync().ConfigureAwait(false);
+    await host.StopAsync();
     return 1;
 }
 
@@ -217,18 +217,18 @@ var scaling = host.Services.GetRequiredKeyedService<IAutoscalingCoordinator>(typ
 var workers = host.Services.GetRequiredKeyedService<IWorkerRegistry>(typeof(SmokeWork));
 using (var retirementDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
 {
-    await scaling.RequestScaleUpAsync(1, retirementDeadline.Token).ConfigureAwait(false);
-    await scaling.RequestScaleDownAsync(1, retirementDeadline.Token).ConfigureAwait(false);
+    await scaling.RequestScaleUpAsync(1, retirementDeadline.Token);
+    await scaling.RequestScaleDownAsync(1, retirementDeadline.Token);
     while (workers.ActiveWorkerCount != 0)
     {
-        await Task.Delay(1, retirementDeadline.Token).ConfigureAwait(false);
+        await Task.Delay(1, retirementDeadline.Token);
     }
 }
 
 Console.WriteLine("Verified dynamic worker retirement under NativeAOT.");
 Console.WriteLine("Bifrost.Scheduling AOT smoke — PASS.");
 
-await host.StopAsync().ConfigureAwait(false);
+await host.StopAsync();
 return 0;
 
 // =============================================================================

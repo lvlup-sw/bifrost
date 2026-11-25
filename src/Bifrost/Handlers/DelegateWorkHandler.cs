@@ -53,6 +53,6 @@ public sealed class DelegateWorkHandler : IWorkHandler<Func<Task>>
     public async ValueTask HandleAsync(Func<Task> work, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(work);
-        await work().ConfigureAwait(false);
+        await work();
     }
 }

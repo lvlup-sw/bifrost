@@ -153,9 +153,9 @@ internal sealed class SoakRunner
             tasks.Add(Task.Run(() => ConsumeAsync(ct)));
         }
 
-        await Task.Delay(TimeSpan.FromSeconds(_config.DurationSeconds)).ConfigureAwait(false);
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(_config.DurationSeconds));
+        await cts.CancelAsync();
+        await Task.WhenAll(tasks);
 
         _queue.Complete();
         RecordGcSample();
@@ -238,7 +238,7 @@ internal sealed class SoakRunner
             {
                 double rate = Math.Max(0.05, _rate.RatePerSecond * share);
                 double gapSeconds = Math.Min(-Math.Log(1.0 - rng.NextDouble()) / rate, MaxArrivalGapSeconds);
-                await Task.Delay(TimeSpan.FromSeconds(gapSeconds), ct).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(gapSeconds), ct);
 
                 EnqueueOnce(workClass, DrawWorkMs(rng));
             }
@@ -271,7 +271,7 @@ internal sealed class SoakRunner
         {
             while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromSeconds(_config.BurstIntervalSeconds), ct).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(_config.BurstIntervalSeconds), ct);
 
                 for (int i = 0; i < _config.BurstSize; i++)
                 {
@@ -301,7 +301,7 @@ internal sealed class SoakRunner
     {
         try
         {
-            while (await _queue.WaitToDequeueAsync(ct).ConfigureAwait(false))
+            while (await _queue.WaitToDequeueAsync(ct))
             {
                 if (!_queue.TryDequeue(out WorkEnvelope<int> envelope))
                 {
@@ -311,7 +311,7 @@ internal sealed class SoakRunner
                 double waitMs = _time.GetElapsedTime(envelope.EnqueuedAtTicks).TotalMilliseconds;
                 _collectors[(int)envelope.Class].RecordDispatch(waitMs);
 
-                await Task.Delay(envelope.Work, ct).ConfigureAwait(false);
+                await Task.Delay(envelope.Work, ct);
             }
         }
         catch (OperationCanceledException)
@@ -338,7 +338,7 @@ internal sealed class SoakRunner
         {
             while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromSeconds(MonitorTickSeconds), ct).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(MonitorTickSeconds), ct);
                 tick++;
 
                 double occupancy = (double)_queue.Count / _config.Capacity;

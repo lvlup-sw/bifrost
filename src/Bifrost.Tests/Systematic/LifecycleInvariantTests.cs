@@ -32,35 +32,35 @@ public sealed class LifecycleInvariantTests
                 }),
                 NullLogger<WorkOrchestrator<string>>.Instance);
             ledger.Accept("call-0", "work-0", actual.Enqueue("work-0").IsAccepted);
-            await handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             var count = new Random(seed).Next(1, 8);
             for (var index = 1; index <= count; index++)
                 ledger.Accept($"call-{index}", $"work-{index}", actual.Enqueue($"work-{index}").IsAccepted);
             Require(handler.Starts.Count == 1 && ledger.Accepted.Count == count + 1, "acceptance is distinct from execution");
             using var wait = new CancellationTokenSource();
             var draining = actual.DrainAsync(wait.Token);
-            await wait.CancelAsync().ConfigureAwait(false);
-            await ExpectCancellation(draining).ConfigureAwait(false);
+            await wait.CancelAsync();
+            await ExpectCancellation(draining);
             Require(!actual.GetShutdownToken().IsCancellationRequested && !handler.Canceled, "drain cancellation must not cancel workers");
             Require(!actual.Enqueue("late-work").IsAccepted, "completion closes admission");
             actual.Complete();
             if (seed % 3 == 0)
             {
-                await actual.AbortAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await actual.AbortAsync().WaitAsync(TimeSpan.FromSeconds(5));
                 Require(handler.Canceled && handler.Starts.Count == 1, "abort may abandon accepted pending work");
                 Require(actual.PendingCount == count, "abandoned work remains pending");
             }
 
             else if (seed % 3 == 1)
             {
-                await actual.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await actual.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
                 Require(handler.Canceled && handler.Starts.Count == 1, "dispose signals cancellation");
             }
 
             else
             {
                 handler.Release.TrySetResult();
-                await actual.Completion.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await actual.Completion.WaitAsync(TimeSpan.FromSeconds(5));
                 Require(ledger.Accepted.SetEquals(handler.Successes), "graceful completion accounts for every accepted identity");
                 Require(handler.Starts.Count == ledger.Accepted.Count, "one worker attempt per admitted identity");
             }
@@ -85,11 +85,11 @@ public sealed class LifecycleInvariantTests
         using var cancel = new CancellationTokenSource();
         var waiting = actual.EnqueueAsync("waiting", ct: cancel.Token).AsTask();
         Require(!waiting.IsCompleted, "producer waits for capacity");
-        await cancel.CancelAsync().ConfigureAwait(false);
-        await ExpectCancellation(waiting).ConfigureAwait(false);
+        await cancel.CancelAsync();
+        await ExpectCancellation(waiting);
         actual.Complete();
-        Require(!(await actual.EnqueueAsync("closed").ConfigureAwait(false)).IsAccepted, "closed asynchronous admission rejected");
-        await actual.Completion.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        Require(!(await actual.EnqueueAsync("closed")).IsAccepted, "closed asynchronous admission rejected");
+        await actual.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Require(actual.PendingCount == 1 && handler.Starts.IsEmpty, "no registered workers does not imply execution");
     }
 
@@ -121,7 +121,7 @@ public sealed class LifecycleInvariantTests
                     var succeeded = false;
                     try
                     {
-                        succeeded = (await wrapper.EnqueueAsync("work-0").ConfigureAwait(false)).IsAccepted;
+                        succeeded = (await wrapper.EnqueueAsync("work-0")).IsAccepted;
                     }
 
                     catch (TimeoutException)
@@ -152,18 +152,18 @@ public sealed class LifecycleInvariantTests
             {
                 Interlocked.Increment(ref calls);
                 entered.TrySetResult();
-                await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
+                await Task.Delay(Timeout.Infinite, token);
                 return EnqueueResult.Accepted;
             }
 
             using var cts = new CancellationTokenSource();
             var operation = Wrap(inner, 1).EnqueueAsync("work-0", ct: cts.Token).AsTask();
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-            if (cancelCaller) await cts.CancelAsync().ConfigureAwait(false);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if (cancelCaller) await cts.CancelAsync();
             Exception? failure = null;
             try
             {
-                await operation.WaitAsync(TimeSpan.FromSeconds(8)).ConfigureAwait(false);
+                await operation.WaitAsync(TimeSpan.FromSeconds(8));
             }
 
             catch (Exception ex)
@@ -194,13 +194,13 @@ public sealed class LifecycleInvariantTests
                     var id = $"seed-{seed}/write-{written++}";
                     if (retained is not null) dropped++;
                     retained = id;
-                    await queue.EnqueueAsync(Item(id)).ConfigureAwait(false);
+                    await queue.EnqueueAsync(Item(id));
                 }
 
                 else
                 {
                     await using var drain = queue.ReadAllAsync().GetAsyncEnumerator();
-                    var moved = await drain.MoveNextAsync().ConfigureAwait(false);
+                    var moved = await drain.MoveNextAsync();
                     Require(moved == (retained is not null), "retained identity exists");
                     if (moved)
                     {
@@ -226,25 +226,25 @@ public sealed class LifecycleInvariantTests
             var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var writers = Enumerable.Range(0, 4).Select(actor => Task.Run(async () =>
             {
-                await start.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await start.Task.WaitAsync(TimeSpan.FromSeconds(5));
                 for (var step = 0; step < 16; step++)
                 {
-                    await queue.EnqueueAsync(Item($"seed-{seed}/writer-{actor}/write-{step}")).ConfigureAwait(false);
+                    await queue.EnqueueAsync(Item($"seed-{seed}/writer-{actor}/write-{step}"));
                     if ((step + actor + seed) % 3 == 0) await Task.Yield();
                 }
             })).ToArray();
             var readers = Enumerable.Range(0, 2).Select(_ => Task.Run(async () =>
             {
-                await start.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await start.Task.WaitAsync(TimeSpan.FromSeconds(5));
                 for (var step = 0; step < 16; step++)
                 {
-                    await foreach (var item in queue.ReadAllAsync().ConfigureAwait(false)) read.Add(item.Work);
+                    await foreach (var item in queue.ReadAllAsync()) read.Add(item.Work);
                     await Task.Yield();
                 }
             })).ToArray();
             start.TrySetResult();
-            await Task.WhenAll(writers.Concat(readers)).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-            await foreach (var item in queue.ReadAllAsync().ConfigureAwait(false)) read.Add(item.Work);
+            await Task.WhenAll(writers.Concat(readers)).WaitAsync(TimeSpan.FromSeconds(5));
+            await foreach (var item in queue.ReadAllAsync()) read.Add(item.Work);
             Require(read.Distinct().Count() == read.Count, $"seed={seed}: no identity read twice");
             Require(queue.Count == 0 && read.Count + queue.DroppedCount == 64,
                 $"seed={seed}: written=64 read={read.Count} retained={queue.Count} dropped={queue.DroppedCount}; interleaving uncontrolled");
@@ -258,23 +258,23 @@ public sealed class LifecycleInvariantTests
         {
             Capacity = 3
         }), NullLogger<DeadLetterQueue<string>>.Instance);
-        foreach (var id in new[] { "a", "b", "c" }) await queue.EnqueueAsync(Item(id)).ConfigureAwait(false);
+        foreach (var id in new[] { "a", "b", "c" }) await queue.EnqueueAsync(Item(id));
         await using (var drain = queue.ReadAllAsync().GetAsyncEnumerator())
         {
-            Require(await drain.MoveNextAsync().ConfigureAwait(false) && drain.Current.Work == "a", "early drain first identity");
+            Require(await drain.MoveNextAsync() && drain.Current.Work == "a", "early drain first identity");
         }
 
         using var cts = new CancellationTokenSource();
         await using (var drain = queue.ReadAllAsync(cts.Token).GetAsyncEnumerator())
         {
-            Require(await drain.MoveNextAsync().ConfigureAwait(false) && drain.Current.Work == "b", "second identity");
-            await cts.CancelAsync().ConfigureAwait(false);
-            await ExpectCancellation(Task.Run(async () => await drain.MoveNextAsync().ConfigureAwait(false))).ConfigureAwait(false);
+            Require(await drain.MoveNextAsync() && drain.Current.Work == "b", "second identity");
+            await cts.CancelAsync();
+            await ExpectCancellation(Task.Run(async () => await drain.MoveNextAsync()));
         }
 
         Require(queue.Count == 1 && queue.DroppedCount == 0, "canceled enumeration retains c");
         var remaining = new List<string>();
-        await foreach (var item in queue.ReadAllAsync().ConfigureAwait(false)) remaining.Add(item.Work);
+        await foreach (var item in queue.ReadAllAsync()) remaining.Add(item.Work);
         Require(remaining.SequenceEqual(new[]
 {
 "c"
@@ -396,7 +396,7 @@ public sealed class LifecycleInvariantTests
     {
         try
         {
-            await task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await task.WaitAsync(TimeSpan.FromSeconds(10));
         }
 
         catch (OperationCanceledException)
@@ -438,7 +438,7 @@ public sealed class LifecycleInvariantTests
             Entered.TrySetResult();
             try
             {
-                await Release.Task.WaitAsync(ct).ConfigureAwait(false);
+                await Release.Task.WaitAsync(ct);
                 Successes.Enqueue(work);
             }
             catch (OperationCanceledException)

@@ -74,17 +74,16 @@ public sealed class EventOrderingTests
 
         try
         {
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             var dispatcher = new SyncFailingDispatcher(sink);
             await registry.RegisterAsync(
-                "job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+                "job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, dispatcher);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             time.Advance(TimeSpan.FromMinutes(5));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             var firedIndex = sink.FirstIndexOf<JobFiredEvent>();
             var failedIndex = sink.FirstIndexOf<JobFireFailedEvent>();
@@ -96,9 +95,9 @@ public sealed class EventOrderingTests
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
-            await services.DisposeAsync().ConfigureAwait(false);
+            await services.DisposeAsync();
         }
     }
 

@@ -88,12 +88,12 @@ public class AutoscalingOverheadBenchmarks
     {
         if (_metricsEnabled is not null)
         {
-            await _metricsEnabled.DisposeAsync().ConfigureAwait(false);
+            await _metricsEnabled.DisposeAsync();
         }
 
         if (_metricsDisabled is not null)
         {
-            await _metricsDisabled.DisposeAsync().ConfigureAwait(false);
+            await _metricsDisabled.DisposeAsync();
         }
     }
 }

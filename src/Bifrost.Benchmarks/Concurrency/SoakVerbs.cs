@@ -44,7 +44,7 @@ public static class SoakVerbs
             $"{(config.DefaultShare * 100).ToString("0.#", CultureInfo.InvariantCulture)}/" +
             $"{(config.BatchShare * 100).ToString("0.#", CultureInfo.InvariantCulture)}, output='{outputDirectory}'");
 
-        await SoakSweep.RunAllAsync(bindings, workers, config, outputDirectory).ConfigureAwait(false);
+        await SoakSweep.RunAllAsync(bindings, workers, config, outputDirectory);
 
         Console.WriteLine($"Wrote soak-classes.csv, soak-runs.csv, and soak.md to '{outputDirectory}'.");
     }

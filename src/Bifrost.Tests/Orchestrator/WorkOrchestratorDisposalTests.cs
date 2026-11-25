@@ -58,7 +58,7 @@ public sealed class WorkOrchestratorDisposalTests
         var binding = (ConcurrentPriorityWorkQueue<string>)orchestrator.WorkQueue;
         await Assert.That(binding.IsDisposedForTest).IsFalse();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
 
         await Assert.That(binding.IsDisposedForTest).IsTrue();
     }
@@ -82,7 +82,7 @@ public sealed class WorkOrchestratorDisposalTests
         var binding = (LockingPriorityWorkQueue<string>)orchestrator.WorkQueue;
         await Assert.That(binding.IsDisposedForTest).IsFalse();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
 
         await Assert.That(binding.IsDisposedForTest).IsTrue();
     }
@@ -101,7 +101,7 @@ public sealed class WorkOrchestratorDisposalTests
             WorkerCount = 1,
         });
 
-        await Assert.That(async () => await orchestrator.DisposeAsync().ConfigureAwait(false))
+        await Assert.That(async () => await orchestrator.DisposeAsync())
             .ThrowsNothing();
     }
 
@@ -122,8 +122,8 @@ public sealed class WorkOrchestratorDisposalTests
             FullMode = QueueFullMode.Reject,
         });
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
-        await Assert.That(async () => await orchestrator.DisposeAsync().ConfigureAwait(false))
+        await orchestrator.DisposeAsync();
+        await Assert.That(async () => await orchestrator.DisposeAsync())
             .ThrowsNothing();
     }
 

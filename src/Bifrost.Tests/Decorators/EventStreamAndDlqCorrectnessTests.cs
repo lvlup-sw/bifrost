@@ -43,10 +43,10 @@ public sealed class EventStreamAndDlqCorrectnessTests
             NullLogger<EventStreamOrchestrator<string>>.Instance);
 
         var stream = decorator.GetEventStreamAsync<IOrchestratorEvent>();
-        await decorator.DisposeAsync().ConfigureAwait(false);
+        await decorator.DisposeAsync();
 
         var count = 0;
-        await foreach (var _ in stream.ConfigureAwait(false))
+        await foreach (var _ in stream)
         {
             count++;
         }
@@ -73,7 +73,7 @@ public sealed class EventStreamAndDlqCorrectnessTests
         var inner = new StubOrchestrator(async ct =>
         {
             drainEntered.Release();
-            await releaseDrain.WaitAsync(ct).ConfigureAwait(false);
+            await releaseDrain.WaitAsync(ct);
         });
 
         var decorator = new EventStreamOrchestrator<string>(
@@ -81,10 +81,10 @@ public sealed class EventStreamAndDlqCorrectnessTests
             NullLogger<EventStreamOrchestrator<string>>.Instance);
 
         var drainTask = decorator.DrainAsync();
-        await drainEntered.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        await drainEntered.WaitAsync(TimeSpan.FromSeconds(10));
 
         var countDuringDrain = 0;
-        await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>().ConfigureAwait(false))
+        await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>())
         {
             countDuringDrain++;
         }
@@ -92,10 +92,10 @@ public sealed class EventStreamAndDlqCorrectnessTests
         await Assert.That(countDuringDrain).IsEqualTo(0);
 
         releaseDrain.Release();
-        await drainTask.ConfigureAwait(false);
+        await drainTask;
 
         var countAfterDrain = 0;
-        await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>().ConfigureAwait(false))
+        await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>())
         {
             countAfterDrain++;
         }
@@ -124,20 +124,20 @@ public sealed class EventStreamAndDlqCorrectnessTests
 
         var producerTasks = Enumerable.Range(0, producers).Select(p => Task.Run(async () =>
         {
-            await startGate.WaitAsync().ConfigureAwait(false);
+            await startGate.WaitAsync();
             for (int i = 0; i < itemsPerProducer; i++)
             {
                 await dlq.EnqueueAsync(new DeadLetteredWork<int>(
-                    (p * itemsPerProducer) + i, null, 1, DateTimeOffset.UtcNow, null)).ConfigureAwait(false);
+                    (p * itemsPerProducer) + i, null, 1, DateTimeOffset.UtcNow, null));
             }
         })).ToArray();
 
         var consumerTask = Task.Run(async () =>
         {
-            await startGate.WaitAsync().ConfigureAwait(false);
+            await startGate.WaitAsync();
             while (producerTasks.Any(t => !t.IsCompleted))
             {
-                await foreach (var _ in dlq.ReadAllAsync().ConfigureAwait(false))
+                await foreach (var _ in dlq.ReadAllAsync())
                 {
                     Interlocked.Increment(ref drained);
                 }
@@ -147,10 +147,10 @@ public sealed class EventStreamAndDlqCorrectnessTests
         });
 
         startGate.Release(producers + 1);
-        await Task.WhenAll(producerTasks).ConfigureAwait(false);
-        await consumerTask.ConfigureAwait(false);
+        await Task.WhenAll(producerTasks);
+        await consumerTask;
 
-        await foreach (var _ in dlq.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var _ in dlq.ReadAllAsync())
         {
             Interlocked.Increment(ref drained);
         }
@@ -179,14 +179,14 @@ public sealed class EventStreamAndDlqCorrectnessTests
         var accepted = routing.TryEnqueue("shed-item");
         await Assert.That(accepted).IsFalse();
 
-        await dlq.WaitForEnqueueEnteredAsync().ConfigureAwait(false);
+        await dlq.WaitForEnqueueEnteredAsync();
 
         var drainTask = routing.DrainAsync();
         await Task.Yield();
         await Assert.That(drainTask.IsCompleted).IsFalse();
 
         dlq.ReleaseEnqueue();
-        await drainTask.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(10));
         await Assert.That(dlq.Count).IsEqualTo(1);
     }
 
@@ -246,7 +246,7 @@ public sealed class EventStreamAndDlqCorrectnessTests
         public async ValueTask EnqueueAsync(DeadLetteredWork<string> item, CancellationToken ct = default)
         {
             this.entered.Release();
-            await this.release.Task.WaitAsync(ct).ConfigureAwait(false);
+            await this.release.Task.WaitAsync(ct);
             this.items.Enqueue(item);
         }
 
@@ -258,11 +258,11 @@ public sealed class EventStreamAndDlqCorrectnessTests
                 yield return item;
             }
 
-            await Task.CompletedTask.ConfigureAwait(false);
+            await Task.CompletedTask;
         }
 
         public async Task WaitForEnqueueEnteredAsync()
-            => await this.entered.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            => await this.entered.WaitAsync(TimeSpan.FromSeconds(10));
 
         public void ReleaseEnqueue() => this.release.TrySetResult();
     }

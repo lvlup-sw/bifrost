@@ -50,7 +50,7 @@ public static class SoakSweep
                 Console.WriteLine($"[soak] {binding} workers={workers} seconds={config.DurationSeconds} capacity={config.Capacity} ...");
 
                 var runner = new SoakRunner(binding, workers, config);
-                SoakResult result = await runner.RunAsync().ConfigureAwait(false);
+                SoakResult result = await runner.RunAsync();
                 results.Add(result);
                 PrintRun(result);
 

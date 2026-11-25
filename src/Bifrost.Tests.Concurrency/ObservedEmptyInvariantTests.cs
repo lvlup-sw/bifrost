@@ -69,7 +69,7 @@ public class ObservedEmptyInvariantTests
                             }
                         }
                     }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
-                    await Task.WhenAll(actors).WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                    await Task.WhenAll(actors).WaitAsync(TimeSpan.FromSeconds(30));
                     string context = $"Q5 seed={seed} stripes={stripes} buffer={buffer}";
                     foreach (var operation in history.Operations.Where(x => x.Kind == "enqueue")) expected.Add(operation.Id, operation.Priority);
                     foreach (var operation in history.Operations.Where(x => x.Kind == "dequeue"))
@@ -115,15 +115,15 @@ public class ObservedEmptyInvariantTests
                 if (!held.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("lock acquisition");
                 consumer = Task.Factory.StartNew(() => Remove(queue, history, 1, 0), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
                 if (!SpinWait.SpinUntil(() => queue.DebugScanEntryCountForTest > 0 || consumer.IsCompleted, TimeSpan.FromSeconds(5))) throw new TimeoutException("scan entry");
-                await Task.WhenAny(consumer, Task.Delay(100)).ConfigureAwait(false);
+                await Task.WhenAny(consumer, Task.Delay(100));
             }
             finally
             {
                 release.Set();
-                await holder.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await holder.WaitAsync(TimeSpan.FromSeconds(5));
             }
 
-            var result = await consumer!.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            var result = await consumer!.WaitAsync(TimeSpan.FromSeconds(5));
             Check(result.Success && result.Id == 73 && result.Priority == 7, "Q5 held populated stripe was treated as empty", history);
             Check(queue.DebugScanEntryCountForTest > 0, "Q5 authoritative scan was not reached", history);
             Check(!queue.TryDequeue(out _, out _), "Q5 quiescent empty result", history);
@@ -175,15 +175,15 @@ public class ObservedEmptyInvariantTests
             if (!comparer.Entered.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("comparer entry");
             consumer = Task.Factory.StartNew(() => Remove(queue, history, 1, 0), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
             if (!SpinWait.SpinUntil(() => queue.DebugScanEntryCountForTest > 0 || consumer.IsCompleted, TimeSpan.FromSeconds(5))) throw new TimeoutException("scan entry");
-            await Task.WhenAny(consumer, Task.Delay(100)).ConfigureAwait(false);
+            await Task.WhenAny(consumer, Task.Delay(100));
         }
         finally
         {
             comparer.Release.Set();
-            await producer.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await producer.WaitAsync(TimeSpan.FromSeconds(5));
         }
 
-        var result = await consumer!.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        var result = await consumer!.WaitAsync(TimeSpan.FromSeconds(5));
         Check(result.Success, "Q5 overlapping producer and consumer cannot erase the resident prefill", history);
         var insertion = history.Operations.Single(x => x.Kind == "enqueue");
         Check(insertion.Start < result.Start && result.Start < insertion.End, "Q5 controlled producer interval must contain consumer invocation", history);
@@ -209,7 +209,7 @@ public class ObservedEmptyInvariantTests
                 bool success = queue.TryDequeue(out int id, out int priority);
                 history.Operations.Enqueue(new(actor, 0, "dequeue", start, history.Tick(), success, id, priority));
             }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
-            await Task.WhenAll(actors).WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            await Task.WhenAll(actors).WaitAsync(TimeSpan.FromSeconds(30));
             var successes = history.Operations.Where(x => x.Success).ToArray();
             Check(successes.Length == 1 && successes[0].Id == seed && successes[0].Priority == -seed, "Q5 last item permitted histories require exactly one matching success", history);
             var empty = history.Operations.Single(x => !x.Success);

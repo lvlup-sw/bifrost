@@ -164,7 +164,7 @@ public sealed class SchedulerEventStream : ISchedulerEventSink, IDisposable
     {
         try
         {
-            await foreach (var evt in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            await foreach (var evt in reader.ReadAllAsync(cancellationToken))
             {
                 if (evt is TEvent typed)
                 {

@@ -66,7 +66,7 @@ internal static class WorkerRegistryCampaignBinding
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (system.Registry.ActiveWorkerCount != 0)
         {
-            await Task.Delay(1, timeout.Token).ConfigureAwait(false);
+            await Task.Delay(1, timeout.Token);
         }
     }
 
@@ -115,8 +115,7 @@ internal static class WorkerRegistryCampaignBinding
                 var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 system.Releases.Add(id, release);
                 await system.Registry.CreateWorkerAsync(
-                    id, (_, _) => release.Task.WaitAsync(CancellationToken.None), CancellationToken.None)
-                    .ConfigureAwait(false);
+                    id, (_, _) => release.Task.WaitAsync(CancellationToken.None), CancellationToken.None);
                 break;
             case "idle": system.Registry.GetWorkerInfo(id)!.MarkIdle(); break;
             case "busy": system.Registry.GetWorkerInfo(id)!.MarkBusy(); break;
@@ -127,7 +126,7 @@ internal static class WorkerRegistryCampaignBinding
                 {
                     while (system.Registry.GetWorkerInfo(id) is not null)
                     {
-                        await Task.Delay(1, timeout.Token).ConfigureAwait(false);
+                        await Task.Delay(1, timeout.Token);
                     }
                 }
 

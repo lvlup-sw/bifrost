@@ -36,7 +36,7 @@ public class ProcessRecoveryTests
         try
         {
             var store = new FileStore(directory, "none");
-            await store.SaveAsync(NewRecord(Epoch), deadline.Token).ConfigureAwait(false);
+            await store.SaveAsync(NewRecord(Epoch), deadline.Token);
             using (var child = StartChild(directory, cut))
             {
                 var output = child.StandardOutput.ReadToEndAsync(deadline.Token);
@@ -45,37 +45,37 @@ public class ProcessRecoveryTests
                 {
                     while (!File.Exists(Path.Combine(directory, "reached")))
                     {
-                        if (child.HasExited) throw new InvalidOperationException(await output.ConfigureAwait(false) + await error.ConfigureAwait(false));
-                        await Task.Delay(20, deadline.Token).ConfigureAwait(false);
+                        if (child.HasExited) throw new InvalidOperationException(await output + await error);
+                        await Task.Delay(20, deadline.Token);
                     }
                 }
                 finally
                 {
                     if (!child.HasExited) child.Kill(entireProcessTree: true);
-                    await child.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                    await child.WaitForExitAsync(CancellationToken.None);
                 }
             }
 
-            var saved = (await store.LoadAllAsync(deadline.Token).ConfigureAwait(false)).Single();
+            var saved = (await store.LoadAllAsync(deadline.Token)).Single();
             await Assert.That(saved.LastFiredAt).IsEqualTo(cut == "after-checkpoint" ? Epoch.AddMinutes(1) : Epoch);
             using var recovery = StartChild(directory, "none");
             var recoveryOutput = recovery.StandardOutput.ReadToEndAsync(deadline.Token);
             var recoveryError = recovery.StandardError.ReadToEndAsync(deadline.Token);
             try
             {
-                await recovery.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
-                if (recovery.ExitCode != 0) throw new InvalidOperationException(await recoveryOutput.ConfigureAwait(false) + await recoveryError.ConfigureAwait(false));
+                await recovery.WaitForExitAsync(deadline.Token);
+                if (recovery.ExitCode != 0) throw new InvalidOperationException(await recoveryOutput + await recoveryError);
             }
             finally
             {
                 if (!recovery.HasExited) recovery.Kill(entireProcessTree: true);
-                await recovery.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                await recovery.WaitForExitAsync(CancellationToken.None);
             }
 
-            var attempts = await File.ReadAllLinesAsync(Path.Combine(directory, "attempts"), deadline.Token).ConfigureAwait(false);
+            var attempts = await File.ReadAllLinesAsync(Path.Combine(directory, "attempts"), deadline.Token);
             await Assert.That(attempts.Length).IsEqualTo(expectedAttempts);
             await Assert.That(attempts.Distinct().Single()).IsEqualTo(Epoch.AddMinutes(1).UtcTicks.ToString(CultureInfo.InvariantCulture));
-            await Assert.That((await store.LoadAllAsync(deadline.Token).ConfigureAwait(false)).Single().LastFiredAt).IsEqualTo(Epoch.AddMinutes(1));
+            await Assert.That((await store.LoadAllAsync(deadline.Token)).Single().LastFiredAt).IsEqualTo(Epoch.AddMinutes(1));
         }
         finally
         {
@@ -107,9 +107,9 @@ public class ProcessRecoveryTests
             }));
         await using var provider = services.BuildServiceProvider();
         var hosted = provider.GetServices<IHostedService>().ToArray();
-        foreach (var service in hosted) await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
-        await provider.GetRequiredService<ScheduleTickLoop>().WaitForIdleAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
-        foreach (var service in hosted.Reverse()) await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        foreach (var service in hosted) await service.StartAsync(CancellationToken.None);
+        await provider.GetRequiredService<ScheduleTickLoop>().WaitForIdleAsync(TimeSpan.FromSeconds(15));
+        foreach (var service in hosted.Reverse()) await service.StopAsync(CancellationToken.None);
     }
 
     private static Process StartChild(string directory, string cut)
@@ -186,7 +186,7 @@ public class ProcessRecoveryTests
         public async ValueTask RecordFiredAsync(string jobName, DateTimeOffset firedAt, DateTimeOffset? nextFireAt, CancellationToken ct)
         {
             if (cut == "before-checkpoint") ReachCut(directory);
-            await SaveAsync(NewRecord(firedAt), ct).ConfigureAwait(false);
+            await SaveAsync(NewRecord(firedAt), ct);
             if (cut == "after-checkpoint") ReachCut(directory);
         }
 

@@ -106,7 +106,7 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
             _draining = true;
         }
 
-        await _inner.DrainAsync(ct).ConfigureAwait(false);
+        await _inner.DrainAsync(ct);
 
         lock (_subscriptionGate)
         {
@@ -192,7 +192,7 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     {
         try
         {
-            await foreach (var evt in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            await foreach (var evt in reader.ReadAllAsync(cancellationToken))
             {
                 if (evt is not TEvent typedEvent)
                 {
@@ -322,7 +322,7 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
             var stopwatch = Stopwatch.StartNew();
             try
             {
-                await _innerHandler.HandleAsync(work, ct).ConfigureAwait(false);
+                await _innerHandler.HandleAsync(work, ct);
                 stopwatch.Stop();
                 _publishCallback(
                     new WorkCompletedEvent<TWork>(work, stopwatch.Elapsed, Success: true));
@@ -358,7 +358,7 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     /// <inheritdoc/>
     public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkEnqueueOptions options = default, CancellationToken ct = default)
     {
-        var result = await _inner.EnqueueAsync(work, options, ct).ConfigureAwait(false);
+        var result = await _inner.EnqueueAsync(work, options, ct);
         if (result.IsAccepted)
             PublishToSubscribers(new WorkEnqueuedEvent<TWork>(work, DateTimeOffset.UtcNow, PendingCount, options.CorrelationId));
         return result;

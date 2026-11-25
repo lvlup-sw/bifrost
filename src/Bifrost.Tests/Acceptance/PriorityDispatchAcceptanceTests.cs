@@ -94,7 +94,7 @@ public sealed class PriorityDispatchAcceptanceTests
     [Test]
     public async Task Interactive_EnqueuedBehindNBatch_DispatchesNext_Locking()
     {
-        var order = await RunGatedBacklogTrialAsync(DispatchStrategy.PriorityExact).ConfigureAwait(false);
+        var order = await RunGatedBacklogTrialAsync(DispatchStrategy.PriorityExact);
 
         await Assert.That(order.Count).IsEqualTo(BatchBacklog + 2);
         await Assert.That(order[0]).IsEqualTo("gate");
@@ -174,7 +174,7 @@ public sealed class PriorityDispatchAcceptanceTests
         var positions = new List<int>(TrialCount);
         for (var trial = 0; trial < TrialCount; trial++)
         {
-            var order = await RunGatedBacklogTrialAsync(DispatchStrategy.PriorityRelaxed).ConfigureAwait(false);
+            var order = await RunGatedBacklogTrialAsync(DispatchStrategy.PriorityRelaxed);
 
             await Assert.That(order.Count).IsEqualTo(BatchBacklog + 2);
             await Assert.That(order[0]).IsEqualTo("gate");
@@ -263,9 +263,7 @@ public sealed class PriorityDispatchAcceptanceTests
                 for (var i = 0; i < itemsPerProducer; i++)
                 {
                     var workClass = (WorkClass)(NextXorShift(ref state) % 3u);
-                    var result = await orchestrator
-                        .EnqueueAsync($"p{p}-i{i}", workClass)
-                        .ConfigureAwait(false);
+                    var result = await orchestrator.EnqueueAsync($"p{p}-i{i}", workClass);
                     if (!result.IsAccepted)
                     {
                         rejected++;
@@ -276,10 +274,10 @@ public sealed class PriorityDispatchAcceptanceTests
             }))
             .ToArray();
 
-        var rejectedCounts = await Task.WhenAll(producers).WaitAsync(WaitTimeout).ConfigureAwait(false);
+        var rejectedCounts = await Task.WhenAll(producers).WaitAsync(WaitTimeout);
 
         using var drainCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
+        await orchestrator.DrainAsync(drainCts.Token);
 
         await Assert.That(rejectedCounts.Sum()).IsEqualTo(0);
         await Assert.That(waits.Count).IsEqualTo(producerCount * itemsPerProducer);
@@ -336,22 +334,22 @@ public sealed class PriorityDispatchAcceptanceTests
             NullLogger<WorkOrchestrator<string>>.Instance,
             fakeTime);
 
-        var gateAccepted = await orchestrator.EnqueueAsync("gate").ConfigureAwait(false);
+        var gateAccepted = await orchestrator.EnqueueAsync("gate");
         await Assert.That(gateAccepted).IsEqualTo(EnqueueResult.Accepted);
-        await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.GateEntered.WaitAsync(WaitTimeout);
 
         for (var i = 0; i < BatchBacklog; i++)
         {
-            var accepted = await orchestrator.EnqueueAsync($"batch-{i:D2}", WorkClass.Batch).ConfigureAwait(false);
+            var accepted = await orchestrator.EnqueueAsync($"batch-{i:D2}", WorkClass.Batch);
             await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         }
 
-        var interactiveAccepted = await orchestrator.EnqueueAsync("interactive", WorkClass.Interactive).ConfigureAwait(false);
+        var interactiveAccepted = await orchestrator.EnqueueAsync("interactive", WorkClass.Interactive);
         await Assert.That(interactiveAccepted).IsEqualTo(EnqueueResult.Accepted);
 
         handler.ReleaseGate();
         using var drainCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
+        await orchestrator.DrainAsync(drainCts.Token);
 
         return handler.Order;
     }
@@ -419,7 +417,7 @@ public sealed class PriorityDispatchAcceptanceTests
             if (work == "gate")
             {
                 _gateEntered.TrySetResult();
-                await _release.Task.WaitAsync(ct).ConfigureAwait(false);
+                await _release.Task.WaitAsync(ct);
             }
         }
     }
@@ -432,6 +430,6 @@ public sealed class PriorityDispatchAcceptanceTests
     {
         /// <inheritdoc/>
         public async ValueTask HandleAsync(string work, CancellationToken ct)
-            => await Task.Delay(1, ct).ConfigureAwait(false);
+            => await Task.Delay(1, ct);
     }
 }

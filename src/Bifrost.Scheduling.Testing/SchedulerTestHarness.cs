@@ -89,7 +89,7 @@ public sealed class SchedulerTestHarness : ISchedulerTestHarness
     {
         this.fakeTime.Advance(duration);
 
-        await this.loop.WaitForIdleAsync(DefaultIdleTimeout).ConfigureAwait(false);
+        await this.loop.WaitForIdleAsync(DefaultIdleTimeout);
     }
 
     /// <inheritdoc/>
@@ -101,7 +101,7 @@ public sealed class SchedulerTestHarness : ISchedulerTestHarness
     {
         this.fakeTime.Advance(TimeSpan.Zero);
 
-        await this.loop.WaitForIdleAsync(DefaultIdleTimeout).ConfigureAwait(false);
+        await this.loop.WaitForIdleAsync(DefaultIdleTimeout);
     }
 
     /// <inheritdoc/>

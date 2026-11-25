@@ -64,9 +64,9 @@ public sealed class UncappedMissedFireStartupTests
         await using var session = await RestartAfterFire.StartSecondLoopAsync(
             new IntervalCadence(interval, 0.05),
             TimeSpan.FromMilliseconds(5),
-            TimeSpan.FromMilliseconds(30_000_000)).ConfigureAwait(false);
+            TimeSpan.FromMilliseconds(30_000_000));
 
-        await AssertStartupBoundedAndLatestCatchUpAsync(session, interval).ConfigureAwait(false);
+        await AssertStartupBoundedAndLatestCatchUpAsync(session, interval);
     }
 
     /// <summary>
@@ -81,9 +81,9 @@ public sealed class UncappedMissedFireStartupTests
         await using var session = await RestartAfterFire.StartSecondLoopAsync(
             new IntervalCadence(interval, 0.05),
             TimeSpan.FromTicks(5),
-            TimeSpan.FromTicks(30_000_000)).ConfigureAwait(false);
+            TimeSpan.FromTicks(30_000_000));
 
-        await AssertStartupBoundedAndLatestCatchUpAsync(session, interval).ConfigureAwait(false);
+        await AssertStartupBoundedAndLatestCatchUpAsync(session, interval);
     }
 
     /// <summary>
@@ -108,20 +108,20 @@ public sealed class UncappedMissedFireStartupTests
             "stall",
             cadence,
             now.AddTicks(-missedTicks),
-            stall).ConfigureAwait(false);
+            stall);
         await RestoreRunningAsync(
             registry,
             store,
             "sibling",
             new OneShotCadence(now),
             lastFiredAt: null,
-            sibling).ConfigureAwait(false);
+            sibling);
 
         var loop = CreateLoop(registry, store, time);
         try
         {
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TimeSpan.FromSeconds(30));
 
             await Assert.That(cadence.Calls).IsLessThanOrEqualTo(StartupWalkCallBudget);
             await Assert.That(sibling.Count).IsEqualTo(1);
@@ -130,7 +130,7 @@ public sealed class UncappedMissedFireStartupTests
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
         }
     }
@@ -157,20 +157,19 @@ public sealed class UncappedMissedFireStartupTests
             "stall",
             cadence,
             now.AddMinutes(-naturalSteps),
-            dispatcher).ConfigureAwait(false);
+            dispatcher);
 
         var loop = CreateLoop(registry, store, time);
         try
         {
-            await ((IHostedService)loop).StartAsync(shutdown.Token).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(shutdown.Token);
 
             var waited = Stopwatch.StartNew();
             while (cadence.Calls < naturalSteps
                 && loop.ExecuteTask is { IsCompleted: false }
                 && waited.Elapsed < TimeSpan.FromSeconds(5))
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(1), TimeProvider.System, CancellationToken.None)
-                    .ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(1), TimeProvider.System, CancellationToken.None);
             }
 
             await Assert.That(cadence.Calls).IsGreaterThan(0);
@@ -179,7 +178,7 @@ public sealed class UncappedMissedFireStartupTests
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
         }
     }
@@ -210,19 +209,18 @@ public sealed class UncappedMissedFireStartupTests
             "stall",
             cadence,
             now.AddMinutes(-naturalSteps),
-            dispatcher).ConfigureAwait(false);
+            dispatcher);
 
         var loop = CreateLoop(registry, store, time);
         try
         {
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await cadence.Entered.WaitAsync(TimeSpan.FromSeconds(10), TimeProvider.System, CancellationToken.None)
-                .ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await cadence.Entered.WaitAsync(TimeSpan.FromSeconds(10), TimeProvider.System, CancellationToken.None);
 
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var stopping = loop.StopAsync(stop.Token);
             cadence.Release();
-            await stopping.ConfigureAwait(false);
+            await stopping;
 
             var execute = loop.ExecuteTask;
             await Assert.That(execute is not null).IsTrue();
@@ -237,8 +235,7 @@ public sealed class UncappedMissedFireStartupTests
             var pending = loop.ExecuteTask;
             if (pending is not null)
             {
-                await pending.WaitAsync(TimeSpan.FromSeconds(30), TimeProvider.System, CancellationToken.None)
-                    .ConfigureAwait(false);
+                await pending.WaitAsync(TimeSpan.FromSeconds(30), TimeProvider.System, CancellationToken.None);
             }
 
             loop.Dispose();
@@ -283,8 +280,8 @@ public sealed class UncappedMissedFireStartupTests
             DispatchKind: "custom",
             DispatcherTypeName: dispatcher.GetType().FullName,
             Metadata: new Dictionary<string, string>());
-        await store.SaveAsync(record, CancellationToken.None).ConfigureAwait(false);
-        await registry.RestoreAsync(record, dispatcher, CancellationToken.None).ConfigureAwait(false);
+        await store.SaveAsync(record, CancellationToken.None);
+        await registry.RestoreAsync(record, dispatcher, CancellationToken.None);
     }
 
     private static ScheduleTickLoop CreateLoop(
@@ -305,7 +302,7 @@ public sealed class UncappedMissedFireStartupTests
         var waited = Stopwatch.StartNew();
         while (waited.Elapsed < TimeSpan.FromSeconds(5))
         {
-            var records = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+            var records = await store.LoadAllAsync(CancellationToken.None);
             foreach (var record in records)
             {
                 if (record.Name == name && record.LastFiredAt is { } fired)
@@ -314,8 +311,7 @@ public sealed class UncappedMissedFireStartupTests
                 }
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(10), TimeProvider.System, CancellationToken.None)
-                .ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(10), TimeProvider.System, CancellationToken.None);
         }
 
         throw new TimeoutException($"Job '{name}' did not record a last-fire time.");
@@ -365,21 +361,20 @@ public sealed class UncappedMissedFireStartupTests
             var stall = new RecordingDispatcher();
             var sibling = new RecordingDispatcher();
 
-            await registry.RegisterAsync("stall", cadence, MissedFirePolicy.Coalesce, stall, CancellationToken.None)
-                .ConfigureAwait(false);
+            await registry.RegisterAsync("stall", cadence, MissedFirePolicy.Coalesce, stall, CancellationToken.None);
 
             var first = CreateLoop(registry, store, time);
             try
             {
-                await ((IHostedService)first).StartAsync(CancellationToken.None).ConfigureAwait(false);
-                await first.WaitForIdleAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await ((IHostedService)first).StartAsync(CancellationToken.None);
+                await first.WaitForIdleAsync(TimeSpan.FromSeconds(5));
                 time.Advance(firstAdvance);
-                await first.WaitForIdleAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-                await WaitForCheckpointAsync(store, "stall").ConfigureAwait(false);
+                await first.WaitForIdleAsync(TimeSpan.FromSeconds(5));
+                await WaitForCheckpointAsync(store, "stall");
             }
             finally
             {
-                await ((IHostedService)first).StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await ((IHostedService)first).StopAsync(CancellationToken.None);
                 first.Dispose();
             }
 
@@ -392,20 +387,20 @@ public sealed class UncappedMissedFireStartupTests
                 "sibling",
                 new OneShotCadence(now),
                 lastFiredAt: null,
-                sibling).ConfigureAwait(false);
+                sibling);
 
             var second = CreateLoop(registry, store, time);
             try
             {
                 var watch = Stopwatch.StartNew();
-                await ((IHostedService)second).StartAsync(CancellationToken.None).ConfigureAwait(false);
-                await second.WaitForIdleAsync(TimeSpan.FromSeconds(60)).ConfigureAwait(false);
+                await ((IHostedService)second).StartAsync(CancellationToken.None);
+                await second.WaitForIdleAsync(TimeSpan.FromSeconds(60));
                 watch.Stop();
                 return new RestartAfterFire(second, stall, sibling, watch.Elapsed, now, firesBeforeRestart);
             }
             catch (Exception)
             {
-                await ((IHostedService)second).StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await ((IHostedService)second).StopAsync(CancellationToken.None);
                 second.Dispose();
                 throw;
             }
@@ -413,7 +408,7 @@ public sealed class UncappedMissedFireStartupTests
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

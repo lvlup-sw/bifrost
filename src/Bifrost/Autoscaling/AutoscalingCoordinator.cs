@@ -122,7 +122,7 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            await _registry.CreateWorkerAsync(workerId, WorkerFunction, _orchestrator.GetShutdownToken()).ConfigureAwait(false);
+            await _registry.CreateWorkerAsync(workerId, WorkerFunction, _orchestrator.GetShutdownToken());
         }
     }
 

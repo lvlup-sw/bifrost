@@ -62,25 +62,25 @@ public sealed class ISchedulerTestHarnessTests
         await using var provider = services.BuildServiceProvider();
         foreach (var hosted in provider.GetServices<IHostedService>())
         {
-            await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            await hosted.StartAsync(CancellationToken.None);
         }
 
         try
         {
             ISchedulerTestHarness harness = provider.GetRequiredService<ISchedulerTestHarness>();
 
-            await harness.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await harness.WaitForIdleAsync(TestTimeout);
 
-            await harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+            await harness.AdvanceAsync(TimeSpan.FromMinutes(5));
 
-            var completed = await Task.WhenAny(fired.Task, Task.Delay(TestTimeout)).ConfigureAwait(false);
+            var completed = await Task.WhenAny(fired.Task, Task.Delay(TestTimeout));
             await Assert.That(completed == fired.Task).IsTrue();
         }
         finally
         {
             foreach (var hosted in provider.GetServices<IHostedService>().Reverse())
             {
-                await hosted.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await hosted.StopAsync(CancellationToken.None);
             }
         }
     }
@@ -132,7 +132,7 @@ public sealed class ISchedulerTestHarnessTests
         await using var provider = services.BuildServiceProvider();
         foreach (var hosted in provider.GetServices<IHostedService>())
         {
-            await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            await hosted.StartAsync(CancellationToken.None);
         }
 
         try
@@ -140,11 +140,11 @@ public sealed class ISchedulerTestHarnessTests
             ISchedulerTestHarness harness = provider.GetRequiredService<ISchedulerTestHarness>();
             var fakeTime = provider.GetRequiredService<FakeTimeProvider>();
 
-            await harness.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await harness.WaitForIdleAsync(TestTimeout);
 
             fakeTime.Advance(TimeSpan.FromHours(1));
 
-            await harness.FireDueJobsAsync().ConfigureAwait(false);
+            await harness.FireDueJobsAsync();
 
             await Assert.That(Volatile.Read(ref dueCount)).IsGreaterThanOrEqualTo(1);
             await Assert.That(Volatile.Read(ref futureCount)).IsEqualTo(0);
@@ -153,7 +153,7 @@ public sealed class ISchedulerTestHarnessTests
         {
             foreach (var hosted in provider.GetServices<IHostedService>().Reverse())
             {
-                await hosted.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await hosted.StopAsync(CancellationToken.None);
             }
         }
     }

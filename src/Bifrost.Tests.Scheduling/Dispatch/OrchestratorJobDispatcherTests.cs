@@ -53,7 +53,7 @@ public sealed class OrchestratorJobDispatcherTests
             WorkClass.Batch,
             sink:new RecordingSchedulerEventSink());
 
-        await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false);
+        await dispatcher.DispatchAsync(Context(), CancellationToken.None);
 
         await Assert.That(fireCalls).IsEqualTo(1);
         _ = orchestrator.Received(1).EnqueueAsync(
@@ -81,7 +81,7 @@ public sealed class OrchestratorJobDispatcherTests
             WorkClass.Batch,
             sink:new RecordingSchedulerEventSink());
 
-        await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false);
+        await dispatcher.DispatchAsync(Context(), CancellationToken.None);
 
         _ = orchestrator.Received(1).EnqueueAsync(
             Arg.Any<Payload>(),
@@ -108,7 +108,7 @@ public sealed class OrchestratorJobDispatcherTests
             WorkClass.Interactive,
             new RecordingSchedulerEventSink());
 
-        await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false);
+        await dispatcher.DispatchAsync(Context(), CancellationToken.None);
 
         _ = orchestrator.Received(1).EnqueueAsync(
             Arg.Any<Payload>(),
@@ -142,7 +142,7 @@ public sealed class OrchestratorJobDispatcherTests
             WorkClass.Batch,
             sink:sink);
 
-        await dispatcher.DispatchAsync(Context("watermarked"), CancellationToken.None).ConfigureAwait(false);
+        await dispatcher.DispatchAsync(Context("watermarked"), CancellationToken.None);
 
         await Assert.That(sink.Any<JobFireFailedEvent>()).IsTrue();
         var failed = sink.Single<JobFireFailedEvent>();
@@ -173,7 +173,7 @@ public sealed class OrchestratorJobDispatcherTests
             sink:new RecordingSchedulerEventSink());
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false));
+            async () => await dispatcher.DispatchAsync(Context(), CancellationToken.None));
 
         await Assert.That(thrown).IsSameReferenceAs(boom);
 
@@ -207,7 +207,7 @@ public sealed class OrchestratorJobDispatcherTests
             sink:sink);
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            async () => await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false));
+            async () => await dispatcher.DispatchAsync(Context(), CancellationToken.None));
 
         await Assert.That(sink.Any<JobFireFailedEvent>()).IsFalse();
     }
@@ -237,7 +237,7 @@ public sealed class OrchestratorJobDispatcherTests
             sink:new RecordingSchedulerEventSink());
 
         var context = Context("contextual");
-        await dispatcher.DispatchAsync(context, CancellationToken.None).ConfigureAwait(false);
+        await dispatcher.DispatchAsync(context, CancellationToken.None);
 
         await Assert.That(seen).IsNotNull();
         await Assert.That(seen!.Value.JobName).IsEqualTo("contextual");
@@ -288,7 +288,7 @@ public sealed class OrchestratorJobDispatcherTests
             WorkClass.Batch,
             sink);
 
-        await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false);
+        await dispatcher.DispatchAsync(Context(), CancellationToken.None);
 
         await Assert.That(sink.Any<JobFireFailedEvent>()).IsTrue();
     }

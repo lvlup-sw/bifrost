@@ -41,12 +41,12 @@ public sealed class SchedulerEventsPublicationTests
     [Test]
     public async Task Register_PublishesJobRegisteredEvent()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
         using var sub = fx.Subscribe<JobRegisteredEvent>();
 
-        await fx.RegisterAsync("alpha", Interval()).ConfigureAwait(false);
+        await fx.RegisterAsync("alpha", Interval());
 
-        var evt = await sub.NextAsync().ConfigureAwait(false);
+        var evt = await sub.NextAsync();
         await Assert.That(evt.JobName).IsEqualTo("alpha");
     }
 
@@ -57,13 +57,13 @@ public sealed class SchedulerEventsPublicationTests
     [Test]
     public async Task Unregister_PublishesJobUnregisteredEvent()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
-        await fx.RegisterAsync("alpha", Interval()).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
+        await fx.RegisterAsync("alpha", Interval());
         using var sub = fx.Subscribe<JobUnregisteredEvent>();
 
-        await fx.Registry.UnregisterAsync("alpha").ConfigureAwait(false);
+        await fx.Registry.UnregisterAsync("alpha");
 
-        var evt = await sub.NextAsync().ConfigureAwait(false);
+        var evt = await sub.NextAsync();
         await Assert.That(evt.JobName).IsEqualTo("alpha");
     }
 
@@ -74,13 +74,13 @@ public sealed class SchedulerEventsPublicationTests
     [Test]
     public async Task Pause_PublishesJobPausedEvent()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
-        await fx.RegisterAsync("alpha", Interval()).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
+        await fx.RegisterAsync("alpha", Interval());
         using var sub = fx.Subscribe<JobPausedEvent>();
 
-        await fx.Registry.PauseAsync("alpha").ConfigureAwait(false);
+        await fx.Registry.PauseAsync("alpha");
 
-        var evt = await sub.NextAsync().ConfigureAwait(false);
+        var evt = await sub.NextAsync();
         await Assert.That(evt.JobName).IsEqualTo("alpha");
     }
 
@@ -91,14 +91,14 @@ public sealed class SchedulerEventsPublicationTests
     [Test]
     public async Task Resume_PublishesJobResumedEvent()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
-        await fx.RegisterAsync("alpha", Interval()).ConfigureAwait(false);
-        await fx.Registry.PauseAsync("alpha").ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
+        await fx.RegisterAsync("alpha", Interval());
+        await fx.Registry.PauseAsync("alpha");
         using var sub = fx.Subscribe<JobResumedEvent>();
 
-        await fx.Registry.ResumeAsync("alpha").ConfigureAwait(false);
+        await fx.Registry.ResumeAsync("alpha");
 
-        var evt = await sub.NextAsync().ConfigureAwait(false);
+        var evt = await sub.NextAsync();
         await Assert.That(evt.JobName).IsEqualTo("alpha");
     }
 
@@ -110,14 +110,14 @@ public sealed class SchedulerEventsPublicationTests
     [Test]
     public async Task FireSuccess_PublishesJobFiredEvent()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
-        await fx.RegisterAsync("nightly", Interval()).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
+        await fx.RegisterAsync("nightly", Interval());
         using var sub = fx.Subscribe<JobFiredEvent>();
 
         fx.Time.Advance(TimeSpan.FromHours(1));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
-        var evt = await sub.NextAsync().ConfigureAwait(false);
+        var evt = await sub.NextAsync();
         await Assert.That(evt.JobName).IsEqualTo("nightly");
     }
 
@@ -128,14 +128,14 @@ public sealed class SchedulerEventsPublicationTests
     [Test]
     public async Task FireFailure_PublishesJobFireFailedEvent()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
-        await fx.RegisterAsync("boom", Interval(), new ThrowingDispatcher()).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
+        await fx.RegisterAsync("boom", Interval(), new ThrowingDispatcher());
         using var sub = fx.Subscribe<JobFireFailedEvent>();
 
         fx.Time.Advance(TimeSpan.FromHours(1));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
-        var evt = await sub.NextAsync().ConfigureAwait(false);
+        var evt = await sub.NextAsync();
         await Assert.That(evt.JobName).IsEqualTo("boom");
         await Assert.That(evt.Exception).IsNotNull();
     }
@@ -156,15 +156,14 @@ public sealed class SchedulerEventsPublicationTests
         var cadence = Interval();
         var registry = new ScheduleRegistry(store, time, events: events);
 
-        await registry.RegisterAsync("stale", cadence, MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
+        await registry.RegisterAsync("stale", cadence, MissedFirePolicy.Coalesce, new NoopDispatcher());
         await store.SaveAsync(
             new JobRecord(
                 "stale", cadence, MissedFirePolicy.Coalesce, JobState.Running,
                 LastFiredAt: Start, NextFireAt: null, DispatchKind: "custom",
                 DispatcherTypeName: typeof(NoopDispatcher).FullName,
                 Metadata: new Dictionary<string, string>()),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
         time.Advance(TimeSpan.FromHours(5));
 
         var router = new JobDispatcherRouter(events);
@@ -172,14 +171,14 @@ public sealed class SchedulerEventsPublicationTests
             registry, store, time, router, events,
             NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions());
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
+        await loop.WaitForIdleAsync(TestTimeout);
 
-        var evt = await sub.NextAsync().ConfigureAwait(false);
+        var evt = await sub.NextAsync();
         await Assert.That(evt.JobName).IsEqualTo("stale");
         await Assert.That(evt.MissedCount).IsGreaterThanOrEqualTo(1);
 
-        await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)loop).StopAsync(CancellationToken.None);
         loop.Dispose();
     }
 
@@ -198,7 +197,7 @@ public sealed class SchedulerEventsPublicationTests
         ((ISchedulerEventSink)events).Publish(
             new SchedulerFaultedEvent(new InvalidOperationException("loop crashed"), Start));
 
-        var evt = await sub.NextAsync().ConfigureAwait(false);
+        var evt = await sub.NextAsync();
         await Assert.That(evt.Exception).IsTypeOf<InvalidOperationException>();
     }
 
@@ -233,9 +232,9 @@ public sealed class SchedulerEventsPublicationTests
         public async Task<TEvent> NextAsync()
         {
             using var timeoutCts = new CancellationTokenSource(TestTimeout);
-            await using var reg = timeoutCts.Token.Register(this.cts.Cancel).ConfigureAwait(false);
+            await using var reg = timeoutCts.Token.Register(this.cts.Cancel);
 
-            if (!await this.enumerator.MoveNextAsync().ConfigureAwait(false))
+            if (!await this.enumerator.MoveNextAsync())
             {
                 throw new InvalidOperationException("The scheduler event stream completed before an event arrived.");
             }
@@ -288,8 +287,8 @@ public sealed class SchedulerEventsPublicationTests
                 NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions());
 
             var fx = new Fixture(time, registry, loop, events);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
@@ -298,18 +297,17 @@ public sealed class SchedulerEventsPublicationTests
             => new(this.events);
 
         public async Task RegisterAsync(string name, Cadence cadence)
-            => await this.RegisterAsync(name, cadence, new NoopDispatcher()).ConfigureAwait(false);
+            => await this.RegisterAsync(name, cadence, new NoopDispatcher());
 
         public async Task RegisterAsync(string name, Cadence cadence, IJobDispatcher dispatcher)
         {
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher);
+            await this.Loop.WaitForIdleAsync(TestTimeout);
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

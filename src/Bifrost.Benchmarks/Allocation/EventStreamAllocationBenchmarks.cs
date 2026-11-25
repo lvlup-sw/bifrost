@@ -72,7 +72,7 @@ public class EventStreamAllocationBenchmarks
             },
             _subscriberCts.Token);
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
     }
 
     /// <summary>
@@ -99,7 +99,7 @@ public class EventStreamAllocationBenchmarks
     {
         if (_subscriberCts is not null)
         {
-            await _subscriberCts.CancelAsync().ConfigureAwait(false);
+            await _subscriberCts.CancelAsync();
             _subscriberCts.Dispose();
         }
 
@@ -108,7 +108,7 @@ public class EventStreamAllocationBenchmarks
             try
             {
 #pragma warning disable VSTHRD003
-                await _subscriberTask.ConfigureAwait(false);
+                await _subscriberTask;
 #pragma warning restore VSTHRD003
             }
             catch (OperationCanceledException)
@@ -118,7 +118,7 @@ public class EventStreamAllocationBenchmarks
 
         if (_eventStreamOrchestrator is not null)
         {
-            await _eventStreamOrchestrator.DisposeAsync().ConfigureAwait(false);
+            await _eventStreamOrchestrator.DisposeAsync();
         }
     }
 }

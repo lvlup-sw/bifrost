@@ -69,11 +69,11 @@ public class WorkOrchestratorShutdownTests
         var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var token = orchestrator.GetShutdownToken();
 
-        await orchestrator.AbortAsync().ConfigureAwait(false);
+        await orchestrator.AbortAsync();
 
         await Assert.That(token.IsCancellationRequested).IsTrue();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ public class WorkOrchestratorShutdownTests
         var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
         var token = orchestrator.GetShutdownToken();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
 
         await Assert.That(token.IsCancellationRequested).IsTrue();
     }
@@ -118,7 +118,7 @@ public class WorkOrchestratorShutdownTests
         {
             try
             {
-                await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
+                await Task.Delay(Timeout.Infinite, token);
             }
             catch (OperationCanceledException)
             {
@@ -126,11 +126,11 @@ public class WorkOrchestratorShutdownTests
             }
         });
 
-        await orchestrator.AbortAsync().ConfigureAwait(false);
-        var result = await shutdownReceived.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        await orchestrator.AbortAsync();
+        var result = await shutdownReceived.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         await Assert.That(result).IsTrue();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 }

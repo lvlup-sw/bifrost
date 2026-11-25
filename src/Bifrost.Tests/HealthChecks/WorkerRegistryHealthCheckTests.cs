@@ -43,7 +43,7 @@ public class WorkerRegistryHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
@@ -63,7 +63,7 @@ public class WorkerRegistryHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Degraded);
     }
@@ -83,7 +83,7 @@ public class WorkerRegistryHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
@@ -103,7 +103,7 @@ public class WorkerRegistryHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Data).IsNotNull();
         await Assert.That(result.Data!.ContainsKey("ActiveWorkers")).IsTrue();
@@ -131,7 +131,7 @@ public class WorkerRegistryHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Data!["ActiveWorkers"]).IsEqualTo(5);
         await Assert.That(result.Data!["IdleWorkers"]).IsEqualTo(2);
@@ -154,7 +154,7 @@ public class WorkerRegistryHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Description).IsNotNull();
         await Assert.That(result.Description!.Length).IsGreaterThan(0);

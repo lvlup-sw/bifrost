@@ -37,18 +37,18 @@ public class OrchestratorEnqueueSurfaceTests
         var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
         await using var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
 
-        var sentinelResult = await orchestrator.EnqueueAsync("sentinel").ConfigureAwait(false);
+        var sentinelResult = await orchestrator.EnqueueAsync("sentinel");
         await Assert.That(sentinelResult).IsEqualTo(EnqueueResult.Accepted);
-        await handler.Started.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await handler.Started.WaitAsync(TimeSpan.FromSeconds(5));
 
-        var fillResult = await orchestrator.EnqueueAsync("fill").ConfigureAwait(false);
+        var fillResult = await orchestrator.EnqueueAsync("fill");
         await Assert.That(fillResult).IsEqualTo(EnqueueResult.Accepted);
 
         var waiting = orchestrator.EnqueueAsync("waited").AsTask();
         await Assert.That(waiting.IsCompleted).IsFalse();
 
         handler.Release();
-        var waitedResult = await waiting.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        var waitedResult = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(waitedResult).IsEqualTo(EnqueueResult.Accepted);
     }
@@ -70,9 +70,9 @@ public class OrchestratorEnqueueSurfaceTests
         var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
 
         await using var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
-        await orchestrator.AbortAsync().ConfigureAwait(false);
+        await orchestrator.AbortAsync();
 
-        var afterStop = await orchestrator.EnqueueAsync("after-stop").ConfigureAwait(false);
+        var afterStop = await orchestrator.EnqueueAsync("after-stop");
 
         await Assert.That(afterStop.IsAccepted).IsFalse();
         await Assert.That(afterStop.Reason).IsEqualTo(RejectionReason.Shutdown);
@@ -94,7 +94,7 @@ public class OrchestratorEnqueueSurfaceTests
 
         await using var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
         await Assert.That(() => orchestrator.EnqueueAsync("cancelled", ct: cts.Token).AsTask())
             .Throws<OperationCanceledException>();
@@ -117,7 +117,7 @@ public class OrchestratorEnqueueSurfaceTests
         var logger = Substitute.For<ILogger<WorkOrchestrator<string>>>();
         await using var orchestrator = new WorkOrchestrator<string>(handler, options, logger);
 
-        var plain = await orchestrator.EnqueueAsync("plain").ConfigureAwait(false);
+        var plain = await orchestrator.EnqueueAsync("plain");
         await Assert.That(plain).IsEqualTo(EnqueueResult.Accepted);
 
         await Assert.That(orchestrator.TryReadEnvelope(out var plainEnvelope)).IsTrue();
@@ -125,7 +125,7 @@ public class OrchestratorEnqueueSurfaceTests
         await Assert.That(plainEnvelope.Class).IsEqualTo(WorkClass.Default);
         await Assert.That(plainEnvelope.EnqueuedAtTicks).IsNotEqualTo(0L);
 
-        var tagged = await orchestrator.EnqueueAsync("tagged", WorkClass.Interactive).ConfigureAwait(false);
+        var tagged = await orchestrator.EnqueueAsync("tagged", WorkClass.Interactive);
         await Assert.That(tagged).IsEqualTo(EnqueueResult.Accepted);
 
         await Assert.That(orchestrator.TryReadEnvelope(out var taggedEnvelope)).IsTrue();
@@ -168,7 +168,7 @@ public class OrchestratorEnqueueSurfaceTests
         public async ValueTask HandleAsync(string work, CancellationToken ct)
         {
             _started.TrySetResult();
-            await _gate.Task.WaitAsync(ct).ConfigureAwait(false);
+            await _gate.Task.WaitAsync(ct);
         }
     }
 }

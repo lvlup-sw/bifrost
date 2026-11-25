@@ -87,7 +87,7 @@ public sealed class MovingItemEmptyScanTests
                 TaskCreationOptions.LongRunning,
                 TaskScheduler.Default);
 
-            var result = await consumer.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            var result = await consumer.WaitAsync(TimeSpan.FromSeconds(5));
             await Assert.That(result.found).IsTrue();
             await Assert.That(result.id).IsEqualTo(41);
             await Assert.That(result.priority).IsEqualTo(1);
@@ -96,7 +96,7 @@ public sealed class MovingItemEmptyScanTests
         {
             atLaterStripe.Set();
             lockReleased.Set();
-            await holder.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await holder.WaitAsync(TimeSpan.FromSeconds(5));
         }
     }
 }

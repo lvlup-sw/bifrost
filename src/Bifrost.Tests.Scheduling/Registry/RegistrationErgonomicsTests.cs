@@ -48,8 +48,7 @@ public sealed class RegistrationErgonomicsTests
 
         await Assert.That(async () =>
                 await registry.RegisterAsync(
-                        "past-job", pastCadence, MissedFirePolicy.Coalesce, new NoopDispatcher())
-                    .ConfigureAwait(false))
+                        "past-job", pastCadence, MissedFirePolicy.Coalesce, new NoopDispatcher()))
             .Throws<ArgumentOutOfRangeException>();
     }
 
@@ -68,18 +67,16 @@ public sealed class RegistrationErgonomicsTests
     public async Task ReRegister_UnchangedSchedule_NeverFiresImmediately()
     {
         var fakeTime = new FakeTimeProvider(Now);
-        await using var fx = await Fixture.StartAsync(fakeTime).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(fakeTime);
         var cadence = Cadence.At(Now.AddMinutes(10));
 
         var dispatcher = new CountingDispatcher();
-        await fx.Registry.RegisterAsync("reregister-job", cadence, MissedFirePolicy.Coalesce, dispatcher)
-            .ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Registry.RegisterAsync("reregister-job", cadence, MissedFirePolicy.Coalesce, dispatcher);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
-        await fx.Registry.UnregisterAsync("reregister-job").ConfigureAwait(false);
-        await fx.Registry.RegisterAsync("reregister-job", cadence, MissedFirePolicy.Coalesce, dispatcher)
-            .ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Registry.UnregisterAsync("reregister-job");
+        await fx.Registry.RegisterAsync("reregister-job", cadence, MissedFirePolicy.Coalesce, dispatcher);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
     }
@@ -99,18 +96,16 @@ public sealed class RegistrationErgonomicsTests
     public async Task Update_FutureSchedule_NeverFiresImmediately()
     {
         var fakeTime = new FakeTimeProvider(Now);
-        await using var fx = await Fixture.StartAsync(fakeTime).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(fakeTime);
         var initialCadence = Cadence.Interval(TimeSpan.FromHours(1));
         var futureCadence = Cadence.At(Now.AddMinutes(30));
 
         var dispatcher = new CountingDispatcher();
-        await fx.Registry.RegisterAsync("update-job", initialCadence, MissedFirePolicy.Coalesce, dispatcher)
-            .ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Registry.RegisterAsync("update-job", initialCadence, MissedFirePolicy.Coalesce, dispatcher);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
-        await fx.Registry.UpdateAsync("update-job", futureCadence, MissedFirePolicy.Coalesce)
-            .ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Registry.UpdateAsync("update-job", futureCadence, MissedFirePolicy.Coalesce);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
     }
@@ -142,15 +137,15 @@ public sealed class RegistrationErgonomicsTests
                 NullLogger<ScheduleTickLoop>.Instance,
                 new SchedulerOptions());
 
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TimeSpan.FromSeconds(10));
 
             return new Fixture(registry, loop);
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

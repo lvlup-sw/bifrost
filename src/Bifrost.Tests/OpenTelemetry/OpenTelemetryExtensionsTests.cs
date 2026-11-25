@@ -71,7 +71,7 @@ public class OpenTelemetryExtensionsTests
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
 
         metrics?.Dispose();
@@ -101,7 +101,7 @@ public class OpenTelemetryExtensionsTests
         var orchestrator = provider.GetService<IWorkOrchestrator<string>>();
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
 
         metrics1?.Dispose();
@@ -131,7 +131,7 @@ public class OpenTelemetryExtensionsTests
 
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
 
         metrics?.Dispose();

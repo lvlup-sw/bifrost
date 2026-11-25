@@ -40,7 +40,7 @@ public sealed class JobDispatcherRouterTests
                 return true;
             }
 
-            await Task.Delay(10).ConfigureAwait(false);
+            await Task.Delay(10);
         }
 
         return condition();
@@ -61,7 +61,7 @@ public sealed class JobDispatcherRouterTests
 
         router.Dispatch(dispatcher, ctx, CancellationToken.None);
 
-        var observed = await WaitUntilAsync(() => dispatcher.Invocations > 0).ConfigureAwait(false);
+        var observed = await WaitUntilAsync(() => dispatcher.Invocations > 0);
         await Assert.That(observed).IsTrue();
         await Assert.That(dispatcher.LastContext).IsEqualTo(ctx);
     }
@@ -105,7 +105,7 @@ public sealed class JobDispatcherRouterTests
         });
         driver.Start();
 
-        var observed = await WaitUntilAsync(() => dispatcher.Invocations > 0).ConfigureAwait(false);
+        var observed = await WaitUntilAsync(() => dispatcher.Invocations > 0);
         releaseDriver.Set();
         driver.Join();
 
@@ -130,7 +130,7 @@ public sealed class JobDispatcherRouterTests
 
         router.Dispatch(dispatcher, Context("crasher"), CancellationToken.None);
 
-        var observed = await WaitUntilAsync(() => sink.Any<JobFireFailedEvent>()).ConfigureAwait(false);
+        var observed = await WaitUntilAsync(() => sink.Any<JobFireFailedEvent>());
         await Assert.That(observed).IsTrue();
 
         var failed = sink.Single<JobFireFailedEvent>();
@@ -157,7 +157,7 @@ public sealed class JobDispatcherRouterTests
         router.Dispatch(second, Context("b"), CancellationToken.None);
 
         var observed = await WaitUntilAsync(
-            () => first.Invocations > 0 && second.Invocations > 0).ConfigureAwait(false);
+            () => first.Invocations > 0 && second.Invocations > 0);
 
         await Assert.That(observed).IsTrue();
         await Assert.That(first.LastContext.JobName).IsEqualTo("a");

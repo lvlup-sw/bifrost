@@ -271,7 +271,7 @@ public sealed class FluentBuilderTests
         await using var scope = provider.CreateAsyncScope();
         await dispatcher.DispatchAsync(
             new JobFireContext("custom-job", DateTimeOffset.UnixEpoch, null, scope.ServiceProvider),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
         await Assert.That(resolved.Fires).IsEqualTo(1);
     }
 
@@ -308,7 +308,7 @@ public sealed class FluentBuilderTests
         await using var scope = provider.CreateAsyncScope();
         await dispatcher.DispatchAsync(
             new JobFireContext("custom-job", DateTimeOffset.UnixEpoch, null, scope.ServiceProvider),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
         await Assert.That(resolved.Fires).IsEqualTo(1);
     }
 

@@ -53,18 +53,18 @@ public class WorkOrchestratorDrainTests
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 128, WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
 
-        await orchestrator.EnqueueAsync("item-1").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("item-2").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("item-3").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("item-1");
+        await orchestrator.EnqueueAsync("item-2");
+        await orchestrator.EnqueueAsync("item-3");
 
-        await orchestrator.DrainAsync().ConfigureAwait(false);
+        await orchestrator.DrainAsync();
 
         await Assert.That(processedItems.Count).IsEqualTo(3);
         await Assert.That(processedItems).Contains("item-1");
         await Assert.That(processedItems).Contains("item-2");
         await Assert.That(processedItems).Contains("item-3");
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -80,13 +80,13 @@ public class WorkOrchestratorDrainTests
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 128, WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
 
-        await orchestrator.DrainAsync().ConfigureAwait(false);
+        await orchestrator.DrainAsync();
 
         var result = orchestrator.TryEnqueue("new-work");
 
         await Assert.That(result).IsFalse();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -103,11 +103,11 @@ public class WorkOrchestratorDrainTests
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
 
         var drainTask = orchestrator.DrainAsync();
-        var completed = await Task.WhenAny(drainTask, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
+        var completed = await Task.WhenAny(drainTask, Task.Delay(TimeSpan.FromSeconds(5)));
 
         await Assert.That(ReferenceEquals(completed, drainTask)).IsTrue();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -128,16 +128,16 @@ public class WorkOrchestratorDrainTests
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 128, WorkerCount = 1 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
 
-        await orchestrator.EnqueueAsync("blocking-work").ConfigureAwait(false);
-        await blockStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("blocking-work");
+        await blockStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
-        await Assert.That(async () => await orchestrator.DrainAsync(cts.Token).ConfigureAwait(false))
+        await Assert.That(async () => await orchestrator.DrainAsync(cts.Token))
             .Throws<TaskCanceledException>();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -153,13 +153,13 @@ public class WorkOrchestratorDrainTests
         var options = Options.Create(new WorkOrchestratorOptions { Capacity = 128, WorkerCount = 2 });
         var orchestrator = new WorkOrchestrator<string>(handler, options, _logger);
 
-        await orchestrator.EnqueueAsync("item-1").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("item-2").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("item-1");
+        await orchestrator.EnqueueAsync("item-2");
 
-        await orchestrator.DrainAsync().ConfigureAwait(false);
+        await orchestrator.DrainAsync();
 
         await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 }

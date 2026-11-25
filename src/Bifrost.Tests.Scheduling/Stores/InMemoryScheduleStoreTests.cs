@@ -28,7 +28,7 @@ public sealed class InMemoryScheduleStoreTests
     {
         var store = new InMemoryScheduleStore();
 
-        var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+        var jobs = await store.LoadAllAsync(CancellationToken.None);
 
         await Assert.That(jobs).IsEmpty();
     }
@@ -43,8 +43,8 @@ public sealed class InMemoryScheduleStoreTests
         var store = new InMemoryScheduleStore();
         var job = MakeJob("daily-report");
 
-        await store.SaveAsync(job, CancellationToken.None).ConfigureAwait(false);
-        var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+        await store.SaveAsync(job, CancellationToken.None);
+        var jobs = await store.LoadAllAsync(CancellationToken.None);
 
         await Assert.That(jobs).HasCount(1);
         await Assert.That(jobs[0]).IsEqualTo(job);
@@ -61,9 +61,9 @@ public sealed class InMemoryScheduleStoreTests
         var original = MakeJob("daily-report", state: JobState.Running);
         var updated = original with { State = JobState.Paused };
 
-        await store.SaveAsync(original, CancellationToken.None).ConfigureAwait(false);
-        await store.SaveAsync(updated, CancellationToken.None).ConfigureAwait(false);
-        var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+        await store.SaveAsync(original, CancellationToken.None);
+        await store.SaveAsync(updated, CancellationToken.None);
+        var jobs = await store.LoadAllAsync(CancellationToken.None);
 
         await Assert.That(jobs).HasCount(1);
         await Assert.That(jobs[0].State).IsEqualTo(JobState.Paused);
@@ -77,10 +77,10 @@ public sealed class InMemoryScheduleStoreTests
     public async Task Delete_Existing_RemovesJob()
     {
         var store = new InMemoryScheduleStore();
-        await store.SaveAsync(MakeJob("daily-report"), CancellationToken.None).ConfigureAwait(false);
+        await store.SaveAsync(MakeJob("daily-report"), CancellationToken.None);
 
-        await store.DeleteAsync("daily-report", CancellationToken.None).ConfigureAwait(false);
-        var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+        await store.DeleteAsync("daily-report", CancellationToken.None);
+        var jobs = await store.LoadAllAsync(CancellationToken.None);
 
         await Assert.That(jobs).IsEmpty();
     }
@@ -93,10 +93,10 @@ public sealed class InMemoryScheduleStoreTests
     public async Task Delete_NonExistent_IsNoOp()
     {
         var store = new InMemoryScheduleStore();
-        await store.SaveAsync(MakeJob("daily-report"), CancellationToken.None).ConfigureAwait(false);
+        await store.SaveAsync(MakeJob("daily-report"), CancellationToken.None);
 
-        await store.DeleteAsync("missing", CancellationToken.None).ConfigureAwait(false);
-        var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+        await store.DeleteAsync("missing", CancellationToken.None);
+        var jobs = await store.LoadAllAsync(CancellationToken.None);
 
         await Assert.That(jobs).HasCount(1);
     }
@@ -111,13 +111,13 @@ public sealed class InMemoryScheduleStoreTests
     {
         var store = new InMemoryScheduleStore();
         var job = MakeJob("daily-report", lastFiredAt: null, nextFireAt: Now);
-        await store.SaveAsync(job, CancellationToken.None).ConfigureAwait(false);
+        await store.SaveAsync(job, CancellationToken.None);
 
         var firedAt = Now;
         var nextFireAt = Now + TimeSpan.FromHours(1);
-        await store.RecordFiredAsync("daily-report", firedAt, nextFireAt, CancellationToken.None).ConfigureAwait(false);
+        await store.RecordFiredAsync("daily-report", firedAt, nextFireAt, CancellationToken.None);
 
-        var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+        var jobs = await store.LoadAllAsync(CancellationToken.None);
         await Assert.That(jobs).HasCount(1);
         await Assert.That(jobs[0].LastFiredAt).IsEqualTo(firedAt);
         await Assert.That(jobs[0].NextFireAt).IsEqualTo(nextFireAt);
@@ -132,8 +132,8 @@ public sealed class InMemoryScheduleStoreTests
     {
         var store = new InMemoryScheduleStore();
 
-        await store.RecordFiredAsync("missing", Now, Now + TimeSpan.FromHours(1), CancellationToken.None).ConfigureAwait(false);
-        var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+        await store.RecordFiredAsync("missing", Now, Now + TimeSpan.FromHours(1), CancellationToken.None);
+        var jobs = await store.LoadAllAsync(CancellationToken.None);
 
         await Assert.That(jobs).IsEmpty();
     }
@@ -149,9 +149,9 @@ public sealed class InMemoryScheduleStoreTests
 
         var tasks = Enumerable.Range(0, 100)
             .Select(i => store.SaveAsync(MakeJob($"job-{i}"), CancellationToken.None).AsTask());
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        await Task.WhenAll(tasks);
 
-        var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+        var jobs = await store.LoadAllAsync(CancellationToken.None);
         await Assert.That(jobs).HasCount(100);
         var names = jobs.Select(j => j.Name).OrderBy(n => n).ToList();
         await Assert.That(names).Contains("job-0");

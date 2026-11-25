@@ -99,7 +99,7 @@ public class DeadLetterQueueBenchmarks
     public async Task<int> DlqDrain()
     {
         var count = 0;
-        await foreach (var _ in _drainDlq!.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var _ in _drainDlq!.ReadAllAsync())
         {
             count++;
         }

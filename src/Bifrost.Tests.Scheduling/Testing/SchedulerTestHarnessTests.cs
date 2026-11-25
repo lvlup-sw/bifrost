@@ -40,11 +40,10 @@ public sealed class SchedulerTestHarnessTests
     [Test]
     public async Task AdvanceAsync_SingleJob_5Min_Fires_5Min_Interval_OnceDeterministically()
     {
-        await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
-        var dispatcher = await fx.RegisterAsync("five-min", Cadence.Interval(TimeSpan.FromMinutes(5)))
-            .ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(Start);
+        var dispatcher = await fx.RegisterAsync("five-min", Cadence.Interval(TimeSpan.FromMinutes(5)));
 
-        await fx.Harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+        await fx.Harness.AdvanceAsync(TimeSpan.FromMinutes(5));
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
         await Assert.That(dispatcher.LastFireTime).IsEqualTo(Start.AddMinutes(5));
@@ -61,13 +60,11 @@ public sealed class SchedulerTestHarnessTests
     [Test]
     public async Task AdvanceAsync_MultipleJobs_AllFireInOrder()
     {
-        await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
-        var earlyDispatcher = await fx.RegisterAsync("early", Cadence.At(Start.AddMinutes(2)))
-            .ConfigureAwait(false);
-        var lateDispatcher = await fx.RegisterAsync("late", Cadence.At(Start.AddMinutes(8)))
-            .ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(Start);
+        var earlyDispatcher = await fx.RegisterAsync("early", Cadence.At(Start.AddMinutes(2)));
+        var lateDispatcher = await fx.RegisterAsync("late", Cadence.At(Start.AddMinutes(8)));
 
-        await fx.Harness.AdvanceAsync(TimeSpan.FromMinutes(10)).ConfigureAwait(false);
+        await fx.Harness.AdvanceAsync(TimeSpan.FromMinutes(10));
 
         await Assert.That(earlyDispatcher.FireCount).IsEqualTo(1);
         await Assert.That(earlyDispatcher.LastFireTime).IsEqualTo(Start.AddMinutes(2));
@@ -90,11 +87,10 @@ public sealed class SchedulerTestHarnessTests
     public async Task AdvanceAsync_WaitsForInFlightDispatches_BeforeReturn()
     {
         var delayed = new DelayedDispatcher(delay: TimeSpan.FromMilliseconds(20));
-        await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
-        await fx.RegisterAsync("slow", Cadence.Interval(TimeSpan.FromMinutes(5)), delayed)
-            .ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(Start);
+        await fx.RegisterAsync("slow", Cadence.Interval(TimeSpan.FromMinutes(5)), delayed);
 
-        await fx.Harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+        await fx.Harness.AdvanceAsync(TimeSpan.FromMinutes(5));
 
         await Assert.That(delayed.FireCount).IsEqualTo(1);
     }
@@ -113,13 +109,12 @@ public sealed class SchedulerTestHarnessTests
     [Test]
     public async Task FireDueJobsAsync_OnlyFiresDueJobs_NotFutureJobs()
     {
-        await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(Start);
 
-        var nowJob = await fx.RegisterAsync("now", Cadence.At(Start)).ConfigureAwait(false);
-        var futureJob = await fx.RegisterAsync("future", Cadence.At(Start.AddMinutes(10)))
-            .ConfigureAwait(false);
+        var nowJob = await fx.RegisterAsync("now", Cadence.At(Start));
+        var futureJob = await fx.RegisterAsync("future", Cadence.At(Start.AddMinutes(10)));
 
-        await fx.Harness.FireDueJobsAsync().ConfigureAwait(false);
+        await fx.Harness.FireDueJobsAsync();
 
         await Assert.That(nowJob.FireCount).IsEqualTo(1);
         await Assert.That(futureJob.FireCount).IsEqualTo(0);
@@ -151,19 +146,18 @@ public sealed class SchedulerTestHarnessTests
         var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var blocking = new GatedDispatcher(gate, dispatchStarted);
-        await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(Start);
 
-        await fx.RegisterAsync("block", Cadence.At(Start.AddMilliseconds(1)), blocking)
-            .ConfigureAwait(false);
+        await fx.RegisterAsync("block", Cadence.At(Start.AddMilliseconds(1)), blocking);
 
         fx.Time.Advance(TimeSpan.FromMilliseconds(1));
 
-        await dispatchStarted.Task.WaitAsync(TestTimeout).ConfigureAwait(false);
+        await dispatchStarted.Task.WaitAsync(TestTimeout);
 
         try
         {
             await Assert.That(
-                async () => await fx.Harness.WaitForIdleAsync(TimeSpan.FromTicks(1)).ConfigureAwait(false))
+                async () => await fx.Harness.WaitForIdleAsync(TimeSpan.FromTicks(1)))
                 .ThrowsException()
                 .WithMessageContaining("idle");
         }
@@ -185,10 +179,10 @@ public sealed class SchedulerTestHarnessTests
     [Test]
     public async Task WaitForIdleAsync_TickLoopIdle_ReturnsImmediately()
     {
-        await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(Start);
 
         var completed = false;
-        await fx.Harness.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Harness.WaitForIdleAsync(TestTimeout);
         completed = true;
 
         await Assert.That(completed).IsTrue();
@@ -235,10 +229,9 @@ public sealed class SchedulerTestHarnessTests
     [Test]
     public async Task Harness_AllDispatchModes_Deterministic()
     {
-        await using var fx = await Fixture.StartAsync(Start).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(Start);
 
-        var countingA = await fx.RegisterAsync("job-a", Cadence.At(Start.AddMinutes(5)))
-            .ConfigureAwait(false);
+        var countingA = await fx.RegisterAsync("job-a", Cadence.At(Start.AddMinutes(5)));
 
         var inlineFireCount = 0;
         var inlineB = new InlineJobDispatcher((ctx, ct) =>
@@ -246,13 +239,11 @@ public sealed class SchedulerTestHarnessTests
             Interlocked.Increment(ref inlineFireCount);
             return ValueTask.CompletedTask;
         });
-        await fx.RegisterAsync("job-b", Cadence.At(Start.AddMinutes(5)), inlineB)
-            .ConfigureAwait(false);
+        await fx.RegisterAsync("job-b", Cadence.At(Start.AddMinutes(5)), inlineB);
 
-        var countingC = await fx.RegisterAsync("job-c", Cadence.Interval(TimeSpan.FromMinutes(5)))
-            .ConfigureAwait(false);
+        var countingC = await fx.RegisterAsync("job-c", Cadence.Interval(TimeSpan.FromMinutes(5)));
 
-        await fx.Harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+        await fx.Harness.AdvanceAsync(TimeSpan.FromMinutes(5));
 
         await Assert.That(countingA.FireCount).IsEqualTo(1);
         await Assert.That(Volatile.Read(ref inlineFireCount)).IsEqualTo(1);
@@ -307,8 +298,8 @@ public sealed class SchedulerTestHarnessTests
 
             var harness = new SchedulerTestHarness(loop, time);
 
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             return new Fixture(time, registry, loop, harness);
         }
@@ -316,20 +307,19 @@ public sealed class SchedulerTestHarnessTests
         public async Task<CountingDispatcher> RegisterAsync(string name, Cadence cadence)
         {
             var dispatcher = new CountingDispatcher();
-            await this.RegisterAsync(name, cadence, dispatcher).ConfigureAwait(false);
+            await this.RegisterAsync(name, cadence, dispatcher);
             return dispatcher;
         }
 
         public async Task RegisterAsync(string name, Cadence cadence, IJobDispatcher dispatcher)
         {
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher);
+            await this.Loop.WaitForIdleAsync(TestTimeout);
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }
@@ -376,7 +366,7 @@ public sealed class SchedulerTestHarnessTests
 
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
-            await Task.Delay(delay, ct).ConfigureAwait(false);
+            await Task.Delay(delay, ct);
             Interlocked.Increment(ref this.fireCount);
         }
     }
@@ -397,7 +387,7 @@ public sealed class SchedulerTestHarnessTests
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
             started.TrySetResult();
-            await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            await gate.WaitAsync(CancellationToken.None);
         }
     }
 }

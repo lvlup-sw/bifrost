@@ -41,7 +41,7 @@ public class DeadLetterSubscriberExtensionsTests
         await Assert.That(subscriber).IsNotNull();
 
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -63,19 +63,19 @@ public class DeadLetterSubscriberExtensionsTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var subscriber = provider.GetRequiredService<TestDeadLetterSubscriber>();
 
-        await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("test-work");
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (subscriber.ReceivedItems.Count == 0 && !cts.IsCancellationRequested)
         {
-            await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            await Task.Delay(50, cts.Token);
         }
 
         await Assert.That(subscriber.ReceivedItems.Count).IsGreaterThanOrEqualTo(1);
         await Assert.That(subscriber.ReceivedItems[0].Work).IsEqualTo("test-work");
         await Assert.That(subscriber.ReceivedItems[0].Exception).IsNotNull();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -102,15 +102,15 @@ public class DeadLetterSubscriberExtensionsTests
 
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        await orchestrator.EnqueueAsync("callback-test").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("callback-test");
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var result = await callbackInvoked.Task.WaitAsync(cts.Token).ConfigureAwait(false);
+        var result = await callbackInvoked.Task.WaitAsync(cts.Token);
 
         await Assert.That(result.Work).IsEqualTo("callback-test");
         await Assert.That(result.Exception).IsNotNull();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -139,21 +139,21 @@ public class DeadLetterSubscriberExtensionsTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var subscriber = provider.GetRequiredService<TestDeadLetterSubscriber>();
 
-        await orchestrator.EnqueueAsync("multi-test").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("multi-test");
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var callbackResult = await callbackInvoked.Task.WaitAsync(cts.Token).ConfigureAwait(false);
+        var callbackResult = await callbackInvoked.Task.WaitAsync(cts.Token);
 
         while (subscriber.ReceivedItems.Count == 0 && !cts.IsCancellationRequested)
         {
-            await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            await Task.Delay(50, cts.Token);
         }
 
         await Assert.That(subscriber.ReceivedItems.Count).IsGreaterThanOrEqualTo(1);
         await Assert.That(subscriber.ReceivedItems[0].Work).IsEqualTo("multi-test");
         await Assert.That(callbackResult.Work).IsEqualTo("multi-test");
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>

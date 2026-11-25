@@ -1,4 +1,4 @@
-#pragma warning disable VSTHRD111, CS1591, SA1600, SA1633, CA2007
+#pragma warning disable CS1591, SA1600, SA1633
 
 using System.Collections.Concurrent;
 using Bifrost.Scheduling;

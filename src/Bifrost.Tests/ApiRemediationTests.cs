@@ -69,7 +69,7 @@ public class ApiRemediationTests
         for (int i = 0; i < 9; i++) queue.Enqueue(i.ToString(), WorkClass.Interactive);
         await Assert.That(queue.Enqueue("batch", WorkClass.Batch).Reason).IsEqualTo(RejectionReason.WatermarkExceeded);
         await Assert.That(queue.Enqueue("urgent", WorkClass.Interactive).IsAccepted).IsTrue();
-        await Assert.That((await queue.EnqueueAsync("full", WorkClass.Interactive).ConfigureAwait(false)).Reason).IsEqualTo(RejectionReason.CapacityExceeded);
+        await Assert.That((await queue.EnqueueAsync("full", WorkClass.Interactive)).Reason).IsEqualTo(RejectionReason.CapacityExceeded);
         queue.Complete();
         await Assert.That(queue.Enqueue("closed").Reason).IsEqualTo(RejectionReason.Shutdown);
     }
@@ -89,13 +89,13 @@ public class ApiRemediationTests
         await using var queue = Create(DispatchStrategy.PriorityExact, handler);
         queue.Enqueue("work");
         Task worker = queue.CreateWorkerFunction()("dynamic", CancellationToken.None);
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         using var canceled = new CancellationTokenSource();
-        await canceled.CancelAsync().ConfigureAwait(false);
+        await canceled.CancelAsync();
         Task? disposal = null;
         try
         {
-            await Assert.That(async () => await queue.DrainAsync(canceled.Token).ConfigureAwait(false)).Throws<TaskCanceledException>();
+            await Assert.That(async () => await queue.DrainAsync(canceled.Token)).Throws<TaskCanceledException>();
             await Assert.That(queue.Completion.IsCompleted).IsFalse();
             await Assert.That(queue.GetShutdownToken().IsCancellationRequested).IsFalse();
             disposal = queue.DisposeAsync().AsTask();
@@ -105,7 +105,7 @@ public class ApiRemediationTests
         finally
         {
             release.TrySetResult();
-            await Task.WhenAll(worker, disposal ?? Task.CompletedTask).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await Task.WhenAll(worker, disposal ?? Task.CompletedTask).WaitAsync(TimeSpan.FromSeconds(5));
         }
 
         await Assert.That(queue.Completion.IsCompletedSuccessfully).IsTrue();
@@ -144,12 +144,12 @@ public class ApiRemediationTests
     {
         var queue = Substitute.For<IWorkOrchestrator<string>>();
         using var deadline = new CancellationTokenSource();
-        await deadline.CancelAsync().ConfigureAwait(false);
+        await deadline.CancelAsync();
         queue.DrainAsync(deadline.Token).Returns(Task.FromCanceled(deadline.Token));
         var host = new WorkOrchestratorHostedService<string>(queue, NullLogger<WorkOrchestratorHostedService<string>>.Instance);
-        await host.StopAsync(deadline.Token).ConfigureAwait(false);
-        await queue.Received(1).DrainAsync(deadline.Token).ConfigureAwait(false);
-        await queue.Received(1).AbortAsync(deadline.Token).ConfigureAwait(false);
+        await host.StopAsync(deadline.Token);
+        await queue.Received(1).DrainAsync(deadline.Token);
+        await queue.Received(1).AbortAsync(deadline.Token);
     }
 
     /// <summary>Closing admission is not a capacity rejection through the synchronous decorator path.</summary>
@@ -160,7 +160,7 @@ public class ApiRemediationTests
         var dlq = Substitute.For<IDeadLetterQueue<string>>();
         var wrapper = new Bifrost.Decorators.RejectionRoutingOrchestrator<string>(queue, dlq, null,
             NullLogger<Bifrost.Decorators.RejectionRoutingOrchestrator<string>>.Instance);
-        await queue.DrainAsync().ConfigureAwait(false);
+        await queue.DrainAsync();
         await Assert.That(wrapper.Enqueue("closed").Reason).IsEqualTo(RejectionReason.Shutdown);
         await Assert.That(wrapper.TryEnqueue("also closed")).IsFalse();
         await Assert.That(dlq.ReceivedCalls().Any()).IsFalse();
@@ -210,13 +210,13 @@ public class ApiRemediationTests
             foreach (var stripe in stripes) stripe.SyncLock.Exit();
         }
 
-        await Task.WhenAll(producer!, closing!, repeated!).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await Task.WhenAll(producer!, closing!, repeated!).WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(entered && closed && waited).IsTrue();
-        await Assert.That((await producer!.ConfigureAwait(false)).IsAccepted).IsTrue();
+        await Assert.That((await producer!).IsAccepted).IsTrue();
         await Assert.That(queue.Enqueue(new WorkEnvelope<string>("closed", WorkClass.Interactive, 0)).Reason).IsEqualTo(RejectionReason.Shutdown);
         await Assert.That(queue.TryDequeue(out var item)).IsTrue();
         await Assert.That(item.Work).IsEqualTo("accepted");
-        await Assert.That(await queue.WaitToDequeueAsync(CancellationToken.None).ConfigureAwait(false)).IsFalse();
+        await Assert.That(await queue.WaitToDequeueAsync(CancellationToken.None)).IsFalse();
     }
 
     /// <summary>A throwing abort callback cannot authorize disposal before a handler exits.</summary>
@@ -240,21 +240,21 @@ public class ApiRemediationTests
         });
         queue.Enqueue("work");
         Task worker = queue.CreateWorkerFunction()("dynamic", CancellationToken.None);
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Task disposal = queue.DisposeAsync().AsTask();
         try
         {
-            await callback.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await callback.Task.WaitAsync(TimeSpan.FromSeconds(5));
             await Assert.That(disposal.IsCompleted).IsFalse();
             await Assert.That(((LockingPriorityWorkQueue<string>)queue.WorkQueue).IsDisposedForTest).IsFalse();
         }
         finally
         {
             release.TrySetResult();
-            await worker.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await worker.WaitAsync(TimeSpan.FromSeconds(5));
         }
 
-        await Assert.That(async () => await disposal.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false)).Throws<AggregateException>();
+        await Assert.That(async () => await disposal.WaitAsync(TimeSpan.FromSeconds(5))).Throws<AggregateException>();
         await Assert.That(((LockingPriorityWorkQueue<string>)queue.WorkQueue).IsDisposedForTest).IsTrue();
     }
 

@@ -38,7 +38,7 @@ public class DeadLetterNotifierTests
 
         notifier.Notify(evt);
 
-        await Assert.That(await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false)).IsEqualTo(evt);
+        await Assert.That(await received.Task.WaitAsync(TimeSpan.FromSeconds(5))).IsEqualTo(evt);
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ public class DeadLetterNotifierTests
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
 
         notifier.Notify(evt);
-        await done.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(5));
         subscription.Dispose();
         notifier.Notify(evt);
 
@@ -135,7 +135,7 @@ public class DeadLetterNotifierTests
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
         notifier.Notify(evt);
 
-        await done.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(secondCallCount).IsEqualTo(1);
     }
 
@@ -176,7 +176,7 @@ public class DeadLetterNotifierTests
 
         notifier.Notify(evt);
 
-        await Task.WhenAll(done1.Task, done2.Task, done3.Task).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await Task.WhenAll(done1.Task, done2.Task, done3.Task).WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(callCount1).IsEqualTo(1);
         await Assert.That(callCount2).IsEqualTo(1);
         await Assert.That(callCount3).IsEqualTo(1);
@@ -214,7 +214,7 @@ public class DeadLetterNotifierTests
 
         notifier.Notify(evt);
 
-        await Task.WhenAll(beforeDone.Task, afterDone.Task).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await Task.WhenAll(beforeDone.Task, afterDone.Task).WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(beforeCallCount).IsEqualTo(1);
         await Assert.That(afterCallCount).IsEqualTo(1);
     }
@@ -236,7 +236,7 @@ public class DeadLetterNotifierTests
 
         notifier.Notify(evt);
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
         var completed = true;
         await Assert.That(completed).IsTrue();
@@ -264,7 +264,7 @@ public class DeadLetterNotifierTests
 
         notifier.Notify(evt);
 
-        var observed = await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        var observed = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(observed).IsEqualTo(evt);
     }
 
@@ -285,23 +285,23 @@ public class DeadLetterNotifierTests
             var count = Interlocked.Increment(ref entered);
             if (count == limit) saturated.TrySetResult();
             if (count > limit) Interlocked.Exchange(ref overflowed, 1);
-            await Task.Delay(Timeout.InfiniteTimeSpan, gate.Token).ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, gate.Token);
         });
 
         var evt = new WorkDeadLetteredEvent<string>("work", null, 3, DateTimeOffset.UtcNow);
         try
         {
             for (var i = 0; i < limit; i++) notifier.Notify(evt);
-            await saturated.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await saturated.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
             notifier.Notify(evt);
-            await Task.Delay(TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(200));
             await Assert.That(Volatile.Read(ref overflowed)).IsEqualTo(0);
             await Assert.That(Volatile.Read(ref entered)).IsEqualTo(limit);
         }
         finally
         {
-            await gate.CancelAsync().ConfigureAwait(false);
+            await gate.CancelAsync();
         }
     }
 
@@ -317,7 +317,7 @@ public class DeadLetterNotifierTests
         notifier.Dispose();
 
         notifier.Notify(new WorkDeadLetteredEvent<string>("work", null, 1, DateTimeOffset.UtcNow));
-        await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
 
         await Assert.That(Volatile.Read(ref called)).IsEqualTo(0);
     }
@@ -340,10 +340,10 @@ public class DeadLetterNotifierTests
         };
 
         notifier.Notify(new WorkDeadLetteredEvent<string>("work", null, 1, DateTimeOffset.UtcNow));
-        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         notifier.Dispose();
         release.TrySetResult();
-        await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
 
         await Assert.That(Volatile.Read(ref called)).IsEqualTo(0);
     }

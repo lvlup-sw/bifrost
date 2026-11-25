@@ -52,20 +52,20 @@ public sealed class DispatchFailureTests
     [Test]
     public async Task DispatchFailure_PublishesFailedEvent_LoopContinues_NextFireScheduled()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
         var failing = new ThrowingThenCountingDispatcher(throwCount: 1);
         var healthy = new CountingDispatcher();
-        await fx.RegisterAsync("failing", Cadence.Interval(TimeSpan.FromMinutes(5)), failing).ConfigureAwait(false);
-        await fx.RegisterAsync("healthy", Cadence.Interval(TimeSpan.FromMinutes(5)), healthy).ConfigureAwait(false);
+        await fx.RegisterAsync("failing", Cadence.Interval(TimeSpan.FromMinutes(5)), failing);
+        await fx.RegisterAsync("healthy", Cadence.Interval(TimeSpan.FromMinutes(5)), healthy);
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(fx.Events.OfType<JobFireFailedEvent>().Any()).IsTrue();
         await Assert.That(healthy.FireCount).IsEqualTo(1);
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(failing.SuccessCount).IsEqualTo(1);
     }
 
@@ -84,19 +84,18 @@ public sealed class DispatchFailureTests
     {
         var logger = new CapturingLogger<ScheduleTickLoop>();
         await using var fx = await Fixture.StartAsync(
-            store: new ThrowingCheckpointStore(), logger: logger).ConfigureAwait(false);
-        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)))
-            .ConfigureAwait(false);
+            store: new ThrowingCheckpointStore(), logger: logger);
+        var dispatcher = await fx.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)));
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
         await Assert.That(logger.Any(LogLevel.Warning)).IsTrue();
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(dispatcher.FireCount).IsEqualTo(2);
     }
 
@@ -142,28 +141,27 @@ public sealed class DispatchFailureTests
                 serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop, sink);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async Task RegisterAsync(string name, Cadence cadence, IJobDispatcher dispatcher)
         {
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher);
+            await this.Loop.WaitForIdleAsync(TestTimeout);
         }
 
         public async Task<CountingDispatcher> RegisterAsync(string name, Cadence cadence)
         {
             var dispatcher = new CountingDispatcher();
-            await this.RegisterAsync(name, cadence, dispatcher).ConfigureAwait(false);
+            await this.RegisterAsync(name, cadence, dispatcher);
             return dispatcher;
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

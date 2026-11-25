@@ -36,7 +36,7 @@ public sealed class PrFixEventStreamRaceTests
 
         var enumeration = DrainAsync(stream);
 
-        var count = await enumeration.WaitAsync(TestTimeout).ConfigureAwait(false);
+        var count = await enumeration.WaitAsync(TestTimeout);
 
         await Assert.That(count).IsEqualTo(0);
     }
@@ -54,7 +54,7 @@ public sealed class PrFixEventStreamRaceTests
 
         stream.Dispose();
 
-        var count = await enumeration.WaitAsync(TestTimeout).ConfigureAwait(false);
+        var count = await enumeration.WaitAsync(TestTimeout);
 
         await Assert.That(count).IsEqualTo(0);
     }
@@ -62,7 +62,7 @@ public sealed class PrFixEventStreamRaceTests
     private static async Task<int> DrainAsync(SchedulerEventStream stream)
     {
         var count = 0;
-        await foreach (var _ in stream.Subscribe<JobFiredEvent>().ConfigureAwait(false))
+        await foreach (var _ in stream.Subscribe<JobFiredEvent>())
         {
             count++;
         }

@@ -66,8 +66,7 @@ public sealed class RelativeOneShotResolutionTests
         var registry = new ScheduleRegistry(new InMemoryScheduleStore(), fakeTime);
 
         await registry.RegisterAsync(
-                "rel-job", Cadence.After(Delay), MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
+                "rel-job", Cadence.After(Delay), MissedFirePolicy.Coalesce, new NoopDispatcher());
 
         var job = registry.GetJob("rel-job");
         await Assert.That(job).IsNotNull();
@@ -94,8 +93,7 @@ public sealed class RelativeOneShotResolutionTests
         var registry = new ScheduleRegistry(new InMemoryScheduleStore(), fakeTime);
 
         await registry.RegisterAsync(
-                "rel-job-t1", Cadence.After(Delay), MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
+                "rel-job-t1", Cadence.After(Delay), MissedFirePolicy.Coalesce, new NoopDispatcher());
 
         var job = registry.GetJob("rel-job-t1");
         await Assert.That(job).IsNotNull();

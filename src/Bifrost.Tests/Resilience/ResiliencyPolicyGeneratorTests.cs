@@ -102,7 +102,7 @@ public class ResiliencyPolicyGeneratorTests
         {
             await Task.Yield();
             throw new HttpRequestException("Test exception");
-        }, CancellationToken.None).ConfigureAwait(false);
+        }, CancellationToken.None);
 
         await Assert.That(result).IsEqualTo("fallback");
     }
@@ -119,7 +119,7 @@ public class ResiliencyPolicyGeneratorTests
         {
             await Task.Yield();
             return "success";
-        }, CancellationToken.None).ConfigureAwait(false);
+        }, CancellationToken.None);
 
         await Assert.That(result).IsEqualTo("success");
     }
@@ -178,7 +178,7 @@ public class ResiliencyPolicyGeneratorTests
         {
             await Task.Yield();
             executed = true;
-        }, new Polly.Context(), CancellationToken.None).ConfigureAwait(false);
+        }, new Polly.Context(), CancellationToken.None);
 
         await Assert.That(executed).IsTrue();
     }
@@ -205,7 +205,7 @@ public class ResiliencyPolicyGeneratorTests
             {
                 await Task.Yield();
                 throw new HttpRequestException("Test exception");
-            }, new Polly.Context(), CancellationToken.None).ConfigureAwait(false);
+            }, new Polly.Context(), CancellationToken.None);
         }).Throws<HttpRequestException>();
     }
 

@@ -69,7 +69,7 @@ internal sealed class SchedulerJobRegistrationService : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var saved = this.registry is ScheduleRegistry
-            ? (await this.store.LoadAllAsync(cancellationToken).ConfigureAwait(false))
+            ? (await this.store.LoadAllAsync(cancellationToken))
                 .ToDictionary(static record => record.Name, StringComparer.Ordinal)
             : null;
         foreach (var definition in this.definitions.Definitions)
@@ -77,7 +77,7 @@ internal sealed class SchedulerJobRegistrationService : IHostedService
             var dispatcher = definition.DispatcherFactory(this.services);
             if (this.registry is ScheduleRegistry concrete && saved!.TryGetValue(definition.Name, out var record))
             {
-                await concrete.RestoreAsync(record, dispatcher, cancellationToken).ConfigureAwait(false);
+                await concrete.RestoreAsync(record, dispatcher, cancellationToken);
                 continue;
             }
 
@@ -86,8 +86,7 @@ internal sealed class SchedulerJobRegistrationService : IHostedService
                     definition.Cadence,
                     definition.MissedFirePolicy,
                     dispatcher,
-                    cancellationToken)
-                .ConfigureAwait(false);
+                    cancellationToken);
         }
     }
 

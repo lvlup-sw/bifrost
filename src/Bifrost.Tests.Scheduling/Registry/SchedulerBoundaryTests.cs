@@ -38,9 +38,9 @@ public class SchedulerBoundaryTests
         var store = new InMemoryScheduleStore();
         using var registry = new ScheduleRegistry(store, new FakeTimeProvider());
         await Assert.That(async () => await registry.RegisterAsync("job\n", new IntervalCadence(TimeSpan.FromMinutes(1)),
-            MissedFirePolicy.Coalesce, Substitute.For<IJobDispatcher>()).ConfigureAwait(false)).Throws<ArgumentException>();
+            MissedFirePolicy.Coalesce, Substitute.For<IJobDispatcher>())).Throws<ArgumentException>();
         await Assert.That(registry.GetJobs()).IsEmpty();
-        await Assert.That(await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false)).IsEmpty();
+        await Assert.That(await store.LoadAllAsync(CancellationToken.None)).IsEmpty();
     }
 
     /// <summary>A valid zero-delay cadence is resolved and validated against one clock sample.</summary>
@@ -54,12 +54,12 @@ public class SchedulerBoundaryTests
         var dispatcher = Substitute.For<IJobDispatcher>();
         if (update)
         {
-            await registry.RegisterAsync("job", new IntervalCadence(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, dispatcher).ConfigureAwait(false);
-            await registry.UpdateAsync("job", Cadence.After(TimeSpan.Zero), MissedFirePolicy.Coalesce).ConfigureAwait(false);
+            await registry.RegisterAsync("job", new IntervalCadence(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, dispatcher);
+            await registry.UpdateAsync("job", Cadence.After(TimeSpan.Zero), MissedFirePolicy.Coalesce);
         }
         else
         {
-            await registry.RegisterAsync("job", Cadence.After(TimeSpan.Zero), MissedFirePolicy.Coalesce, dispatcher).ConfigureAwait(false);
+            await registry.RegisterAsync("job", Cadence.After(TimeSpan.Zero), MissedFirePolicy.Coalesce, dispatcher);
         }
 
         await Assert.That(registry.GetJob("job")!.Value.NextFireAt).IsNotNull();

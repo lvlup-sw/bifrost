@@ -53,13 +53,13 @@ public class WorkerRegistryTests
 
         var workerInfo = await registry.CreateWorkerAsync(
             "worker-1",
-            async (id, ct) => await Task.Delay(100, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(100, ct),
+            cts.Token);
 
         await Assert.That(registry.ActiveWorkerCount).IsEqualTo(1);
         await Assert.That(workerInfo.WorkerId).IsEqualTo("worker-1");
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -74,14 +74,14 @@ public class WorkerRegistryTests
 
         var workerInfo = await registry.CreateWorkerAsync(
             "test-worker",
-            async (id, ct) => await Task.Delay(100, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(100, ct),
+            cts.Token);
 
         await Assert.That(workerInfo.WorkerId).IsEqualTo("test-worker");
         await Assert.That(workerInfo.CreatedAt).IsGreaterThanOrEqualTo(beforeCreate);
         await Assert.That(workerInfo.StopRequested).IsFalse();
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -95,18 +95,18 @@ public class WorkerRegistryTests
 
         await registry.CreateWorkerAsync(
             "worker-1",
-            async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(1000, ct),
+            cts.Token);
         await registry.CreateWorkerAsync(
             "worker-2",
-            async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(1000, ct),
+            cts.Token);
 
         var workers = registry.GetAllWorkers();
 
         await Assert.That(workers.Count).IsEqualTo(2);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -120,8 +120,8 @@ public class WorkerRegistryTests
 
         await registry.CreateWorkerAsync(
             "worker-1",
-            async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(1000, ct),
+            cts.Token);
 
         var result = registry.RequestWorkerStop("worker-1");
 
@@ -130,7 +130,7 @@ public class WorkerRegistryTests
         var worker = workers.First(w => w.WorkerId == "worker-1");
         await Assert.That(worker.StopRequested).IsTrue();
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -157,14 +157,14 @@ public class WorkerRegistryTests
 
         var worker1 = await registry.CreateWorkerAsync(
             "idle-worker",
-            async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(1000, ct),
+            cts.Token);
         worker1.IsIdle = true;
 
         var worker2 = await registry.CreateWorkerAsync(
             "busy-worker",
-            async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(1000, ct),
+            cts.Token);
         worker2.IsIdle = false;
 
         var stoppedCount = registry.RequestMultipleWorkerStop(1);
@@ -176,7 +176,7 @@ public class WorkerRegistryTests
         await Assert.That(idleWorker.StopRequested).IsTrue();
         await Assert.That(busyWorker.StopRequested).IsFalse();
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -192,8 +192,8 @@ public class WorkerRegistryTests
         {
             var worker = await registry.CreateWorkerAsync(
                 $"worker-{i}",
-                async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-                cts.Token).ConfigureAwait(false);
+                async (id, ct) => await Task.Delay(1000, ct),
+                cts.Token);
             worker.IsIdle = true;
         }
 
@@ -203,7 +203,7 @@ public class WorkerRegistryTests
         var stoppedWorkers = registry.GetAllWorkers().Count(w => w.StopRequested);
         await Assert.That(stoppedWorkers).IsEqualTo(2);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -223,10 +223,10 @@ public class WorkerRegistryTests
         {
             var worker = await registry.CreateWorkerAsync(
                 $"worker-{i}",
-                async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-                cts.Token).ConfigureAwait(false);
+                async (id, ct) => await Task.Delay(1000, ct),
+                cts.Token);
             worker.IsIdle = true;
-            await Task.Delay(10).ConfigureAwait(false);
+            await Task.Delay(10);
         }
 
         var stoppedCount = registry.RequestMultipleWorkerStop(1);
@@ -236,7 +236,7 @@ public class WorkerRegistryTests
         var worker2 = workers.First(w => w.WorkerId == "worker-2");
         await Assert.That(worker2.StopRequested).IsTrue();
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -253,15 +253,15 @@ public class WorkerRegistryTests
 
         var worker = await registry.CreateWorkerAsync(
             "worker-1",
-            async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(1000, ct),
+            cts.Token);
         worker.IsIdle = true;
 
         var stoppedCount = registry.RequestMultipleWorkerStop(5);
 
         await Assert.That(stoppedCount).IsEqualTo(1);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -275,19 +275,19 @@ public class WorkerRegistryTests
 
         var worker1 = await registry.CreateWorkerAsync(
             "worker-1",
-            async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(1000, ct),
+            cts.Token);
         var worker2 = await registry.CreateWorkerAsync(
             "worker-2",
-            async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(1000, ct),
+            cts.Token);
 
         worker1.IsIdle = true;
         worker2.IsIdle = false;
 
         await Assert.That(registry.IdleWorkerCount).IsEqualTo(1);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -312,15 +312,15 @@ public class WorkerRegistryTests
 
         await registry.CreateWorkerAsync(
             "worker-1",
-            async (id, ct) => await Task.Delay(1000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(1000, ct),
+            cts.Token);
 
         var worker = registry.GetWorkerInfo("worker-1");
 
         await Assert.That(worker).IsNotNull();
         await Assert.That(worker!.WorkerId).IsEqualTo("worker-1");
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -391,9 +391,9 @@ public class WorkerRegistryTests
         await registry.CreateWorkerAsync(
             "faulting-worker",
             (id, ct) => throw new InvalidOperationException("Worker fault"),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
-        await logReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await logReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         logger.Received().Log(
             LogLevel.Error,

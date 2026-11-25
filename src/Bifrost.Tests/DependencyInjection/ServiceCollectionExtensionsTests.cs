@@ -72,6 +72,6 @@ public class ServiceCollectionExtensionsTests
         await Assert.That(orchestrator.Capacity).IsEqualTo(256);
         await Assert.That(orchestrator.ActiveWorkers).IsEqualTo(8);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 }

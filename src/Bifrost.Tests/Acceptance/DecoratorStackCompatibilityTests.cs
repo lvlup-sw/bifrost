@@ -100,14 +100,12 @@ public sealed class DecoratorStackCompatibilityTests
         const int itemCount = 12;
         for (var i = 0; i < itemCount; i++)
         {
-            var result = await orchestrator
-                .EnqueueAsync($"item-{i:D2}", (WorkClass)(i % 3))
-                .ConfigureAwait(false);
+            var result = await orchestrator.EnqueueAsync($"item-{i:D2}", (WorkClass)(i % 3));
             await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         }
 
         using var drainCts = new CancellationTokenSource(WaitTimeout);
-        await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
+        await orchestrator.DrainAsync(drainCts.Token);
 
         var processed = handler.ProcessedSnapshot();
         await Assert.That(processed.Count).IsEqualTo(itemCount);
@@ -116,7 +114,7 @@ public sealed class DecoratorStackCompatibilityTests
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
         await Assert.That(dlq.Count).IsEqualTo(0);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -162,16 +160,14 @@ public sealed class DecoratorStackCompatibilityTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        var gateResult = await orchestrator.EnqueueAsync("gate").ConfigureAwait(false);
+        var gateResult = await orchestrator.EnqueueAsync("gate");
         await Assert.That(gateResult).IsEqualTo(EnqueueResult.Accepted);
-        await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.GateEntered.WaitAsync(WaitTimeout);
 
         const int depth = 10;
         for (var i = 0; i < depth; i++)
         {
-            var result = await orchestrator
-                .EnqueueAsync($"item-{i:D2}", (WorkClass)(i % 3))
-                .ConfigureAwait(false);
+            var result = await orchestrator.EnqueueAsync($"item-{i:D2}", (WorkClass)(i % 3));
             await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         }
 
@@ -179,10 +175,10 @@ public sealed class DecoratorStackCompatibilityTests
 
         handler.ReleaseGate();
         using var drainCts = new CancellationTokenSource(WaitTimeout);
-        await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
+        await orchestrator.DrainAsync(drainCts.Token);
         await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -222,18 +218,18 @@ public sealed class DecoratorStackCompatibilityTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        var first = await orchestrator.EnqueueAsync("ok-1").ConfigureAwait(false);
-        var poison = await orchestrator.EnqueueAsync("poison-item").ConfigureAwait(false);
-        var second = await orchestrator.EnqueueAsync("ok-2").ConfigureAwait(false);
+        var first = await orchestrator.EnqueueAsync("ok-1");
+        var poison = await orchestrator.EnqueueAsync("poison-item");
+        var second = await orchestrator.EnqueueAsync("ok-2");
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(poison).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
 
         using var drainCts = new CancellationTokenSource(WaitTimeout);
-        await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
+        await orchestrator.DrainAsync(drainCts.Token);
 
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
-        var entries = await ReadAllEntriesAsync(dlq).ConfigureAwait(false);
+        var entries = await ReadAllEntriesAsync(dlq);
         await Assert.That(entries.Count).IsEqualTo(1);
         await Assert.That(entries[0].Work).IsEqualTo("poison-item");
         await Assert.That(entries[0].AttemptCount).IsEqualTo(2);
@@ -244,7 +240,7 @@ public sealed class DecoratorStackCompatibilityTests
         await Assert.That(processed).Contains("ok-1");
         await Assert.That(processed).Contains("ok-2");
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -289,20 +285,20 @@ public sealed class DecoratorStackCompatibilityTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        var parked = await orchestrator.EnqueueAsync("gate", WorkClass.Interactive).ConfigureAwait(false);
+        var parked = await orchestrator.EnqueueAsync("gate", WorkClass.Interactive);
         await Assert.That(parked).IsEqualTo(EnqueueResult.Accepted);
-        await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.GateEntered.WaitAsync(WaitTimeout);
 
-        var first = await orchestrator.EnqueueAsync("keep-1", WorkClass.Interactive).ConfigureAwait(false);
-        var second = await orchestrator.EnqueueAsync("keep-2", WorkClass.Interactive).ConfigureAwait(false);
-        var shed = await orchestrator.EnqueueAsync("shed-item", WorkClass.Interactive).ConfigureAwait(false);
+        var first = await orchestrator.EnqueueAsync("keep-1", WorkClass.Interactive);
+        var second = await orchestrator.EnqueueAsync("keep-2", WorkClass.Interactive);
+        var shed = await orchestrator.EnqueueAsync("shed-item", WorkClass.Interactive);
 
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(shed.IsAccepted).IsFalse();
         await Assert.That(shed.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
 
-        var entries = await ReadAllEntriesAsync(dlq).ConfigureAwait(false);
+        var entries = await ReadAllEntriesAsync(dlq);
         await Assert.That(entries.Count).IsEqualTo(1);
         await Assert.That(entries[0].Work).IsEqualTo("shed-item");
         await Assert.That(entries[0].AttemptCount).IsEqualTo(0);
@@ -312,7 +308,7 @@ public sealed class DecoratorStackCompatibilityTests
 
         handler.ReleaseGate();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -351,12 +347,12 @@ public sealed class DecoratorStackCompatibilityTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        var parked = await orchestrator.EnqueueAsync("gate").ConfigureAwait(false);
+        var parked = await orchestrator.EnqueueAsync("gate");
         await Assert.That(parked).IsEqualTo(EnqueueResult.Accepted);
-        await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.GateEntered.WaitAsync(WaitTimeout);
 
-        var first = await orchestrator.EnqueueAsync("fill-1").ConfigureAwait(false);
-        var second = await orchestrator.EnqueueAsync("fill-2").ConfigureAwait(false);
+        var first = await orchestrator.EnqueueAsync("fill-1");
+        var second = await orchestrator.EnqueueAsync("fill-2");
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
 
@@ -366,16 +362,16 @@ public sealed class DecoratorStackCompatibilityTests
         await Assert.That(dlq.Count).IsEqualTo(0);
 
         handler.ReleaseGate();
-        var overflowResult = await overflow.ConfigureAwait(false);
+        var overflowResult = await overflow;
         await Assert.That(overflowResult).IsEqualTo(EnqueueResult.Accepted);
 
         using var drainCts = new CancellationTokenSource(WaitTimeout);
-        await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
+        await orchestrator.DrainAsync(drainCts.Token);
 
         await Assert.That(handler.ProcessedSnapshot().Count).IsEqualTo(4);
         await Assert.That(dlq.Count).IsEqualTo(0);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -430,28 +426,26 @@ public sealed class DecoratorStackCompatibilityTests
         var completedStream = eventStream.GetEventStreamAsync<WorkCompletedEvent<string>>();
         var enqueuedCollector = Task.Run(async () =>
         {
-            await foreach (var evt in enqueuedStream.ConfigureAwait(false))
+            await foreach (var evt in enqueuedStream)
             {
                 enqueuedWorks.Enqueue(evt.Work);
             }
         });
         var completedCollector = Task.Run(async () =>
         {
-            await foreach (var evt in completedStream.ConfigureAwait(false))
+            await foreach (var evt in completedStream)
             {
                 completedWorks.Enqueue((evt.Work, evt.Success));
             }
         });
 
-        var parked = await orchestrator.EnqueueAsync("gate", WorkClass.Interactive).ConfigureAwait(false);
+        var parked = await orchestrator.EnqueueAsync("gate", WorkClass.Interactive);
         await Assert.That(parked).IsEqualTo(EnqueueResult.Accepted);
-        await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.GateEntered.WaitAsync(WaitTimeout);
 
         for (var i = 0; i < 4; i++)
         {
-            var accepted = await orchestrator
-                .EnqueueAsync($"fill-{i}", WorkClass.Interactive)
-                .ConfigureAwait(false);
+            var accepted = await orchestrator.EnqueueAsync($"fill-{i}", WorkClass.Interactive);
             await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         }
 
@@ -460,8 +454,8 @@ public sealed class DecoratorStackCompatibilityTests
 
         handler.ReleaseGate();
         using var drainCts = new CancellationTokenSource(WaitTimeout);
-        await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
-        await Task.WhenAll(enqueuedCollector, completedCollector).WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await orchestrator.DrainAsync(drainCts.Token);
+        await Task.WhenAll(enqueuedCollector, completedCollector).WaitAsync(WaitTimeout);
 
         var enqueued = enqueuedWorks.ToList();
         await Assert.That(enqueued.Count).IsEqualTo(5);
@@ -477,7 +471,7 @@ public sealed class DecoratorStackCompatibilityTests
             await Assert.That(completed.Select(c => c.Work).Contains($"fill-{i}")).IsTrue();
         }
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -523,13 +517,13 @@ public sealed class DecoratorStackCompatibilityTests
         await Assert.That(orchestrator).IsNotNull();
 
         var healthService = provider.GetRequiredService<HealthCheckService>();
-        var report = await healthService.CheckHealthAsync().ConfigureAwait(false);
+        var report = await healthService.CheckHealthAsync();
 
         await Assert.That(report.Entries.ContainsKey("WorkOrchestrator<String>")).IsTrue();
         await Assert.That(report.Entries["WorkOrchestrator<String>"].Status).IsEqualTo(HealthStatus.Healthy);
         await Assert.That(report.Status).IsEqualTo(HealthStatus.Healthy);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -576,16 +570,14 @@ public sealed class DecoratorStackCompatibilityTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        var parked = await orchestrator.EnqueueAsync("gate").ConfigureAwait(false);
+        var parked = await orchestrator.EnqueueAsync("gate");
         await Assert.That(parked).IsEqualTo(EnqueueResult.Accepted);
-        await handler.GateEntered.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.GateEntered.WaitAsync(WaitTimeout);
 
         const int itemCount = 6;
         for (var i = 0; i < itemCount; i++)
         {
-            var result = await orchestrator
-                .EnqueueAsync($"item-{i}", (WorkClass)(i % 3))
-                .ConfigureAwait(false);
+            var result = await orchestrator.EnqueueAsync($"item-{i}", (WorkClass)(i % 3));
             await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         }
 
@@ -593,7 +585,7 @@ public sealed class DecoratorStackCompatibilityTests
         var workerFunc = orchestrator.CreateWorkerFunction();
         var workerTask = Task.Run(() => workerFunc("dynamic-worker", workerCts.Token));
 
-        await handler.WaitForProcessedCountAsync(itemCount, WaitTimeout).ConfigureAwait(false);
+        await handler.WaitForProcessedCountAsync(itemCount, WaitTimeout);
         var processed = handler.ProcessedSnapshot();
         await Assert.That(processed.Count).IsEqualTo(itemCount);
         await Assert.That(processed.Contains("gate")).IsFalse();
@@ -604,17 +596,17 @@ public sealed class DecoratorStackCompatibilityTests
 
         handler.ReleaseGate();
         using var drainCts = new CancellationTokenSource(WaitTimeout);
-        await orchestrator.DrainAsync(drainCts.Token).ConfigureAwait(false);
-        await workerCts.CancelAsync().ConfigureAwait(false);
+        await orchestrator.DrainAsync(drainCts.Token);
+        await workerCts.CancelAsync();
         try
         {
-            await workerTask.WaitAsync(WaitTimeout).ConfigureAwait(false);
+            await workerTask.WaitAsync(WaitTimeout);
         }
         catch (OperationCanceledException)
         {
         }
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -627,7 +619,7 @@ public sealed class DecoratorStackCompatibilityTests
     private static async Task<List<DeadLetteredWork<string>>> ReadAllEntriesAsync(IDeadLetterQueue<string> dlq)
     {
         var entries = new List<DeadLetteredWork<string>>();
-        await foreach (var entry in dlq.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var entry in dlq.ReadAllAsync())
         {
             entries.Add(entry);
         }
@@ -676,7 +668,7 @@ public sealed class DecoratorStackCompatibilityTests
             var stopwatch = Stopwatch.StartNew();
             while (_processed.Count < count && stopwatch.Elapsed < timeout)
             {
-                await Task.Delay(10).ConfigureAwait(false);
+                await Task.Delay(10);
             }
         }
 
@@ -686,7 +678,7 @@ public sealed class DecoratorStackCompatibilityTests
             if (work == "gate")
             {
                 _gateEntered.TrySetResult();
-                await _release.Task.WaitAsync(ct).ConfigureAwait(false);
+                await _release.Task.WaitAsync(ct);
                 _processed.Enqueue(work);
                 return;
             }
