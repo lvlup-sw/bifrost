@@ -185,7 +185,8 @@ public static class HandlerExtensions
     /// The handler is registered with the <see cref="ServiceLifetime.Scoped"/> lifetime, so the builder
     /// uses the same <c>ScopedHandlerProxy</c> as <c>WithHandler(..., ServiceLifetime.Scoped)</c>. Each
     /// handler attempt gets its own async scope. The proxy is the innermost handler, so when the
-    /// dead-letter queue retries a failed item, each retry runs in a fresh scope. Resolve scoped
+    /// dead-letter queue or handler resilience (<c>WithHandlerResilience</c>) retries a failed item,
+    /// each retry runs in a fresh scope. Resolve scoped
     /// services such as EF Core <c>DbContext</c> from the provided <see cref="IServiceProvider"/>. The scope is disposed after the delegate completes,
     /// faults, or is canceled. Do not keep the provider or services resolved from it after the delegate
     /// returns.

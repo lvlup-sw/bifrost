@@ -8,6 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
 using Bifrost.Core;
+using Bifrost.Handlers;
 using Bifrost.Outcomes;
 using Bifrost.Queues;
 
@@ -24,6 +25,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     private readonly IWorkQueueLifecycle _lifecycle;
     private readonly ILeasedWorkQueue<WorkEnvelope<TWork>>? _leased;
     private readonly IWorkHandler<TWork> _handler;
+    private readonly IAttemptCountingHandler<TWork>? _countingHandler;
     private readonly TerminalOutcomeStage<TWork> _outcomes;
     private readonly ILogger<WorkOrchestrator<TWork>> _logger;
     private readonly CancellationTokenSource _cts = new();
@@ -139,6 +141,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         if (queueFactory is null && opts.DispatchStrategy != DispatchStrategy.Fifo && opts.FullMode != QueueFullMode.Reject)
             throw new ArgumentException("Priority dispatch supports only Reject full mode.", nameof(options));
         _handler = handler;
+        _countingHandler = handler as IAttemptCountingHandler<TWork>;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _outcomes = new TerminalOutcomeStage<TWork>(outcomes, logger, _timeProvider);
@@ -519,7 +522,10 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// The order is fixed. First the attempt loop runs. Each attempt calls the decorated handler, so
     /// every handler decorator and every scoped handler's DI scope sees each attempt. A failed attempt
     /// is retried while <see cref="TerminalOutcomeStage{TWork}.MaxAttempts"/> allows it, except when
-    /// it is an <see cref="OperationCanceledException"/> after the handler token was cancelled. Then
+    /// it is an <see cref="OperationCanceledException"/> after the handler token was cancelled. When
+    /// the handler is an <see cref="IAttemptCountingHandler{TWork}"/> (handler resilience), each call
+    /// may run several attempts, including retry delays, and the attempts it counts are the item's
+    /// attempt count. The lease is held across all of them. Then
     /// the lease is released through <see cref="ILeasedWorkQueue{T}.Release"/>. Then the terminal
     /// outcome stage settles the item: it records one outcome, captures a final failure once, and
     /// publishes events. Last, the worker reports itself idle. This holds on success, on a handler
@@ -543,6 +549,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         var startedAt = _timeProvider.GetTimestamp();
         var outcome = TerminalOutcome.Failed;
         var attempts = 0;
+        var counter = _countingHandler is null ? null : new HandlerAttemptCounter();
         Exception? error = null;
         try
         {
@@ -551,7 +558,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                 attempts++;
                 try
                 {
-                    await _handler.HandleAsync(envelope.Work, ct);
+                    await InvokeHandlerAsync(envelope.Work, counter, ct);
                     break;
                 }
                 catch (Exception ex) when (attempts < _outcomes.MaxAttempts && !IsHandlerCancellation(ex, ct))
@@ -584,7 +591,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             {
                 try
                 {
-                    await _outcomes.SettleAsync(envelope.Work, outcome, attempts, error, duration);
+                    await _outcomes.SettleAsync(envelope.Work, outcome, CountAttempts(attempts, counter), error, duration);
                 }
                 finally
                 {
@@ -593,6 +600,25 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             }
         }
     }
+
+    /// <summary>Calls the decorated handler once, through the attempt-counting path when the handler has one.</summary>
+    /// <param name="work">The work item.</param>
+    /// <param name="counter">The item's attempt counter, or <see langword="null"/> when the handler does not count attempts.</param>
+    /// <param name="ct">The handler token.</param>
+    /// <returns>A task that completes when the handler call exits.</returns>
+    private ValueTask InvokeHandlerAsync(TWork work, HandlerAttemptCounter? counter, CancellationToken ct)
+        => counter is null ? _handler.HandleAsync(work, ct) : _countingHandler!.HandleAsync(work, counter, ct);
+
+    /// <summary>Returns the number of handler attempts an item used.</summary>
+    /// <param name="loopAttempts">The number of calls the orchestrator's attempt loop made.</param>
+    /// <param name="counter">The attempts the handler counted across those calls, or <see langword="null"/>.</param>
+    /// <returns>The attempt count for the terminal outcome.</returns>
+    /// <remarks>
+    /// Handler resilience counts its own retries, and each loop call runs at least one of them, so
+    /// the counted total is used. It never reports fewer attempts than the loop made.
+    /// </remarks>
+    private static int CountAttempts(int loopAttempts, HandlerAttemptCounter? counter)
+        => counter is null ? loopAttempts : Math.Max(loopAttempts, counter.Count);
 
     /// <summary>Returns the item's lease to the binding at most once.</summary>
     /// <param name="lease">The item's lease. It is set to <see langword="null"/> before the release runs.</param>
