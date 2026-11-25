@@ -64,29 +64,28 @@ public sealed class ResumePinTests
     [Test]
     public async Task Resume_AfterNMissedOccurrences_FiresNothing_NextFireIsNaturalOccurrence()
     {
-        await using var fx = await Fixture.StartAsync().ConfigureAwait(false);
-        var dispatcher = await fx.RegisterAsync("five-min", Cadence.Interval(TimeSpan.FromMinutes(5)))
-            .ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync();
+        var dispatcher = await fx.RegisterAsync("five-min", Cadence.Interval(TimeSpan.FromMinutes(5)));
 
-        await fx.Registry.PauseAsync("five-min").ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Registry.PauseAsync("five-min");
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         fx.Time.Advance(TimeSpan.FromMinutes(25));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
 
         await Assert.That(fx.Events.OfType<JobMissedFireEvent>().Any()).IsFalse();
 
-        await fx.Registry.ResumeAsync("five-min").ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Registry.ResumeAsync("five-min");
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
 
         await Assert.That(fx.Events.OfType<JobMissedFireEvent>().Any()).IsFalse();
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
     }
@@ -131,23 +130,22 @@ public sealed class ResumePinTests
                 serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop, sink);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async Task<CountingDispatcher> RegisterAsync(string name, Cadence cadence)
         {
             var dispatcher = new CountingDispatcher();
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.SkipMissed, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.SkipMissed, dispatcher);
+            await this.Loop.WaitForIdleAsync(TestTimeout);
             return dispatcher;
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

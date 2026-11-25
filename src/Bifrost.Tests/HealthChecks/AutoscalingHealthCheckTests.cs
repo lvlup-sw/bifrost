@@ -64,7 +64,7 @@ public class AutoscalingHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
@@ -90,7 +90,7 @@ public class AutoscalingHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Degraded);
     }
@@ -116,7 +116,7 @@ public class AutoscalingHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Degraded);
     }
@@ -142,7 +142,7 @@ public class AutoscalingHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
@@ -168,7 +168,7 @@ public class AutoscalingHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Data).IsNotNull();
         await Assert.That(result.Data!.ContainsKey("ActiveWorkers")).IsTrue();
@@ -197,7 +197,7 @@ public class AutoscalingHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Data!["ActiveWorkers"]).IsEqualTo(8);
         await Assert.That(result.Data!["MinWorkers"]).IsEqualTo(2);
@@ -225,7 +225,7 @@ public class AutoscalingHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Description).IsNotNull();
         await Assert.That(result.Description!.Length).IsGreaterThan(0);
@@ -255,7 +255,7 @@ public class AutoscalingHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(
             new HealthCheckContext(),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }

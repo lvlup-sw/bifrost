@@ -34,7 +34,7 @@ internal sealed class JobMutationGates
 
         try
         {
-            await entry.Gate.WaitAsync(ct).ConfigureAwait(false);
+            await entry.Gate.WaitAsync(ct);
         }
         catch
         {

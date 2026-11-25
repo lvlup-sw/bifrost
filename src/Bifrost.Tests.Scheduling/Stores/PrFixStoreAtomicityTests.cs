@@ -65,16 +65,14 @@ public sealed class PrFixStoreAtomicityTests
         for (int i = 0; i < iterations; i++)
         {
             var store = new InMemoryScheduleStore();
-            await store.SaveAsync(MakeJob("daily-report", JobState.Running), CancellationToken.None)
-                .ConfigureAwait(false);
+            await store.SaveAsync(MakeJob("daily-report", JobState.Running), CancellationToken.None);
 
             using var barrier = new Barrier(2);
 
             var pause = Task.Run(async () =>
             {
                 barrier.SignalAndWait();
-                await store.SaveAsync(MakeJob("daily-report", JobState.Paused), CancellationToken.None)
-                    .ConfigureAwait(false);
+                await store.SaveAsync(MakeJob("daily-report", JobState.Paused), CancellationToken.None);
             });
 
             var fire = Task.Run(async () =>
@@ -84,13 +82,12 @@ public sealed class PrFixStoreAtomicityTests
                         "daily-report",
                         Now,
                         Now + TimeSpan.FromHours(1),
-                        CancellationToken.None)
-                    .ConfigureAwait(false);
+                        CancellationToken.None);
             });
 
-            await Task.WhenAll(pause, fire).ConfigureAwait(false);
+            await Task.WhenAll(pause, fire);
 
-            var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+            var jobs = await store.LoadAllAsync(CancellationToken.None);
             var final = jobs.Single();
 
             await Assert.That(final.State).IsEqualTo(JobState.Paused);
@@ -107,10 +104,9 @@ public sealed class PrFixStoreAtomicityTests
     {
         var store = new InMemoryScheduleStore();
 
-        await store.RecordFiredAsync("missing", Now, Now + TimeSpan.FromHours(1), CancellationToken.None)
-            .ConfigureAwait(false);
+        await store.RecordFiredAsync("missing", Now, Now + TimeSpan.FromHours(1), CancellationToken.None);
 
-        var jobs = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+        var jobs = await store.LoadAllAsync(CancellationToken.None);
         await Assert.That(jobs).IsEmpty();
     }
 

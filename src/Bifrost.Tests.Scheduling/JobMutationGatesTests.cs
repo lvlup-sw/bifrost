@@ -1,4 +1,4 @@
-#pragma warning disable CS1591, SA1600, SA1633, VSTHRD003, VSTHRD111
+#pragma warning disable CS1591, SA1600, SA1633, VSTHRD003
 
 using Bifrost.Scheduling.Registry;
 using Bifrost.Scheduling.Core;
@@ -38,7 +38,7 @@ public sealed class JobMutationGatesTests
             if (job.Name == blocked)
             {
                 this.Arrived.TrySetResult();
-                await this.Release.Task.WaitAsync(ct).ConfigureAwait(false);
+                await this.Release.Task.WaitAsync(ct);
             }
         }
 
@@ -56,7 +56,7 @@ public sealed class JobMutationGatesTests
         var waiter = gates.EnterAsync("job", canceled.Token).AsTask();
         var next = gates.EnterAsync("job").AsTask();
         await canceled.CancelAsync();
-        await Assert.That(async () => await waiter.ConfigureAwait(false)).Throws<OperationCanceledException>();
+        await Assert.That(async () => await waiter).Throws<OperationCanceledException>();
         await Assert.That(gates.Count).IsEqualTo(1);
         await Assert.That(next.IsCompleted).IsFalse();
         using (await gates.EnterAsync("independent"))

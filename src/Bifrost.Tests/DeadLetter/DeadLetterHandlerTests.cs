@@ -62,10 +62,10 @@ public class DeadLetterHandlerTests
         _innerHandler.HandleAsync("work", Arg.Any<CancellationToken>()).Returns(ValueTask.CompletedTask);
         var handler = CreateHandler();
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
-        await _innerHandler.Received(1).HandleAsync("work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
-        await _dlq.DidNotReceive().EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _innerHandler.Received(1).HandleAsync("work", Arg.Any<CancellationToken>());
+        await _dlq.DidNotReceive().EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -81,9 +81,9 @@ public class DeadLetterHandlerTests
             .Returns(_ => new ValueTask(Task.FromException(new InvalidOperationException("fail"))));
         var handler = CreateHandler();
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
-        await _innerHandler.Received(4).HandleAsync("work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _innerHandler.Received(4).HandleAsync("work", Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -96,9 +96,9 @@ public class DeadLetterHandlerTests
             .Returns(_ => new ValueTask(Task.FromException(new InvalidOperationException("fail"))));
         var handler = CreateHandler();
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
-        await _dlq.Received(1).EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _dlq.Received(1).EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -116,9 +116,9 @@ public class DeadLetterHandlerTests
         var handler = CreateHandler();
 
         DeadLetteredWork<string> capturedItem = default;
-        await _dlq.EnqueueAsync(Arg.Do<DeadLetteredWork<string>>(item => capturedItem = item), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _dlq.EnqueueAsync(Arg.Do<DeadLetteredWork<string>>(item => capturedItem = item), Arg.Any<CancellationToken>());
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
         await Assert.That(capturedItem.Work).IsEqualTo("work");
         await Assert.That(capturedItem.Exception).IsEqualTo(exception);
@@ -143,9 +143,9 @@ public class DeadLetterHandlerTests
             notified.TrySetResult();
         });
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
-        await notified.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await notified.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(notificationCount).IsEqualTo(1);
     }
 
@@ -159,7 +159,7 @@ public class DeadLetterHandlerTests
             .Returns(_ => new ValueTask(Task.FromException(new InvalidOperationException("fail"))));
         var handler = CreateHandler();
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
         var completed = true;
         await Assert.That(completed).IsTrue();
     }
@@ -184,10 +184,10 @@ public class DeadLetterHandlerTests
             });
         var handler = CreateHandler();
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
         await Assert.That(callCount).IsEqualTo(2);
-        await _dlq.DidNotReceive().EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _dlq.DidNotReceive().EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -197,12 +197,12 @@ public class DeadLetterHandlerTests
     public async Task HandleAsync_Cancellation_Rethrows()
     {
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
         _innerHandler.HandleAsync("work", Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask(Task.FromException(new OperationCanceledException())));
         var handler = CreateHandler();
 
-        await Assert.That(async () => await handler.HandleAsync("work", cts.Token).ConfigureAwait(false))
+        await Assert.That(async () => await handler.HandleAsync("work", cts.Token))
             .Throws<OperationCanceledException>();
     }
 
@@ -216,20 +216,20 @@ public class DeadLetterHandlerTests
     public async Task HandleAsync_Cancellation_NeverDeadLetters()
     {
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
         _innerHandler.HandleAsync("work", Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask(Task.FromException(new OperationCanceledException())));
         var handler = CreateHandler();
 
         try
         {
-            await handler.HandleAsync("work", cts.Token).ConfigureAwait(false);
+            await handler.HandleAsync("work", cts.Token);
         }
         catch (OperationCanceledException)
         {
         }
 
-        await _dlq.DidNotReceive().EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _dlq.DidNotReceive().EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -248,10 +248,10 @@ public class DeadLetterHandlerTests
             _innerHandler, _dlq, _notifier, options,
             NullLogger<DeadLetterHandler<string>>.Instance);
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
-        await _innerHandler.Received(1).HandleAsync("work", Arg.Any<CancellationToken>()).ConfigureAwait(false);
-        await _dlq.Received(1).EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _innerHandler.Received(1).HandleAsync("work", Arg.Any<CancellationToken>());
+        await _dlq.Received(1).EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -342,7 +342,7 @@ public class DeadLetterHandlerTests
 
         var handler = CreateHandler(publishCallback);
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
         await Assert.That(capturedEvent).IsNotNull();
         await Assert.That(capturedEvent).IsTypeOf<WorkDeadLetteredEvent<string>>();
@@ -364,9 +364,9 @@ public class DeadLetterHandlerTests
 
         var handler = CreateHandler(eventPublishCallback: null);
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
-        await _dlq.Received(1).EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _dlq.Received(1).EnqueueAsync(Arg.Any<DeadLetteredWork<string>>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -382,7 +382,7 @@ public class DeadLetterHandlerTests
 
         var handler = CreateHandler(publishCallback);
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
         await Assert.That(callbackInvoked).IsFalse();
     }

@@ -64,7 +64,7 @@ public class EventStreamBroadcastTests
 
         var subscriber1Task = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
             {
                 subscriber1Events.Add(evt);
                 if (subscriber1Events.Count >= 2)
@@ -76,7 +76,7 @@ public class EventStreamBroadcastTests
 
         var subscriber2Task = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
             {
                 subscriber2Events.Add(evt);
                 if (subscriber2Events.Count >= 2)
@@ -88,7 +88,7 @@ public class EventStreamBroadcastTests
 
         var subscriber3Task = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
             {
                 subscriber3Events.Add(evt);
                 if (subscriber3Events.Count >= 2)
@@ -98,12 +98,12 @@ public class EventStreamBroadcastTests
             }
         });
 
-        await Task.Delay(250).ConfigureAwait(false);
+        await Task.Delay(250);
 
-        await decorator.EnqueueAsync("test1").ConfigureAwait(false);
-        await decorator.EnqueueAsync("test2").ConfigureAwait(false);
+        await decorator.EnqueueAsync("test1");
+        await decorator.EnqueueAsync("test2");
 
-        await Task.WhenAll(subscriber1Task, subscriber2Task, subscriber3Task).ConfigureAwait(false);
+        await Task.WhenAll(subscriber1Task, subscriber2Task, subscriber3Task);
 
         await Assert.That(subscriber1Events.Count).IsEqualTo(2);
         await Assert.That(subscriber2Events.Count).IsEqualTo(2);
@@ -134,7 +134,7 @@ public class EventStreamBroadcastTests
             try
             {
                 var isFirst = true;
-                await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+                await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
                 {
                     if (isFirst)
                     {
@@ -142,7 +142,7 @@ public class EventStreamBroadcastTests
                         isFirst = false;
                     }
 
-                    await Task.Delay(500, cts.Token).ConfigureAwait(false);
+                    await Task.Delay(500, cts.Token);
                 }
             }
             catch (OperationCanceledException)
@@ -152,7 +152,7 @@ public class EventStreamBroadcastTests
 
         var fastSubscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
             {
                 fastSubscriberEvents.Add(evt);
                 if (fastSubscriberEvents.Count >= 10)
@@ -162,22 +162,22 @@ public class EventStreamBroadcastTests
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
-        await decorator.EnqueueAsync("trigger").ConfigureAwait(false);
+        await decorator.EnqueueAsync("trigger");
 
-        await slowSubscriberReady.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        await slowSubscriberReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         for (int i = 0; i < 9; i++)
         {
-            await decorator.EnqueueAsync($"test{i}").ConfigureAwait(false);
+            await decorator.EnqueueAsync($"test{i}");
         }
 
-        var completed = await Task.WhenAny(fastSubscriberTask, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
+        var completed = await Task.WhenAny(fastSubscriberTask, Task.Delay(TimeSpan.FromSeconds(5)));
         await Assert.That(ReferenceEquals(completed, fastSubscriberTask)).IsTrue();
         await Assert.That(fastSubscriberEvents.Count).IsEqualTo(10);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -201,7 +201,7 @@ public class EventStreamBroadcastTests
         {
             try
             {
-                await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: subscriberCts.Token).ConfigureAwait(false))
+                await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: subscriberCts.Token))
                 {
                     eventsReceived++;
                 }
@@ -211,16 +211,16 @@ public class EventStreamBroadcastTests
             }
         });
 
-        await Task.Delay(500).ConfigureAwait(false);
+        await Task.Delay(500);
 
-        await decorator.EnqueueAsync("test1").ConfigureAwait(false);
-        await Task.Delay(200).ConfigureAwait(false);
+        await decorator.EnqueueAsync("test1");
+        await Task.Delay(200);
 
-        await subscriberCts.CancelAsync().ConfigureAwait(false);
-        await subscriberTask.ConfigureAwait(false);
+        await subscriberCts.CancelAsync();
+        await subscriberTask;
 
-        await Task.Delay(100).ConfigureAwait(false);
-        await decorator.EnqueueAsync("test2").ConfigureAwait(false);
+        await Task.Delay(100);
+        await decorator.EnqueueAsync("test2");
 
         await Assert.That(eventsReceived).IsGreaterThanOrEqualTo(1);
     }
@@ -242,7 +242,7 @@ public class EventStreamBroadcastTests
 
         var task1 = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
             {
                 subscriber1Received.TrySetResult(evt);
                 break;
@@ -251,19 +251,19 @@ public class EventStreamBroadcastTests
 
         var task2 = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
             {
                 subscriber2Received.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
-        await decorator.EnqueueAsync("broadcast-test").ConfigureAwait(false);
+        await decorator.EnqueueAsync("broadcast-test");
 
-        var event1 = await subscriber1Received.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
-        var event2 = await subscriber2Received.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        var event1 = await subscriber1Received.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var event2 = await subscriber2Received.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         await Assert.That(event1 is WorkEnqueuedEvent<string>).IsTrue();
         await Assert.That(event2 is WorkEnqueuedEvent<string>).IsTrue();
@@ -299,7 +299,7 @@ public class EventStreamBroadcastTests
 
         var task1 = Task.Run(async () =>
         {
-            await foreach (var evt in stream1.ConfigureAwait(false))
+            await foreach (var evt in stream1)
             {
                 subscriber1Events.Add(evt);
                 if (subscriber1Events.Count >= 1)
@@ -311,7 +311,7 @@ public class EventStreamBroadcastTests
 
         var task2 = Task.Run(async () =>
         {
-            await foreach (var evt in stream2.ConfigureAwait(false))
+            await foreach (var evt in stream2)
             {
                 subscriber2Events.Add(evt);
                 if (subscriber2Events.Count >= 1)
@@ -323,7 +323,7 @@ public class EventStreamBroadcastTests
 
         decorator.TryEnqueue("test-work");
 
-        await Task.WhenAll(task1, task2).ConfigureAwait(false);
+        await Task.WhenAll(task1, task2);
 
         await Assert.That(subscriber1Events.Count).IsEqualTo(1);
         await Assert.That(subscriber2Events.Count).IsEqualTo(1);
@@ -345,7 +345,7 @@ public class EventStreamBroadcastTests
 
         var task1 = Task.Run(async () =>
         {
-            await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>().ConfigureAwait(false))
+            await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>())
             {
             }
 
@@ -354,19 +354,19 @@ public class EventStreamBroadcastTests
 
         var task2 = Task.Run(async () =>
         {
-            await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>().ConfigureAwait(false))
+            await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>())
             {
             }
 
             subscriber2Completed.SetResult();
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
-        await decorator.DisposeAsync().ConfigureAwait(false);
+        await decorator.DisposeAsync();
 
-        var completedTask1 = await Task.WhenAny(subscriber1Completed.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
-        var completedTask2 = await Task.WhenAny(subscriber2Completed.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
+        var completedTask1 = await Task.WhenAny(subscriber1Completed.Task, Task.Delay(TimeSpan.FromSeconds(2)));
+        var completedTask2 = await Task.WhenAny(subscriber2Completed.Task, Task.Delay(TimeSpan.FromSeconds(2)));
 
         await Assert.That(ReferenceEquals(completedTask1, subscriber1Completed.Task)).IsTrue();
         await Assert.That(ReferenceEquals(completedTask2, subscriber2Completed.Task)).IsTrue();

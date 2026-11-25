@@ -61,10 +61,10 @@ public class AutoscalingOrchestratorFullTests
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).Returns(EnqueueResult.Accepted);
 
-        await orchestrator.EnqueueAsync("work").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("work");
 
         _metrics.Received(1).RecordEnqueue();
-        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -85,12 +85,12 @@ public class AutoscalingOrchestratorFullTests
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        await orchestrator.RequestScaleUpAsync(3).ConfigureAwait(false);
+        await orchestrator.RequestScaleUpAsync(3);
 
         await _registry.Received(3).CreateWorkerAsync(
             Arg.Is<string>(s => s.StartsWith("AutoScale-", StringComparison.Ordinal)),
             Arg.Any<Func<string, CancellationToken, Task>>(),
-            Arg.Any<CancellationToken>()).ConfigureAwait(false);
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -110,13 +110,13 @@ public class AutoscalingOrchestratorFullTests
             .Returns(async call =>
             {
                 await call.Arg<Func<string, CancellationToken, Task>>()(
-                    call.Arg<string>(), call.Arg<CancellationToken>()).ConfigureAwait(false);
+                    call.Arg<string>(), call.Arg<CancellationToken>());
                 return workerInfo;
             });
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        await orchestrator.RequestScaleUpAsync(2).ConfigureAwait(false);
+        await orchestrator.RequestScaleUpAsync(2);
 
         _inner.Received(2).CreateWorkerFunction(Arg.Any<Action<bool>?>(), workerInfo.RetirementToken);
         workerInfo.DisposeStopSource();
@@ -137,7 +137,7 @@ public class AutoscalingOrchestratorFullTests
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        await orchestrator.RequestScaleDownAsync(5).ConfigureAwait(false);
+        await orchestrator.RequestScaleDownAsync(5);
 
         _registry.Received(1).RequestMultipleWorkerStop(3);
     }
@@ -302,9 +302,9 @@ public class AutoscalingOrchestratorFullTests
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        await orchestrator.AbortAsync().ConfigureAwait(false);
+        await orchestrator.AbortAsync();
 
-        await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -317,9 +317,9 @@ public class AutoscalingOrchestratorFullTests
             _inner, _registry, _metrics, Options.Create(_options), _logger);
         _inner.DisposeAsync().Returns(ValueTask.CompletedTask);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
 
-        await _inner.Received(1).DisposeAsync().ConfigureAwait(false);
+        await _inner.Received(1).DisposeAsync();
     }
 
     /// <summary>
@@ -345,7 +345,7 @@ public class AutoscalingOrchestratorFullTests
         var orchestrator = new AutoscalingOrchestrator<string>(
             _inner, _registry, _metrics, Options.Create(_options), _logger);
 
-        await orchestrator.RequestScaleDownAsync(5).ConfigureAwait(false);
+        await orchestrator.RequestScaleDownAsync(5);
 
         _registry.Received(1).RequestMultipleWorkerStop(0);
     }

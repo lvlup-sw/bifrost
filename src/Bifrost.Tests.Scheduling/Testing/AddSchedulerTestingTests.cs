@@ -106,23 +106,23 @@ public sealed class AddSchedulerTestingTests
         {
             foreach (var hosted in provider.GetServices<IHostedService>())
             {
-                await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
+                await hosted.StartAsync(CancellationToken.None);
             }
 
             var harness = provider.GetRequiredService<ISchedulerTestHarness>();
 
-            await harness.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await harness.WaitForIdleAsync(TestTimeout);
 
-            await harness.AdvanceAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+            await harness.AdvanceAsync(TimeSpan.FromMinutes(5));
 
-            var completed = await Task.WhenAny(fired.Task, Task.Delay(TestTimeout)).ConfigureAwait(false);
+            var completed = await Task.WhenAny(fired.Task, Task.Delay(TestTimeout));
             await Assert.That(completed == fired.Task).IsTrue();
         }
         finally
         {
             foreach (var hosted in provider.GetServices<IHostedService>().Reverse())
             {
-                await hosted.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await hosted.StopAsync(CancellationToken.None);
             }
         }
     }

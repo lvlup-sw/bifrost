@@ -40,21 +40,21 @@ public class WorkerRegistryIdleCountTests
 
         var worker1 = await registry.CreateWorkerAsync(
             "worker-1",
-            async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(10000, ct),
+            cts.Token);
         worker1.MarkIdle();
 
         var worker2 = await registry.CreateWorkerAsync(
             "worker-2",
-            async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(10000, ct),
+            cts.Token);
         worker2.MarkIdle();
 
         var idleCount = registry.IdleWorkerCount;
 
         await Assert.That(idleCount).IsEqualTo(2);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -68,21 +68,21 @@ public class WorkerRegistryIdleCountTests
 
         var worker1 = await registry.CreateWorkerAsync(
             "worker-1",
-            async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(10000, ct),
+            cts.Token);
         worker1.MarkIdle();
 
         var worker2 = await registry.CreateWorkerAsync(
             "worker-2",
-            async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(10000, ct),
+            cts.Token);
         worker2.MarkBusy();
 
         var idleCount = registry.IdleWorkerCount;
 
         await Assert.That(idleCount).IsEqualTo(1);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -96,14 +96,14 @@ public class WorkerRegistryIdleCountTests
 
         var worker1 = await registry.CreateWorkerAsync(
             "worker-1",
-            async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(10000, ct),
+            cts.Token);
         worker1.MarkIdle();
 
         var worker2 = await registry.CreateWorkerAsync(
             "worker-2",
-            async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(10000, ct),
+            cts.Token);
         worker2.MarkIdle();
         registry.RequestWorkerStop("worker-2");
 
@@ -111,7 +111,7 @@ public class WorkerRegistryIdleCountTests
 
         await Assert.That(idleCount).IsEqualTo(1);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -128,8 +128,8 @@ public class WorkerRegistryIdleCountTests
 
         var worker = await registry.CreateWorkerAsync(
             "worker-1",
-            async (id, ct) => await Task.Delay(10000, ct).ConfigureAwait(false),
-            cts.Token).ConfigureAwait(false);
+            async (id, ct) => await Task.Delay(10000, ct),
+            cts.Token);
 
         await Assert.That(registry.IdleWorkerCount).IsEqualTo(1);
 
@@ -139,7 +139,7 @@ public class WorkerRegistryIdleCountTests
         worker.MarkIdle();
         await Assert.That(registry.IdleWorkerCount).IsEqualTo(1);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 
     /// <summary>
@@ -160,8 +160,8 @@ public class WorkerRegistryIdleCountTests
         {
             var worker = await registry.CreateWorkerAsync(
                 $"worker-{i}",
-                async (id, ct) => await Task.Delay(60000, ct).ConfigureAwait(false),
-                cts.Token).ConfigureAwait(false);
+                async (id, ct) => await Task.Delay(60000, ct),
+                cts.Token);
             workers.Add(worker);
         }
 
@@ -194,12 +194,12 @@ public class WorkerRegistryIdleCountTests
             }
         });
 
-        await Task.WhenAll(readTask, writeTask).ConfigureAwait(false);
+        await Task.WhenAll(readTask, writeTask);
 
         var finalCount = registry.IdleWorkerCount;
         await Assert.That(finalCount).IsGreaterThanOrEqualTo(0);
         await Assert.That(finalCount).IsLessThanOrEqualTo(10);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
     }
 }

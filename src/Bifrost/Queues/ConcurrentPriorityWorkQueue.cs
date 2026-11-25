@@ -305,7 +305,7 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
                 return !_queue.IsEmpty;
             }
 
-            await _signal.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await _signal.WaitAsync(cancellationToken);
 
             return !_completed || !_queue.IsEmpty;
         }

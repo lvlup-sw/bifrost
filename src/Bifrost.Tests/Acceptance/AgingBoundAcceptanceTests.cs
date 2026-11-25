@@ -151,25 +151,25 @@ public sealed class AgingBoundAcceptanceTests
             fakeTime,
             handler);
 
-        var batch = await orchestrator.EnqueueAsync("batch-old", WorkClass.Batch).ConfigureAwait(false);
+        var batch = await orchestrator.EnqueueAsync("batch-old", WorkClass.Batch);
         await Assert.That(batch).IsEqualTo(EnqueueResult.Accepted);
 
         fakeTime.Advance(TimeSpan.FromSeconds(30) + TimeSpan.FromMilliseconds(1));
-        var interactive = await orchestrator.EnqueueAsync("interactive-fresh", WorkClass.Interactive).ConfigureAwait(false);
+        var interactive = await orchestrator.EnqueueAsync("interactive-fresh", WorkClass.Interactive);
         await Assert.That(interactive).IsEqualTo(EnqueueResult.Accepted);
 
         var workerFunc = orchestrator.CreateWorkerFunction();
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("AgingWorker", cts.Token), cts.Token);
 
-        await handler.DoneTask.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.DoneTask.WaitAsync(WaitTimeout);
         var sequence = handler.Snapshot();
 
         await Assert.That(sequence[0]).IsEqualTo("batch-old");
         await Assert.That(sequence[1]).IsEqualTo("interactive-fresh");
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
+        await cts.CancelAsync();
+        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout));
     }
 
     /// <summary>
@@ -228,7 +228,7 @@ public sealed class AgingBoundAcceptanceTests
                 },
                 fakeTime);
 
-            var batch = await orchestrator.EnqueueAsync(BatchMarker, WorkClass.Batch).ConfigureAwait(false);
+            var batch = await orchestrator.EnqueueAsync(BatchMarker, WorkClass.Batch);
             if (!batch.IsAccepted)
             {
                 await Assert.That(batch).IsEqualTo(EnqueueResult.Accepted);
@@ -237,7 +237,7 @@ public sealed class AgingBoundAcceptanceTests
             fakeTime.Advance(TimeSpan.FromSeconds(30) + TimeSpan.FromMilliseconds(1));
             for (var i = 0; i < freshInteractiveCount; i++)
             {
-                var fill = await orchestrator.EnqueueAsync($"interactive-{i}", WorkClass.Interactive).ConfigureAwait(false);
+                var fill = await orchestrator.EnqueueAsync($"interactive-{i}", WorkClass.Interactive);
                 if (!fill.IsAccepted)
                 {
                     await Assert.That(fill).IsEqualTo(EnqueueResult.Accepted);
@@ -366,7 +366,7 @@ public sealed class AgingBoundAcceptanceTests
         while (orchestrator.PendingCount < backlogTarget && stopwatch.Elapsed < ProducerFailsafe)
         {
             fakeTime.Advance(InterArrival);
-            var fill = await orchestrator.EnqueueAsync($"interactive-{arrivals++}", WorkClass.Interactive).ConfigureAwait(false);
+            var fill = await orchestrator.EnqueueAsync($"interactive-{arrivals++}", WorkClass.Interactive);
             if (!fill.IsAccepted)
             {
                 await Assert.That(fill).IsEqualTo(EnqueueResult.Accepted);
@@ -375,7 +375,7 @@ public sealed class AgingBoundAcceptanceTests
 
         var dispatchedBeforeBatch = handler.Count;
         fakeTime.Advance(InterArrival);
-        var batch = await orchestrator.EnqueueAsync(BatchMarker, WorkClass.Batch).ConfigureAwait(false);
+        var batch = await orchestrator.EnqueueAsync(BatchMarker, WorkClass.Batch);
         await Assert.That(batch).IsEqualTo(EnqueueResult.Accepted);
 
         while (!handler.MarkerSeenTask.IsCompleted
@@ -386,7 +386,7 @@ public sealed class AgingBoundAcceptanceTests
             {
                 fakeTime.Advance(InterArrival);
 
-                _ = await orchestrator.EnqueueAsync($"interactive-{arrivals++}", WorkClass.Interactive).ConfigureAwait(false);
+                _ = await orchestrator.EnqueueAsync($"interactive-{arrivals++}", WorkClass.Interactive);
             }
             else
             {
@@ -436,8 +436,8 @@ public sealed class AgingBoundAcceptanceTests
     [Test]
     public async Task BoostWindow_Configurable_ChangesTheBound()
     {
-        var dispatchesAtFullWindow = await MeasureLockstepDispatchesBeforeBatchAsync(SmallBoostWindow).ConfigureAwait(false);
-        var dispatchesAtHalfWindow = await MeasureLockstepDispatchesBeforeBatchAsync(SmallBoostWindow / 2).ConfigureAwait(false);
+        var dispatchesAtFullWindow = await MeasureLockstepDispatchesBeforeBatchAsync(SmallBoostWindow);
+        var dispatchesAtHalfWindow = await MeasureLockstepDispatchesBeforeBatchAsync(SmallBoostWindow / 2);
 
         Console.WriteLine($"[T26-DATA] lockstep: full={dispatchesAtFullWindow} half={dispatchesAtHalfWindow}");
         await Assert.That(dispatchesAtFullWindow).IsEqualTo(10);
@@ -475,13 +475,13 @@ public sealed class AgingBoundAcceptanceTests
             },
             fakeTime);
 
-        var batch = await orchestrator.EnqueueAsync(BatchMarker, WorkClass.Batch).ConfigureAwait(false);
+        var batch = await orchestrator.EnqueueAsync(BatchMarker, WorkClass.Batch);
         await Assert.That(batch).IsEqualTo(EnqueueResult.Accepted);
 
         for (var round = 1; round <= LockstepRoundCutoff; round++)
         {
             fakeTime.Advance(InterArrival);
-            var fill = await orchestrator.EnqueueAsync($"interactive-{round}", WorkClass.Interactive).ConfigureAwait(false);
+            var fill = await orchestrator.EnqueueAsync($"interactive-{round}", WorkClass.Interactive);
             if (!fill.IsAccepted)
             {
                 await Assert.That(fill).IsEqualTo(EnqueueResult.Accepted);
@@ -597,7 +597,7 @@ public sealed class AgingBoundAcceptanceTests
 
             if (_delayPerItem)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(1), ct).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(1), ct);
             }
         }
 

@@ -35,15 +35,14 @@ public sealed class ScheduleRegistryRegisterTests
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
         var cadence = new IntervalCadence(TimeSpan.FromHours(1));
 
-        await registry.RegisterAsync("daily-report", cadence, MissedFirePolicy.Coalesce, new StubDispatcher())
-            .ConfigureAwait(false);
+        await registry.RegisterAsync("daily-report", cadence, MissedFirePolicy.Coalesce, new StubDispatcher());
 
         var job = registry.GetJob("daily-report");
         await Assert.That(job).IsNotNull();
         await Assert.That(job!.Value.Name).IsEqualTo("daily-report");
         await store.Received(1).SaveAsync(
             Arg.Is<JobRecord>(j => j.Name == "daily-report"),
-            Arg.Any<CancellationToken>()).ConfigureAwait(false);
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -56,12 +55,10 @@ public sealed class ScheduleRegistryRegisterTests
         var store = Substitute.For<IScheduleStore>();
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
         var cadence = new IntervalCadence(TimeSpan.FromHours(1));
-        await registry.RegisterAsync("daily-report", cadence, MissedFirePolicy.Coalesce, new StubDispatcher())
-            .ConfigureAwait(false);
+        await registry.RegisterAsync("daily-report", cadence, MissedFirePolicy.Coalesce, new StubDispatcher());
 
         await Assert.That(async () =>
-                await registry.RegisterAsync("daily-report", cadence, MissedFirePolicy.Coalesce, new StubDispatcher())
-                    .ConfigureAwait(false))
+                await registry.RegisterAsync("daily-report", cadence, MissedFirePolicy.Coalesce, new StubDispatcher()))
             .Throws<DuplicateJobNameException>();
     }
 
@@ -71,7 +68,7 @@ public sealed class ScheduleRegistryRegisterTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Register_EmptyName_Throws()
-        => await AssertInvalidName(string.Empty).ConfigureAwait(false);
+        => await AssertInvalidName(string.Empty);
 
     /// <summary>
     /// Verifies an uppercase name is rejected (names are lowercase).
@@ -79,7 +76,7 @@ public sealed class ScheduleRegistryRegisterTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Register_UppercaseName_Throws()
-        => await AssertInvalidName("DailyReport").ConfigureAwait(false);
+        => await AssertInvalidName("DailyReport");
 
     /// <summary>
     /// Verifies a name longer than 128 characters is rejected.
@@ -87,7 +84,7 @@ public sealed class ScheduleRegistryRegisterTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Register_TooLongName_Throws()
-        => await AssertInvalidName(new string('a', 129)).ConfigureAwait(false);
+        => await AssertInvalidName(new string('a', 129));
 
     /// <summary>
     /// Verifies a name with a leading hyphen is rejected.
@@ -95,7 +92,7 @@ public sealed class ScheduleRegistryRegisterTests
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Register_LeadingHyphenName_Throws()
-        => await AssertInvalidName("-daily").ConfigureAwait(false);
+        => await AssertInvalidName("-daily");
 
     /// <summary>
     /// Verifies unregistering an existing job removes it and deletes it from the store.
@@ -107,14 +104,13 @@ public sealed class ScheduleRegistryRegisterTests
         var store = Substitute.For<IScheduleStore>();
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
         await registry.RegisterAsync(
-                "daily-report", new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher())
-            .ConfigureAwait(false);
+                "daily-report", new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher());
 
-        var removed = await registry.UnregisterAsync("daily-report").ConfigureAwait(false);
+        var removed = await registry.UnregisterAsync("daily-report");
 
         await Assert.That(removed).IsTrue();
         await Assert.That(registry.GetJob("daily-report")).IsNull();
-        await store.Received(1).DeleteAsync("daily-report", Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await store.Received(1).DeleteAsync("daily-report", Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -127,7 +123,7 @@ public sealed class ScheduleRegistryRegisterTests
         var store = Substitute.For<IScheduleStore>();
         var registry = new ScheduleRegistry(store, new FakeTimeProvider(Now));
 
-        var removed = await registry.UnregisterAsync("missing").ConfigureAwait(false);
+        var removed = await registry.UnregisterAsync("missing");
 
         await Assert.That(removed).IsFalse();
     }
@@ -147,8 +143,7 @@ public sealed class ScheduleRegistryRegisterTests
 
         await Assert.That(async () =>
                 await registry.RegisterAsync(
-                        "daily-report", new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher())
-                    .ConfigureAwait(false))
+                        "daily-report", new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher()))
             .Throws<InvalidOperationException>();
 
         await Assert.That(registry.GetJob("daily-report")).IsNull();
@@ -161,8 +156,7 @@ public sealed class ScheduleRegistryRegisterTests
 
         await Assert.That(async () =>
                 await registry.RegisterAsync(
-                        name, new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher())
-                    .ConfigureAwait(false))
+                        name, new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher()))
             .Throws<ArgumentException>();
     }
 

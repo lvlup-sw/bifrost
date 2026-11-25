@@ -97,8 +97,8 @@ public class TickEngineBenchmarks
             NullLogger<ScheduleTickLoop>.Instance,
             new SchedulerOptions());
 
-        await ((IHostedService)_loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-        await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        await ((IHostedService)_loop).StartAsync(CancellationToken.None);
+        await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(10));
 
         for (var i = 0; i < JobCount; i++)
         {
@@ -106,10 +106,10 @@ public class TickEngineBenchmarks
                 $"bench-{i:D6}",
                 Cadence.Interval(FireInterval),
                 MissedFirePolicy.Coalesce,
-                NoOpDispatcher.Instance).ConfigureAwait(false);
+                NoOpDispatcher.Instance);
         }
 
-        await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(30));
     }
 
     /// <summary>
@@ -119,7 +119,7 @@ public class TickEngineBenchmarks
     [GlobalCleanup]
     public async Task GlobalCleanup()
     {
-        await _loop.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await _loop.StopAsync(CancellationToken.None);
         _loop.Dispose();
     }
 
@@ -141,7 +141,7 @@ public class TickEngineBenchmarks
     {
         _router.Reset();
         _time.Advance(FireInterval);
-        await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(30));
         _ = _router.HandoffCount;
     }
 
@@ -157,7 +157,7 @@ public class TickEngineBenchmarks
     {
         _router.Reset();
         _time.Advance(FireInterval);
-        await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(30));
     }
 
     /// <summary>
@@ -171,7 +171,7 @@ public class TickEngineBenchmarks
     {
         _router.Reset();
         _time.Advance(FireInterval);
-        await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        await _loop.WaitForIdleAsync(TimeSpan.FromSeconds(30));
     }
 
     // -----------------------------------------------------------------------

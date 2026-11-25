@@ -88,24 +88,23 @@ public sealed class FireScopeShutdownTests
 
         try
         {
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await registry.RegisterAsync(
-                "job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+                "job", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce, dispatcher);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             time.Advance(TimeSpan.FromMinutes(1));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
             time.Advance(TimeSpan.FromMinutes(1));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await Assert.That(dispatcher.FireCount).IsEqualTo(0);
             await Assert.That(loop.IsFaulted).IsFalse();
 
             time.Advance(TimeSpan.FromMinutes(1));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
@@ -116,7 +115,7 @@ public sealed class FireScopeShutdownTests
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
         }
     }

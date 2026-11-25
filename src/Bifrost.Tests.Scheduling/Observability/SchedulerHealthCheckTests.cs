@@ -43,7 +43,7 @@ public sealed class SchedulerHealthCheckTests
 
         var check = NewCheck(monitor, faulted: false, time);
 
-        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        var result = await check.CheckHealthAsync(new HealthCheckContext());
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
@@ -68,7 +68,7 @@ public sealed class SchedulerHealthCheckTests
 
         time.Advance(TimeSpan.FromTicks((ExpectedInterval.Ticks * 3) + 1));
 
-        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        var result = await check.CheckHealthAsync(new HealthCheckContext());
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
@@ -87,7 +87,7 @@ public sealed class SchedulerHealthCheckTests
         time.Advance(ExpectedInterval * 10);
 
         var result = await NewCheck(monitor, faulted: false, time)
-            .CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+            .CheckHealthAsync(new HealthCheckContext());
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
@@ -106,7 +106,7 @@ public sealed class SchedulerHealthCheckTests
         time.Advance((ExpectedInterval * 4) + TimeSpan.FromTicks(1));
 
         var result = await NewCheck(monitor, faulted: false, time)
-            .CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+            .CheckHealthAsync(new HealthCheckContext());
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
@@ -139,7 +139,7 @@ public sealed class SchedulerHealthCheckTests
 
         var check = NewCheck(monitor, faulted: false, time);
 
-        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        var result = await check.CheckHealthAsync(new HealthCheckContext());
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
@@ -172,7 +172,7 @@ public sealed class SchedulerHealthCheckTests
 
         var check = NewCheck(monitor, faulted: false, time);
 
-        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        var result = await check.CheckHealthAsync(new HealthCheckContext());
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
@@ -192,7 +192,7 @@ public sealed class SchedulerHealthCheckTests
 
         var check = NewCheck(monitor, faulted: true, time);
 
-        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        var result = await check.CheckHealthAsync(new HealthCheckContext());
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
@@ -211,7 +211,7 @@ public sealed class SchedulerHealthCheckTests
 
         time.Advance(TimeSpan.FromTicks(ExpectedInterval.Ticks * 3));
 
-        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        var result = await check.CheckHealthAsync(new HealthCheckContext());
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
@@ -230,7 +230,7 @@ public sealed class SchedulerHealthCheckTests
 
         time.Advance(TimeSpan.FromTicks((ExpectedInterval.Ticks * 3) + 1));
 
-        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        var result = await check.CheckHealthAsync(new HealthCheckContext());
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
@@ -250,7 +250,7 @@ public sealed class SchedulerHealthCheckTests
 
         time.Advance(TimeSpan.FromTicks((ExpectedInterval.Ticks * 3) + 1));
 
-        var result = await check.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        var result = await check.CheckHealthAsync(new HealthCheckContext());
 
         await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }

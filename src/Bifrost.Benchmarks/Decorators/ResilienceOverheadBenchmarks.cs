@@ -74,12 +74,12 @@ public class ResilienceOverheadBenchmarks
     {
         if (_withResilience is not null)
         {
-            await _withResilience.DisposeAsync().ConfigureAwait(false);
+            await _withResilience.DisposeAsync();
         }
 
         if (_bare is not null)
         {
-            await _bare.DisposeAsync().ConfigureAwait(false);
+            await _bare.DisposeAsync();
         }
     }
 }

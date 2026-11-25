@@ -125,7 +125,7 @@ public class DeadLetterQueueOptionsTests
             innerHandler, dlq, notifier, options,
             NullLogger<DeadLetterHandler<string>>.Instance);
 
-        await handler.HandleAsync("work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("work", CancellationToken.None);
 
         await Assert.That(actualCallCount).IsEqualTo(expectedTotalAttempts);
     }

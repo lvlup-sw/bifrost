@@ -41,9 +41,9 @@ public class AutoscalingEngineHostedServiceTests
         var engine = Substitute.For<IAutoscalingEngine>();
         var hostedService = new AutoscalingEngineHostedService<string>(new ServiceCollection().AddKeyedSingleton<IAutoscalingEngine>(typeof(string), engine).BuildServiceProvider());
 
-        await hostedService.StartAsync(CancellationToken.None).ConfigureAwait(false);
+        await hostedService.StartAsync(CancellationToken.None);
 
-        await engine.Received(1).StartAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await engine.Received(1).StartAsync(Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -55,9 +55,9 @@ public class AutoscalingEngineHostedServiceTests
         var engine = Substitute.For<IAutoscalingEngine>();
         var hostedService = new AutoscalingEngineHostedService<string>(new ServiceCollection().AddKeyedSingleton<IAutoscalingEngine>(typeof(string), engine).BuildServiceProvider());
 
-        await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await hostedService.StopAsync(CancellationToken.None);
 
-        await engine.Received(1).StopAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await engine.Received(1).StopAsync(Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -70,9 +70,9 @@ public class AutoscalingEngineHostedServiceTests
         var hostedService = new AutoscalingEngineHostedService<string>(new ServiceCollection().AddKeyedSingleton<IAutoscalingEngine>(typeof(string), engine).BuildServiceProvider());
         using var cts = new CancellationTokenSource();
 
-        await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
+        await hostedService.StartAsync(cts.Token);
 
-        await engine.Received(1).StartAsync(cts.Token).ConfigureAwait(false);
+        await engine.Received(1).StartAsync(cts.Token);
     }
 
     /// <summary>

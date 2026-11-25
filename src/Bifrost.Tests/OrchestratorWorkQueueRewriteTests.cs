@@ -83,7 +83,7 @@ public class OrchestratorWorkQueueRewriteTests
 
         var workerTask = Task.Run(() => workerFunc("DynamicWorker", cts.Token), cts.Token);
 
-        var enqueued = await orchestrator.EnqueueAsync("after-start").ConfigureAwait(false);
+        var enqueued = await orchestrator.EnqueueAsync("after-start");
         await Assert.That(enqueued).IsEqualTo(EnqueueResult.Accepted);
 
         var envelope = new WorkEnvelope<string>(
@@ -91,13 +91,13 @@ public class OrchestratorWorkQueueRewriteTests
         var injected = orchestrator.WorkQueue.TryEnqueue(envelope);
         await Assert.That(injected).IsTrue();
 
-        await handler.Done.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await handler.Done.WaitAsync(WaitTimeout);
 
         await Assert.That(handler.Processed).Contains("after-start");
         await Assert.That(handler.Processed).Contains("via-queue");
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
+        await cts.CancelAsync();
+        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout));
     }
 
     /// <summary>
@@ -117,9 +117,9 @@ public class OrchestratorWorkQueueRewriteTests
         await using var orchestrator = new WorkOrchestrator<string>(
             handler, options, NullLogger<WorkOrchestrator<string>>.Instance);
 
-        await orchestrator.EnqueueAsync("a").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("b").ConfigureAwait(false);
-        await orchestrator.EnqueueAsync("c").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("a");
+        await orchestrator.EnqueueAsync("b");
+        await orchestrator.EnqueueAsync("c");
 
         await Assert.That(orchestrator.PendingCount).IsEqualTo(3);
         await Assert.That(orchestrator.PendingCount).IsEqualTo(orchestrator.WorkQueue.Count);
@@ -148,23 +148,23 @@ public class OrchestratorWorkQueueRewriteTests
         var orchestrator = new WorkOrchestrator<string>(
             handler, options, NullLogger<WorkOrchestrator<string>>.Instance);
 
-        await orchestrator.EnqueueAsync("item-0").ConfigureAwait(false);
-        await handler.Started.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("item-0");
+        await handler.Started.WaitAsync(WaitTimeout);
         for (var i = 1; i < 5; i++)
         {
-            var result = await orchestrator.EnqueueAsync($"item-{i}").ConfigureAwait(false);
+            var result = await orchestrator.EnqueueAsync($"item-{i}");
             await Assert.That(result).IsEqualTo(EnqueueResult.Accepted);
         }
 
         var drainTask = orchestrator.DrainAsync();
         handler.Release();
-        await drainTask.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await drainTask.WaitAsync(WaitTimeout);
 
         await Assert.That(handler.ProcessedCount).IsEqualTo(5);
         await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
         await Assert.That(orchestrator.TryEnqueue("late")).IsFalse();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -188,18 +188,18 @@ public class OrchestratorWorkQueueRewriteTests
             handler, options, NullLogger<WorkOrchestrator<string>>.Instance);
         var shutdownToken = orchestrator.GetShutdownToken();
 
-        await orchestrator.EnqueueAsync("parked").ConfigureAwait(false);
-        await handler.Started.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("parked");
+        await handler.Started.WaitAsync(WaitTimeout);
 
-        await orchestrator.AbortAsync().WaitAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+        await orchestrator.AbortAsync().WaitAsync(TimeSpan.FromSeconds(15));
 
         await Assert.That(shutdownToken.IsCancellationRequested).IsTrue();
-        var afterStop = await orchestrator.EnqueueAsync("after-stop").ConfigureAwait(false);
+        var afterStop = await orchestrator.EnqueueAsync("after-stop");
         await Assert.That(afterStop.IsAccepted).IsFalse();
         await Assert.That(afterStop.Reason).IsEqualTo(RejectionReason.Shutdown);
         await Assert.That(orchestrator.TryEnqueue("after-stop-try")).IsFalse();
 
-        await orchestrator.DisposeAsync().AsTask().WaitAsync(WaitTimeout).ConfigureAwait(false);
+        await orchestrator.DisposeAsync().AsTask().WaitAsync(WaitTimeout);
     }
 
     /// <summary>
@@ -222,7 +222,7 @@ public class OrchestratorWorkQueueRewriteTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         orchestrator.QueueWaitObserved = (workClass, waited) => observed.TrySetResult((workClass, waited));
 
-        var enqueued = await orchestrator.EnqueueAsync("waited-item", WorkClass.Interactive).ConfigureAwait(false);
+        var enqueued = await orchestrator.EnqueueAsync("waited-item", WorkClass.Interactive);
         await Assert.That(enqueued).IsEqualTo(EnqueueResult.Accepted);
         fakeTime.Advance(TimeSpan.FromSeconds(5));
 
@@ -230,13 +230,13 @@ public class OrchestratorWorkQueueRewriteTests
         using var cts = new CancellationTokenSource();
         var workerTask = Task.Run(() => workerFunc("HookWorker", cts.Token), cts.Token);
 
-        var (workClass, waited) = await observed.Task.WaitAsync(WaitTimeout).ConfigureAwait(false);
+        var (workClass, waited) = await observed.Task.WaitAsync(WaitTimeout);
 
         await Assert.That(workClass).IsEqualTo(WorkClass.Interactive);
         await Assert.That(waited).IsEqualTo(TimeSpan.FromSeconds(5));
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout)).ConfigureAwait(false);
+        await cts.CancelAsync();
+        await Task.WhenAny(workerTask, Task.Delay(WaitTimeout));
     }
 
     /// <summary>
@@ -299,7 +299,7 @@ public class OrchestratorWorkQueueRewriteTests
         public async ValueTask HandleAsync(string work, CancellationToken ct)
         {
             _started.TrySetResult();
-            await _gate.Task.WaitAsync(ct).ConfigureAwait(false);
+            await _gate.Task.WaitAsync(ct);
             Interlocked.Increment(ref _processed);
         }
     }
@@ -319,7 +319,7 @@ public class OrchestratorWorkQueueRewriteTests
         public async ValueTask HandleAsync(string work, CancellationToken ct)
         {
             _started.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
         }
     }
 }

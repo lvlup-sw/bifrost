@@ -50,9 +50,9 @@ public sealed class ScheduleRegistryQueryTests
     public async Task GetJobs_WithMultipleJobs_ReturnsAllSortedByName()
     {
         var registry = new ScheduleRegistry(Substitute.For<IScheduleStore>(), new FakeTimeProvider(Now));
-        await RegisterAsync(registry, "charlie").ConfigureAwait(false);
-        await RegisterAsync(registry, "alpha").ConfigureAwait(false);
-        await RegisterAsync(registry, "bravo").ConfigureAwait(false);
+        await RegisterAsync(registry, "charlie");
+        await RegisterAsync(registry, "alpha");
+        await RegisterAsync(registry, "bravo");
 
         var names = registry.GetJobs().Select(j => j.Name).ToList();
 
@@ -71,7 +71,7 @@ public sealed class ScheduleRegistryQueryTests
     public async Task GetJob_Existing_ReturnsDescriptor()
     {
         var registry = new ScheduleRegistry(Substitute.For<IScheduleStore>(), new FakeTimeProvider(Now));
-        await RegisterAsync(registry, "daily-report").ConfigureAwait(false);
+        await RegisterAsync(registry, "daily-report");
 
         var job = registry.GetJob("daily-report");
 
@@ -108,10 +108,10 @@ public sealed class ScheduleRegistryQueryTests
     public async Task GetJob_ReturnsSnapshot_UnaffectedByLaterMutation()
     {
         var registry = new ScheduleRegistry(Substitute.For<IScheduleStore>(), new FakeTimeProvider(Now));
-        await RegisterAsync(registry, "daily-report").ConfigureAwait(false);
+        await RegisterAsync(registry, "daily-report");
         var snapshot = registry.GetJob("daily-report")!.Value;
 
-        await registry.PauseAsync("daily-report").ConfigureAwait(false);
+        await registry.PauseAsync("daily-report");
 
         await Assert.That(snapshot.State).IsEqualTo(JobState.Running);
         await Assert.That(snapshot.IsRunning).IsTrue();
@@ -120,8 +120,7 @@ public sealed class ScheduleRegistryQueryTests
 
     private static async Task RegisterAsync(ScheduleRegistry registry, string name)
         => await registry.RegisterAsync(
-                name, new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher())
-            .ConfigureAwait(false);
+                name, new IntervalCadence(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new StubDispatcher());
 
     private sealed class StubDispatcher : IJobDispatcher
     {

@@ -73,13 +73,13 @@ public class RejectionRoutingTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        var parked = await orchestrator.EnqueueAsync("park-worker", WorkClass.Interactive).ConfigureAwait(false);
+        var parked = await orchestrator.EnqueueAsync("park-worker", WorkClass.Interactive);
         await Assert.That(parked).IsEqualTo(EnqueueResult.Accepted);
-        await handler.Started.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await handler.Started.WaitAsync(TimeSpan.FromSeconds(5));
 
-        var first = await orchestrator.EnqueueAsync("keep-1", WorkClass.Interactive).ConfigureAwait(false);
-        var second = await orchestrator.EnqueueAsync("keep-2", WorkClass.Interactive).ConfigureAwait(false);
-        var shed = await orchestrator.EnqueueAsync("shed-item", WorkClass.Interactive).ConfigureAwait(false);
+        var first = await orchestrator.EnqueueAsync("keep-1", WorkClass.Interactive);
+        var second = await orchestrator.EnqueueAsync("keep-2", WorkClass.Interactive);
+        var shed = await orchestrator.EnqueueAsync("shed-item", WorkClass.Interactive);
 
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
@@ -87,7 +87,7 @@ public class RejectionRoutingTests
         await Assert.That(shed.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
 
         var entries = new List<DeadLetteredWork<string>>();
-        await foreach (var entry in dlq.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var entry in dlq.ReadAllAsync())
         {
             entries.Add(entry);
         }
@@ -129,8 +129,8 @@ public class RejectionRoutingTests
             notifier: null,
             NullLogger<RejectionRoutingOrchestrator<string>>.Instance);
 
-        var accepted = await routing.EnqueueAsync("keep", WorkClass.Interactive).ConfigureAwait(false);
-        var shed = await routing.EnqueueAsync("shed", WorkClass.Interactive).ConfigureAwait(false);
+        var accepted = await routing.EnqueueAsync("keep", WorkClass.Interactive);
+        var shed = await routing.EnqueueAsync("shed", WorkClass.Interactive);
 
         await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(shed.IsAccepted).IsFalse();
@@ -184,7 +184,7 @@ public class RejectionRoutingTests
         await Assert.That(observed[0].Reason).IsEqualTo(RejectionReason.CapacityExceeded);
 
         var entries = new List<DeadLetteredWork<string>>();
-        await foreach (var entry in dlq.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var entry in dlq.ReadAllAsync())
         {
             entries.Add(entry);
         }
@@ -222,8 +222,8 @@ public class RejectionRoutingTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
         var dlq = provider.GetRequiredService<IDeadLetterQueue<string>>();
 
-        var first = await orchestrator.EnqueueAsync("a", WorkClass.Interactive).ConfigureAwait(false);
-        var second = await orchestrator.EnqueueAsync("b", WorkClass.Interactive).ConfigureAwait(false);
+        var first = await orchestrator.EnqueueAsync("a", WorkClass.Interactive);
+        var second = await orchestrator.EnqueueAsync("b", WorkClass.Interactive);
 
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
@@ -263,9 +263,9 @@ public class RejectionRoutingTests
         var observed = new List<(WorkClass Class, RejectionReason Reason)>();
         routing.RejectionObserved = (workClass, reason) => observed.Add((workClass, reason));
 
-        await orchestrator.DrainAsync().ConfigureAwait(false);
+        await orchestrator.DrainAsync();
 
-        var result = await routing.EnqueueAsync("late-item", WorkClass.Default).ConfigureAwait(false);
+        var result = await routing.EnqueueAsync("late-item", WorkClass.Default);
 
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(result.Reason).IsEqualTo(RejectionReason.Shutdown);
@@ -312,8 +312,8 @@ public class RejectionRoutingTests
         await Assert.That(metrics.Rejected.Name).IsEqualTo("bifrost.orchestrator.rejected");
         await Assert.That(metrics.Rejected.Unit).IsEqualTo("{item}");
 
-        var accepted = await routing.EnqueueAsync("keep", WorkClass.Interactive).ConfigureAwait(false);
-        var rejected = await routing.EnqueueAsync("shed", WorkClass.Interactive).ConfigureAwait(false);
+        var accepted = await routing.EnqueueAsync("keep", WorkClass.Interactive);
+        var rejected = await routing.EnqueueAsync("shed", WorkClass.Interactive);
 
         await Assert.That(accepted).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(rejected.IsAccepted).IsFalse();
@@ -356,8 +356,8 @@ public class RejectionRoutingTests
 
         using var collector = new RejectedCounterCollector(metrics.Rejected);
 
-        var first = await routing.EnqueueAsync("a", WorkClass.Interactive).ConfigureAwait(false);
-        var second = await routing.EnqueueAsync("b", WorkClass.Interactive).ConfigureAwait(false);
+        var first = await routing.EnqueueAsync("a", WorkClass.Interactive);
+        var second = await routing.EnqueueAsync("b", WorkClass.Interactive);
 
         await Assert.That(first).IsEqualTo(EnqueueResult.Accepted);
         await Assert.That(second).IsEqualTo(EnqueueResult.Accepted);
@@ -443,7 +443,7 @@ public class RejectionRoutingTests
         public async ValueTask HandleAsync(string work, CancellationToken ct)
         {
             _started.TrySetResult();
-            await _gate.Task.WaitAsync(ct).ConfigureAwait(false);
+            await _gate.Task.WaitAsync(ct);
         }
     }
 

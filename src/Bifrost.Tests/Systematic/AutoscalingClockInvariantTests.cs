@@ -37,12 +37,12 @@ internal class AutoscalingClockInvariantTests
         var coordinator = Substitute.For<IAutoscalingCoordinator>();
         coordinator.ActiveWorkerCount.Returns(1);
         using var engine = new AutoscalingEngine(Options.Create(new AutoscalingOptions()), coordinator, NullLogger<AutoscalingEngine>.Instance, clock);
-        await engine.StartAsync().ConfigureAwait(false);
+        await engine.StartAsync();
         await Assert.That(engine.IsRunning).IsTrue();
         engine.Dispose();
         await Assert.That(engine.IsRunning).IsFalse();
         await Assert.That(() => engine.StartAsync()).Throws<ObjectDisposedException>();
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StopAsync();
         engine.Dispose();
     }
 
@@ -66,14 +66,14 @@ internal class AutoscalingClockInvariantTests
             CheckInterval = TimeSpan.FromSeconds(1),
             CooldownPeriod = TimeSpan.Zero,
         }), coordinator, NullLogger<AutoscalingEngine>.Instance, clock);
-        await engine.StartAsync().ConfigureAwait(false);
+        await engine.StartAsync();
         clock.Advance(TimeSpan.FromSeconds(2));
         await Assert.That(calls).IsGreaterThanOrEqualTo(2);
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StopAsync();
         int stopped = calls;
         clock.Advance(TimeSpan.FromSeconds(3));
         await Assert.That(calls).IsEqualTo(stopped);
-        await engine.StartAsync().ConfigureAwait(false);
+        await engine.StartAsync();
         clock.Advance(TimeSpan.FromSeconds(1));
         await Assert.That(calls).IsGreaterThan(stopped);
         engine.Dispose();

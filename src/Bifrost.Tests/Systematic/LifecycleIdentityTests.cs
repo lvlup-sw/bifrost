@@ -26,7 +26,7 @@ public sealed class LifecycleIdentityTests
         async ValueTask<EnqueueResult> InjectAfterEffect(Payload work, CancellationToken token)
         {
             var attemptId = $"admission-attempt-{admissions.Count}";
-            var result = await actual.EnqueueAsync(work with { AcceptedAttempt = attemptId }, ct: token).ConfigureAwait(false);
+            var result = await actual.EnqueueAsync(work with { AcceptedAttempt = attemptId }, ct: token);
             admissions.Add(new("work-shared", "call-one", attemptId, result.IsAccepted));
             if (admissions.Count < 3) throw new TimeoutException("synthetic post-effect admission failure");
             return result;
@@ -35,9 +35,9 @@ public sealed class LifecycleIdentityTests
         var wrapper = new ResilientOrchestrator<Payload>(inner,
             Options.Create(new ResiliencySettings { RetryCount = 2, RetryIntervalSeconds = 0, UseExponentialBackoff = false }),
             NullLogger<ResilientOrchestrator<Payload>>.Instance);
-        var outcome = await wrapper.EnqueueAsync(new("work-shared", "unassigned")).ConfigureAwait(false);
-        await actual.DrainAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-        await worker.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        var outcome = await wrapper.EnqueueAsync(new("work-shared", "unassigned"));
+        await actual.DrainAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        await worker.WaitAsync(TimeSpan.FromSeconds(5));
         if (!outcome.IsAccepted || admissions.Count != 3 || handler.Executions.Count != 3)
             throw new InvalidOperationException("One call can admit three effects; handler failures do not trigger admission retries.");
         var events = handler.Executions.ToArray();

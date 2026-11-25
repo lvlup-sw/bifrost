@@ -132,7 +132,7 @@ public sealed class ResilientOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <inheritdoc/>
     public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkEnqueueOptions options = default, CancellationToken ct = default)
     {
-        var result = await _policy.ExecuteAsync(async (_, token) => await _inner.EnqueueAsync(work, options, token).ConfigureAwait(false), new Context("EnqueueAsync"), ct).ConfigureAwait(false);
+        var result = await _policy.ExecuteAsync(async (_, token) => await _inner.EnqueueAsync(work, options, token), new Context("EnqueueAsync"), ct);
         return result;
     }
 }

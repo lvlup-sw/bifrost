@@ -29,7 +29,7 @@ public sealed class LifecycleOutcomeInvariantTests
         try
         {
             await Assert.That(actual.Enqueue("blocked").IsAccepted).IsTrue();
-            await handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             await Assert.That(actual.Enqueue("pending").IsAccepted).IsTrue();
             await Assert.That(actual.PendingCount).IsEqualTo(1);
             await Assert.That(actual.ActiveWorkers).IsEqualTo(1);
@@ -40,15 +40,15 @@ public sealed class LifecycleOutcomeInvariantTests
             await Assert.That(actual.Enqueue("rejected").IsAccepted).IsFalse();
             if (outcome == "cancellation")
             {
-                await actual.AbortAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await actual.AbortAsync().WaitAsync(TimeSpan.FromSeconds(5));
             }
             else
             {
                 handler.Release.TrySetResult();
-                await actual.DrainAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await actual.DrainAsync().WaitAsync(TimeSpan.FromSeconds(5));
             }
 
-            await worker.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await worker.WaitAsync(TimeSpan.FromSeconds(5));
             await Assert.That(actual.Completion.IsCompletedSuccessfully).IsTrue();
             await Assert.That(actual.ActiveWorkers).IsEqualTo(0);
             await Assert.That(actual.PendingCount).IsEqualTo(outcome == "cancellation" ? 1 : 0);
@@ -75,7 +75,7 @@ public sealed class LifecycleOutcomeInvariantTests
         {
             if (work != "blocked") return;
             Entered.TrySetResult();
-            await Release.Task.WaitAsync(ct).ConfigureAwait(false);
+            await Release.Task.WaitAsync(ct);
             if (outcome == "failure") throw new InvalidOperationException("synthetic handler failure");
         }
     }

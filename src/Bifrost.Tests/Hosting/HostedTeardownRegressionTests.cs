@@ -27,23 +27,23 @@ internal class HostedTeardownRegressionTests
         {
             var service = new WorkOrchestratorHostedService<int>(orchestrator,
                 NullLogger<WorkOrchestratorHostedService<int>>.Instance);
-            await service.StartAsync(deadline.Token).ConfigureAwait(false);
+            await service.StartAsync(deadline.Token);
             await Assert.That(orchestrator.TryEnqueue(1)).IsTrue();
-            await handler.Entered.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
+            await handler.Entered.Task.WaitAsync(deadline.Token);
             var stopping = service.StopAsync(deadline.Token);
             await Assert.That(stopping.IsCompleted).IsFalse();
             var disposal = orchestrator.DisposeAsync().AsTask();
-            await Task.WhenAll(stopping, disposal).WaitAsync(deadline.Token).ConfigureAwait(false);
+            await Task.WhenAll(stopping, disposal).WaitAsync(deadline.Token);
 
             await Task.WhenAll(service.StopAsync(deadline.Token), orchestrator.AbortAsync(deadline.Token),
-                orchestrator.DisposeAsync().AsTask()).WaitAsync(deadline.Token).ConfigureAwait(false);
+                orchestrator.DisposeAsync().AsTask()).WaitAsync(deadline.Token);
             await Assert.That(orchestrator.GetShutdownToken().IsCancellationRequested).IsTrue();
             await Assert.That(orchestrator.Completion.IsCompletedSuccessfully).IsTrue();
             await Assert.That(orchestrator.ActiveWorkers).IsEqualTo(0);
         }
         finally
         {
-            await orchestrator.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await orchestrator.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
         }
     }
 
@@ -53,7 +53,7 @@ internal class HostedTeardownRegressionTests
         public async ValueTask HandleAsync(int work, CancellationToken ct)
         {
             Entered.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
         }
     }
 }

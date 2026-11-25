@@ -23,7 +23,7 @@ public class SchedulePreviewBoundaryTests
         var clock = new FakeTimeProvider();
         var epoch = clock.GetUtcNow();
         using var registry = new ScheduleRegistry(new InMemoryScheduleStore(), clock);
-        await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(10)), MissedFirePolicy.Coalesce, Substitute.For<IJobDispatcher>()).ConfigureAwait(false);
+        await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(10)), MissedFirePolicy.Coalesce, Substitute.For<IJobDispatcher>());
         clock.Advance(TimeSpan.FromMinutes(1));
         var preview = new ScheduleInspector(registry).GetNextOccurrences("job", 2);
         await Assert.That(preview[0]).IsEqualTo(epoch.AddMinutes(10));
@@ -36,7 +36,7 @@ public class SchedulePreviewBoundaryTests
     {
         var clock = new FakeTimeProvider();
         using var registry = new ScheduleRegistry(new InMemoryScheduleStore(), clock);
-        await registry.RegisterAsync("job", Cadence.After(TimeSpan.FromMinutes(1)), MissedFirePolicy.SkipMissed, Substitute.For<IJobDispatcher>()).ConfigureAwait(false);
+        await registry.RegisterAsync("job", Cadence.After(TimeSpan.FromMinutes(1)), MissedFirePolicy.SkipMissed, Substitute.For<IJobDispatcher>());
         clock.Advance(TimeSpan.FromMinutes(2));
         await Assert.That(new ScheduleInspector(registry).GetNextOccurrences("job", 2)).IsEmpty();
     }

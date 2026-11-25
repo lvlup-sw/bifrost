@@ -124,7 +124,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     {
         try
         {
-            await fifo.WriteAsync(envelope, ct).ConfigureAwait(false);
+            await fifo.WriteAsync(envelope, ct);
             return EnqueueResult.Accepted;
         }
         catch (ChannelClosedException)
@@ -168,7 +168,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         Complete();
         Task signal;
         lock (_lifecycleGate) signal = _abortSignal ??= _cts.CancelAsync();
-        await Task.WhenAll(signal, Completion).WaitAsync(ct).ConfigureAwait(false);
+        await Task.WhenAll(signal, Completion).WaitAsync(ct);
     }
 
     /// <inheritdoc/>
@@ -192,7 +192,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     {
         try
         {
-            await AbortAsync().ConfigureAwait(false);
+            await AbortAsync();
         }
         finally
         {
@@ -235,12 +235,12 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         var dequeueToken = dequeueCancellation?.Token ?? linked.Token;
         try
         {
-            await ConsumeQueueAsync(id, callback, linked.Token, dequeueToken).ConfigureAwait(false);
-            await DrainRetainedWorkAsync(id, callback, linked.Token, retirementToken).ConfigureAwait(false);
+            await ConsumeQueueAsync(id, callback, linked.Token, dequeueToken);
+            await DrainRetainedWorkAsync(id, callback, linked.Token, retirementToken);
         }
         catch (OperationCanceledException) when (dequeueToken.IsCancellationRequested)
         {
-            await DrainRetainedWorkAsync(id, callback, linked.Token, retirementToken).ConfigureAwait(false);
+            await DrainRetainedWorkAsync(id, callback, linked.Token, retirementToken);
         }
         catch (Exception error)
         {
@@ -289,7 +289,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             if (!_queue.TryDequeue(out var envelope))
                 return;
 
-            await ProcessEnvelopeAsync(id, callback, handlerToken, envelope).ConfigureAwait(false);
+            await ProcessEnvelopeAsync(id, callback, handlerToken, envelope);
         }
     }
 
@@ -301,7 +301,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         if (stateCallback is not null) NotifyWorkerState(stateCallback, true, workerId);
         try
         {
-            await _handler.HandleAsync(envelope.Work, ct).ConfigureAwait(false);
+            await _handler.HandleAsync(envelope.Work, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -366,16 +366,16 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     // permits, and later wakes spin on an empty queue.
     private async Task ConsumeQueueAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct, CancellationToken dequeueToken)
     {
-        while (!dequeueToken.IsCancellationRequested && await _queue.WaitToDequeueAsync(dequeueToken).ConfigureAwait(false))
+        while (!dequeueToken.IsCancellationRequested && await _queue.WaitToDequeueAsync(dequeueToken))
         {
             if (!_queue.TryDequeue(out var envelope))
                 continue;
 
-            await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope).ConfigureAwait(false);
+            await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope);
             while (!dequeueToken.IsCancellationRequested && _queue.TryDequeue(out envelope))
             {
                 ConsumeMatchedWake();
-                await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope).ConfigureAwait(false);
+                await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope);
             }
         }
     }

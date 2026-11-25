@@ -108,22 +108,22 @@ public sealed class AutoscalingLifecycleCorrectnessTests
         using var shutdownCts = new CancellationTokenSource();
         var busyWorker = await registry.CreateWorkerAsync(
             "busy",
-            async (_, ct) => await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false),
-            shutdownCts.Token).ConfigureAwait(false);
+            async (_, ct) => await Task.Delay(Timeout.Infinite, ct),
+            shutdownCts.Token);
         busyWorker.MarkBusy();
 
         var idleWorker = await registry.CreateWorkerAsync(
             "idle",
-            async (_, ct) => await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false),
-            shutdownCts.Token).ConfigureAwait(false);
+            async (_, ct) => await Task.Delay(Timeout.Infinite, ct),
+            shutdownCts.Token);
         idleWorker.MarkIdle();
 
-        await orchestrator.RequestScaleDownAsync(5).ConfigureAwait(false);
+        await orchestrator.RequestScaleDownAsync(5);
 
         await Assert.That(idleWorker.StopRequested).IsTrue();
         await Assert.That(busyWorker.StopRequested).IsFalse();
 
-        await shutdownCts.CancelAsync().ConfigureAwait(false);
+        await shutdownCts.CancelAsync();
     }
 
     /// <summary>
@@ -137,12 +137,12 @@ public sealed class AutoscalingLifecycleCorrectnessTests
     {
         var registry = new WorkerRegistry();
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
         await Assert.That(async () => await registry.CreateWorkerAsync(
                 "w1",
                 (_, _) => Task.CompletedTask,
-                cts.Token).ConfigureAwait(false))
+                cts.Token))
             .Throws<OperationCanceledException>();
 
         await Assert.That(registry.ActiveWorkerCount).IsEqualTo(0);

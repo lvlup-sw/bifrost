@@ -73,30 +73,29 @@ public sealed class ClockJumpTests
             NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
             serviceProvider: Services);
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
         try
         {
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             var dispatcher = new CountingDispatcher();
-            await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await registry.RegisterAsync("job", Cadence.Interval(TimeSpan.FromMinutes(5)), MissedFirePolicy.Coalesce, dispatcher);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             skewable.SkewBy(TimeSpan.FromDays(-3));
 
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             skewable.SkewBy(TimeSpan.Zero);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             time.Advance(TimeSpan.FromMinutes(5));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
             await Assert.That(dispatcher.FireCount).IsEqualTo(1);
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
         }
     }

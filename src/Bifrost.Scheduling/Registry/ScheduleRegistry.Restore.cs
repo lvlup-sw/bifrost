@@ -23,7 +23,7 @@ public sealed partial class ScheduleRegistry
         ValidateName(record.Name);
         ArgumentNullException.ThrowIfNull(record.Cadence);
         ArgumentNullException.ThrowIfNull(dispatcher);
-        using var lease = await this.mutationGates.EnterAsync(record.Name, ct).ConfigureAwait(false);
+        using var lease = await this.mutationGates.EnterAsync(record.Name, ct);
         this.ThrowIfDisposed();
         if (!this.jobs.TryAdd(record.Name, record))
         {

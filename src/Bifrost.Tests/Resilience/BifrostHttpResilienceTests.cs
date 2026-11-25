@@ -110,7 +110,7 @@ public class BifrostHttpResilienceHandlerTests
 
         await using var provider = services.BuildServiceProvider();
         var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient(DefaultClient);
-        var response = await client.GetAsync("https://example.test/health", CancellationToken.None).ConfigureAwait(false);
+        var response = await client.GetAsync("https://example.test/health", CancellationToken.None);
 
         await Assert.That((int)response.StatusCode).IsEqualTo(200);
         await Assert.That(stub.TotalCallCount).IsGreaterThanOrEqualTo(2);
@@ -141,7 +141,7 @@ public class BifrostHttpResilienceHandlerTests
 
         await using var provider = services.BuildServiceProvider();
         var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient(NoRetryClient);
-        var response = await client.GetAsync("https://example.test/health", CancellationToken.None).ConfigureAwait(false);
+        var response = await client.GetAsync("https://example.test/health", CancellationToken.None);
 
         await Assert.That((int)response.StatusCode).IsEqualTo(503);
         await Assert.That(stub.TotalCallCount).IsEqualTo(1);
@@ -207,9 +207,9 @@ public class BifrostHttpResilienceHandlerTests
         var factory = provider.GetRequiredService<IHttpClientFactory>();
 
         var overrideResponse = await factory.CreateClient(NoRetryClient)
-            .GetAsync("https://example.test/health", CancellationToken.None).ConfigureAwait(false);
+            .GetAsync("https://example.test/health", CancellationToken.None);
         var defaultResponse = await factory.CreateClient(DefaultClient)
-            .GetAsync("https://example.test/health", CancellationToken.None).ConfigureAwait(false);
+            .GetAsync("https://example.test/health", CancellationToken.None);
 
         await Assert.That((int)overrideResponse.StatusCode).IsEqualTo(503);
         await Assert.That(overrideStub.TotalCallCount).IsEqualTo(1);

@@ -148,7 +148,7 @@ public class WorkerInfoStateTests
             }
         });
 
-        await Task.WhenAll(busyTask, idleTask).ConfigureAwait(false);
+        await Task.WhenAll(busyTask, idleTask);
 
         await Assert.That(busyCount).IsEqualTo(iterations);
         await Assert.That(idleCount).IsEqualTo(iterations);

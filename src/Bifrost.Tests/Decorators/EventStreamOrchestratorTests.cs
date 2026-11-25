@@ -59,20 +59,20 @@ public class EventStreamOrchestratorTests
 
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(250).ConfigureAwait(false);
+        await Task.Delay(250);
 
-        await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
+        await decorator.EnqueueAsync("test-work");
 
-        await _inner.Received(1).EnqueueAsync("test-work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).EnqueueAsync("test-work", Arg.Any<WorkEnqueueOptions>(), Arg.Any<CancellationToken>());
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(evt.Work).IsEqualTo("test-work");
     }
 
@@ -93,7 +93,7 @@ public class EventStreamOrchestratorTests
 
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
             {
                 receivedEvents.Add(evt);
                 if (receivedEvents.Count >= 2)
@@ -103,12 +103,12 @@ public class EventStreamOrchestratorTests
             }
         });
 
-        await Task.Delay(250).ConfigureAwait(false);
+        await Task.Delay(250);
 
-        await decorator.EnqueueAsync("test1").ConfigureAwait(false);
-        await decorator.EnqueueAsync("test2").ConfigureAwait(false);
+        await decorator.EnqueueAsync("test1");
+        await decorator.EnqueueAsync("test2");
 
-        await subscriberTask.ConfigureAwait(false);
+        await subscriberTask;
 
         await Assert.That(receivedEvents.Count).IsEqualTo(2);
     }
@@ -184,18 +184,18 @@ public class EventStreamOrchestratorTests
 
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(250).ConfigureAwait(false);
+        await Task.Delay(250);
 
         decorator.TryEnqueue("test-work");
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(evt.Work).IsEqualTo("test-work");
     }
 
@@ -220,7 +220,7 @@ public class EventStreamOrchestratorTests
         {
             try
             {
-                await foreach (var _ in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+                await foreach (var _ in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
                 {
                     eventReceived = true;
                 }
@@ -230,11 +230,11 @@ public class EventStreamOrchestratorTests
             }
         });
 
-        await Task.Delay(250).ConfigureAwait(false);
+        await Task.Delay(250);
 
         var result = decorator.TryEnqueue("test-work");
 
-        await subscriberTask.ConfigureAwait(false);
+        await subscriberTask;
 
         await Assert.That(result).IsFalse();
         await Assert.That(eventReceived).IsFalse();
@@ -248,9 +248,9 @@ public class EventStreamOrchestratorTests
     {
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
-        await decorator.AbortAsync().ConfigureAwait(false);
+        await decorator.AbortAsync();
 
-        await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).AbortAsync(Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -261,9 +261,9 @@ public class EventStreamOrchestratorTests
     {
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
 
-        await decorator.DisposeAsync().ConfigureAwait(false);
+        await decorator.DisposeAsync();
 
-        await _inner.Received(1).DisposeAsync().ConfigureAwait(false);
+        await _inner.Received(1).DisposeAsync();
     }
 
     /// <summary>
@@ -285,7 +285,7 @@ public class EventStreamOrchestratorTests
         {
             try
             {
-                await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+                await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
                 {
                     eventReceived = true;
                     break;
@@ -296,10 +296,10 @@ public class EventStreamOrchestratorTests
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
-        var result = await decorator.EnqueueAsync("rejected-work").ConfigureAwait(false);
-        await subscriberTask.ConfigureAwait(false);
+        var result = await decorator.EnqueueAsync("rejected-work");
+        await subscriberTask;
 
         await Assert.That(result.IsAccepted).IsFalse();
         await Assert.That(eventReceived).IsFalse();
@@ -352,22 +352,22 @@ public class EventStreamOrchestratorTests
 
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(250).ConfigureAwait(false);
+        await Task.Delay(250);
 
         var before = DateTimeOffset.UtcNow;
 
-        await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
+        await decorator.EnqueueAsync("test-work");
 
         var after = DateTimeOffset.UtcNow;
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(evt.Timestamp).IsGreaterThanOrEqualTo(before);
         await Assert.That(evt.Timestamp).IsLessThanOrEqualTo(after);
     }
@@ -389,18 +389,18 @@ public class EventStreamOrchestratorTests
 
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(250).ConfigureAwait(false);
+        await Task.Delay(250);
 
-        await decorator.EnqueueAsync("test-work").ConfigureAwait(false);
+        await decorator.EnqueueAsync("test-work");
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(evt.QueueDepth).IsEqualTo(10);
     }
 
@@ -426,27 +426,27 @@ public class EventStreamOrchestratorTests
 
         for (var i = 0; i < 1000; i++)
         {
-            await decorator.EnqueueAsync($"fill-{i}").ConfigureAwait(false);
+            await decorator.EnqueueAsync($"fill-{i}");
         }
 
-        await decorator.EnqueueAsync("trigger-cleanup").ConfigureAwait(false);
+        await decorator.EnqueueAsync("trigger-cleanup");
 
-        await Task.Delay(50).ConfigureAwait(false);
+        await Task.Delay(50);
 
         var newSubscriberReceived = new TaskCompletionSource<IOrchestratorEvent>();
         var newSubscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
             {
                 newSubscriberReceived.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
-        await decorator.EnqueueAsync("verify-event").ConfigureAwait(false);
+        await Task.Delay(100);
+        await decorator.EnqueueAsync("verify-event");
 
-        var receivedEvt = await newSubscriberReceived.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        var receivedEvt = await newSubscriberReceived.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await Assert.That(receivedEvt).IsNotNull();
 
         _logger.Received().Log(
@@ -478,7 +478,7 @@ public class EventStreamOrchestratorTests
 
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
             {
                 receivedEvents.Add(evt);
                 if (receivedEvents.Count >= eventCount)
@@ -488,14 +488,14 @@ public class EventStreamOrchestratorTests
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
         for (var i = 0; i < eventCount; i++)
         {
-            await decorator.EnqueueAsync($"event-{i}").ConfigureAwait(false);
+            await decorator.EnqueueAsync($"event-{i}");
         }
 
-        await subscriberTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await subscriberTask.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(receivedEvents.Count).IsEqualTo(eventCount);
     }
@@ -524,7 +524,7 @@ public class EventStreamOrchestratorTests
         {
             try
             {
-                await foreach (var evt in firstStream.ConfigureAwait(false))
+                await foreach (var evt in firstStream)
                 {
                     eventsReceived++;
                 }
@@ -534,15 +534,15 @@ public class EventStreamOrchestratorTests
             }
         });
 
-        await Task.Delay(200).ConfigureAwait(false);
+        await Task.Delay(200);
 
-        await decorator.EnqueueAsync("test-event").ConfigureAwait(false);
-        await Task.Delay(100).ConfigureAwait(false);
+        await decorator.EnqueueAsync("test-event");
+        await Task.Delay(100);
 
-        await subscriberCts.CancelAsync().ConfigureAwait(false);
-        await subscriberTask.ConfigureAwait(false);
+        await subscriberCts.CancelAsync();
+        await subscriberTask;
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
         await Assert.That(eventsReceived).IsGreaterThanOrEqualTo(1);
 
@@ -551,16 +551,16 @@ public class EventStreamOrchestratorTests
         var secondStream = decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: newCts.Token);
         var newTask = Task.Run(async () =>
         {
-            await foreach (var evt in secondStream.ConfigureAwait(false))
+            await foreach (var evt in secondStream)
             {
                 newEventReceived.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
-        await decorator.EnqueueAsync("after-cleanup").ConfigureAwait(false);
-        var newEvt = await newEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        await Task.Delay(100);
+        await decorator.EnqueueAsync("after-cleanup");
+        var newEvt = await newEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await Assert.That(newEvt).IsNotNull();
     }
 
@@ -590,18 +590,18 @@ public class EventStreamOrchestratorTests
 
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token))
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(150).ConfigureAwait(false);
+        await Task.Delay(150);
 
-        await trackingHandler.HandleAsync("completed-work", CancellationToken.None).ConfigureAwait(false);
+        await trackingHandler.HandleAsync("completed-work", CancellationToken.None);
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(3));
         await Assert.That(evt.Work).IsEqualTo("completed-work");
         await Assert.That(evt.Success).IsTrue();
         await Assert.That(evt.Duration).IsGreaterThanOrEqualTo(TimeSpan.Zero);
@@ -634,24 +634,24 @@ public class EventStreamOrchestratorTests
 
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in decorator.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token))
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(150).ConfigureAwait(false);
+        await Task.Delay(150);
 
         try
         {
-            await trackingHandler.HandleAsync("failing-work", CancellationToken.None).ConfigureAwait(false);
+            await trackingHandler.HandleAsync("failing-work", CancellationToken.None);
         }
         catch (InvalidOperationException)
         {
         }
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(3));
         await Assert.That(evt.Work).IsEqualTo("failing-work");
         await Assert.That(evt.Success).IsFalse();
         await Assert.That(evt.Duration).IsGreaterThanOrEqualTo(TimeSpan.Zero);
@@ -677,20 +677,20 @@ public class EventStreamOrchestratorTests
 
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var _ in decorator.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
             {
             }
 
             subscriberCompleted = true;
         });
 
-        await Task.Delay(200).ConfigureAwait(false);
+        await Task.Delay(200);
 
-        await decorator.DrainAsync().ConfigureAwait(false);
+        await decorator.DrainAsync();
 
-        await subscriberTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await subscriberTask.WaitAsync(TimeSpan.FromSeconds(5));
 
-        await _inner.Received(1).DrainAsync(Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await _inner.Received(1).DrainAsync(Arg.Any<CancellationToken>());
 
         await Assert.That(subscriberCompleted).IsTrue();
     }

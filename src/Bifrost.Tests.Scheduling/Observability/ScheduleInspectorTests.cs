@@ -35,10 +35,8 @@ public sealed class ScheduleInspectorTests
     public async Task GetJobs_DelegatesToRegistry()
     {
         var registry = NewRegistry();
-        await registry.RegisterAsync("alpha", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
-        await registry.RegisterAsync("beta", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
+        await registry.RegisterAsync("alpha", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher());
+        await registry.RegisterAsync("beta", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher());
         IBifrostScheduleInspector inspector = new ScheduleInspector(registry);
 
         var jobs = inspector.GetJobs();
@@ -57,8 +55,7 @@ public sealed class ScheduleInspectorTests
     public async Task GetJob_DelegatesToRegistry()
     {
         var registry = NewRegistry();
-        await registry.RegisterAsync("alpha", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
+        await registry.RegisterAsync("alpha", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher());
         IBifrostScheduleInspector inspector = new ScheduleInspector(registry);
 
         var job = inspector.GetJob("alpha");
@@ -78,10 +75,8 @@ public sealed class ScheduleInspectorTests
     public async Task GetMetricsSnapshot_ReportsJobCount()
     {
         var registry = NewRegistry();
-        await registry.RegisterAsync("alpha", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
-        await registry.RegisterAsync("beta", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
+        await registry.RegisterAsync("alpha", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher());
+        await registry.RegisterAsync("beta", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher());
         IBifrostScheduleInspector inspector = new ScheduleInspector(registry);
 
         var snapshot = inspector.GetMetricsSnapshot();

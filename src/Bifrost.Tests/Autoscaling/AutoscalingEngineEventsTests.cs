@@ -38,9 +38,9 @@ public class AutoscalingEngineEventsTests
         ScalingDecisionEventArgs? capturedArgs = null;
         engine.ScalingDecisionMade += (sender, args) => capturedArgs = args;
 
-        await engine.StartAsync().ConfigureAwait(false);
-        await Task.Delay(200).ConfigureAwait(false);
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StartAsync();
+        await Task.Delay(200);
+        await engine.StopAsync();
 
         await Assert.That(capturedArgs).IsNotNull();
         await Assert.That(capturedArgs!.Decision.CurrentWorkers).IsEqualTo(2);
@@ -59,9 +59,9 @@ public class AutoscalingEngineEventsTests
         ScalingDecisionEventArgs? capturedArgs = null;
         engine.ScalingDecisionMade += (sender, args) => capturedArgs = args;
 
-        await engine.StartAsync().ConfigureAwait(false);
-        await Task.Delay(200).ConfigureAwait(false);
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StartAsync();
+        await Task.Delay(200);
+        await engine.StopAsync();
 
         await Assert.That(capturedArgs).IsNotNull();
         await Assert.That(capturedArgs!.CorrelationId).IsNotEmpty();
@@ -84,14 +84,14 @@ public class AutoscalingEngineEventsTests
         var correlationIds = new List<string>();
         engine.ScalingDecisionMade += (_, args) => correlationIds.Add(args.CorrelationId);
 
-        await engine.StartAsync().ConfigureAwait(false);
+        await engine.StartAsync();
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (correlationIds.Count < 2 && !cts.IsCancellationRequested)
         {
             try
             {
-                await Task.Delay(50, cts.Token).ConfigureAwait(false);
+                await Task.Delay(50, cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -99,7 +99,7 @@ public class AutoscalingEngineEventsTests
             }
         }
 
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StopAsync();
 
         await Assert.That(correlationIds.Count).IsGreaterThanOrEqualTo(2);
         await Assert.That(correlationIds.Distinct().Count()).IsEqualTo(correlationIds.Count);
@@ -121,9 +121,9 @@ public class AutoscalingEngineEventsTests
         ScalingDecisionEventArgs? capturedArgs = null;
         engine.ScalingDecisionMade += (_, args) => capturedArgs = args;
 
-        await engine.StartAsync().ConfigureAwait(false);
-        await Task.Delay(200).ConfigureAwait(false);
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StartAsync();
+        await Task.Delay(200);
+        await engine.StopAsync();
 
         await Assert.That(capturedArgs).IsNotNull();
         await Assert.That(capturedArgs!.Decision.Action).IsEqualTo(ScalingAction.ScaleUp);
@@ -147,7 +147,7 @@ public class AutoscalingEngineEventsTests
         var eventCount = 0;
         engine.ScalingDecisionMade += (_, _) => Interlocked.Increment(ref eventCount);
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
         await Assert.That(eventCount).IsEqualTo(0);
     }
@@ -184,9 +184,9 @@ public class AutoscalingEngineEventsTests
         var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<AutoscalingEngine>>();
         var engine = new AutoscalingEngine(options, coordinator, logger);
 
-        await engine.StartAsync().ConfigureAwait(false);
-        await Task.Delay(300).ConfigureAwait(false);
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StartAsync();
+        await Task.Delay(300);
+        await engine.StopAsync();
 
         logger.Received().Log(
             Microsoft.Extensions.Logging.LogLevel.Error,
@@ -220,16 +220,16 @@ public class AutoscalingEngineEventsTests
             .Returns(async _ =>
             {
                 scaleUpStarted.TrySetResult();
-                await Task.Delay(500).ConfigureAwait(false);
+                await Task.Delay(500);
                 scaleUpCompleted.TrySetResult();
             });
 
         var engine = new AutoscalingEngine(options, coordinator, NullLogger<AutoscalingEngine>.Instance);
 
-        await engine.StartAsync().ConfigureAwait(false);
-        await scaleUpStarted.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-        await Task.Delay(100).ConfigureAwait(false);
-        await engine.StopAsync().ConfigureAwait(false);
+        await engine.StartAsync();
+        await scaleUpStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.Delay(100);
+        await engine.StopAsync();
 
         await Assert.That(scaleUpCompleted.Task.IsCompleted).IsTrue();
     }

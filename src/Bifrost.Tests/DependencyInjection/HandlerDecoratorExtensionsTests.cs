@@ -97,7 +97,7 @@ public class HandlerDecoratorExtensionsTests
 
         await Assert.That(decoratorApplied).IsTrue();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ public class HandlerDecoratorExtensionsTests
         await Assert.That(customDecoratorApplied).IsTrue();
         await Assert.That(builder.HandlerDecorators).HasCount().GreaterThanOrEqualTo(2);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>

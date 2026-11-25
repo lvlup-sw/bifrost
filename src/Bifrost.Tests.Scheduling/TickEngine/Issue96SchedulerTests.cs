@@ -41,11 +41,10 @@ public sealed class Issue96SchedulerTests
     [Test]
     public async Task DistantOneShot_DoesNotFaultTheLoop()
     {
-        await using var fx = await LoopFixture.StartAsync(Start).ConfigureAwait(false);
-        await fx.RegisterAsync("distant", Cadence.At(Start.AddDays(60)), new CountingDispatcher())
-            .ConfigureAwait(false);
+        await using var fx = await LoopFixture.StartAsync(Start);
+        await fx.RegisterAsync("distant", Cadence.At(Start.AddDays(60)), new CountingDispatcher());
 
-        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(Timeout);
         await Assert.That(fx.Loop.IsFaulted).IsFalse();
     }
 
@@ -56,11 +55,9 @@ public sealed class Issue96SchedulerTests
     public async Task TinyIntervalCatchUp_HonorsPauseWithinBudget()
     {
         var budget = ScheduleTickLoop.LiveCatchUpDispatchBudget;
-        await using var fx = await LoopFixture.StartAsync(Start, new PauseAtBudgetRouter())
-            .ConfigureAwait(false);
+        await using var fx = await LoopFixture.StartAsync(Start, new PauseAtBudgetRouter());
         var router = (PauseAtBudgetRouter)fx.Router;
-        await fx.RegisterAsync("burst", Cadence.Interval(TimeSpan.FromTicks(1)), new CountingDispatcher())
-            .ConfigureAwait(false);
+        await fx.RegisterAsync("burst", Cadence.Interval(TimeSpan.FromTicks(1)), new CountingDispatcher());
 
         var advance = Task.Run(() => fx.Time.Advance(TimeSpan.FromTicks(budget + 40)));
         if (!router.ReachedBudget.Wait(Timeout))
@@ -68,10 +65,10 @@ public sealed class Issue96SchedulerTests
             throw new TimeoutException("The catch-up did not reach the dispatch budget.");
         }
 
-        await fx.Registry.PauseAsync("burst").ConfigureAwait(false);
+        await fx.Registry.PauseAsync("burst");
         router.Hold.Set();
-        await advance.WaitAsync(Timeout).ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        await advance.WaitAsync(Timeout);
+        await fx.Loop.WaitForIdleAsync(Timeout);
 
         await Assert.That(router.Calls).IsEqualTo(budget);
     }
@@ -84,15 +81,14 @@ public sealed class Issue96SchedulerTests
     {
         var fake = new FakeTimeProvider(Start);
         var clock = new CountingTimeProvider(fake);
-        await using var fx = await LoopFixture.StartAsync(clock, fake).ConfigureAwait(false);
-        await fx.RegisterAsync("hourly", Cadence.Interval(TimeSpan.FromHours(1)), new CountingDispatcher())
-            .ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        await using var fx = await LoopFixture.StartAsync(clock, fake);
+        await fx.RegisterAsync("hourly", Cadence.Interval(TimeSpan.FromHours(1)), new CountingDispatcher());
+        await fx.Loop.WaitForIdleAsync(Timeout);
 
         for (var i = 0; i < 25; i++)
         {
-            await fx.Registry.TriggerAsync("hourly").ConfigureAwait(false);
-            await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+            await fx.Registry.TriggerAsync("hourly");
+            await fx.Loop.WaitForIdleAsync(Timeout);
         }
 
         await Assert.That(clock.LiveTimers).IsLessThanOrEqualTo(2);
@@ -105,9 +101,8 @@ public sealed class Issue96SchedulerTests
     public async Task SaturatedDispatches_StayWithinBudget()
     {
         var dispatcher = new BlockingDispatcher();
-        await using var fx = await LoopFixture.StartAsync(Start).ConfigureAwait(false);
-        await fx.RegisterAsync("minute", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher)
-            .ConfigureAwait(false);
+        await using var fx = await LoopFixture.StartAsync(Start);
+        await fx.RegisterAsync("minute", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher);
 
         var budget = ScheduleTickLoop.MaxOutstandingDispatches;
         fx.Time.Advance(TimeSpan.FromMinutes(budget + 8));
@@ -115,10 +110,10 @@ public sealed class Issue96SchedulerTests
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
         while (dispatcher.Entered < budget && DateTime.UtcNow < deadline)
         {
-            await Task.Delay(10).ConfigureAwait(false);
+            await Task.Delay(10);
         }
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
         await Assert.That(dispatcher.Entered).IsEqualTo(budget);
     }
 
@@ -134,18 +129,16 @@ public sealed class Issue96SchedulerTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var blocking = new GateDispatcher(entered, gate);
 
-        await using var fx = await LoopFixture.StartAsync(Start, health: monitor, store: store)
-            .ConfigureAwait(false);
-        await fx.RegisterAsync("held", Cadence.At(Start.AddMinutes(5)), blocking)
-            .ConfigureAwait(false);
+        await using var fx = await LoopFixture.StartAsync(Start, health: monitor, store: store);
+        await fx.RegisterAsync("held", Cadence.At(Start.AddMinutes(5)), blocking);
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await entered.Task.WaitAsync(Timeout).ConfigureAwait(false);
-        await Task.Delay(50).ConfigureAwait(false);
+        await entered.Task.WaitAsync(Timeout);
+        await Task.Delay(50);
         await Assert.That(store.Recorded.Task.IsCompleted).IsFalse();
 
         gate.TrySetResult();
-        await store.Recorded.Task.WaitAsync(Timeout).ConfigureAwait(false);
+        await store.Recorded.Task.WaitAsync(Timeout);
 
         var orchestrator = new WorkOrchestrator<string>(
             new NoopHandler(),
@@ -158,18 +151,17 @@ public sealed class Issue96SchedulerTests
             NullLogger<WorkOrchestrator<string>>.Instance);
         await using (orchestrator)
         {
-            await orchestrator.EnqueueAsync("full").ConfigureAwait(false);
+            await orchestrator.EnqueueAsync("full");
             var rejecting = new OrchestratorJobDispatcher<string>(
                 static _ => "scheduled",
                 orchestrator,
                 WorkClass.Batch,
                 fx.Sink);
-            await fx.RegisterAsync("rejected", Cadence.At(Start.AddMinutes(10)), rejecting)
-                .ConfigureAwait(false);
+            await fx.RegisterAsync("rejected", Cadence.At(Start.AddMinutes(10)), rejecting);
             var before = monitor.RecentFireCount;
             var checkpoints = store.Checkpoints;
             fx.Time.Advance(TimeSpan.FromMinutes(5));
-            await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+            await fx.Loop.WaitForIdleAsync(Timeout);
 
             await Assert.That(monitor.RecentFireCount).IsEqualTo(before + 1);
             await Assert.That(monitor.FailureRate).IsGreaterThan(0);
@@ -200,10 +192,8 @@ public sealed class Issue96SchedulerTests
         await using var first = provider.CreateAsyncScope();
         await using var second = provider.CreateAsyncScope();
         var now = Start;
-        await dispatcher.DispatchAsync(new JobFireContext("job", now, now.AddMinutes(1), first.ServiceProvider), CancellationToken.None)
-            .ConfigureAwait(false);
-        await dispatcher.DispatchAsync(new JobFireContext("job", now.AddMinutes(1), null, second.ServiceProvider), CancellationToken.None)
-            .ConfigureAwait(false);
+        await dispatcher.DispatchAsync(new JobFireContext("job", now, now.AddMinutes(1), first.ServiceProvider), CancellationToken.None);
+        await dispatcher.DispatchAsync(new JobFireContext("job", now.AddMinutes(1), null, second.ServiceProvider), CancellationToken.None);
 
         await Assert.That(ScopedFire.Seen).Count().IsEqualTo(2);
         await Assert.That(ScopedFire.Seen[0]).IsNotSameReferenceAs(ScopedFire.Seen[1]);
@@ -217,15 +207,13 @@ public sealed class Issue96SchedulerTests
     {
         var store = new SignalingStore();
         var dispatcher = new FailOnceDispatcher();
-        await using var fx = await LoopFixture.StartAsync(Start, new TickHealthMonitor(), store)
-            .ConfigureAwait(false);
-        await fx.RegisterAsync("gap", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher)
-            .ConfigureAwait(false);
+        await using var fx = await LoopFixture.StartAsync(Start, new TickHealthMonitor(), store);
+        await fx.RegisterAsync("gap", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher);
 
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(Timeout);
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(Timeout);
 
         await Assert.That(dispatcher.Calls).IsEqualTo(2);
         await Assert.That(store.Checkpoints).IsEqualTo(0);
@@ -239,35 +227,33 @@ public sealed class Issue96SchedulerTests
     {
         var monitor = new TickHealthMonitor();
         var dispatcher = new BlockingDispatcher();
-        await using var fx = await LoopFixture.StartAsync(Start, monitor, new InMemoryScheduleStore())
-            .ConfigureAwait(false);
-        await fx.RegisterAsync("minute", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher)
-            .ConfigureAwait(false);
+        await using var fx = await LoopFixture.StartAsync(Start, monitor, new InMemoryScheduleStore());
+        await fx.RegisterAsync("minute", Cadence.Interval(TimeSpan.FromMinutes(1)), dispatcher);
 
         var budget = ScheduleTickLoop.MaxOutstandingDispatches;
         fx.Time.Advance(TimeSpan.FromMinutes(budget + 2));
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
         while (dispatcher.Entered < budget && DateTime.UtcNow < deadline)
         {
-            await Task.Delay(10).ConfigureAwait(false);
+            await Task.Delay(10);
         }
 
         await Assert.That(dispatcher.Entered).IsEqualTo(budget);
         var seen = DateTime.UtcNow + TimeSpan.FromSeconds(5);
         while (DateTime.UtcNow < seen && monitor.IdleWait.Deadline is null)
         {
-            await Task.Delay(10).ConfigureAwait(false);
+            await Task.Delay(10);
         }
 
         await Assert.That(monitor.IdleWait.IsWaiting).IsTrue();
         await Assert.That(monitor.IdleWait.Deadline).IsNotNull();
 
         var health = new SchedulerHealthCheck(monitor, fx.Loop, fx.Time, TimeSpan.FromMinutes(1));
-        var before = await health.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        var before = await health.CheckHealthAsync(new HealthCheckContext());
         await Assert.That(before.Status).IsEqualTo(HealthStatus.Healthy);
 
         fx.Time.Advance(TimeSpan.FromMinutes(4));
-        var after = await health.CheckHealthAsync(new HealthCheckContext()).ConfigureAwait(false);
+        var after = await health.CheckHealthAsync(new HealthCheckContext());
         await Assert.That(after.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
 
@@ -278,21 +264,18 @@ public sealed class Issue96SchedulerTests
     public async Task Replacement_CheckpointsAfterTheOldHoleIsGone()
     {
         var store = new SignalingStore();
-        await using var fx = await LoopFixture.StartAsync(Start, new TickHealthMonitor(), store)
-            .ConfigureAwait(false);
-        await fx.RegisterAsync("gap", Cadence.Interval(TimeSpan.FromMinutes(1)), new FailOnceDispatcher())
-            .ConfigureAwait(false);
+        await using var fx = await LoopFixture.StartAsync(Start, new TickHealthMonitor(), store);
+        await fx.RegisterAsync("gap", Cadence.Interval(TimeSpan.FromMinutes(1)), new FailOnceDispatcher());
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(Timeout);
         await Assert.That(store.Checkpoints).IsEqualTo(0);
 
-        await fx.Registry.UnregisterAsync("gap").ConfigureAwait(false);
-        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        await fx.Registry.UnregisterAsync("gap");
+        await fx.Loop.WaitForIdleAsync(Timeout);
         var replacement = new CallCountingDispatcher();
-        await fx.RegisterAsync("gap", Cadence.Interval(TimeSpan.FromMinutes(1)), replacement)
-            .ConfigureAwait(false);
+        await fx.RegisterAsync("gap", Cadence.Interval(TimeSpan.FromMinutes(1)), replacement);
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(Timeout);
 
         await Assert.That(replacement.Calls).IsGreaterThan(0);
         await Assert.That(store.Checkpoints).IsGreaterThan(0);
@@ -307,29 +290,28 @@ public sealed class Issue96SchedulerTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var blocker = new HoldDispatcher(release);
         var replacement = new CallCountingDispatcher();
-        await using var fx = await LoopFixture.StartAsync(Start).ConfigureAwait(false);
+        await using var fx = await LoopFixture.StartAsync(Start);
         try
         {
-            await fx.RegisterAsync("held", Cadence.Interval(TimeSpan.FromMinutes(1)), blocker)
-                .ConfigureAwait(false);
+            await fx.RegisterAsync("held", Cadence.Interval(TimeSpan.FromMinutes(1)), blocker);
             var budget = ScheduleTickLoop.MaxOutstandingDispatches;
             fx.Time.Advance(TimeSpan.FromMinutes(budget + 2));
             var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
             while (blocker.Entered < budget && DateTime.UtcNow < deadline)
             {
-                await Task.Delay(10).ConfigureAwait(false);
+                await Task.Delay(10);
             }
 
             await Assert.That(blocker.Entered).IsEqualTo(budget);
-            await fx.Registry.TriggerAsync("held").ConfigureAwait(false);
-            await fx.Registry.UnregisterAsync("held").ConfigureAwait(false);
+            await fx.Registry.TriggerAsync("held");
+            await fx.Registry.UnregisterAsync("held");
             await fx.Registry.RegisterAsync(
                 "held",
                 Cadence.At(Start.AddDays(1)),
                 MissedFirePolicy.SkipMissed,
-                replacement).ConfigureAwait(false);
+                replacement);
             release.TrySetResult();
-            await fx.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+            await fx.Loop.WaitForIdleAsync(Timeout);
             await Assert.That(replacement.Calls).IsEqualTo(0);
         }
         finally
@@ -409,7 +391,7 @@ public sealed class Issue96SchedulerTests
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
             Interlocked.Increment(ref this.entered);
-            await release.Task.ConfigureAwait(false);
+            await release.Task;
         }
     }
 
@@ -422,7 +404,7 @@ public sealed class Issue96SchedulerTests
         public async ValueTask DispatchAsync(JobFireContext context, CancellationToken ct)
         {
             Interlocked.Increment(ref this.entered);
-            await Task.Delay(System.Threading.Timeout.Infinite, ct).ConfigureAwait(false);
+            await Task.Delay(System.Threading.Timeout.Infinite, ct);
         }
     }
 
@@ -432,7 +414,7 @@ public sealed class Issue96SchedulerTests
         {
             await Task.Yield();
             entered.TrySetResult();
-            await gate.Task.WaitAsync(ct).ConfigureAwait(false);
+            await gate.Task.WaitAsync(ct);
         }
     }
 
@@ -598,16 +580,15 @@ public sealed class Issue96SchedulerTests
                 new SchedulerOptions(),
                 healthMonitor: health);
             var fx = new LoopFixture(clock, registry, loop, router, sink);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(Timeout);
             return fx;
         }
 
         public async Task RegisterAsync(string name, Cadence cadence, IJobDispatcher dispatcher)
         {
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.FireAllMissed, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(Timeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.FireAllMissed, dispatcher);
+            await this.Loop.WaitForIdleAsync(Timeout);
         }
 
         // StopAsync arms the shutdown deadline before its first await. The method advances the
@@ -617,7 +598,7 @@ public sealed class Issue96SchedulerTests
         {
             var stop = ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Time.Advance(TimeSpan.FromSeconds(30));
-            await stop.ConfigureAwait(false);
+            await stop;
             this.Loop.Dispose();
             if (this.Router is PauseAtBudgetRouter pausing)
             {

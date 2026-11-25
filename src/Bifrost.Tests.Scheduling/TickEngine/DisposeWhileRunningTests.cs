@@ -55,14 +55,14 @@ public sealed class DisposeWhileRunningTests
     [Test]
     public async Task DisposeRegistry_EmptyHeap_WithoutCancel_StopsLoop()
     {
-        var (loop, registry) = await StartLoopAsync().ConfigureAwait(false);
+        var (loop, registry) = await StartLoopAsync();
 
-        await registry.DisposeAsync().ConfigureAwait(false);
+        await registry.DisposeAsync();
 
         var executeTask = ((BackgroundService)loop).ExecuteTask;
         await Assert.That(executeTask is not null).IsTrue();
 
-        await Assert.That(async () => await executeTask!.WaitAsync(TestTimeout).ConfigureAwait(false))
+        await Assert.That(async () => await executeTask!.WaitAsync(TestTimeout))
             .ThrowsNothing();
         await Assert.That(executeTask!.IsCompleted).IsTrue();
 
@@ -83,18 +83,17 @@ public sealed class DisposeWhileRunningTests
     [Test]
     public async Task DisposeRegistry_WithArmedJob_WithoutCancel_StopsLoop()
     {
-        var (loop, registry) = await StartLoopAsync().ConfigureAwait(false);
+        var (loop, registry) = await StartLoopAsync();
 
         await registry.RegisterAsync(
-                "future", Cadence.Interval(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+                "future", Cadence.Interval(TimeSpan.FromHours(1)), MissedFirePolicy.Coalesce, new NoopDispatcher());
+        await loop.WaitForIdleAsync(TestTimeout);
 
-        await registry.DisposeAsync().ConfigureAwait(false);
+        await registry.DisposeAsync();
 
         var executeTask = ((BackgroundService)loop).ExecuteTask;
         await Assert.That(executeTask is not null).IsTrue();
-        await Assert.That(async () => await executeTask!.WaitAsync(TestTimeout).ConfigureAwait(false))
+        await Assert.That(async () => await executeTask!.WaitAsync(TestTimeout))
             .ThrowsNothing();
         await Assert.That(executeTask!.IsCompleted).IsTrue();
 
@@ -113,8 +112,8 @@ public sealed class DisposeWhileRunningTests
             NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
             serviceProvider: Services);
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
+        await loop.WaitForIdleAsync(TestTimeout);
         return (loop, registry);
     }
 

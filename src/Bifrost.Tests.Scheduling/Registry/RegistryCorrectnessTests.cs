@@ -40,8 +40,7 @@ public sealed class RegistryCorrectnessTests
                 "job",
                 Cadence.Interval(TimeSpan.FromMinutes(5)),
                 MissedFirePolicy.Coalesce,
-                new StubDispatcher())
-            .ConfigureAwait(false);
+                new StubDispatcher());
 
         await Assert.That(() => registry.ResolveDispatcher("job", 0)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => registry.ResolveDispatcher("job", -1)).Throws<ArgumentOutOfRangeException>();
@@ -66,15 +65,14 @@ public sealed class RegistryCorrectnessTests
                 "job",
                 Cadence.Interval(TimeSpan.FromMinutes(5)),
                 MissedFirePolicy.Coalesce,
-                new StubDispatcher())
-            .ConfigureAwait(false);
+                new StubDispatcher());
         var id = registry.RegistrationId("job");
         await Assert.That(id).IsGreaterThan(0L);
 
-        await registry.PauseAsync("job").ConfigureAwait(false);
-        await registry.ResumeAsync("job").ConfigureAwait(false);
-        await registry.TriggerAsync("job").ConfigureAwait(false);
-        await registry.UnregisterAsync("job").ConfigureAwait(false);
+        await registry.PauseAsync("job");
+        await registry.ResumeAsync("job");
+        await registry.TriggerAsync("job");
+        await registry.UnregisterAsync("job");
 
         var commands = new List<RegistryCommand>();
         while (registry.Commands.TryRead(out var cmd))
@@ -106,17 +104,15 @@ public sealed class RegistryCorrectnessTests
                 "job",
                 Cadence.Interval(TimeSpan.FromMinutes(5)),
                 MissedFirePolicy.Coalesce,
-                new StubDispatcher())
-            .ConfigureAwait(false);
+                new StubDispatcher());
         var id1 = registry.RegistrationId("job");
 
-        await registry.UnregisterAsync("job").ConfigureAwait(false);
+        await registry.UnregisterAsync("job");
         await registry.RegisterAsync(
                 "job",
                 Cadence.Interval(TimeSpan.FromMinutes(10)),
                 MissedFirePolicy.Coalesce,
-                new StubDispatcher())
-            .ConfigureAwait(false);
+                new StubDispatcher());
         var id2 = registry.RegistrationId("job");
 
         await Assert.That(id2).IsNotEqualTo(id1);
@@ -145,13 +141,13 @@ public sealed class RegistryCorrectnessTests
                 new StubDispatcher())
             .AsTask();
 
-        await store.WaitForSaveEnteredAsync().ConfigureAwait(false);
-        await registry.DisposeAsync().ConfigureAwait(false);
+        await store.WaitForSaveEnteredAsync();
+        await registry.DisposeAsync();
         store.ReleaseNextSave();
 
         try
         {
-            await registerTask.ConfigureAwait(false);
+            await registerTask;
             Assert.Fail("Expected ObjectDisposedException.");
         }
         catch (ObjectDisposedException)
@@ -181,18 +177,17 @@ public sealed class RegistryCorrectnessTests
                 "job",
                 Cadence.Interval(TimeSpan.FromMinutes(5)),
                 MissedFirePolicy.Coalesce,
-                new StubDispatcher())
-            .ConfigureAwait(false);
+                new StubDispatcher());
         events.Clear();
 
         var pauseTask = registry.PauseAsync("job").AsTask();
-        await store.WaitForSaveEnteredAsync().ConfigureAwait(false);
-        await registry.DisposeAsync().ConfigureAwait(false);
+        await store.WaitForSaveEnteredAsync();
+        await registry.DisposeAsync();
         store.ReleaseNextSave();
 
         try
         {
-            await pauseTask.ConfigureAwait(false);
+            await pauseTask;
             Assert.Fail("Expected ObjectDisposedException.");
         }
         catch (ObjectDisposedException)
@@ -239,7 +234,7 @@ public sealed class RegistryCorrectnessTests
             this.saveEntered.Release();
             if (!autoRelease)
             {
-                await this.saveGate.WaitAsync(ct).ConfigureAwait(false);
+                await this.saveGate.WaitAsync(ct);
             }
 
             this.jobs[job.Name] = job;
@@ -259,7 +254,7 @@ public sealed class RegistryCorrectnessTests
         }
 
         public async Task WaitForSaveEnteredAsync()
-            => await this.saveEntered.WaitAsync().ConfigureAwait(false);
+            => await this.saveEntered.WaitAsync();
 
         public void ReleaseNextSave() => this.saveGate.Release();
 

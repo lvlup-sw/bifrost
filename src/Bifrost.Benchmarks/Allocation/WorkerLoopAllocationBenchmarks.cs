@@ -90,7 +90,7 @@ public class WorkerLoopAllocationBenchmarks
     {
         if (_orchestrator is not null)
         {
-            await _orchestrator.DisposeAsync().ConfigureAwait(false);
+            await _orchestrator.DisposeAsync();
         }
 
         _countdown?.Dispose();

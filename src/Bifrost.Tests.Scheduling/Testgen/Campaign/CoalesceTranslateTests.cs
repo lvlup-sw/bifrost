@@ -26,7 +26,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_1()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"0\",\"shift\":\"0\",\"steps\":\"1\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_1").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_1");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -35,7 +35,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_2()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"99999\",\"shift\":\"10\",\"steps\":\"1\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_2").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_2");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -44,7 +44,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_3()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"0\",\"shift\":\"10\",\"steps\":\"32\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_3").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_3");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -53,7 +53,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_4()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"50000\",\"shift\":\"0\",\"steps\":\"32\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_4").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_4");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -62,7 +62,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_5()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"12345\",\"shift\":\"3\",\"steps\":\"5\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_5").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_5");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -71,7 +71,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_6()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"99999\",\"shift\":\"5\",\"steps\":\"17\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_6").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_6");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -80,7 +80,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_7()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"0\",\"shift\":\"0\",\"steps\":\"2\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_7").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_7");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -89,7 +89,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_8()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"0\",\"shift\":\"0\",\"steps\":\"31\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_8").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_8");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -98,7 +98,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_9()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"0\",\"shift\":\"0\",\"steps\":\"32\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_9").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_9");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -107,7 +107,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_10()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"1\",\"shift\":\"0\",\"steps\":\"1\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_10").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_10");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -116,7 +116,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_11()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"99998\",\"shift\":\"0\",\"steps\":\"1\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_11").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_11");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -125,7 +125,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_12()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"99999\",\"shift\":\"0\",\"steps\":\"1\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_12").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_12");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -134,7 +134,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_13()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"0\",\"shift\":\"1\",\"steps\":\"1\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_13").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_13");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -143,7 +143,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_14()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"0\",\"shift\":\"9\",\"steps\":\"1\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_14").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_14");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -152,7 +152,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_15()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"0\",\"shift\":\"10\",\"steps\":\"1\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_15").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_15");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -161,7 +161,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_16()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"94044\",\"shift\":\"10\",\"steps\":\"18\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_16").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_16");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -170,7 +170,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_17()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"1525\",\"shift\":\"8\",\"steps\":\"15\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_17").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_17");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -179,7 +179,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_18()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"58306\",\"shift\":\"4\",\"steps\":\"16\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_18").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_18");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -188,7 +188,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_19()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"51539\",\"shift\":\"10\",\"steps\":\"5\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_19").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_19");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -197,7 +197,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_20()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"74968\",\"shift\":\"4\",\"steps\":\"30\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_20").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_20");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -206,7 +206,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_21()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"37953\",\"shift\":\"7\",\"steps\":\"11\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_21").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_21");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -215,7 +215,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_22()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"54270\",\"shift\":\"1\",\"steps\":\"28\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_22").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_22");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -224,7 +224,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_23()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"86175\",\"shift\":\"4\",\"steps\":\"1\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_23").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_23");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -233,7 +233,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_24()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"92980\",\"shift\":\"9\",\"steps\":\"10\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_24").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_24");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -242,7 +242,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_25()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"73709\",\"shift\":\"9\",\"steps\":\"7\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_25").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_25");
     }
 
     /// <summary>Checks the reviewed obligation for this fixture.</summary>
@@ -251,7 +251,7 @@ public sealed class @CoalesceTranslateTests
     public async Task Case_26()
     {
         using var document = JsonDocument.Parse("{\"remainder\":\"67994\",\"shift\":\"1\",\"steps\":\"8\"}");
-        await TestgenRuntime.RunCase(document.RootElement, "Case_26").ConfigureAwait(false);
+        await TestgenRuntime.RunCase(document.RootElement, "Case_26");
     }
 
 
@@ -372,18 +372,18 @@ public sealed class @CoalesceTranslateTests
     private static async Task<bool> Check(JsonElement source)
     {
         if (!InDomain(source) || !global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceTranslateBinding.IsValid(source)) throw new InvalidCaseException("TestGen invalid case: source is outside the declared domain.");
-        var follow = await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceTranslateBinding.Transform(source.Clone()).ConfigureAwait(false);
+        var follow = await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceTranslateBinding.Transform(source.Clone());
         if (!InDomain(follow) || !global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceTranslateBinding.IsValid(follow)) throw new InvalidCaseException("TestGen invalid case: follow-up is outside the declared domain.");
         if (Canonical(source) == Canonical(follow)) throw new InvalidCaseException("TestGen invalid case: transformation produced an identical input.");
-        var before = await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceTranslateBinding.Observe(source).ConfigureAwait(false);
-        var after = await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceTranslateBinding.Observe(follow).ConfigureAwait(false);
-        return await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceTranslateBinding.Relation(source, follow, before, after).ConfigureAwait(false);
+        var before = await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceTranslateBinding.Observe(source);
+        var after = await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceTranslateBinding.Observe(follow);
+        return await global::@Bifrost.@Tests.@Scheduling.@Testgen.@Campaign.@CoalesceTranslateBinding.Relation(source, follow, before, after);
     }
 
     internal static async Task RunCase(JsonElement source, string caseId)
     {
         bool passed;
-        try { passed = await Check(source).ConfigureAwait(false); }
+        try { passed = await Check(source); }
         catch (InvalidCaseException error)
         {
             Console.Error.WriteLine("TESTGEN_REJECTED " + JsonSerializer.Serialize(new { caseId, reason = error.Message, cases = new[] { source } }));
@@ -409,7 +409,7 @@ public sealed class @CoalesceTranslateTests
                 if (!InDomain(candidate)) { rejected++; continue; }
                 try
                 {
-                    if (!await Check(candidate).ConfigureAwait(false))
+                    if (!await Check(candidate))
                     {
                         current = candidate.Clone();
                         changed = true;

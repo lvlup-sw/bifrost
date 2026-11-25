@@ -79,19 +79,18 @@ public sealed class PrFixRouterPublishGuardTests
             });
 
             router.Dispatch(throwing, Context("first"), CancellationToken.None);
-            await firstRan.Task.WaitAsync(TestTimeout).ConfigureAwait(false);
+            await firstRan.Task.WaitAsync(TestTimeout);
 
             var secondRan = new TaskCompletionSource();
             var working = new DelegateDispatcher(_ => secondRan.TrySetResult());
             router.Dispatch(working, Context("second"), CancellationToken.None);
-            await secondRan.Task.WaitAsync(TestTimeout).ConfigureAwait(false);
+            await secondRan.Task.WaitAsync(TestTimeout);
 
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
 
-            var raised = await Task.WhenAny(unobserved.Task, Task.Delay(TimeSpan.FromMilliseconds(250)))
-                .ConfigureAwait(false);
+            var raised = await Task.WhenAny(unobserved.Task, Task.Delay(TimeSpan.FromMilliseconds(250)));
             await Assert.That(raised == unobserved.Task).IsFalse();
         }
         finally

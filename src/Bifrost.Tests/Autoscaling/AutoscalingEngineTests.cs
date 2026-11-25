@@ -276,7 +276,7 @@ public class AutoscalingEngineTests
 
         _ = engine.EvaluateScaling(currentWorkers: 2, utilization: 0.9, maxBacklog: 100);
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
         var decision = engine.EvaluateScaling(currentWorkers: 4, utilization: 0.9, maxBacklog: 100);
 
@@ -369,7 +369,7 @@ public class AutoscalingEngineTests
                 TaskScheduler.Default))
             .ToArray();
 
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        await Task.WhenAll(tasks);
 
         var scaleUpCount = decisions.Count(d => d.Action == ScalingAction.ScaleUp);
         var cooldownCount = decisions.Count(d => d.Action == ScalingAction.None && d.Reason.Contains("cooldown", StringComparison.OrdinalIgnoreCase));

@@ -30,7 +30,7 @@ public class InlineDelegateWorkHandlerTests
             return ValueTask.CompletedTask;
         });
 
-        await handler.HandleAsync("test-work", CancellationToken.None).ConfigureAwait(false);
+        await handler.HandleAsync("test-work", CancellationToken.None);
 
         await Assert.That(receivedWork).IsEqualTo("test-work");
     }
@@ -65,7 +65,7 @@ public class InlineDelegateWorkHandlerTests
 
         using var cts = new CancellationTokenSource();
 
-        await handler.HandleAsync("test-work", cts.Token).ConfigureAwait(false);
+        await handler.HandleAsync("test-work", cts.Token);
 
         await Assert.That(receivedToken).IsEqualTo(cts.Token);
     }

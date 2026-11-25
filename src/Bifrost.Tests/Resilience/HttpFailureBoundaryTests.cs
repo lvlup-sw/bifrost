@@ -29,12 +29,12 @@ public class HttpFailureBoundaryTests
         {
             Interlocked.Increment(ref attempts);
             entered.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
             return new HttpResponseMessage(HttpStatusCode.OK);
         }, cancellation.Token).AsTask();
-        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-        await cancellation.CancelAsync().ConfigureAwait(false);
-        await Assert.That(async () => await request.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false)).Throws<OperationCanceledException>();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await cancellation.CancelAsync();
+        await Assert.That(async () => await request.WaitAsync(TimeSpan.FromSeconds(10))).Throws<OperationCanceledException>();
         await Assert.That(attempts).IsEqualTo(1);
     }
 
@@ -61,22 +61,22 @@ public class HttpFailureBoundaryTests
         var request = pipeline.ExecuteAsync(async attemptContext =>
         {
             starts.Writer.TryWrite(Interlocked.Increment(ref attempts));
-            await Task.Delay(Timeout.InfiniteTimeSpan, attemptContext.CancellationToken).ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, attemptContext.CancellationToken);
             return new HttpResponseMessage(HttpStatusCode.OK);
         }, context).AsTask();
         try
         {
-            await starts.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await starts.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
             clock.Advance(TimeSpan.FromSeconds(10));
-            await starts.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await starts.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
             clock.Advance(TimeSpan.FromSeconds(15));
-            await Assert.That(async () => await request.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false)).Throws<TimeoutRejectedException>();
+            await Assert.That(async () => await request.WaitAsync(TimeSpan.FromSeconds(10))).Throws<TimeoutRejectedException>();
             await Assert.That(attempts).IsGreaterThanOrEqualTo(2);
             await Assert.That(attempts).IsLessThanOrEqualTo(3);
         }
         finally
         {
-            await cleanup.CancelAsync().ConfigureAwait(false);
+            await cleanup.CancelAsync();
             await ((Task)request).WaitAsync(TimeSpan.FromSeconds(10))
                 .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             if (request.IsCompleted)
@@ -99,12 +99,12 @@ public class HttpFailureBoundaryTests
         var attempts = 0;
         ValueTask<HttpResponseMessage> Send(CancellationToken token)
             => ValueTask.FromResult(new HttpResponseMessage(++attempts <= 2 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK));
-        using var first = await pipeline.ExecuteAsync(Send).ConfigureAwait(false);
-        using var second = await pipeline.ExecuteAsync(Send).ConfigureAwait(false);
-        await Assert.That(async () => await pipeline.ExecuteAsync(Send).ConfigureAwait(false)).Throws<BrokenCircuitException>();
+        using var first = await pipeline.ExecuteAsync(Send);
+        using var second = await pipeline.ExecuteAsync(Send);
+        await Assert.That(async () => await pipeline.ExecuteAsync(Send)).Throws<BrokenCircuitException>();
         await Assert.That(attempts).IsEqualTo(2);
         clock.Advance(TimeSpan.FromSeconds(6));
-        using var recovered = await pipeline.ExecuteAsync(Send).ConfigureAwait(false);
+        using var recovered = await pipeline.ExecuteAsync(Send);
         await Assert.That(recovered.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await Assert.That(attempts).IsEqualTo(3);
     }

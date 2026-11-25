@@ -221,11 +221,11 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
             waits[c] = queue.WaitToDequeueAsync(CancellationToken.None).AsTask();
         }
 
-        await Task.Delay(TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
         await Assert.That(waits.Any(w => w.IsCompleted)).IsFalse();
 
         queue.Complete();
-        var results = await Task.WhenAll(waits).WaitAsync(BindingWaitTimeout).ConfigureAwait(false);
+        var results = await Task.WhenAll(waits).WaitAsync(BindingWaitTimeout);
 
         foreach (var signaled in results)
         {
@@ -260,7 +260,7 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
         using var timeoutCts = new CancellationTokenSource(BindingWaitTimeout);
         while (drained.Count < 2)
         {
-            var (received, envelope) = await ConsumeOneAsync(queue, timeoutCts.Token).ConfigureAwait(false);
+            var (received, envelope) = await ConsumeOneAsync(queue, timeoutCts.Token);
             await Assert.That(received).IsTrue();
             drained.Add(envelope.Work);
         }
@@ -269,8 +269,7 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
 
         var signaled = await queue.WaitToDequeueAsync(CancellationToken.None)
             .AsTask()
-            .WaitAsync(BindingWaitTimeout)
-            .ConfigureAwait(false);
+            .WaitAsync(BindingWaitTimeout);
         await Assert.That(signaled).IsFalse();
     }
 
@@ -355,7 +354,7 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
             {
                 while (true)
                 {
-                    var (gotItem, envelope) = await ConsumeOneAsync(queue, doneCts.Token).ConfigureAwait(false);
+                    var (gotItem, envelope) = await ConsumeOneAsync(queue, doneCts.Token);
                     if (!gotItem)
                     {
                         return;
@@ -364,14 +363,14 @@ public sealed class LockingPriorityWorkQueueTests : WorkQueueContractTests
                     received.Enqueue(envelope.Work);
                     if (Interlocked.Increment(ref receivedCount) == totalItems)
                     {
-                        await doneCts.CancelAsync().ConfigureAwait(false);
+                        await doneCts.CancelAsync();
                     }
                 }
             });
         }
 
-        await Task.WhenAll(producers).ConfigureAwait(false);
-        await Task.WhenAll(consumers).ConfigureAwait(false);
+        await Task.WhenAll(producers);
+        await Task.WhenAll(consumers);
 
         await Assert.That(receivedCount).IsEqualTo(totalItems);
         var distinct = new HashSet<int>(received);

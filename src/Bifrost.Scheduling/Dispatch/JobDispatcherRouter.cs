@@ -92,7 +92,7 @@ internal sealed class JobDispatcherRouter : IJobDispatcherRouter
     {
         try
         {
-            await dispatcher.DispatchAsync(context, ct).ConfigureAwait(false);
+            await dispatcher.DispatchAsync(context, ct);
         }
         catch (Exception ex)
         {

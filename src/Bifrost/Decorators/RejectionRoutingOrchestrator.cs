@@ -156,8 +156,8 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
     /// <inheritdoc/>
     public async Task DrainAsync(CancellationToken ct = default)
     {
-        await _inner.DrainAsync(ct).ConfigureAwait(false);
-        await WaitForPendingRoutesAsync(ct).ConfigureAwait(false);
+        await _inner.DrainAsync(ct);
+        await WaitForPendingRoutesAsync(ct);
     }
 
     /// <inheritdoc/>
@@ -167,8 +167,8 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
-        await _inner.DisposeAsync().ConfigureAwait(false);
-        await WaitForPendingRoutesAsync(CancellationToken.None).ConfigureAwait(false);
+        await _inner.DisposeAsync();
+        await WaitForPendingRoutesAsync(CancellationToken.None);
     }
 
     /// <summary>
@@ -205,7 +205,7 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
             DateTimeOffset.UtcNow,
             CorrelationId: correlationId);
 
-        await _dlq!.EnqueueAsync(deadLettered, CancellationToken.None).ConfigureAwait(false);
+        await _dlq!.EnqueueAsync(deadLettered, CancellationToken.None);
 
         var evt = new WorkDeadLetteredEvent<TWork>(work, marker, 0, DateTimeOffset.UtcNow, correlationId);
         _notifier?.Notify(evt);
@@ -233,7 +233,7 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
     {
         try
         {
-            await route.ConfigureAwait(false);
+            await route;
         }
         catch (Exception ex)
         {
@@ -302,12 +302,12 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
     /// <inheritdoc/>
     public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkEnqueueOptions options = default, CancellationToken ct = default)
     {
-        var result = await _inner.EnqueueAsync(work, options, ct).ConfigureAwait(false);
+        var result = await _inner.EnqueueAsync(work, options, ct);
         if (result.Reason is { } reason)
         {
             ObserveRejection(options.Class ?? WorkClass.Default, reason);
             if (reason != RejectionReason.Shutdown && _dlq is not null)
-                await RouteToDeadLetterAsync(work, reason, options.CorrelationId).ConfigureAwait(false);
+                await RouteToDeadLetterAsync(work, reason, options.CorrelationId);
         }
 
         return result;

@@ -142,7 +142,7 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            await _registry.CreateWorkerAsync(workerId, WorkerFunction, _inner.GetShutdownToken()).ConfigureAwait(false);
+            await _registry.CreateWorkerAsync(workerId, WorkerFunction, _inner.GetShutdownToken());
         }
     }
 
@@ -241,7 +241,7 @@ public sealed class AutoscalingOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <inheritdoc/>
     public async ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkEnqueueOptions options = default, CancellationToken ct = default)
     {
-        var result = await _inner.EnqueueAsync(work, options, ct).ConfigureAwait(false);
+        var result = await _inner.EnqueueAsync(work, options, ct);
         if (result.IsAccepted && _options.Enabled) _metrics.RecordEnqueue();
         return result;
     }

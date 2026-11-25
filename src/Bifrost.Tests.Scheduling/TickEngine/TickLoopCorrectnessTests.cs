@@ -59,29 +59,28 @@ public sealed class TickLoopCorrectnessTests
                 "job",
                 Cadence.Interval(TimeSpan.FromHours(1)),
                 MissedFirePolicy.Coalesce,
-                dispatcher)
-            .ConfigureAwait(false);
-        await registry.TriggerAsync("job").ConfigureAwait(false);
-        await registry.PauseAsync("job").ConfigureAwait(false);
+                dispatcher);
+        await registry.TriggerAsync("job");
+        await registry.PauseAsync("job");
 
         var loop = new ScheduleTickLoop(
             registry, store, time, router, sink,
             NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
             serviceProvider: Services);
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
         try
         {
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
-            await registry.TriggerAsync("job").ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await registry.TriggerAsync("job");
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await Assert.That(dispatcher.FireCount).IsEqualTo(0);
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
         }
     }
@@ -108,10 +107,10 @@ public sealed class TickLoopCorrectnessTests
             NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
             serviceProvider: Services);
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
         try
         {
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             var throwingDispatcher = new CountingDispatcher();
             var healthyDispatcher = new CountingDispatcher();
@@ -120,18 +119,16 @@ public sealed class TickLoopCorrectnessTests
                     "throwing-job",
                     new NullThenThrowCadence(),
                     MissedFirePolicy.Coalesce,
-                    throwingDispatcher)
-                .ConfigureAwait(false);
+                    throwingDispatcher);
             await registry.RegisterAsync(
                     "healthy-job",
                     Cadence.Interval(TimeSpan.FromMinutes(5)),
                     MissedFirePolicy.Coalesce,
-                    healthyDispatcher)
-                .ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+                    healthyDispatcher);
+            await loop.WaitForIdleAsync(TestTimeout);
 
-            await registry.TriggerAsync("throwing-job").ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await registry.TriggerAsync("throwing-job");
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await Assert.That(loop.IsFaulted).IsFalse();
             await Assert.That(throwingDispatcher.FireCount).IsEqualTo(0);
@@ -140,12 +137,12 @@ public sealed class TickLoopCorrectnessTests
                 .IsTrue();
 
             time.Advance(TimeSpan.FromMinutes(5));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
             await Assert.That(healthyDispatcher.FireCount).IsEqualTo(1);
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
         }
     }
@@ -172,34 +169,32 @@ public sealed class TickLoopCorrectnessTests
             NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(),
             serviceProvider: Services);
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
         try
         {
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await registry.RegisterAsync(
                     "primary",
                     Cadence.Interval(TimeSpan.FromMinutes(1)),
                     MissedFirePolicy.Coalesce,
-                    primaryDispatcher)
-                .ConfigureAwait(false);
+                    primaryDispatcher);
             await registry.RegisterAsync(
                     "secondary",
                     Cadence.Interval(TimeSpan.FromHours(1)),
                     MissedFirePolicy.Coalesce,
-                    triggeredDispatcher)
-                .ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+                    triggeredDispatcher);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             time.Advance(TimeSpan.FromMinutes(1));
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await Assert.That(primaryDispatcher.FireCount).IsEqualTo(1);
             await Assert.That(triggeredDispatcher.FireCount).IsEqualTo(1);
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
         }
     }
@@ -237,42 +232,40 @@ public sealed class TickLoopCorrectnessTests
             },
             serviceProvider: Services);
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
         try
         {
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
 
             await registry.RegisterAsync(
                     "faulting",
                     Cadence.Interval(TimeSpan.FromMinutes(1)),
                     MissedFirePolicy.Coalesce,
-                    new CountingDispatcher())
-                .ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+                    new CountingDispatcher());
+            await loop.WaitForIdleAsync(TestTimeout);
 
             time.Advance(TimeSpan.FromMinutes(2));
-            await sink.WaitForFaultCountAsync(2, TestTimeout).ConfigureAwait(false);
+            await sink.WaitForFaultCountAsync(2, TestTimeout);
 
             var probeDispatcher = new CountingDispatcher();
             await registry.RegisterAsync(
                     "probe",
                     Cadence.Interval(TimeSpan.FromHours(1)),
                     MissedFirePolicy.Coalesce,
-                    probeDispatcher)
-                .ConfigureAwait(false);
-            await registry.TriggerAsync("probe").ConfigureAwait(false);
+                    probeDispatcher);
+            await registry.TriggerAsync("probe");
 
             time.Advance(TimeSpan.FromMinutes(1));
             await Task.Yield();
             await Assert.That(probeDispatcher.FireCount).IsEqualTo(0);
 
             time.Advance(backoff);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await loop.WaitForIdleAsync(TestTimeout);
             await Assert.That(probeDispatcher.FireCount).IsEqualTo(1);
         }
         finally
         {
-            await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)loop).StopAsync(CancellationToken.None);
             loop.Dispose();
         }
     }

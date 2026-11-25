@@ -51,7 +51,7 @@ public sealed class ConcurrentPriorityWorkQueueDisposalTests
 
         queue.Dispose();
 
-        await Assert.That(async () => await queue.WaitToDequeueAsync(default).ConfigureAwait(false))
+        await Assert.That(async () => await queue.WaitToDequeueAsync(default))
             .Throws<ObjectDisposedException>();
     }
 

@@ -57,11 +57,9 @@ public sealed class SchedulerMetricsTests
             metrics.Meter, "bifrost.scheduling.jobs.registered");
         var registry = NewRegistry(metrics);
 
-        await registry.RegisterAsync("alpha", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
-        await registry.RegisterAsync("beta", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
-        await registry.UnregisterAsync("alpha").ConfigureAwait(false);
+        await registry.RegisterAsync("alpha", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher());
+        await registry.RegisterAsync("beta", Interval(), MissedFirePolicy.Coalesce, new NoopDispatcher());
+        await registry.UnregisterAsync("alpha");
 
         var measurements = collector.GetMeasurementSnapshot();
         var net = measurements.Sum(m => m.Value);
@@ -79,11 +77,11 @@ public sealed class SchedulerMetricsTests
         using var metrics = new SchedulerMetrics();
         using var collector = new MetricCollector<long>(
             metrics.Meter, "bifrost.scheduling.jobs.fired");
-        await using var fx = await Fixture.StartAsync(metrics).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(metrics);
 
-        await fx.RegisterAsync("nightly", Interval()).ConfigureAwait(false);
+        await fx.RegisterAsync("nightly", Interval());
         fx.Time.Advance(TimeSpan.FromHours(1));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         var measurements = collector.GetMeasurementSnapshot();
         await Assert.That(measurements.Sum(m => m.Value)).IsGreaterThanOrEqualTo(1L);
@@ -116,13 +114,13 @@ public sealed class SchedulerMetricsTests
         using var metrics = new SchedulerMetrics();
         using var collector = new MetricCollector<double>(
             metrics.Meter, "bifrost.scheduling.jobs.fire_latency");
-        await using var fx = await Fixture.StartAsync(metrics).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(metrics);
 
         var interval = TimeSpan.FromHours(1);
-        await fx.RegisterAsync("late", new IntervalCadence(interval)).ConfigureAwait(false);
+        await fx.RegisterAsync("late", new IntervalCadence(interval));
 
         fx.Time.Advance(interval + interval);
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         var measurements = collector.GetMeasurementSnapshot();
         await Assert.That(measurements).IsNotEmpty();
@@ -160,15 +158,14 @@ public sealed class SchedulerMetricsTests
 
         var registry = new ScheduleRegistry(store, time, metrics);
 
-        await registry.RegisterAsync("stale", cadence, MissedFirePolicy.Coalesce, new NoopDispatcher())
-            .ConfigureAwait(false);
+        await registry.RegisterAsync("stale", cadence, MissedFirePolicy.Coalesce, new NoopDispatcher());
         await store.SaveAsync(
             new JobRecord(
                 "stale", cadence, MissedFirePolicy.Coalesce, JobState.Running,
                 LastFiredAt: Start, NextFireAt: null, DispatchKind: "custom",
                 DispatcherTypeName: typeof(NoopDispatcher).FullName,
                 Metadata: new Dictionary<string, string>()),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None);
 
         time.Advance(TimeSpan.FromHours(5));
 
@@ -178,9 +175,9 @@ public sealed class SchedulerMetricsTests
             registry, store, time, router, sink,
             NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(), metrics);
 
-        await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-        await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
-        await ((IHostedService)loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await ((IHostedService)loop).StartAsync(CancellationToken.None);
+        await loop.WaitForIdleAsync(TestTimeout);
+        await ((IHostedService)loop).StopAsync(CancellationToken.None);
         loop.Dispose();
 
         var measurements = collector.GetMeasurementSnapshot();
@@ -201,11 +198,11 @@ public sealed class SchedulerMetricsTests
         using var metrics = new SchedulerMetrics();
         using var collector = new MetricCollector<long>(
             metrics.Meter, "bifrost.scheduling.jobs.dispatch_failures");
-        await using var fx = await Fixture.StartAsync(metrics).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(metrics);
 
-        await fx.RegisterThrowingAsync("boom", Interval()).ConfigureAwait(false);
+        await fx.RegisterThrowingAsync("boom", Interval());
         fx.Time.Advance(TimeSpan.FromHours(1));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         var measurements = collector.GetMeasurementSnapshot();
         await Assert.That(measurements.Sum(m => m.Value)).IsGreaterThanOrEqualTo(1L);
@@ -270,28 +267,26 @@ public sealed class SchedulerMetricsTests
                 NullLogger<ScheduleTickLoop>.Instance, new SchedulerOptions(), metrics);
 
             var fx = new Fixture(time, registry, loop);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async Task RegisterAsync(string name, Cadence cadence)
         {
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, new NoopDispatcher())
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, new NoopDispatcher());
+            await this.Loop.WaitForIdleAsync(TestTimeout);
         }
 
         public async Task RegisterThrowingAsync(string name, Cadence cadence)
         {
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, new ThrowingDispatcher())
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, new ThrowingDispatcher());
+            await this.Loop.WaitForIdleAsync(TestTimeout);
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

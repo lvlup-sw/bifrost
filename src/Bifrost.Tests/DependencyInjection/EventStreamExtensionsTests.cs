@@ -42,7 +42,7 @@ public class EventStreamExtensionsTests
 
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
     }
 
@@ -88,21 +88,21 @@ public class EventStreamExtensionsTests
 
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in eventStreamOrchestrator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token).ConfigureAwait(false))
+            await foreach (var evt in eventStreamOrchestrator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
-        await orchestrator.EnqueueAsync("test-work").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("test-work");
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1));
         await Assert.That(evt.Work).IsEqualTo("test-work");
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -127,7 +127,7 @@ public class EventStreamExtensionsTests
 
         if (orchestrator is IAsyncDisposable disposable)
         {
-            await disposable.DisposeAsync().ConfigureAwait(false);
+            await disposable.DisposeAsync();
         }
     }
 }

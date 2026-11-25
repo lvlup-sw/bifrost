@@ -59,8 +59,7 @@ public sealed class PrFixRegistryConsistencyTests
         {
             try
             {
-                await registry.RegisterAsync("daily-report", cadenceA, MissedFirePolicy.Coalesce, new StubDispatcher())
-                    .ConfigureAwait(false);
+                await registry.RegisterAsync("daily-report", cadenceA, MissedFirePolicy.Coalesce, new StubDispatcher());
                 return (Won: true, Cadence: (Cadence)cadenceA);
             }
             catch (DuplicateJobNameException)
@@ -73,8 +72,7 @@ public sealed class PrFixRegistryConsistencyTests
         {
             try
             {
-                await registry.RegisterAsync("daily-report", cadenceB, MissedFirePolicy.Coalesce, new StubDispatcher())
-                    .ConfigureAwait(false);
+                await registry.RegisterAsync("daily-report", cadenceB, MissedFirePolicy.Coalesce, new StubDispatcher());
                 return (Won: true, Cadence: (Cadence)cadenceB);
             }
             catch (DuplicateJobNameException)
@@ -83,9 +81,9 @@ public sealed class PrFixRegistryConsistencyTests
             }
         });
 
-        await store.ReleaseAfterFirstArrivalAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        await store.ReleaseAfterFirstArrivalAsync(TimeSpan.FromSeconds(10));
 
-        var results = await Task.WhenAll(taskA, taskB).ConfigureAwait(false);
+        var results = await Task.WhenAll(taskA, taskB);
 
         var winners = results.Where(r => r.Won).ToList();
         var losers = results.Where(r => !r.Won).ToList();
@@ -98,7 +96,7 @@ public sealed class PrFixRegistryConsistencyTests
         await Assert.That(job).IsNotNull();
         await Assert.That(job!.Value.Cadence).IsEqualTo(winnerCadence);
 
-        var persisted = await store.LoadAllAsync(CancellationToken.None).ConfigureAwait(false);
+        var persisted = await store.LoadAllAsync(CancellationToken.None);
         await Assert.That(persisted).HasCount(1);
         await Assert.That(persisted[0].Cadence).IsEqualTo(winnerCadence);
 
@@ -132,8 +130,7 @@ public sealed class PrFixRegistryConsistencyTests
                 new IntervalCadence(TimeSpan.FromHours(1)),
                 MissedFirePolicy.Coalesce,
                 new StubDispatcher(),
-                cts.Token)
-            .ConfigureAwait(false);
+                cts.Token);
 
         var read = registry.Commands.TryRead(out var command);
         await Assert.That(read).IsTrue();
@@ -171,7 +168,7 @@ public sealed class PrFixRegistryConsistencyTests
 
             Interlocked.Increment(ref this.arrivals);
 
-            await this.gate.WaitAsync(ct).ConfigureAwait(false);
+            await this.gate.WaitAsync(ct);
 
             Interlocked.Increment(ref this.saveCount);
             this.jobs[job.Name] = job;

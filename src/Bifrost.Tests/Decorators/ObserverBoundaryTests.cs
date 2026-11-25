@@ -55,13 +55,13 @@ public class ObserverBoundaryTests
         var publish = Task.Run(() => notifier.Notify(new(1, null, 1, DateTimeOffset.UtcNow)));
         try
         {
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-            await Task.WhenAll(publish, other.Task).WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.WhenAll(publish, other.Task).WaitAsync(TimeSpan.FromSeconds(2));
         }
         finally
         {
             release.Set();
-            await Task.WhenAll(publish, exited.Task).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            await Task.WhenAll(publish, exited.Task).WaitAsync(TimeSpan.FromSeconds(10));
         }
     }
 
@@ -94,24 +94,24 @@ public class ObserverBoundaryTests
             var dispose = Task.Run(async () =>
             {
                 start.Wait();
-                await decorator.DisposeAsync().ConfigureAwait(false);
+                await decorator.DisposeAsync();
             });
             start.Set();
-            var stream = await subscribe.ConfigureAwait(false);
-            await dispose.ConfigureAwait(false);
+            var stream = await subscribe;
+            await dispose;
             if (stream is null) continue;
             await using var reader = stream.GetAsyncEnumerator();
             var next = reader.MoveNextAsync().AsTask();
             try
             {
-                await Assert.That(await next.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false)).IsFalse();
+                await Assert.That(await next.WaitAsync(TimeSpan.FromSeconds(2))).IsFalse();
             }
             finally
             {
-                await cancellation.CancelAsync().ConfigureAwait(false);
+                await cancellation.CancelAsync();
                 try
                 {
-                    await next.ConfigureAwait(false);
+                    await next;
                 }
                 catch (OperationCanceledException)
                 {
@@ -140,10 +140,10 @@ public class ObserverBoundaryTests
         orchestrator.TryEnqueue(1);
         orchestrator.TryEnqueue(2);
         var worker = orchestrator.CreateWorkerFunction(stateObserver ? _ => throw new InvalidOperationException("observer") : null)("observer-test", CancellationToken.None);
-        await orchestrator.DrainAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-        await worker.ConfigureAwait(false);
-        await handler.Received(1).HandleAsync(1, Arg.Any<CancellationToken>()).ConfigureAwait(false);
-        await handler.Received(1).HandleAsync(2, Arg.Any<CancellationToken>()).ConfigureAwait(false);
+        await orchestrator.DrainAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        await worker;
+        await handler.Received(1).HandleAsync(1, Arg.Any<CancellationToken>());
+        await handler.Received(1).HandleAsync(2, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Telemetry failure cannot suppress admission results or dead-letter routing.</summary>
@@ -158,7 +158,7 @@ public class ObserverBoundaryTests
         var dlq = new DeadLetterQueue<int>(Options.Create(new DeadLetterQueueOptions()), NullLogger<DeadLetterQueue<int>>.Instance);
         await using var routing = new RejectionRoutingOrchestrator<int>(inner, dlq, null, NullLogger<RejectionRoutingOrchestrator<int>>.Instance);
         routing.RejectionObserved = (_, _) => throw new InvalidOperationException("observer");
-        var result = asynchronous ? await routing.EnqueueAsync(1).ConfigureAwait(false) : routing.Enqueue(1);
+        var result = asynchronous ? await routing.EnqueueAsync(1) : routing.Enqueue(1);
         await Assert.That(result.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
         await Assert.That(dlq.Count).IsEqualTo(1);
     }

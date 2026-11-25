@@ -62,8 +62,7 @@ public class DeadLetterEventStreamIntegrationTests
             try
             {
                 await foreach (var evt in eventOrchestrator!
-                    .GetEventStreamAsync<WorkDeadLetteredEvent<string>>(cancellationToken: cts.Token)
-                    .ConfigureAwait(false))
+                    .GetEventStreamAsync<WorkDeadLetteredEvent<string>>(cancellationToken: cts.Token))
                 {
                     deadLetterEvents.Add(evt);
                 }
@@ -73,11 +72,11 @@ public class DeadLetterEventStreamIntegrationTests
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
-        await orchestrator.EnqueueAsync("doomed-work").ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("doomed-work");
 
-        await Task.Delay(1000).ConfigureAwait(false);
+        await Task.Delay(1000);
 
         await Assert.That(deadLetterEvents.Count).IsGreaterThanOrEqualTo(1);
 
@@ -86,9 +85,9 @@ public class DeadLetterEventStreamIntegrationTests
         await Assert.That(dlEvent.AttemptCount).IsEqualTo(1);
         await Assert.That(dlEvent.Exception).IsNotNull();
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
-        await eventTask.ConfigureAwait(false);
+        await cts.CancelAsync();
+        await orchestrator.DisposeAsync();
+        await eventTask;
     }
 
     /// <summary>
@@ -124,8 +123,7 @@ public class DeadLetterEventStreamIntegrationTests
             try
             {
                 await foreach (var evt in eventOrchestrator!
-                    .GetEventStreamAsync<WorkDeadLetteredEvent<string>>(cancellationToken: cts.Token)
-                    .ConfigureAwait(false))
+                    .GetEventStreamAsync<WorkDeadLetteredEvent<string>>(cancellationToken: cts.Token))
                 {
                     deadLetterEvents.Add(evt);
                 }
@@ -135,19 +133,19 @@ public class DeadLetterEventStreamIntegrationTests
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
-        await orchestrator.EnqueueAsync("doomed-work").ConfigureAwait(false);
-        await Task.Delay(1000).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("doomed-work");
+        await Task.Delay(1000);
 
         await Assert.That(deadLetterEvents.Count).IsGreaterThanOrEqualTo(1);
 
         var dlEvent = deadLetterEvents.First();
         await Assert.That(dlEvent.Work).IsEqualTo("doomed-work");
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
-        await eventTask.ConfigureAwait(false);
+        await cts.CancelAsync();
+        await orchestrator.DisposeAsync();
+        await eventTask;
     }
 
     /// <summary>
@@ -172,15 +170,15 @@ public class DeadLetterEventStreamIntegrationTests
         var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
-        await orchestrator.EnqueueAsync("doomed-work").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("doomed-work");
+        await Task.Delay(500);
 
         await Assert.That(orchestrator is IEventStreamOrchestrator<string>).IsFalse();
 
         var dlq = provider.GetRequiredService<Bifrost.Core.DeadLetter.IDeadLetterQueue<string>>();
         await Assert.That(dlq.Count).IsGreaterThanOrEqualTo(1);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -215,8 +213,7 @@ public class DeadLetterEventStreamIntegrationTests
             try
             {
                 await foreach (var evt in eventOrchestrator!
-                    .GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token)
-                    .ConfigureAwait(false))
+                    .GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
                 {
                     events.Add(evt);
                 }
@@ -226,17 +223,17 @@ public class DeadLetterEventStreamIntegrationTests
             }
         });
 
-        await Task.Delay(100).ConfigureAwait(false);
+        await Task.Delay(100);
 
-        await orchestrator.EnqueueAsync("normal-work").ConfigureAwait(false);
-        await Task.Delay(500).ConfigureAwait(false);
+        await orchestrator.EnqueueAsync("normal-work");
+        await Task.Delay(500);
 
         await Assert.That(events.Count).IsGreaterThan(0);
         var deadLetterEvents = events.Where(e => e is WorkDeadLetteredEvent<string>).ToList();
         await Assert.That(deadLetterEvents.Count).IsEqualTo(0);
 
-        await cts.CancelAsync().ConfigureAwait(false);
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
-        await eventTask.ConfigureAwait(false);
+        await cts.CancelAsync();
+        await orchestrator.DisposeAsync();
+        await eventTask;
     }
 }

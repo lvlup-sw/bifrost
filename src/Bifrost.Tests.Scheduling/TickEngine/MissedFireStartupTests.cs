@@ -49,7 +49,7 @@ public sealed class MissedFireStartupTests
         var dispatcher = new CountingDispatcher();
         await using var fx = await Fixture.StartWithSeededJobAsync(
             "report", Cadence.Interval(TimeSpan.FromMinutes(1)), MissedFirePolicy.Coalesce,
-            Start.AddMinutes(-500), dispatcher).ConfigureAwait(false);
+            Start.AddMinutes(-500), dispatcher);
 
         await Assert.That(dispatcher.Occurrences.ToArray()).HasCount(1);
         await Assert.That(dispatcher.Occurrences.Single()).IsEqualTo(Start);
@@ -76,12 +76,12 @@ public sealed class MissedFireStartupTests
             Cadence.Interval(TimeSpan.FromMinutes(1)),
             MissedFirePolicy.Coalesce,
             lastFiredAt: Start.AddMinutes(-5),
-            dispatcher).ConfigureAwait(false);
+            dispatcher);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
 
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(dispatcher.FireCount).IsEqualTo(2);
     }
 
@@ -99,12 +99,12 @@ public sealed class MissedFireStartupTests
             Cadence.Interval(TimeSpan.FromMinutes(1)),
             MissedFirePolicy.FireAllMissed,
             lastFiredAt: Start.AddMinutes(-5),
-            dispatcher).ConfigureAwait(false);
+            dispatcher);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(5);
 
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(dispatcher.FireCount).IsEqualTo(6);
     }
 
@@ -122,12 +122,12 @@ public sealed class MissedFireStartupTests
             Cadence.Interval(TimeSpan.FromMinutes(1)),
             MissedFirePolicy.SkipMissed,
             lastFiredAt: Start.AddMinutes(-5),
-            dispatcher).ConfigureAwait(false);
+            dispatcher);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
 
         fx.Time.Advance(TimeSpan.FromMinutes(1));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
     }
 
@@ -148,7 +148,7 @@ public sealed class MissedFireStartupTests
             Cadence.Interval(TimeSpan.FromMinutes(1)),
             MissedFirePolicy.FireAllMissed,
             lastFiredAt: Start.AddMinutes(-500),
-            dispatcher).ConfigureAwait(false);
+            dispatcher);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(100);
 
@@ -171,12 +171,12 @@ public sealed class MissedFireStartupTests
             Cadence.Interval(TimeSpan.FromMinutes(5)),
             MissedFirePolicy.Coalesce,
             lastFiredAt: Start.AddMinutes(-1),
-            dispatcher).ConfigureAwait(false);
+            dispatcher);
 
         await Assert.That(dispatcher.FireCount).IsEqualTo(0);
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
         await Assert.That(dispatcher.FireCount).IsEqualTo(1);
     }
 
@@ -194,7 +194,7 @@ public sealed class MissedFireStartupTests
             Cadence.Interval(TimeSpan.FromMinutes(1)),
             MissedFirePolicy.Coalesce,
             lastFiredAt: Start.AddMinutes(-5),
-            dispatcher).ConfigureAwait(false);
+            dispatcher);
 
         var missed = fx.Events.OfType<JobMissedFireEvent>().Single();
         await Assert.That(missed.JobName).IsEqualTo("report");
@@ -238,14 +238,14 @@ public sealed class MissedFireStartupTests
             var store = new InMemoryScheduleStore();
             var registry = new ScheduleRegistry(store, time);
 
-            await registry.RegisterAsync(name, cadence, policy, dispatcher).ConfigureAwait(false);
+            await registry.RegisterAsync(name, cadence, policy, dispatcher);
 
             await store.SaveAsync(
                 new JobRecord(
                     name, cadence, policy, JobState.Running, lastFiredAt, NextFireAt: null,
                     DispatchKind: "custom", DispatcherTypeName: dispatcher.GetType().FullName,
                     Metadata: new Dictionary<string, string>()),
-                CancellationToken.None).ConfigureAwait(false);
+                CancellationToken.None);
 
             var sink = new RecordingSchedulerEventSink();
             var router = new JobDispatcherRouter(sink);
@@ -255,14 +255,14 @@ public sealed class MissedFireStartupTests
                 serviceProvider: Services);
 
             var fx = new Fixture(time, loop, sink);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

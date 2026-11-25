@@ -36,7 +36,7 @@ public sealed class InlineJobDispatcherTests
             return ValueTask.CompletedTask;
         });
 
-        await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false);
+        await dispatcher.DispatchAsync(Context(), CancellationToken.None);
 
         await Assert.That(invoked).IsEqualTo(1);
     }
@@ -92,7 +92,7 @@ public sealed class InlineJobDispatcherTests
         var dispatcher = new InlineJobDispatcher((_, _) => throw boom);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await dispatcher.DispatchAsync(Context(), CancellationToken.None).ConfigureAwait(false));
+            async () => await dispatcher.DispatchAsync(Context(), CancellationToken.None));
 
         await Assert.That(thrown).IsSameReferenceAs(boom);
     }
@@ -113,7 +113,7 @@ public sealed class InlineJobDispatcherTests
             return ValueTask.CompletedTask;
         });
 
-        await dispatcher.DispatchAsync(Context(), cts.Token).ConfigureAwait(false);
+        await dispatcher.DispatchAsync(Context(), cts.Token);
 
         await Assert.That(seen).IsEqualTo(cts.Token);
     }
@@ -127,7 +127,7 @@ public sealed class InlineJobDispatcherTests
     public async Task DispatchAsync_CancelledToken_DelegateCanThrowOperationCanceled()
     {
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
         var dispatcher = new InlineJobDispatcher((_, ct) =>
         {
@@ -136,7 +136,7 @@ public sealed class InlineJobDispatcherTests
         });
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            async () => await dispatcher.DispatchAsync(Context(), cts.Token).ConfigureAwait(false));
+            async () => await dispatcher.DispatchAsync(Context(), cts.Token));
     }
 
     /// <summary>
@@ -154,7 +154,7 @@ public sealed class InlineJobDispatcherTests
         });
 
         var context = Context("contextual");
-        await dispatcher.DispatchAsync(context, CancellationToken.None).ConfigureAwait(false);
+        await dispatcher.DispatchAsync(context, CancellationToken.None);
 
         await Assert.That(seen).IsNotNull();
         await Assert.That(seen!.Value).IsEqualTo(context);

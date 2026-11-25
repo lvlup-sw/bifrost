@@ -270,7 +270,7 @@ public class GeneratedQueueInvariantTests
                         Check(barrier.SignalAndWait(TimeSpan.FromSeconds(10)), "Q5 end timeout");
                     }
                 }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
-                await Task.WhenAll(actors).WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                await Task.WhenAll(actors).WaitAsync(TimeSpan.FromSeconds(30));
                 var remaining = accepted.ToDictionary();
                 foreach (var entry in removed) Check(remaining.Remove(entry.Element, out int p) && p == entry.Priority, $"Q5 seed={seed} buffer={buffer} duplicate/invented removal");
                 Snapshot(queue, remaining, $"Q5 seed={seed} buffer={buffer} final");
@@ -296,7 +296,7 @@ public class GeneratedQueueInvariantTests
                 {
                     for (int round = 0; round < 12; round++)
                     {
-                        Check(await gates[actor].WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false), "Q5 actor gate timeout");
+                        Check(await gates[actor].WaitAsync(TimeSpan.FromSeconds(10)), "Q5 actor gate timeout");
                         string context = $"Q5 schedule={string.Join(',', schedule)} buffer={buffer} round={round} actor={actor}";
                         if ((round + actor) % 3 != 0)
                         {
@@ -325,16 +325,16 @@ public class GeneratedQueueInvariantTests
                         foreach (int actor in schedule)
                         {
                             gates[actor].Release();
-                            bool signaled = await completed.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+                            bool signaled = await completed.WaitAsync(TimeSpan.FromSeconds(10));
                             if (!signaled)
                             {
-                                if (actors[actor].IsFaulted) await actors[actor].ConfigureAwait(false);
+                                if (actors[actor].IsFaulted) await actors[actor];
                                 throw new TimeoutException("Q5 coordinator timeout");
                             }
                         }
                     }
 
-                    await Task.WhenAll(actors).ConfigureAwait(false);
+                    await Task.WhenAll(actors);
                     Snapshot(queue, live, "Q5 controlled final");
                 }
                 finally

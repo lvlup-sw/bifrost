@@ -42,7 +42,7 @@ public class WorkOrchestratorScalingTests
     {
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        await orchestrator.RequestScaleUpAsync(2).ConfigureAwait(false);
+        await orchestrator.RequestScaleUpAsync(2);
     }
 
     /// <summary>
@@ -53,7 +53,7 @@ public class WorkOrchestratorScalingTests
     {
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        await orchestrator.RequestScaleDownAsync(1).ConfigureAwait(false);
+        await orchestrator.RequestScaleDownAsync(1);
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public class WorkOrchestratorScalingTests
     {
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        await orchestrator.RequestScaleUpAsync(0).ConfigureAwait(false);
+        await orchestrator.RequestScaleUpAsync(0);
     }
 
     /// <summary>
@@ -75,7 +75,7 @@ public class WorkOrchestratorScalingTests
     {
         await using var orchestrator = new WorkOrchestrator<string>(_handler, _options, _logger);
 
-        await orchestrator.RequestScaleDownAsync(0).ConfigureAwait(false);
+        await orchestrator.RequestScaleDownAsync(0);
     }
 
     /// <summary>
@@ -88,7 +88,7 @@ public class WorkOrchestratorScalingTests
         using var cts = new CancellationTokenSource();
 
         var task = orchestrator.RequestScaleUpAsync(5, cts.Token);
-        await task.ConfigureAwait(false);
+        await task;
 
         await Assert.That(task.IsCompleted).IsTrue();
     }
@@ -103,7 +103,7 @@ public class WorkOrchestratorScalingTests
         using var cts = new CancellationTokenSource();
 
         var task = orchestrator.RequestScaleDownAsync(3, cts.Token);
-        await task.ConfigureAwait(false);
+        await task;
 
         await Assert.That(task.IsCompleted).IsTrue();
     }

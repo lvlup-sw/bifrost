@@ -54,6 +54,6 @@ internal sealed class ScopedHandlerProxy<TWork> : IWorkHandler<TWork>
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var handler = scope.ServiceProvider.GetRequiredService<IWorkHandler<TWork>>();
-        await handler.HandleAsync(work, ct).ConfigureAwait(false);
+        await handler.HandleAsync(work, ct);
     }
 }

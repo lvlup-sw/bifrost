@@ -43,12 +43,12 @@ public sealed class SingleProcessBehaviorTests
     [Test]
     public async Task SingleProcessDefault_TicksEveryRegisteredJob()
     {
-        await using var fx = await Fixture.StartAsync(new SchedulerOptions()).ConfigureAwait(false);
-        var a = await fx.RegisterAsync("a", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
-        var b = await fx.RegisterAsync("b", Cadence.Interval(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(new SchedulerOptions());
+        var a = await fx.RegisterAsync("a", Cadence.Interval(TimeSpan.FromMinutes(5)));
+        var b = await fx.RegisterAsync("b", Cadence.Interval(TimeSpan.FromMinutes(5)));
 
         fx.Time.Advance(TimeSpan.FromMinutes(5));
-        await fx.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+        await fx.Loop.WaitForIdleAsync(TestTimeout);
 
         await Assert.That(a.FireCount).IsEqualTo(1);
         await Assert.That(b.FireCount).IsEqualTo(1);
@@ -64,7 +64,7 @@ public sealed class SingleProcessBehaviorTests
     {
         var logger = new CapturingLogger<ScheduleTickLoop>();
         await using var fx = await Fixture.StartAsync(
-            new SchedulerOptions { MultiInstanceExpected = true }, logger).ConfigureAwait(false);
+            new SchedulerOptions { MultiInstanceExpected = true }, logger);
 
         await Assert.That(logger.Any(LogLevel.Warning)).IsTrue();
         await Assert.That(logger.Contains(LogLevel.Warning, "duplicate")).IsTrue();
@@ -78,7 +78,7 @@ public sealed class SingleProcessBehaviorTests
     public async Task DefaultOptions_LogsNoMultiInstanceWarning()
     {
         var logger = new CapturingLogger<ScheduleTickLoop>();
-        await using var fx = await Fixture.StartAsync(new SchedulerOptions(), logger).ConfigureAwait(false);
+        await using var fx = await Fixture.StartAsync(new SchedulerOptions(), logger);
 
         await Assert.That(logger.Contains(LogLevel.Warning, "duplicate")).IsFalse();
     }
@@ -117,23 +117,22 @@ public sealed class SingleProcessBehaviorTests
                 serviceProvider: Services);
 
             var fx = new Fixture(time, registry, loop);
-            await ((IHostedService)loop).StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await ((IHostedService)loop).StartAsync(CancellationToken.None);
+            await loop.WaitForIdleAsync(TestTimeout);
             return fx;
         }
 
         public async Task<CountingDispatcher> RegisterAsync(string name, Cadence cadence)
         {
             var dispatcher = new CountingDispatcher();
-            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher)
-                .ConfigureAwait(false);
-            await this.Loop.WaitForIdleAsync(TestTimeout).ConfigureAwait(false);
+            await this.Registry.RegisterAsync(name, cadence, MissedFirePolicy.Coalesce, dispatcher);
+            await this.Loop.WaitForIdleAsync(TestTimeout);
             return dispatcher;
         }
 
         public async ValueTask DisposeAsync()
         {
-            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ((IHostedService)this.Loop).StopAsync(CancellationToken.None);
             this.Loop.Dispose();
         }
     }

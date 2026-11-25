@@ -53,7 +53,7 @@ public class WorkOrchestratorBuilderHandlerDecoratorTests
         await Assert.That(decoratorApplied).IsTrue();
         await Assert.That(orchestrator).IsNotNull();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -95,7 +95,7 @@ public class WorkOrchestratorBuilderHandlerDecoratorTests
         await Assert.That(order[0]).IsEqualTo(1);
         await Assert.That(order[1]).IsEqualTo(2);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -118,7 +118,7 @@ public class WorkOrchestratorBuilderHandlerDecoratorTests
 
         await Assert.That(orchestrator).IsNotNull();
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>
@@ -166,7 +166,7 @@ public class WorkOrchestratorBuilderHandlerDecoratorTests
         await Assert.That(applicationOrder[0]).IsEqualTo(1);
         await Assert.That(applicationOrder[1]).IsEqualTo(2);
 
-        await orchestrator.DisposeAsync().ConfigureAwait(false);
+        await orchestrator.DisposeAsync();
     }
 
     /// <summary>

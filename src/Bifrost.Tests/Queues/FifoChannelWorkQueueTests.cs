@@ -80,12 +80,12 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
         }
 
         var pending = queue.WriteAsync(SmallCapacity, CancellationToken.None).AsTask();
-        await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
         await Assert.That(pending.IsCompleted).IsFalse();
 
         var dequeued = queue.TryDequeue(out _);
         await Assert.That(dequeued).IsTrue();
-        await pending.WaitAsync(BindingWaitTimeout).ConfigureAwait(false);
+        await pending.WaitAsync(BindingWaitTimeout);
 
         await Assert.That(pending.IsCompletedSuccessfully).IsTrue();
     }
@@ -133,8 +133,7 @@ public sealed class FifoChannelWorkQueueTests : WorkQueueContractTests
 
         var signaled = await queue.WaitToDequeueAsync(CancellationToken.None)
             .AsTask()
-            .WaitAsync(BindingWaitTimeout)
-            .ConfigureAwait(false);
+            .WaitAsync(BindingWaitTimeout);
         await Assert.That(signaled).IsFalse();
     }
 
