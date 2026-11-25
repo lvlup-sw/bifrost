@@ -31,7 +31,7 @@ namespace Bifrost.Autoscaling;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
+public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator, IScaleUpUtilizationSource
 {
     private readonly IWorkOrchestrator<TWork> _orchestrator;
     private readonly IWorkerRegistry _registry;
@@ -62,7 +62,8 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
     /// <param name="publishCallback">Optional callback for publishing events to the event stream.</param>
     /// <param name="dispatchableBacklog">
     /// Returns the number of queued items a free worker could take now, or <see langword="null"/>
-    /// when every queued item is dispatchable. Keyed dispatch supplies it.
+    /// when every queued item is dispatchable. Keyed dispatch supplies it. It feeds only the
+    /// scale-up ratio.
     /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="orchestrator"/> or <paramref name="registry"/> is null.</exception>
     /// <remarks>
@@ -104,28 +105,39 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
     /// <inheritdoc/>
     /// <remarks>
     /// <para>
-    /// The denominator is always <see cref="IWorkOrchestrator{TWork}.Capacity"/>. The numerator is
-    /// the pending count, except with keyed dispatch, where it is the dispatchable backlog: the
-    /// queued items that a free worker could take now. Items queued behind a key that is at its
-    /// concurrency limit are not counted, so a backlog that is blocked behind one hot key does not
-    /// scale up. Ready items across keys still do.
+    /// This is the total pending count divided by <see cref="IWorkOrchestrator{TWork}.Capacity"/>,
+    /// with or without keyed dispatch. The engine compares it to the low watermark, so a backlog
+    /// that is blocked behind keys at their concurrency limit still counts as load and does not
+    /// remove the workers that drain it.
     /// </para>
     /// <para>
-    /// The engine uses this one ratio for scale-up and scale-down, so a blocked-only keyed backlog
-    /// reads as idle and can scale down to the minimum. <see cref="PendingWorkCount"/> and the
-    /// scale-down guard that keeps one consumer while work is queued still use the total pending
-    /// count.
+    /// The scale-up decision uses <see cref="GetScaleUpUtilizationRatio"/> instead.
     /// </para>
     /// </remarks>
     public double GetUtilizationRatio()
-    {
-        if (_orchestrator.Capacity == 0)
-        {
-            return 0.0;
-        }
+        => Ratio(_orchestrator.PendingCount);
 
-        var backlog = _dispatchableBacklog is { } dispatchable ? dispatchable() : _orchestrator.PendingCount;
-        return (double)backlog / _orchestrator.Capacity;
+    /// <summary>
+    /// Calculates the utilization ratio that the engine compares to the high watermark.
+    /// </summary>
+    /// <returns>The scale-up backlog divided by capacity, or 0.0 when capacity is zero.</returns>
+    /// <remarks>
+    /// Without keyed dispatch this equals <see cref="GetUtilizationRatio"/>. With keyed dispatch the
+    /// numerator is the dispatchable backlog: the queued items that a free worker could take now.
+    /// Items queued behind a key that is at its concurrency limit are not counted, so a backlog
+    /// that is blocked behind one hot key does not scale up. Ready items across keys still do.
+    /// </remarks>
+    internal double GetScaleUpUtilizationRatio()
+        => _dispatchableBacklog is { } dispatchable ? Ratio(dispatchable()) : GetUtilizationRatio();
+
+    /// <inheritdoc/>
+    double IScaleUpUtilizationSource.GetScaleUpUtilizationRatio() => GetScaleUpUtilizationRatio();
+
+    /// <summary>Divides a backlog by the orchestrator capacity, returning 0.0 for zero capacity.</summary>
+    private double Ratio(int backlog)
+    {
+        var capacity = _orchestrator.Capacity;
+        return capacity == 0 ? 0.0 : (double)backlog / capacity;
     }
 
     #endregion

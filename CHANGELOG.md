@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Autoscaling scales up on the dispatchable backlog for keyed dispatch** (#131). With `WithKeyedDispatch`, the utilization ratio is the number of queued items a free worker could take now, divided by `Capacity`. Items queued behind a key at its concurrency limit do not add workers, so one hot key does not scale the pool to `MaxWorkers`. The same ratio drives scale-down, so a blocked-only backlog reads as idle. `PendingWorkCount`, capacity, and the drain guard still use the total pending count. Orchestrators without keyed dispatch are unchanged.
+- **Autoscaling scales up on the dispatchable backlog for keyed dispatch** (#131). With `WithKeyedDispatch`, the engine compares the high watermark to the number of queued items a free worker could take now, divided by `Capacity`. Items queued behind a key at its concurrency limit do not add workers, so one hot key does not scale the pool to `MaxWorkers`. Scale-down still compares the low watermark to the total pending count, so a blocked backlog does not remove the workers that drain it. `GetUtilizationRatio()`, `PendingWorkCount`, capacity, and the drain guard still use the total pending count. Orchestrators without keyed dispatch are unchanged.
 - **`WithResilience` and `WithAdmissionResilience` can be called more than once** (#133), in any combination. The configure actions merge in call order and the resilience decorator is added once. A second call used to fail at `Build` with `Duplicate decorator order(s): 25`.
 - **The duplicate-handler error message now names `WithHandler`, `WithTaskHandler`, and `WithScopedHandler`** (#134).
 

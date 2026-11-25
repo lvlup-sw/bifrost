@@ -60,8 +60,16 @@ public interface IAutoscalingMetricsPort
     /// the ratio of pending work to capacity. Returns 0.0 if capacity is zero.
     /// </returns>
     /// <remarks>
+    /// <para>
     /// The utilization ratio is calculated as: PendingWorkCount / MaxBacklog.
     /// This method includes protection against division by zero.
+    /// </para>
+    /// <para>
+    /// The built-in engine compares this ratio to the low watermark. With keyed dispatch it compares
+    /// a separate ratio to the high watermark: the backlog that more workers could run (the
+    /// dispatchable backlog) divided by MaxBacklog. Without keyed dispatch both ratios are the same.
+    /// See <see cref="AutoscalingCoordinator{TWork}.GetUtilizationRatio"/>.
+    /// </para>
     /// </remarks>
     double GetUtilizationRatio();
 }

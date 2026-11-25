@@ -80,7 +80,8 @@ public static class KeyedDispatchExtensions
     /// <para>
     /// <b>Autoscaling.</b> With <c>WithAutoscaling</c>, scale-up counts only the items a free
     /// worker could take now. Items queued behind a key at its concurrency limit do not add
-    /// workers. Capacity and drain still use the total pending count.
+    /// workers. Scale-down, capacity, and drain still use the total pending count, so a blocked
+    /// backlog does not remove the workers that drain it either.
     /// </para>
     /// <para>The limits apply to one orchestrator instance, not across processes.</para>
     /// </remarks>

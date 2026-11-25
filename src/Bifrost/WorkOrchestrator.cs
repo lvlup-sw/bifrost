@@ -65,7 +65,9 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <see cref="QueueFullMode.Wait"/> is configured for a queue that is not a
     /// <see cref="FifoChannelWorkQueue{T}"/>, or when the queue is leased (for example a
     /// <see cref="KeyedWorkQueue{TWork, TKey}"/>) and the options do not select
-    /// <see cref="QueueFullMode.Reject"/> and <see cref="DispatchStrategy.Fifo"/>.
+    /// <see cref="QueueFullMode.Reject"/> and either <see cref="DispatchStrategy.Fifo"/> or
+    /// <see cref="DispatchStrategy.Keyed"/>, or when the options select
+    /// <see cref="DispatchStrategy.Keyed"/> and the queue is not leased.
     /// </exception>
     /// <remarks>
     /// This constructor has no optional parameters, so a call with the public constructor's
@@ -89,9 +91,10 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <remarks>
     /// The strategy guards run before a built-in binding is built, so the public constructor keeps
     /// its exception order and message. <see cref="DispatchStrategy.Keyed"/> has no built-in
-    /// binding: it needs the key selector and limits that only the factory constructor receives. The general guard runs on the resolved queue:
-    /// <see cref="QueueFullMode.Wait"/> needs <see cref="FifoChannelWorkQueue{T}"/>, which makes
-    /// the cast in <see cref="EnqueueAsync"/> safe by construction.
+    /// binding: it needs the key selector and limits that only the factory constructor receives.
+    /// The general guard runs on the resolved queue: <see cref="QueueFullMode.Wait"/> needs
+    /// <see cref="FifoChannelWorkQueue{T}"/>, which makes the cast in <see cref="EnqueueAsync"/>
+    /// safe by construction.
     /// </remarks>
     private WorkOrchestrator(Func<WorkOrchestratorOptions, TimeProvider, IWorkQueue<WorkEnvelope<TWork>>>? queueFactory,
         IWorkHandler<TWork> handler, IOptions<WorkOrchestratorOptions> options,

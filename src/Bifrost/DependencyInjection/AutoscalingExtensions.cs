@@ -49,6 +49,7 @@ public static class AutoscalingExtensions
     /// <para>
     /// With <c>WithKeyedDispatch</c>, scale-up uses the dispatchable backlog instead of the total
     /// pending count, so items queued behind a key at its concurrency limit do not add workers.
+    /// Scale-down still uses the total pending count, so those items do not remove workers either.
     /// See <see cref="AutoscalingCoordinator{TWork}.GetUtilizationRatio"/>.
     /// </para>
     /// <para>
