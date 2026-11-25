@@ -74,8 +74,10 @@ public sealed class DeadLetterQueueOptions
     /// </list>
     /// </para>
     /// <para>
-    /// Retries are immediate (no backoff). For transient failure handling with
-    /// exponential backoff, use <c>.WithResilience()</c> instead.
+    /// Retries are immediate (no backoff). Admission resilience
+    /// (<c>.WithAdmissionResilience()</c>, also named <c>.WithResilience()</c>) does not
+    /// retry handler failures: its policies wrap <c>EnqueueAsync</c> only. A handler that
+    /// needs backoff between attempts must implement it itself.
     /// </para>
     /// </remarks>
     [Range(0, 100)]

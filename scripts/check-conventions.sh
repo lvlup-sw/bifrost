@@ -31,4 +31,4 @@ fi
 "${policy[@]}" check --root "$ROOT" --mode "$mode" --subject "$(git rev-parse HEAD)" \
   --policy verification/policy/repository.json \
   --baseline verification/policy/comment-baseline.json \
-  --report "${LVLUP_POLICY_REPORT:-artifacts/conventions.json}" "${args[@]}"
+  --report "${LVLUP_POLICY_REPORT:-artifacts/conventions.json}" ${args[@]+"${args[@]}"}
