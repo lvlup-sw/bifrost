@@ -507,6 +507,21 @@ public sealed class LeasedWorkQueueSeamTests
             if (ThrowOnRelease) throw new ReleaseFaultException();
         }
 
+        public int DiscardQueued(ICollection<WorkEnvelope<string>> discarded)
+        {
+            lock (_gate)
+            {
+                var removed = _items.Count;
+                while (_items.TryDequeue(out var item))
+                {
+                    discarded.Add(item);
+                    log.Add($"Discard:{item.Work}");
+                }
+
+                return removed;
+            }
+        }
+
         public void Complete()
         {
             lock (_gate)

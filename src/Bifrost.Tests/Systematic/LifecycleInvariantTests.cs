@@ -48,7 +48,8 @@ public sealed class LifecycleInvariantTests
             {
                 await actual.AbortAsync().WaitAsync(TimeSpan.FromSeconds(5));
                 Require(handler.Canceled && handler.Starts.Count == 1, "abort may abandon accepted pending work");
-                Require(actual.PendingCount == count, "abandoned work remains pending");
+                Require(actual.PendingCount == 0, "abort sweeps accepted pending work out of the queue");
+                Require(actual.Outcomes.Counters.Abandoned == count, "every swept item is settled as abandoned");
             }
 
             else if (seed % 3 == 1)
@@ -90,7 +91,8 @@ public sealed class LifecycleInvariantTests
         actual.Complete();
         Require(!(await actual.EnqueueAsync("closed")).IsAccepted, "closed asynchronous admission rejected");
         await actual.Completion.WaitAsync(TimeSpan.FromSeconds(5));
-        Require(actual.PendingCount == 1 && handler.Starts.IsEmpty, "no registered workers does not imply execution");
+        Require(handler.Starts.IsEmpty, "no registered workers does not imply execution");
+        Require(actual.PendingCount == 0 && actual.Outcomes.Counters.Abandoned == 1, "unexecuted work is swept and settled as abandoned");
     }
 
     [Test]

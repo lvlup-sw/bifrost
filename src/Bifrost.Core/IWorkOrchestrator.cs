@@ -31,7 +31,10 @@ public interface IWorkOrchestrator<TWork> : IWorkWriter<TWork>, IAsyncDisposable
     /// <returns>A task representing the drain.</returns>
     Task DrainAsync(CancellationToken ct = default);
 
-    /// <summary>Closes admission and signals worker cancellation. Pending work may be abandoned.</summary>
+    /// <summary>
+    /// Closes admission and signals worker cancellation. Pending work that no worker has started is
+    /// removed from the queue and abandoned. Running work keeps its worker until its handler exits.
+    /// </summary>
     /// <param name="ct">Cancels the wait for workers to exit.</param>
     /// <returns>A task representing worker termination.</returns>
     Task AbortAsync(CancellationToken ct = default);

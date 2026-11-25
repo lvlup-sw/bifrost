@@ -51,7 +51,8 @@ public sealed class LifecycleOutcomeInvariantTests
             await worker.WaitAsync(TimeSpan.FromSeconds(5));
             await Assert.That(actual.Completion.IsCompletedSuccessfully).IsTrue();
             await Assert.That(actual.ActiveWorkers).IsEqualTo(0);
-            await Assert.That(actual.PendingCount).IsEqualTo(outcome == "cancellation" ? 1 : 0);
+            await Assert.That(actual.PendingCount).IsEqualTo(0);
+            await Assert.That(actual.Outcomes.Counters.Abandoned).IsEqualTo(outcome == "cancellation" ? 1 : 0);
             var events = outcomes.ToArray();
             await Assert.That(events.Length).IsEqualTo(outcome == "cancellation" ? 1 : 2);
             await Assert.That(events.Single(e => e.Work == "blocked").Success).IsEqualTo(outcome == "success");

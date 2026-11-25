@@ -90,10 +90,6 @@ internal sealed class TerminalOutcomeCounters<TWork>
         }
     }
 
-    /// <summary>Counts accepted items that no worker will start.</summary>
-    /// <param name="count">The number of abandoned items.</param>
-    internal void RecordAbandoned(int count) => Interlocked.Add(ref _abandoned, count);
-
     /// <summary>Counts the handler attempts one item used.</summary>
     /// <param name="count">The number of attempts.</param>
     internal void RecordAttempts(int count) => Interlocked.Add(ref _handlerAttempts, count);

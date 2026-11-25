@@ -631,6 +631,8 @@ public sealed class KeyedDispatchOrchestratorTests
 
         public void Release(object lease) => inner.Release(lease);
 
+        public int DiscardQueued(ICollection<WorkEnvelope<string>> discarded) => inner.DiscardQueued(discarded);
+
         public void Complete() => inner.Complete();
 
         public void WakeConsumer() => inner.WakeConsumer();

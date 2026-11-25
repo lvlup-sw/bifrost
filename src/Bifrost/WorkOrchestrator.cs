@@ -236,6 +236,31 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <see cref="PendingCount"/>.
     /// </remarks>
     internal int DispatchableCount => _queue is IDispatchableBacklog backlog ? backlog.DispatchableCount : _queue.Count;
+
+    /// <summary>Gets the pending, ready, and blocked counts of the queue, read together.</summary>
+    /// <remarks>
+    /// <para>
+    /// This is the aggregate surface for the autoscaler, health checks, and gauges.
+    /// <see cref="DispatchBacklog.Pending"/> equals <see cref="PendingCount"/>, the total pending
+    /// depth that capacity and drain use. <see cref="DispatchBacklog.Ready"/> equals
+    /// <see cref="DispatchableCount"/>, the backlog that more workers could run.
+    /// <see cref="DispatchBacklog.Blocked"/> counts the items that wait for a key slot.
+    /// </para>
+    /// <para>
+    /// A keyed binding reads both counts under one lock. Every other binding has no blocked items,
+    /// so it reports every pending item as ready.
+    /// </para>
+    /// </remarks>
+    internal DispatchBacklog Backlog
+    {
+        get
+        {
+            if (_queue is IDispatchableBacklog backlog) return backlog.Backlog;
+            var pending = _queue.Count;
+            return new DispatchBacklog(pending, pending);
+        }
+    }
+
     internal Action<WorkClass, TimeSpan>? QueueWaitObserved { get; set; }
 
     /// <summary>Gets the terminal outcome stage: its counters, its attempt limit, and its observer hook.</summary>
@@ -305,14 +330,28 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
     /// <inheritdoc/>
     /// <remarks>
+    /// <para>
+    /// The method closes admission, signals cancellation, and then runs the abandonment sweep
+    /// before it waits: every item still queued, including items blocked behind a running item of
+    /// the same key, is removed and settled as abandoned. Running handlers keep their slots until
+    /// they exit. The sweep and the last worker's sweep run under the lifecycle gate, so every
+    /// abandoned item is settled before <c>Completion</c> finishes.
+    /// </para>
+    /// <para>
     /// The method waits for both the cancellation signal and <c>Completion</c>. A failure in a
     /// cancellation callback must not let disposal race workers that still use owned resources.
+    /// </para>
     /// </remarks>
     public async Task AbortAsync(CancellationToken ct = default)
     {
         Complete();
         Task signal;
-        lock (_lifecycleGate) signal = _abortSignal ??= _cts.CancelAsync();
+        lock (_lifecycleGate)
+        {
+            signal = _abortSignal ??= _cts.CancelAsync();
+            if (!_completion.Task.IsCompleted) SweepAbandoned();
+        }
+
         await Task.WhenAll(signal, Completion).WaitAsync(ct);
     }
 
@@ -327,17 +366,44 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
     /// <summary>Completes <see cref="Completion"/> once the queue is complete and no worker is left.</summary>
     /// <remarks>
-    /// No worker can start after this point, so every item still queued is abandoned and counted
-    /// before <see cref="Completion"/> finishes. After a drain the queue is empty, so the count is zero.
-    /// The bulk count from <c>Count</c> assumes that no other component settles queued items as
-    /// abandoned. A per-item abandon sweep must drain the queue first or replace this count, or
-    /// the two double-count.
+    /// No worker can start after this point, so the abandonment sweep removes every item still
+    /// queued and settles it as abandoned before <see cref="Completion"/> finishes. After a drain
+    /// the queue is empty, so the sweep finds nothing.
     /// </remarks>
     private void FinishCompletion()
     {
-        if (!_completion.Task.IsCompleted) _outcomes.RecordAbandoned(_queue.Count);
+        if (!_completion.Task.IsCompleted) SweepAbandoned();
         if (_workerError is { } error) _completion.TrySetException(error);
         else _completion.TrySetResult();
+    }
+
+    /// <summary>Removes every queued item and settles each one as abandoned.</summary>
+    /// <remarks>
+    /// <para>
+    /// This is the one sweep for every binding. It runs under the lifecycle gate, after the queue
+    /// is completed, so no item can be admitted behind it. A leased binding removes its queued
+    /// items in one step through <see cref="ILeasedWorkQueue{T}.DiscardQueued"/>, which reaches
+    /// items blocked behind a running item and hands out no lease. Every other binding is emptied
+    /// through its plain dequeue, which holds no slot.
+    /// </para>
+    /// <para>
+    /// The sweep never takes or releases a lease. A running item's slot is released only by
+    /// <see cref="ReleaseLeaseOnce"/> in that item's worker, so a sweep that runs while a handler
+    /// is still in its <c>finally</c> block cannot release the slot twice.
+    /// </para>
+    /// </remarks>
+    private void SweepAbandoned()
+    {
+        if (_leased is not null)
+        {
+            if (_queue.Count == 0) return;
+            var discarded = new List<WorkEnvelope<TWork>>();
+            _leased.DiscardQueued(discarded);
+            for (var i = 0; i < discarded.Count; i++) _outcomes.SettleAbandoned();
+            return;
+        }
+
+        while (_queue.TryDequeue(out _)) _outcomes.SettleAbandoned();
     }
 
     // No timeout may authorize disposal while a handler still uses the queue or the token, so the
@@ -510,7 +576,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             var duration = _timeProvider.GetElapsedTime(startedAt);
             try
             {
-                if (lease is not null) _leased!.Release(lease);
+                ReleaseLeaseOnce(ref lease);
             }
             finally
             {
@@ -524,6 +590,20 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                 }
             }
         }
+    }
+
+    /// <summary>Returns the item's lease to the binding at most once.</summary>
+    /// <param name="lease">The item's lease. It is set to <see langword="null"/> before the release runs.</param>
+    /// <remarks>
+    /// The lease is taken out of the variable before <see cref="ILeasedWorkQueue{T}.Release"/>
+    /// runs, so a release that throws, or any later path through the same variable, cannot return
+    /// it again. Together with the sweep, which holds no lease, this makes the worker that
+    /// dequeued an item the only releaser of that item's slot.
+    /// </remarks>
+    private void ReleaseLeaseOnce(ref object? lease)
+    {
+        var held = Interlocked.Exchange(ref lease, null);
+        if (held is not null) _leased!.Release(held);
     }
 
     private static bool IsHandlerCancellation(Exception error, CancellationToken ct)

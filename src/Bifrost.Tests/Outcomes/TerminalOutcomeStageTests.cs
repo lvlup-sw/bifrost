@@ -163,7 +163,8 @@ public sealed class TerminalOutcomeStageTests
 
     /// <summary>
     /// Cancelling the handler token settles the running item as canceled after one attempt: it is
-    /// not retried and not captured. The item still queued behind it is abandoned.
+    /// not retried and not captured. The abort sweep removes the item still queued behind it and
+    /// settles it as abandoned, with no completion event.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
@@ -186,9 +187,12 @@ public sealed class TerminalOutcomeStageTests
             await harness.Orchestrator.AbortAsync().WaitAsync(WaitTimeout);
         }
 
-        await Assert.That(harness.Records.Single().Outcome).IsEqualTo(TerminalOutcome.Canceled);
-        await Assert.That(harness.Records.Single().Attempts).IsEqualTo(1);
-        await Assert.That(harness.Records.Single().Capture).IsEqualTo(CaptureDisposition.None);
+        var canceled = harness.Records.Single(r => r.Outcome == TerminalOutcome.Canceled);
+        await Assert.That(canceled.Attempts).IsEqualTo(1);
+        await Assert.That(canceled.Capture).IsEqualTo(CaptureDisposition.None);
+        var abandoned = harness.Records.Single(r => r.Outcome == TerminalOutcome.Abandoned);
+        await Assert.That(abandoned.Attempts).IsEqualTo(0);
+        await Assert.That(harness.Records.Count).IsEqualTo(2);
         await Assert.That(harness.Counters.Canceled).IsEqualTo(1);
         await Assert.That(harness.Counters.Abandoned).IsEqualTo(1);
         await Assert.That(harness.Counters.HandlerAttempts).IsEqualTo(1);
@@ -234,7 +238,10 @@ public sealed class TerminalOutcomeStageTests
         await Assert.That(harness.Queue.Count).IsEqualTo(0);
     }
 
-    /// <summary>Items still queued when the last worker exits are counted as abandoned once.</summary>
+    /// <summary>
+    /// Items still queued when the last worker exits are swept out of the queue and settled as
+    /// abandoned once each, with zero attempts.
+    /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task CompleteWithoutWorkers_CountsQueuedItemsAbandoned()
@@ -249,7 +256,11 @@ public sealed class TerminalOutcomeStageTests
         }
 
         await Assert.That(harness.Counters.Abandoned).IsEqualTo(2);
-        await Assert.That(harness.Records).IsEmpty();
+        await Assert.That(harness.Counters.HandlerAttempts).IsEqualTo(0);
+        await Assert.That(harness.Records.Count).IsEqualTo(2);
+        await Assert.That(harness.Records.All(r => r.Outcome == TerminalOutcome.Abandoned && r.Attempts == 0)).IsTrue();
+        await Assert.That(harness.Orchestrator.PendingCount).IsEqualTo(0);
+        await Assert.That(harness.Events).IsEmpty();
     }
 
     /// <summary>A drain that runs every item abandons nothing.</summary>

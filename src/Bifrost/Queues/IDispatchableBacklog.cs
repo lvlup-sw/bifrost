@@ -19,4 +19,7 @@ internal interface IDispatchableBacklog
 {
     /// <summary>Gets the number of queued items that a free worker could take now.</summary>
     int DispatchableCount { get; }
+
+    /// <summary>Gets the pending, ready, and blocked counts, read together under one lock.</summary>
+    DispatchBacklog Backlog { get; }
 }

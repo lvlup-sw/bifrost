@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Calling `WithDeadLetterQueue` twice no longer adds a second retry layer.
   - A final handler failure is logged once by the worker (`failed to process work item`) and, when captured, once more as a warning. Before, a dead-lettered failure was logged as one error (`dead-lettered after N attempts`).
 
+- **Abort and completion now sweep unstarted work out of the queue** (#131). `AbortAsync` (and `DisposeAsync`) removes every queued item that no worker has started, including keyed items blocked behind a running item of the same key, and records each one as abandoned. The same sweep runs when the last worker exits after `Complete`, for example with no registered workers. `PendingCount` is now `0` after `AbortAsync` returns or `Completion` finishes. Before, abandoned items stayed in the queue and kept counting as pending. Running handlers keep their key slot until they exit, and `DrainAsync` still runs every accepted item, including blocked keyed items, as their slots free up.
+
 ### Fixed
 
 - **Docs no longer say that resilience wraps handler calls** (#133). The README, the `ResilientOrchestrator` remarks, and `DeadLetterQueueOptions.MaxRetries` now say that admission resilience wraps `EnqueueAsync` only, has no circuit breaker, and does not retry handler failures. Dead-letter retries are immediate.

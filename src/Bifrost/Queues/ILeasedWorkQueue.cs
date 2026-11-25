@@ -49,6 +49,10 @@ namespace Bifrost.Queues;
 /// It receives exactly one <see cref="Release"/> per leased dequeue, after the handler pipeline
 /// for that item has exited.
 /// </description></item>
+/// <item><description>
+/// <see cref="DiscardQueued"/> removes queued items without a lease, so an abandonment sweep
+/// never adds a release.
+/// </description></item>
 /// </list>
 /// <para>
 /// The test-only <c>WorkOrchestrator.TryReadEnvelope</c> reads through the plain
@@ -95,4 +99,27 @@ internal interface ILeasedWorkQueue<T>
     /// </para>
     /// </remarks>
     void Release(object lease);
+
+    /// <summary>
+    /// Removes every queued item without reserving a slot, after <see cref="IWorkQueueLifecycle.Complete"/>,
+    /// and adds the removed items to <paramref name="discarded"/>.
+    /// </summary>
+    /// <param name="discarded">Receives the removed items, oldest first within each key.</param>
+    /// <returns>The number of removed items.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the binding is not completed yet.</exception>
+    /// <remarks>
+    /// <para>
+    /// This is the leased half of the orchestrator's abandonment sweep, which runs when
+    /// <c>AbortAsync</c> starts and when the last worker exits. It removes queued items only,
+    /// including items blocked behind a running item of the same key. It hands out no lease and
+    /// never touches a slot that a running item holds, so a sweep cannot release a slot against
+    /// a handler that is still running or still in its <c>finally</c> block. That handler's own
+    /// <see cref="Release"/> stays the only release of its slot.
+    /// </para>
+    /// <para>
+    /// A key with no running items left is removed. When the sweep leaves the completed binding
+    /// empty, the binding wakes its parked waiters so that they see the end of the queue.
+    /// </para>
+    /// </remarks>
+    int DiscardQueued(ICollection<T> discarded);
 }
