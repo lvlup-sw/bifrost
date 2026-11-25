@@ -24,7 +24,9 @@ The release runs in two parts.
 2. **GitHub Actions `publish.yml`.** This workflow builds nothing. It checks that the
    tag points to the given commit and that the commit is on `main`. It waits for the
    Buildkite build to pass and verifies the manifest and every package with
-   `.github/scripts/verify-release-handoff.py`. Then it pushes the packages to nuget.org
+   `.github/scripts/verify-release-handoff.py`. If a package version is already on
+   nuget.org, the published package must name the same commit and exact version, so a
+   skipped duplicate push is always a replay of this release. Then it pushes the packages to nuget.org
    with trusted publishing (OIDC). Symbols are pushed too; a symbols failure does not fail
    the release. Last, the `github-release` job writes the GitHub Release notes with
    git-cliff (`.github/cliff.toml`).

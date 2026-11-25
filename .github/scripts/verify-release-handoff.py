@@ -41,6 +41,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+import xml.parsers.expat
 import zipfile
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -82,6 +83,8 @@ POLL_SECONDS = 15
 POLL_DEADLINE_SECONDS = 15 * 60
 REQUEST_TIMEOUT_SECONDS = 60
 REDIRECT_CODES = frozenset({301, 302, 303, 307, 308})
+RATE_LIMIT_RESET_HEADERS = ('RateLimit-Reset', 'RateLimit-User-Reset')
+NUGET_FLAT_CONTAINER = 'https://api.nuget.org/v3-flatcontainer'
 TERMINAL_STATES = frozenset({'passed', 'failed', 'canceled', 'skipped', 'not_run', 'blocked'})
 PENDING_STATES = frozenset({'creating', 'scheduled', 'running', 'canceling', 'failing'})
 
@@ -298,10 +301,11 @@ class Buildkite:
             except urllib.error.HTTPError as error:
                 with contextlib.closing(error):
                     code = error.code
-                    reset = error.headers.get('RateLimit-Reset', '') if error.headers else ''
+                    resets = [error.headers.get(name, '') or '' for name in RATE_LIMIT_RESET_HEADERS] if error.headers else []
                 if not (code == 429 or code >= 500) or number == attempts:
                     raise VerificationError(f'{what} failed with HTTP {code}') from None
-                self.sleep(min(int(reset), 60) if reset.isdigit() else 5 * number)
+                wait = max((int(reset) for reset in resets if reset.isdigit()), default=0)
+                self.sleep(min(wait, 60) if wait > 0 else 5 * number)
             except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ConnectionError) as error:
                 if number == attempts:
                     raise VerificationError(f'{what} failed: {type(error).__name__}') from None
@@ -350,6 +354,22 @@ class Buildkite:
             url = next_link(headers.get('Link', '') or '')
         require(url is None, 'artifact listing has too many pages')
         return artifacts
+
+    def get_public(self, url: str, limit: int, what: str) -> bytes | None:
+        """GET a public resource without credentials; return ``None`` when it answers 404."""
+        def attempt() -> bytes | None:
+            try:
+                response = self._open(url, authorized=False)
+            except urllib.error.HTTPError as error:
+                if error.code != 404:
+                    raise
+                with contextlib.closing(error):
+                    return None
+            with response:
+                require(status_of(response) == 200, f'{what} returned HTTP {status_of(response)}')
+                return read_bounded(response, limit)
+
+        return self._retrying(what, attempt)
 
     def _storage_location(self, url: str, artifact_id: str) -> str:
         """Ask the API for a fresh storage redirect for one artifact and return its location."""
@@ -530,17 +550,28 @@ def read_nuspec(name: str, data: bytes) -> bytes:
     return raw
 
 
-def verify_nuspec(name: str, data: bytes, package_id: str, kind: str, inputs: Inputs) -> None:
-    """Open a package and check its nuspec id, version, repository url and commit, and package type.
+def parse_nuspec(name: str, raw: bytes) -> ET.Element:
+    """Parse a nuspec, refusing any DTD at the parser itself.
 
-    DTDs are refused before parsing, so entity expansion cannot be used against the parser.
+    An expat pre-pass rejects a doctype or entity declaration in whatever encoding the
+    document uses, so entity expansion can never reach the ElementTree parse.
     """
-    raw = read_nuspec(name, data)
-    require(b'<!DOCTYPE' not in raw and b'<!ENTITY' not in raw, f'{name} nuspec declares a DTD')
+    def refuse_dtd(*_: Any) -> None:
+        raise VerificationError(f'{name} nuspec declares a DTD')
+
+    scanner = xml.parsers.expat.ParserCreate()
+    scanner.StartDoctypeDeclHandler = refuse_dtd
+    scanner.EntityDeclHandler = refuse_dtd
     try:
-        root = ET.fromstring(raw)
-    except ET.ParseError as error:
+        scanner.Parse(raw, True)
+        return ET.fromstring(raw)
+    except (xml.parsers.expat.ExpatError, ET.ParseError) as error:
         raise VerificationError(f'{name} nuspec is not valid XML') from error
+
+
+def verify_nuspec(name: str, data: bytes, package_id: str, kind: str, inputs: Inputs) -> None:
+    """Open a package and check its nuspec id, version, repository url and commit, and package type."""
+    root = parse_nuspec(name, read_nuspec(name, data))
     require(local_name(root.tag) == 'package', f'{name} nuspec root is not <package>')
     metadata = [child for child in root if local_name(child.tag) == 'metadata']
     require(len(metadata) == 1, f'{name} nuspec has no single <metadata>')
@@ -617,6 +648,38 @@ def verify(inputs: Inputs, client: Buildkite) -> dict[str, bytes]:
     return verified
 
 
+def verify_nuget_replays(inputs: Inputs, client: Buildkite, packages: dict[str, bytes],
+                         base: str = NUGET_FLAT_CONTAINER) -> list[str]:
+    """Refuse to publish over a NuGet version that belongs to another release; return replayed ids.
+
+    ``dotnet nuget push --skip-duplicate`` treats any existing version as success. NuGet
+    versions ignore case, and a tag can be moved, so an existing version may come from a
+    different tag or commit. For every package version already on nuget.org, the published
+    package must pass the same nuspec checks as the certified one (id, exact version,
+    repository and commit). Only then is the skipped push a true replay of this release.
+    """
+    replayed: list[str] = []
+    version = inputs.version.lower()
+    for name in sorted(packages):
+        package_id, kind = expected_files(inputs.version)[name]
+        if kind != 'nupkg':
+            continue
+        lower = package_id.lower()
+        index = client.get_public(f'{base}/{lower}/index.json', MAX_API_BYTES, f'NuGet index for {package_id}')
+        if index is None:
+            continue
+        listed = strict_json(index)
+        require(isinstance(listed, dict) and isinstance(listed.get('versions'), list), f'NuGet index for {package_id} is malformed')
+        if version not in listed['versions']:
+            continue
+        published = client.get_public(f'{base}/{lower}/{version}/{lower}.{version}.nupkg', MAX_PACKAGE_BYTES,
+                                      f'published {package_id} {inputs.version}')
+        require(published is not None, f'NuGet lists {package_id} {inputs.version} but does not serve it')
+        verify_nuspec(f'published {name}', published, package_id, kind, inputs)
+        replayed.append(package_id)
+    return replayed
+
+
 def write_packages(directory: pathlib.Path, packages: dict[str, bytes]) -> None:
     """Write verified packages into a new or empty directory."""
     directory.mkdir(parents=True, exist_ok=True)
@@ -647,7 +710,11 @@ def main(env: dict[str, str] | None = None, client_factory: Callable[[Inputs, st
     factory = client_factory or (lambda inputs, token: Buildkite(inputs, token))
     try:
         inputs = Inputs.from_env(env)
-        packages = verify(inputs, factory(inputs, env.get('BUILDKITE_RELEASE_READ_TOKEN', '')))
+        client = factory(inputs, env.get('BUILDKITE_RELEASE_READ_TOKEN', ''))
+        packages = verify(inputs, client)
+        replayed = verify_nuget_replays(inputs, client, packages, env.get('NUGET_FLAT_CONTAINER') or NUGET_FLAT_CONTAINER)
+        if replayed:
+            print(f'Already on nuget.org from this same release (push will skip): {", ".join(replayed)}', flush=True)
         write_packages(pathlib.Path(env.get('PACKAGE_DIR') or 'nupkgs'), packages)
     except VerificationError as error:
         print(f'::error::Release handoff verification failed: {error}', file=sys.stderr)
