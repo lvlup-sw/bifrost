@@ -12,10 +12,13 @@ dotnet build src/Bifrost.sln -c Release          # solution lives under src/, no
 dotnet test --solution src/Bifrost.sln           # full suite
 dotnet test --project src/Bifrost.Tests          # single project
 dotnet run -c Release --project src/Bifrost.Benchmarks -- --filter "*"   # BenchmarkDotNet
-scripts/ci/coverage-gate.sh <cobertura.xml>      # 80% line/branch/method gate
 ```
 > The README's plain `dotnet test` is misleading — with the MTP runner you must pass
 > `--solution`/`--project`. Assertions MUST be awaited.
+
+PR validation runs on Buildkite, planned by the controller in `lvlup-sw/.github`. GitHub Actions
+runs no build on pushes to main. The 80% per-assembly coverage gate is the Buildkite
+`dotnet-coverage` suite; there is no local coverage-gate script.
 
 ## Toolchain & conventions
 
@@ -29,9 +32,10 @@ scripts/ci/coverage-gate.sh <cobertura.xml>      # 80% line/branch/method gate
   `ConfigureAwait(false)` at build time and suppresses VSTHRD111. Do not add `.ConfigureAwait(false)`.
   Keep explicit calls only where they change behavior: `ConfigureAwaitOptions` overloads, and
   `.WithCancellation(ct).ConfigureAwait(false)` (a bare `WithCancellation` captures the context).
-- **No comments inside function bodies** (`comments/no-function-body`, enforced in CI by
-  `lvlup-policy`). Put the explanation on the enclosing declaration (XML `<remarks>` or a comment
-  above it) or express it in code. Check locally with `dotnet tool restore && bash scripts/check-conventions.sh`.
+- **No comments inside function bodies** (`comments/no-function-body`, enforced by `lvlup-policy`
+  in the Buildkite `conventions` job). Put the explanation on the enclosing declaration (XML `<remarks>` or a comment
+  above it) or express it in code. Check locally with `dotnet tool restore && bash scripts/check-conventions.sh`
+  (or `scripts/check-conventions.sh pr origin/main` to match the PR job).
   The baseline in `verification/policy/comment-baseline.json` may only shrink.
 
 ## Layout
