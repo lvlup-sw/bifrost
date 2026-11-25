@@ -6,10 +6,9 @@
 
 using BenchmarkDotNet.Attributes;
 
-using Bifrost.Core;
 using Bifrost.Core.DeadLetter;
-using Bifrost.Core.Events;
 using Bifrost.DeadLetter;
+using Bifrost.Outcomes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -25,16 +24,16 @@ public class DeadLetterQueueBenchmarks
     private DeadLetterQueue<int>? _dlq;
     private DeadLetterQueue<int>? _drainDlq;
     private IOptions<DeadLetterQueueOptions>? _options;
-    private DeadLetterHandler<int>? _happyPathHandler;
-    private DeadLetterHandler<int>? _failurePathHandler;
+    private TerminalOutcomeStage<int>? _stage;
     private DeadLetteredWork<int> _testItem;
+    private InvalidOperationException? _failure;
 
     /// <summary>
     /// Sets up the benchmarks.
     /// </summary>
     /// <remarks>
-    /// The happy-path handler wraps an inner handler that succeeds. The failure-path handler wraps an
-    /// inner handler that always throws, with <c>MaxRetries</c> set to 0.
+    /// The terminal outcome stage owns dead-letter capture. The happy path settles a success. The
+    /// failure path settles a final failure and captures it in a queue with spare capacity.
     /// </remarks>
     [GlobalSetup]
     public Task GlobalSetup()
@@ -46,18 +45,15 @@ public class DeadLetterQueueBenchmarks
 
         _testItem = new DeadLetteredWork<int>(42, null, 1, DateTimeOffset.UtcNow, null);
 
-        var noopNotifier = new DeadLetterNotifier<int>(NullLogger<DeadLetterNotifier<int>>.Instance);
-        var logger = NullLogger<DeadLetterHandler<int>>.Instance;
-
-        var succeedingHandler = new DelegateHandler(_ => ValueTask.CompletedTask);
-        _happyPathHandler = new DeadLetterHandler<int>(
-            succeedingHandler, new DeadLetterQueue<int>(_options, NullLogger<DeadLetterQueue<int>>.Instance), noopNotifier, _options, logger);
-
-        var failingHandler = new DelegateHandler(_ =>
-            new ValueTask(Task.FromException(new InvalidOperationException("bench-fail"))));
-        _failurePathHandler = new DeadLetterHandler<int>(
-            failingHandler, new DeadLetterQueue<int>(_options, NullLogger<DeadLetterQueue<int>>.Instance), noopNotifier,
-            Options.Create(new DeadLetterQueueOptions { Capacity = 10000, MaxRetries = 0 }), logger);
+        _failure = new InvalidOperationException("bench-fail");
+        _stage = new TerminalOutcomeStage<int>(
+            new TerminalOutcomeOptions<int>
+            {
+                DeadLetterQueue = new DeadLetterQueue<int>(_options, NullLogger<DeadLetterQueue<int>>.Instance),
+                Notifier = new DeadLetterNotifier<int>(NullLogger<DeadLetterNotifier<int>>.Instance),
+            },
+            NullLogger.Instance,
+            TimeProvider.System);
 
         return Task.CompletedTask;
     }
@@ -108,23 +104,23 @@ public class DeadLetterQueueBenchmarks
     }
 
     /// <summary>
-    /// Benchmarks the happy path through DeadLetterHandler (no failure, no retries).
+    /// Benchmarks settling a success in the terminal outcome stage (no capture).
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> representing the operation.</returns>
     [Benchmark]
     public ValueTask HappyPath_NoFailure()
     {
-        return _happyPathHandler!.HandleAsync(42, CancellationToken.None);
+        return _stage!.SettleAsync(42, TerminalOutcome.Succeeded, 1, null, TimeSpan.Zero);
     }
 
     /// <summary>
-    /// Benchmarks the failure path through DeadLetterHandler (immediate dead-letter).
+    /// Benchmarks settling a final failure in the terminal outcome stage (one capture).
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> representing the operation.</returns>
     [Benchmark]
     public ValueTask FailurePath_DeadLetter()
     {
-        return _failurePathHandler!.HandleAsync(42, CancellationToken.None);
+        return _stage!.SettleAsync(42, TerminalOutcome.Failed, 1, _failure, TimeSpan.Zero);
     }
 
     /// <summary>
@@ -136,10 +132,5 @@ public class DeadLetterQueueBenchmarks
     [GlobalCleanup]
     public void GlobalCleanup()
     {
-    }
-
-    private sealed class DelegateHandler(Func<int, ValueTask> handler) : IWorkHandler<int>
-    {
-        public ValueTask HandleAsync(int work, CancellationToken ct) => handler(work);
     }
 }

@@ -131,7 +131,8 @@ public class HandlerDecoratorExtensionsTests
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
 
         await Assert.That(customDecoratorApplied).IsTrue();
-        await Assert.That(builder.HandlerDecorators).HasCount().GreaterThanOrEqualTo(2);
+        await Assert.That(builder.HandlerDecorators).HasCount(1);
+        await Assert.That(builder.DeadLetterConfigured).IsTrue();
 
         await orchestrator.DisposeAsync();
     }

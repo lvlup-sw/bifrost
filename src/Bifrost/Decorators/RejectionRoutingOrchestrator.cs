@@ -218,8 +218,8 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
     /// <returns>A ValueTask that completes when the entry is persisted.</returns>
     /// <remarks>
     /// The enqueue uses <see cref="CancellationToken.None"/>, so the dead-letter persistence is
-    /// guaranteed also when the token of the producer is cancelled. This mirrors
-    /// <see cref="DeadLetterHandler{TWork}"/>.
+    /// guaranteed also when the token of the producer is cancelled. This mirrors the capture of
+    /// final handler failures in <see cref="Bifrost.Outcomes.TerminalOutcomeStage{TWork}"/>.
     /// </remarks>
     private async ValueTask RouteToDeadLetterAsync(TWork work, RejectionReason reason, string? correlationId)
     {

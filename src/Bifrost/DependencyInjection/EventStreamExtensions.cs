@@ -35,20 +35,18 @@ public static class EventStreamExtensions
     /// and higher-order decorators like autoscaling.
     /// </para>
     /// <para>
-    /// Additionally, a handler decorator is registered to publish
-    /// <see cref="WorkCompletedEvent{TWork}"/> events when work items complete processing.
-    /// The handler decorator uses late-binding to reference the orchestrator instance,
-    /// allowing proper DI ordering where handler decorators are applied before orchestrator
-    /// decorators.
+    /// The orchestrator also publishes one <see cref="WorkCompletedEvent{TWork}"/> per started work
+    /// item from its terminal outcome stage. The stage runs after the handler pipeline exits, outside
+    /// every handler decorator and outside dead-letter retries, so the event reports the item's final
+    /// result (<c>Success</c> is <see langword="false"/> for a failed or canceled item, also when the
+    /// failure was dead-lettered) and its duration covers every attempt. The behavior is the same for
+    /// every builder call order.
     /// </para>
     /// <para>
-    /// The late binding uses the captured local <c>eventStreamOrchestrator</c>. The handler
-    /// decorator is applied first (to the handler), then the orchestrator decorator wraps the
-    /// orchestrator. So by the time the handler processes work, the orchestrator reference is
-    /// available. The same captured reference backs the builder-level
-    /// <c>EventPublishCallback</c> for cross-cutting event routing: other extensions (for example,
-    /// <c>WithDeadLetterQueue</c>) use it to publish events through the event stream. That reference
-    /// is set when the orchestrator factory runs during <c>Build()</c>.
+    /// The events reach the stream through the builder-level <c>EventPublishCallback</c>, which uses
+    /// the captured local <c>eventStreamOrchestrator</c>. That reference is set when the orchestrator
+    /// factory runs during <c>Build()</c>, before any work can be enqueued. Other extensions (for
+    /// example, <c>WithDeadLetterQueue</c>) publish through the same callback.
     /// </para>
     /// </remarks>
     public static WorkOrchestratorBuilder<TWork> WithEventStream<TWork>(
@@ -57,17 +55,6 @@ public static class EventStreamExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         EventStreamOrchestrator<TWork>? eventStreamOrchestrator = null;
-
-        var nextHandlerOrder = builder.HandlerDecorators.Count == 0
-            ? 0
-            : builder.HandlerDecorators.Max(d => d.Order) + 1;
-
-        builder.HandlerDecorators.Add(new HandlerDecoratorRegistration<TWork>(
-            Order: nextHandlerOrder,
-            Factory: (sp, handler) =>
-                EventStreamOrchestrator<TWork>.CreateCompletionTrackingHandler(
-                    handler,
-                    evt => eventStreamOrchestrator?.PublishToSubscribers(evt))));
 
         builder.EventPublishCallback = evt => eventStreamOrchestrator?.PublishToSubscribers(evt);
 

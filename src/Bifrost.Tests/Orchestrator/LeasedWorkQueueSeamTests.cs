@@ -10,6 +10,7 @@ using Bifrost.Core;
 using Bifrost.Core.DeadLetter;
 using Bifrost.DeadLetter;
 using Bifrost.Handlers;
+using Bifrost.Outcomes;
 using Bifrost.Queues;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -146,7 +147,8 @@ public sealed class LeasedWorkQueueSeamTests
     }
 
     /// <summary>
-    /// Dead-letter retries run inside one lease: three attempts, then exactly one release.
+    /// Dead-letter retries run inside one lease: three attempts, then exactly one release, then
+    /// one capture, then the idle report.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
@@ -161,13 +163,12 @@ public sealed class LeasedWorkQueueSeamTests
         });
         var dlqOptions = Options.Create(new DeadLetterQueueOptions { MaxRetries = 2 });
         var dlq = new DeadLetterQueue<string>(dlqOptions, NullLogger<DeadLetterQueue<string>>.Instance);
-        var handler = new DeadLetterHandler<string>(
-            inner,
-            dlq,
-            new DeadLetterNotifier<string>(NullLogger<DeadLetterNotifier<string>>.Instance),
-            dlqOptions,
-            NullLogger<DeadLetterHandler<string>>.Instance);
-        await using var orchestrator = CreateWithQueue(handler, queue);
+        var outcomes = new TerminalOutcomeOptions<string>
+        {
+            DeadLetterQueue = new LoggingDeadLetterQueue(log, dlq),
+            DeadLetterRetries = dlqOptions.Value.MaxRetries,
+        };
+        await using var orchestrator = CreateWithQueue(inner, queue, outcomes);
         await Assert.That(orchestrator.Enqueue("a").IsAccepted).IsTrue();
 
         var run = orchestrator.CreateWorkerFunction(busy => log.Add(busy ? "Busy" : "Idle"))("W", CancellationToken.None);
@@ -175,7 +176,7 @@ public sealed class LeasedWorkQueueSeamTests
         await orchestrator.DrainAsync().WaitAsync(WaitTimeout);
         await run.WaitAsync(WaitTimeout);
 
-        await Assert.That(Sequence(log.Snapshot())).IsEqualTo(Sequence(new[] { "Enqueue:a", "Dequeue:a", "Busy", "Attempt:a", "Attempt:a", "Attempt:a", "Release:a", "Idle", "Complete" }));
+        await Assert.That(Sequence(log.Snapshot())).IsEqualTo(Sequence(new[] { "Enqueue:a", "Dequeue:a", "Busy", "Attempt:a", "Attempt:a", "Attempt:a", "Release:a", "Captured:a", "Idle", "Complete" }));
         await Assert.That(dlq.Count).IsEqualTo(1);
     }
 
@@ -299,14 +300,29 @@ public sealed class LeasedWorkQueueSeamTests
 
     private static string Sequence(IEnumerable<string> events) => string.Join(" > ", events);
 
-    private static WorkOrchestrator<string> CreateWithQueue(IWorkHandler<string> handler, RecordingLeasedQueue queue)
+    private static WorkOrchestrator<string> CreateWithQueue(IWorkHandler<string> handler, RecordingLeasedQueue queue,
+        TerminalOutcomeOptions<string>? outcomes = null)
         => new(
             handler,
             Options.Create(new WorkOrchestratorOptions { WorkerCount = 0, FullMode = QueueFullMode.Reject }),
             NullLogger<WorkOrchestrator<string>>.Instance,
             null,
             null,
-            (_, _) => queue);
+            (_, _) => queue,
+            outcomes ?? new TerminalOutcomeOptions<string>());
+
+    private sealed class LoggingDeadLetterQueue(EventLog log, IDeadLetterQueue<string> inner) : IDeadLetterQueue<string>
+    {
+        public int Count => inner.Count;
+
+        public ValueTask EnqueueAsync(DeadLetteredWork<string> item, CancellationToken ct = default)
+        {
+            log.Add($"Captured:{item.Work}");
+            return inner.EnqueueAsync(item, ct);
+        }
+
+        public IAsyncEnumerable<DeadLetteredWork<string>> ReadAllAsync(CancellationToken ct = default) => inner.ReadAllAsync(ct);
+    }
 
     private sealed class EventLog
     {

@@ -8,6 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Bifrost.Core.DeadLetter;
 using Bifrost.DeadLetter;
+using Bifrost.Outcomes;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -34,9 +35,15 @@ public static class DeadLetterQueueExtensions
     /// <list type="bullet">
     ///   <item><description><see cref="IDeadLetterQueue{TWork}"/> - Channel-backed dead letter queue</description></item>
     ///   <item><description><see cref="DeadLetterNotifier{TWork}"/> - Multi-subscriber notification bridge</description></item>
-    ///   <item><description><see cref="DeadLetterHandler{TWork}"/> - Handler decorator for retry and DLQ routing</description></item>
     ///   <item><description><see cref="Bifrost.Decorators.RejectionRoutingOrchestrator{TWork}"/> - Orchestrator decorator routing admission rejections to the DLQ (DR-6)</description></item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// Retries and capture are not a handler decorator. The orchestrator runs them in fixed slots:
+    /// the attempt loop runs outside every handler decorator, so each decorator and each scoped
+    /// handler sees every attempt, and the final failure is captured once, after the handler
+    /// pipeline exits and any key slot is released. The behavior is the same for every builder
+    /// call order, and calling this method again does not add a second retry layer.
     /// </para>
     /// <para>
     /// When combined with <c>WithEventStream()</c>, dead-lettered work items automatically
@@ -54,9 +61,8 @@ public static class DeadLetterQueueExtensions
     /// </para>
     /// <para>
     /// The options use DataAnnotations validation. The queue services use <c>TryAdd</c>, so a second
-    /// call does not register duplicates. The factory closure of the handler decorator captures
-    /// <paramref name="builder"/>, so it reads <c>EventPublishCallback</c> when the factory runs
-    /// during <c>Build()</c>. This is what lets <c>WithEventStream()</c> and
+    /// call does not register duplicates. <c>Build()</c> reads the dead-letter flag and
+    /// <c>EventPublishCallback</c> when it runs, which is what lets <c>WithEventStream()</c> and
     /// <c>WithDeadLetterQueue()</c> be called in any order. The rejection-routing registration is
     /// idempotent and shared with <c>WithOpenTelemetry</c>, which attaches the rejected counter to
     /// the same decorator.
@@ -77,23 +83,20 @@ public static class DeadLetterQueueExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        builder.Services.TryAddSingleton(static _ => new TerminalOutcomeCounters<TWork>());
+
         builder.Services.TryAddSingleton<IDeadLetterQueue<TWork>>(sp =>
             new DeadLetterQueue<TWork>(
                 Options.Create(sp.GetRequiredService<IOptionsMonitor<DeadLetterQueueOptions>>().Get(Bifrost.Core.WorkOptions.Name<TWork>())),
-                sp.GetRequiredService<ILogger<DeadLetterQueue<TWork>>>()));
+                sp.GetRequiredService<ILogger<DeadLetterQueue<TWork>>>(),
+                sp.GetRequiredService<TerminalOutcomeCounters<TWork>>()));
 
-        builder.Services.TryAddSingleton<DeadLetterNotifier<TWork>>();
+        builder.Services.TryAddSingleton(sp =>
+            new DeadLetterNotifier<TWork>(
+                sp.GetRequiredService<ILogger<DeadLetterNotifier<TWork>>>(),
+                sp.GetRequiredService<TerminalOutcomeCounters<TWork>>()));
 
-        builder.HandlerDecorators.Add(new HandlerDecoratorRegistration<TWork>(
-            Order: builder.HandlerDecorators.Count,
-            Factory: (sp, handler) =>
-                new DeadLetterHandler<TWork>(
-                    handler,
-                    sp.GetRequiredService<IDeadLetterQueue<TWork>>(),
-                    sp.GetRequiredService<DeadLetterNotifier<TWork>>(),
-                    Options.Create(sp.GetRequiredService<IOptionsMonitor<DeadLetterQueueOptions>>().Get(Bifrost.Core.WorkOptions.Name<TWork>())),
-                    sp.GetRequiredService<ILogger<DeadLetterHandler<TWork>>>(),
-                    builder.EventPublishCallback)));
+        builder.DeadLetterConfigured = true;
 
         RejectionRoutingRegistration.EnsureRegistered(builder);
 
