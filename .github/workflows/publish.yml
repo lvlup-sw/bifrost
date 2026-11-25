@@ -52,7 +52,7 @@ env:
   BUILDKITE_PIPELINE: 'bifrost-release'
   # Set to the bifrost-release pipeline UUID before this workflow is activated. The verifier
   # refuses to run while this is not a UUID.
-  BUILDKITE_PIPELINE_ID: 'unset-bifrost-release-pipeline-uuid'
+  BUILDKITE_PIPELINE_ID: '01a214e4-037b-4ac5-b957-6a82353dbe8f'
 
 jobs:
   publish:
