@@ -55,6 +55,9 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
     private static readonly KeyValuePair<string, object?> ShutdownReasonTag =
         new("rejection.reason", nameof(RejectionReason.Shutdown));
 
+    private static readonly KeyValuePair<string, object?> KeyLimitExceededReasonTag =
+        new("rejection.reason", nameof(RejectionReason.KeyLimitExceeded));
+
     private readonly Meter _meter;
     private bool _disposed;
 
@@ -113,7 +116,8 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
     /// Rejections are always counted, independent of dead-letter configuration;
     /// dead-letter routing of rejected work additionally requires
     /// <c>WithDeadLetterQueue()</c>. <see cref="RejectionReason.Shutdown"/>
-    /// rejections during teardown are counted (tagged by reason) but never
+    /// rejections during teardown and <see cref="RejectionReason.KeyLimitExceeded"/>
+    /// rejections from keyed dispatch are counted (tagged by reason) but never
     /// dead-lettered.
     /// </para>
     /// <para>
@@ -293,8 +297,10 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
             },
             reason switch
             {
+                RejectionReason.CapacityExceeded => CapacityExceededReasonTag,
                 RejectionReason.WatermarkExceeded => WatermarkExceededReasonTag,
                 RejectionReason.Shutdown => ShutdownReasonTag,
+                RejectionReason.KeyLimitExceeded => KeyLimitExceededReasonTag,
                 _ => CapacityExceededReasonTag,
             });
 

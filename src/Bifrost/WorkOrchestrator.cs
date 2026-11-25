@@ -61,9 +61,11 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// the result and disposes it when it is disposable.
     /// </param>
     /// <exception cref="ArgumentException">
-    /// Thrown when the queue does not implement <see cref="IWorkQueueLifecycle"/>, or when
+    /// Thrown when the queue does not implement <see cref="IWorkQueueLifecycle"/>, when
     /// <see cref="QueueFullMode.Wait"/> is configured for a queue that is not a
-    /// <see cref="FifoChannelWorkQueue{T}"/>.
+    /// <see cref="FifoChannelWorkQueue{T}"/>, or when the queue is leased (for example a
+    /// <see cref="KeyedWorkQueue{TWork, TKey}"/>) and the options do not select
+    /// <see cref="QueueFullMode.Reject"/> and <see cref="DispatchStrategy.Fifo"/>.
     /// </exception>
     /// <remarks>
     /// This constructor has no optional parameters, so a call with the public constructor's
@@ -112,7 +114,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         Capacity = opts.Capacity;
         Ordering = opts.DispatchStrategy;
         _queue = queueFactory is null ? CreateBuiltInQueue(opts, _timeProvider) : queueFactory(opts, _timeProvider);
-        _lifecycle = ValidateQueue(_queue, opts.FullMode);
+        _lifecycle = ValidateQueue(_queue, opts);
         _leased = _queue as ILeasedWorkQueue<WorkEnvelope<TWork>>;
         _activeWorkers = opts.WorkerCount;
         for (int i = 0; i < opts.WorkerCount; i++)
@@ -134,24 +136,41 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
     /// <summary>Checks the resolved queue and returns its lifecycle hooks.</summary>
     /// <param name="queue">The resolved queue.</param>
-    /// <param name="fullMode">The configured full mode.</param>
+    /// <param name="opts">The configured options.</param>
     /// <returns>The queue's lifecycle hooks.</returns>
-    /// <remarks>A rejected queue is disposed when it is disposable, because no orchestrator will own it.</remarks>
-    private static IWorkQueueLifecycle ValidateQueue(IWorkQueue<WorkEnvelope<TWork>>? queue, QueueFullMode fullMode)
+    /// <remarks>
+    /// <para>
+    /// Every queue must implement <see cref="IWorkQueueLifecycle"/>. A leased queue (keyed
+    /// dispatch) also needs <see cref="QueueFullMode.Reject"/>, because a saturated key must
+    /// reject at once instead of parking the producer, and <see cref="DispatchStrategy.Fifo"/>,
+    /// because keyed dispatch cannot be combined with class priority. These leased checks run
+    /// before the general Wait check so that a keyed misconfiguration gets a keyed message.
+    /// </para>
+    /// <para>A rejected queue is disposed when it is disposable, because no orchestrator will own it.</para>
+    /// </remarks>
+    private static IWorkQueueLifecycle ValidateQueue(IWorkQueue<WorkEnvelope<TWork>>? queue, WorkOrchestratorOptions opts)
     {
         if (queue is not IWorkQueueLifecycle lifecycle)
+            throw RejectQueue(queue, "The work queue must implement IWorkQueueLifecycle.", "queueFactory");
+
+        if (queue is ILeasedWorkQueue<WorkEnvelope<TWork>>)
         {
-            (queue as IDisposable)?.Dispose();
-            throw new ArgumentException("The work queue must implement IWorkQueueLifecycle.", "queueFactory");
+            if (opts.FullMode != QueueFullMode.Reject)
+                throw RejectQueue(queue, "Keyed dispatch supports only Reject full mode.", "options");
+            if (opts.DispatchStrategy != DispatchStrategy.Fifo)
+                throw RejectQueue(queue, "Keyed dispatch cannot be combined with class priority dispatch.", "options");
         }
 
-        if (fullMode == QueueFullMode.Wait && queue is not FifoChannelWorkQueue<WorkEnvelope<TWork>>)
-        {
-            (queue as IDisposable)?.Dispose();
-            throw new ArgumentException("Wait full mode requires the FIFO channel queue.", "options");
-        }
+        if (opts.FullMode == QueueFullMode.Wait && queue is not FifoChannelWorkQueue<WorkEnvelope<TWork>>)
+            throw RejectQueue(queue, "Wait full mode requires the FIFO channel queue.", "options");
 
         return lifecycle;
+    }
+
+    private static ArgumentException RejectQueue(IWorkQueue<WorkEnvelope<TWork>>? queue, string message, string paramName)
+    {
+        (queue as IDisposable)?.Dispose();
+        return new ArgumentException(message, paramName);
     }
 
     /// <summary>Gets the configured ordering policy.</summary>
