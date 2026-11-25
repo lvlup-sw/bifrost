@@ -1,0 +1,52 @@
+# Releases
+
+A maintainer releases Bifrost by pushing a `v*` tag to a commit on the first-parent
+history of `main`. Use `vX.Y.Z` for a stable release and `vX.Y.Z-<prerelease>` for a
+prerelease. Build metadata (`+...`) and numeric prerelease parts with a leading zero
+(`rc.01`) are rejected.
+
+Tag only commits that already contain this Buildkite handoff `publish.yml`. A tag on an
+older commit runs that commit's old workflow, which pushed to NuGet directly and skipped
+the Buildkite checks. The `release-tags` ruleset lets only organization admins and
+repository admins or maintainers create, move or delete `v*` tags.
+
+The release runs in two parts.
+
+1. **Buildkite `bifrost-release`.** The controller in lvlup-sw/.github owns this
+   pipeline and its commands. It checks the tag, then certifies the tagged commit.
+   - A prerelease runs `dotnet-coverage`, with the stress tests included.
+   - A stable release also runs `invariants` (seeds x4 and the mutation checks), the
+     600-second `soak`, and both NativeAOT smokes.
+
+   It builds once with `BifrostTestHooks=false` and packs with `--no-build`. It then
+   writes a release manifest with the SHA-256 of every package. Its last step starts
+   `.github/workflows/publish.yml` on the tag.
+2. **GitHub Actions `publish.yml`.** This workflow builds nothing. It checks that the
+   tag points to the given commit and that the commit is on `main`. It waits for the
+   Buildkite build to pass and verifies the manifest and every package with
+   `.github/scripts/verify-release-handoff.py`. If a package version is already on
+   nuget.org, the published package must name the same commit and exact version, so a
+   skipped duplicate push is always a replay of this release. Then it pushes the packages to nuget.org
+   with trusted publishing (OIDC). Symbols are pushed too; a symbols failure does not fail
+   the release. Last, the `github-release` job writes the GitHub Release notes with
+   git-cliff (`.github/cliff.toml`).
+
+Certification evidence (coverage, invariant summary, soak results) is kept as Buildkite
+build artifacts.
+
+If the dispatch fails or times out, the handoff job fails, so the Buildkite build
+fails. `publish.yml` refuses any build that did not pass, so starting it by hand does
+not help. Start a new tag build instead: delete the tag and push it again at the same
+commit. Do not use Buildkite's Rebuild button. Both the release train and
+`publish.yml` accept only builds started by the tag webhook, and a rebuild may report
+another source (lvlup-sw/.github `infra/buildkite/bifrost/RELEASE.md`, activation step 9).
+
+If the build passed but the `publish.yml` run failed, rerun that run or start
+`publish.yml` again by hand. Use the manifest digest from the Buildkite build
+annotation. The workflow checks everything again, and `--skip-duplicate` makes a
+repeated push do nothing:
+
+```sh
+gh workflow run publish.yml --ref <tag> -f tag=<tag> -f commit=<sha> \
+  -f buildkite_build_number=<n> -f buildkite_build_id=<uuid> -f manifest_sha256=<digest>
+```

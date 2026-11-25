@@ -1,52 +1,135 @@
+# Hybrid release handoff. The controller-owned Buildkite pipeline lvlup-sw/bifrost-release
+# (defined in lvlup-sw/.github, see infra/buildkite/bifrost/RELEASE.md there) classifies the
+# v* tag, certifies the tagged commit, and builds the BifrostTestHooks=false binaries as the
+# only compile before `dotnet pack --no-build`. Its last step dispatches this workflow.
+#
+# This workflow builds nothing. It trusts no input on its own: it binds the dispatch to the
+# tag and commit in git, waits for the Buildkite build to pass, verifies the manifest and
+# every package digest, and only then pushes with NuGet trusted publishing (OIDC).
+# nuget.org's trusted-publishing policy matches this file name (publish.yml) and the
+# nuget-publish environment, so neither may be renamed.
+#
+# Manual recovery, using the digest from the Buildkite build annotation:
+#   gh workflow run publish.yml --ref <tag> -f tag=<tag> -f commit=<sha> \
+#     -f buildkite_build_number=<n> -f buildkite_build_id=<uuid> -f manifest_sha256=<digest>
+
 name: Publish NuGet
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (vX.Y.Z or vX.Y.Z-prerelease)'
+        required: true
+        type: string
+      commit:
+        description: 'Full commit SHA the tag points to'
+        required: true
+        type: string
+      buildkite_build_number:
+        description: 'bifrost-release Buildkite build number'
+        required: true
+        type: string
+      buildkite_build_id:
+        description: 'bifrost-release Buildkite build UUID'
+        required: true
+        type: string
+      manifest_sha256:
+        description: 'SHA-256 of bifrost-release-manifest.json'
+        required: true
+        type: string
+
+permissions: {}
+
+# One group for every release, not one per tag. Trusted publishing makes this workflow
+# the only NuGet publisher, so serializing it means nothing can push a conflicting
+# version between the verifier's nuget.org replay check and the push (NuGet versions
+# ignore case, so two tags can map to one version). GitHub keeps at most one pending
+# run per group; a newer dispatch cancels an older pending one before it pushes
+# anything, and that release is dispatched again.
+concurrency:
+  group: nuget-publish
+  cancel-in-progress: false
 
 env:
   DOTNET_VERSION: '10.0.x'
   DOTNET_QUALITY: 'ga'
-  SOLUTION_PATH: 'src/Bifrost.sln'
+  BUILDKITE_ORG: 'lvlup-sw'
+  BUILDKITE_PIPELINE: 'bifrost-release'
+  # Set to the bifrost-release pipeline UUID before this workflow is activated. The verifier
+  # refuses to run while this is not a UUID.
+  BUILDKITE_PIPELINE_ID: '01a214e4-037b-4ac5-b957-6a82353dbe8f'
 
 jobs:
   publish:
-    name: Build and Publish
+    name: Verify and publish
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     environment: nuget-publish
     permissions:
       id-token: write
       contents: read
+    outputs:
+      tag: ${{ steps.bind.outputs.tag }}
+      prerelease: ${{ steps.bind.outputs.prerelease }}
+      commit: ${{ steps.bind.outputs.commit }}
     steps:
-      - name: Checkout
+      - name: Checkout the release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.ref }}
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Classify the exact release tag
-        id: release-kind
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
+      # Inputs arrive through env only, never interpolated into the script.
+      # grep reads all of rev-list's output: under pipefail, grep -q would exit
+      # early and fail the pipeline with SIGPIPE on a long history.
+      - name: Bind the dispatch to the release tag
+        id: bind
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+          BUILD_NUMBER: ${{ inputs.buildkite_build_number }}
+          BUILD_ID: ${{ inputs.buildkite_build_id }}
+          MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
         run: |
           set -euo pipefail
-          version="${RELEASE_TAG#v}"
+          fail() { echo "::error::$1" >&2; exit 1; }
+
           core='(0|[1-9][0-9]*)'
-          tag_expression="^${core}\.${core}\.${core}(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
-          [[ "$RELEASE_TAG" == v* && "$version" =~ $tag_expression ]]
-          [[ "$(git rev-parse 'HEAD^{commit}')" == "$(git rev-parse "$GITHUB_SHA^{commit}")" ]]
+          tag_expression="^v${core}\.${core}\.${core}(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
+          uuid_expression='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          [[ "$EVENT_NAME" == workflow_dispatch ]] || fail 'Only workflow_dispatch may publish.'
+          [[ ${#TAG} -le 128 && "$TAG" =~ $tag_expression ]] || fail 'tag is not a release tag.'
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || fail 'commit must be a full lowercase SHA.'
+          [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]] || fail 'buildkite_build_number is malformed.'
+          [[ "$BUILD_ID" =~ $uuid_expression ]] || fail 'buildkite_build_id is malformed.'
+          [[ "$MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]] || fail 'manifest_sha256 is malformed.'
+
+          version="${TAG#v}"
+          prerelease=false
           if [[ "$version" == *-* ]]; then
+            prerelease=true
             IFS='.' read -ra identifiers <<<"${version#*-}"
             for identifier in "${identifiers[@]}"; do
-              if [[ "$identifier" =~ ^0[0-9]+$ ]]; then exit 1; fi
+              [[ ! "$identifier" =~ ^0[0-9]+$ ]] || fail 'tag has a leading-zero prerelease identifier.'
             done
-            echo "stable=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "stable=true" >> "$GITHUB_OUTPUT"
           fi
-          printf 'MinVerVersionOverride=%s\n' "$version" >> "$GITHUB_ENV"
+
+          [[ "$GITHUB_REF" == "refs/tags/$TAG" ]] || fail "Dispatch ref $GITHUB_REF is not refs/tags/$TAG."
+          [[ "$GITHUB_SHA" == "$COMMIT" ]] || fail 'The dispatched commit is not the commit input.'
+          [[ "$(git rev-parse "refs/tags/$TAG^{commit}")" == "$COMMIT" ]] || fail 'The tag does not point to the commit input.'
+          [[ "$(git rev-parse 'HEAD^{commit}')" == "$COMMIT" ]] || fail 'The checkout is not the tagged commit.'
+          git rev-list --first-parent origin/main | grep -Fx "$COMMIT" >/dev/null || fail 'The tagged commit is not on the first-parent history of main.'
+
+          {
+            echo "tag=$TAG"
+            echo "tag_object=$(git rev-parse "refs/tags/$TAG")"
+            echo "prerelease=$prerelease"
+            echo "commit=$COMMIT"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
@@ -54,70 +137,17 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           dotnet-quality: ${{ env.DOTNET_QUALITY }}
 
-      - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_PATH }}
-
-      - name: Build
-        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release
-
-      - name: Run tests
-        run: |
-          for proj in src/Bifrost.Tests/*.csproj; do
-            dotnet run --project "$proj" --configuration Release --no-build --no-restore
-          done
-
-      - name: Certify stable release
-        if: steps.release-kind.outputs.stable == 'true'
-        run: |
-          set -euo pipefail
-          for project in Bifrost.Tests.Scheduling Bifrost.Tests.Concurrency; do
-            dotnet run --project "src/$project" -c Release --no-build --no-restore -- \
-              --treenode-filter '/*/*/*/*[Category!=Stress]' --minimum-expected-tests 1
-          done
-          dotnet run --project src/Bifrost.Tests.Concurrency -c Release --no-build --no-restore -- \
-            --treenode-filter '/*/*/*/*[Category=Stress]' --minimum-expected-tests 1
-          BIFROST_INVARIANT_SEED_MULTIPLIER=4 python3 scripts/run-invariant-tests.py --skip-build
-          python3 scripts/invariants/queue-mutation-check.py
-          python3 scripts/invariants/lifecycle-mutations.py
-      - name: Soak the stable release
-        if: steps.release-kind.outputs.stable == 'true'
-        run: |
-          dotnet run --project src/Bifrost.Benchmarks -c Release --no-build --no-restore -- \
-            soak --seconds 600 --out soak-results
-
-      - name: Certify scheduling NativeAOT
-        if: steps.release-kind.outputs.stable == 'true'
-        uses: ./.github/actions/aot-smoke-faf3b5c
-        with:
-          project-path: samples/Bifrost.Scheduling.AotSmoke/Bifrost.Scheduling.AotSmoke.csproj
-
-      - name: Certify concurrency NativeAOT
-        if: steps.release-kind.outputs.stable == 'true'
-        uses: ./.github/actions/aot-smoke-faf3b5c
-        with:
-          project-path: samples/Bifrost.Concurrency.AotSmoke/Bifrost.Concurrency.AotSmoke.csproj
-          output-dir: ./aot-publish-concurrency
-
-      - name: Retain stable-release test evidence
-        if: steps.release-kind.outputs.stable == 'true' && !cancelled()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: stable-proof-${{ github.sha }}
-          path: |
-            artifacts/invariants/
-            soak-results/
-          retention-days: 30
-
-      - name: Build package artifact
-        # Rebuild with BifrostTestHooks=false immediately before packing, so the BIFROST_TEST_HOOKS
-        # test-only occupancy/routing/scan counters are stripped from the shipped binary. This MUST
-        # be the last compile before `dotnet pack --no-build`: the test step above rebuilds
-        # Bifrost.Concurrency with the default BifrostTestHooks=true, so packing right after it would
-        # otherwise ship the instrumented binary.
-        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release -p:BifrostTestHooks=false
-
-      - name: Pack
-        run: dotnet pack ${{ env.SOLUTION_PATH }} --no-build --configuration Release --output ./nupkgs
+      - name: Fetch and verify the certified packages
+        env:
+          BUILDKITE_RELEASE_READ_TOKEN: ${{ secrets.BUILDKITE_RELEASE_READ_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_COMMIT: ${{ inputs.commit }}
+          RELEASE_TAG_OBJECT: ${{ steps.bind.outputs.tag_object }}
+          RELEASE_BUILD_NUMBER: ${{ inputs.buildkite_build_number }}
+          RELEASE_BUILD_ID: ${{ inputs.buildkite_build_id }}
+          RELEASE_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+          PACKAGE_DIR: nupkgs
+        run: python3 -I .github/scripts/verify-release-handoff.py
 
       - name: NuGet login (OIDC)
         id: login
@@ -126,20 +156,88 @@ jobs:
           user: ${{ vars.NUGET_USER }}
 
       - name: Push to NuGet
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          for pkg in ./nupkgs/*.nupkg; do
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(./nupkgs/*.nupkg)
+          [[ ${#packages[@]} -eq 9 ]] || { echo "::error::Expected 9 packages, found ${#packages[@]}." >&2; exit 1; }
+          for pkg in "${packages[@]}"; do
             dotnet nuget push "$pkg" \
-              --api-key ${{ steps.login.outputs.NUGET_API_KEY }} \
+              --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json \
+              --no-symbols \
+              --skip-duplicate
+          done
+
+      # Symbols are best effort, as before: a symbol-server failure must not fail a release
+      # whose packages are already on nuget.org.
+      - name: Push symbols
+        shell: bash
+        continue-on-error: true
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for pkg in ./nupkgs/*.snupkg; do
+            dotnet nuget push "$pkg" \
+              --api-key "$NUGET_API_KEY" \
               --source https://api.nuget.org/v3/index.json \
               --skip-duplicate
           done
 
-      - name: Push symbols
+  github-release:
+    name: Create GitHub Release
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.publish.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The notes cover the commits from the nearest earlier v* tag to the validated
+      # commit. git-cliff gets a commit range and ignores every tag, so neither newer
+      # tags nor a second tag on the same commit can change what is included.
+      - name: Compute the changelog range
+        id: range
+        shell: bash
+        env:
+          COMMIT: ${{ needs.publish.outputs.commit }}
         run: |
-          for pkg in ./nupkgs/*.snupkg; do
-            dotnet nuget push "$pkg" \
-              --api-key ${{ steps.login.outputs.NUGET_API_KEY }} \
-              --source https://api.nuget.org/v3/index.json \
-              --skip-duplicate
-          done
-        continue-on-error: true
+          set -euo pipefail
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::commit output is malformed.' >&2; exit 1; }
+          range="$COMMIT"
+          if git rev-parse -q --verify "$COMMIT^" >/dev/null; then
+            previous="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$COMMIT^" 2>/dev/null || true)"
+            if [[ -n "$previous" ]]; then
+              [[ "$previous" =~ ^v[0-9A-Za-z.-]+$ ]] || { echo '::error::previous tag name is unexpected.' >&2; exit 1; }
+              range="$(git rev-parse "$previous^{commit}")..$COMMIT"
+            fi
+          fi
+          echo "range=$range" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        env:
+          GIT_CLIFF_IGNORE_TAGS: '.*'
+        with:
+          config: .github/cliff.toml
+          args: --strip header ${{ steps.range.outputs.range }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ needs.publish.outputs.tag }}
+          body: ${{ steps.changelog.outputs.content }}
+          prerelease: ${{ needs.publish.outputs.prerelease == 'true' }}
+          generate_release_notes: false
