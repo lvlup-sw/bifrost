@@ -503,8 +503,8 @@ Add parallel documentation noting that resilience applies to enqueue, not handle
 /// </list>
 /// </para>
 /// <para>
-/// Retries are immediate (no backoff). For transient failure handling with
-/// exponential backoff, use <c>.WithResilience()</c> instead.
+/// Retries are immediate (no backoff). Admission resilience (<c>.WithResilience()</c>)
+/// wraps <c>EnqueueAsync</c> only and does not retry handler failures.
 /// </para>
 /// </remarks>
 [Range(0, 100)]

@@ -18,11 +18,12 @@ namespace Bifrost.Resilience;
 /// Configure these settings via the Options pattern to customize resilience
 /// behavior for the work orchestrator.
 /// </para>
-/// <para><b>Scope:</b> Resilience policies apply to <b>enqueue operations only</b>
-/// (<see cref="Bifrost.Core.IWorkWriter{TWork}.EnqueueAsync"/>).
-/// Synchronous methods (<c>TryEnqueue</c>, <c>TryRun</c>, <c>Run</c>) bypass
-/// resilience policies because channel writes are CPU-bound and do not experience
-/// transient failures.</para>
+/// <para><b>Scope:</b> When used by <c>WithAdmissionResilience</c> (or <c>WithResilience</c>),
+/// the policies apply to <see cref="Bifrost.Core.IWorkWriter{TWork}.EnqueueAsync"/> only, and only
+/// <see cref="RetryCount"/>, <see cref="RetryIntervalSeconds"/>, <see cref="UseExponentialBackoff"/>
+/// and <see cref="TimeoutIntervalSeconds"/> take effect. The synchronous methods (<c>Enqueue</c>,
+/// <c>TryEnqueue</c>) bypass the policies because channel writes are CPU-bound and do not
+/// experience transient failures.</para>
 /// <para><b>Interaction with DLQ:</b> The resilience layer and the dead letter queue
 /// (DLQ) layer are independent. Resilience retries <b>enqueue</b> failures (getting work
 /// into the channel). DLQ retries <b>handler</b> failures (processing the work item).

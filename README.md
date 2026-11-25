@@ -19,7 +19,7 @@ Capabilities are composed through the orchestrator's dependency-injection builde
 ## Capabilities
 
 - **Autoscaling** adjusts the worker pool using queue utilization and configured watermarks.
-- **Resilience** adds Polly policies around handler calls. The dead-letter queue has a separate retry policy for handler failures.
+- **Admission resilience** (`WithAdmissionResilience`, also available as `WithResilience`) adds Polly retry and timeout policies around `EnqueueAsync`. It acts when a full FIFO queue makes the write wait or the enqueue throws a transient exception. It does not retry rejections returned as `EnqueueResult`, synchronous `Enqueue` or `TryEnqueue` calls, or handler failures. Only the dead-letter queue retries handler failures, and its retries are immediate.
 - **Dead-lettering** records handler failures and eligible admission rejections. Shutdown rejections and canceled enqueues are not dead-lettered. The default dead-letter queue is in memory, is bounded, and drops its oldest item when full.
 - **Health checks** report orchestrator and queue health through .NET health check integration.
 - **OpenTelemetry** provides queue-wait and rejection metrics, observable gauges, and instruments for handler processing metrics. Processing counters and duration require explicit recording in the handler.

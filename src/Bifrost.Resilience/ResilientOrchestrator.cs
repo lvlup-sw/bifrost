@@ -15,18 +15,20 @@ using Polly.Wrap;
 namespace Bifrost.Resilience;
 
 /// <summary>
-/// Decorator that adds Polly resilience policies to a work orchestrator.
+/// Decorator that adds Polly admission resilience policies to a work orchestrator.
 /// </summary>
 /// <typeparam name="TWork">The type of work item to process.</typeparam>
 /// <remarks>
 /// <para>
-/// This decorator wraps an <see cref="IWorkOrchestrator{TWork}"/> and applies
-/// Polly resilience policies to enqueue operations. This provides automatic
-/// retry, timeout, and circuit breaker protection.
+/// This decorator wraps an <see cref="IWorkOrchestrator{TWork}"/> and applies a Polly retry
+/// policy and a per-attempt timeout policy to <see cref="EnqueueAsync"/> only. It has no circuit
+/// breaker, bulkhead, or fallback. The policies are configured via
+/// <see cref="ResiliencySettings"/>.
 /// </para>
 /// <para>
-/// The resilience policies are configured via <see cref="ResiliencySettings"/>
-/// and include retry with exponential backoff and timeout handling.
+/// All other members pass through to the inner orchestrator. <see cref="Enqueue"/> and
+/// <see cref="TryEnqueue"/> are not wrapped. Rejections returned as an <see cref="EnqueueResult"/>
+/// are not retried, and handler failures are not retried by this decorator.
 /// </para>
 /// </remarks>
 public sealed class ResilientOrchestrator<TWork> : IWorkOrchestrator<TWork>

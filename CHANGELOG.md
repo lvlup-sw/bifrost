@@ -10,9 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`IHttpClientBuilder.AddBifrostResilienceHandler()`** — Bifrost-generated HttpClient resilience, the intended replacement for `AddStandardResilienceHandler`. Attaches a Polly v8 `ResiliencePipeline<HttpResponseMessage>` (total-request timeout → retry → circuit breaker → per-attempt timeout, with HTTP-aware transient handling) whose policy is resolved by the HttpClient's name from `BifrostHttpResilienceOptions` — a `Default` policy plus per-name `Policies` overrides. The options are bound from the `Bifrost:Resilience` configuration section automatically (source-generated binding, trim/AOT-clean), so policies are config-driven with no explicit binding in consumer code. The call is idempotent and override-safe: it strips any resilience handler already present (e.g. a blanket default inherited from `ConfigureHttpClientDefaults`) so per-client overrides never double-stack, confining the experimental `RemoveAllResilienceHandlers` (EXTEXP0001) surface to the library so consumers never write it. Apply once via `ConfigureHttpClientDefaults` for a keyed default across every client, then call it on a named client to apply that client's keyed policy — long-running clients (SSE streams, slow provisioning) tune timeout/retry purely through configuration instead of bypassing resilience.
+- **`WithTaskHandler(Func<TWork, CancellationToken, Task>)`** (#134) — registers a handler from a `Task`-returning delegate or method group.
+- **`WithScopedHandler(Func<IServiceProvider, TWork, CancellationToken, ValueTask>)`** (#134) — runs the delegate in a new DI scope for each handler attempt (each dead-letter retry gets a fresh scope) and disposes the scope after the attempt exits.
+- **`WithAdmissionResilience(Action<ResiliencySettings>?)`** (#133) — the scope-accurate name for `WithResilience`. Polly retry and timeout wrap `EnqueueAsync` only. `WithResilience` stays as the original name and behaves the same way.
+
+### Changed
+
+- **`WithResilience` and `WithAdmissionResilience` can be called more than once** (#133), in any combination. The configure actions merge in call order and the resilience decorator is added once. A second call used to fail at `Build` with `Duplicate decorator order(s): 25`.
+- **The duplicate-handler error message now names `WithHandler`, `WithTaskHandler`, and `WithScopedHandler`** (#134).
 
 ### Fixed
 
+- **Docs no longer say that resilience wraps handler calls** (#133). The README, the `ResilientOrchestrator` remarks, and `DeadLetterQueueOptions.MaxRetries` now say that admission resilience wraps `EnqueueAsync` only, has no circuit breaker, and does not retry handler failures. Dead-letter retries are immediate.
 - **`AddBifrostResilienceHandler()` no longer retries unsafe HTTP methods.** The retry strategy now sends a request again only when its method is GET, HEAD, OPTIONS, or TRACE. POST, PUT, PATCH, DELETE, CONNECT, and custom methods are sent once, so a change the server applied before the client saw a timeout, reset, 408, 429, or 5xx is not applied twice. `MaxRetries` still sets the retry count for safe methods.
 
 ## [0.5.1] - 2026-06-22

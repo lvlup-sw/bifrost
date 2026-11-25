@@ -39,6 +39,10 @@ public class HttpFailureBoundaryTests
     }
 
     /// <summary>A GET attempt timeout can retry, but the outer total budget still ends the operation.</summary>
+    /// <remarks>
+    /// The pipeline reads and restores the context until the request finishes, so the context goes
+    /// back to the pool only after that. A request still running at cleanup stays out of the pool.
+    /// </remarks>
     [Test]
     public async Task TotalTimeoutBoundsAttemptRetries()
     {
@@ -73,9 +77,6 @@ public class HttpFailureBoundaryTests
         finally
         {
             await cleanup.CancelAsync();
-
-            // The pipeline reads and restores the context until the request finishes, so the context
-            // goes back to the pool only after that. A request still running here stays out of the pool.
             await ((Task)request).WaitAsync(TimeSpan.FromSeconds(10))
                 .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             if (request.IsCompleted)

@@ -38,15 +38,21 @@ public sealed class WorkOrchestratorBuilder<TWork>
     internal List<HandlerDecoratorRegistration<TWork>> HandlerDecorators { get; } = [];
 
     /// <summary>
-    /// Gets or sets a value indicating whether a handler has been registered via WithHandler.
+    /// Gets or sets a value indicating whether a handler has been registered via WithHandler,
+    /// WithTaskHandler, or WithScopedHandler.
     /// </summary>
-    /// <value><c>true</c> if WithHandler was called; otherwise, <c>false</c>.</value>
+    /// <value>
+    /// <c>true</c> if WithHandler, WithTaskHandler, or WithScopedHandler was called; otherwise, <c>false</c>.
+    /// </value>
     internal bool HandlerRegistered { get; set; }
 
     /// <summary>
     /// Gets or sets the service lifetime of the registered handler, if any.
     /// </summary>
-    /// <value>The service lifetime, or <c>null</c> if no handler was registered via WithHandler.</value>
+    /// <value>
+    /// The service lifetime, or <c>null</c> if no handler was registered via WithHandler,
+    /// WithTaskHandler, or WithScopedHandler.
+    /// </value>
     internal ServiceLifetime? HandlerLifetime { get; set; }
 
     /// <summary>
