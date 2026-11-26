@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An abort no longer faults completion when a dynamic worker's handler sees the cancellation first.** A token source sets its flag before it runs its callbacks, so a handler could throw `OperationCanceledException` while the worker's retirement-linked dequeue token was still uncancelled. The worker treated that as a failure, and `AbortAsync`, `DisposeAsync`, and `Completion` threw it. It is now treated as shutdown.
 - **Docs no longer say that resilience wraps handler calls** (#133). The README, the `ResilientOrchestrator` remarks, and `DeadLetterQueueOptions.MaxRetries` now say that admission resilience wraps `EnqueueAsync` only, has no circuit breaker, and does not retry handler failures. Dead-letter retries are immediate.
 - **`AddBifrostResilienceHandler()` no longer retries unsafe HTTP methods.** The retry strategy now sends a request again only when its method is GET, HEAD, OPTIONS, or TRACE. POST, PUT, PATCH, DELETE, CONNECT, and custom methods are sent once, so a change the server applied before the client saw a timeout, reset, 408, 429, or 5xx is not applied twice. `MaxRetries` still sets the retry count for safe methods.
 

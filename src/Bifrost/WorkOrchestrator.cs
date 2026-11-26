@@ -443,7 +443,10 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     // The method allocates the extra linked source for retirement (dequeueCancellation) once per
     // dynamic worker, never per item. A priority wait can acquire a permit just as retirement wins.
     // So the finally block of a retired worker hands a wake to a remaining consumer, and an accepted
-    // item cannot be left without a signal.
+    // item cannot be left without a signal. A cancellation of the linked handler token counts as
+    // shutdown even before the dequeue token reflects it: a token source sets its flag before it
+    // runs its callbacks, so a handler on another thread can throw while the retirement-linked
+    // dequeue token is still uncancelled.
     private async Task RunRegisteredWorkerAsync(string id, Action<bool>? callback, CancellationToken token,
         CancellationToken retirementToken = default)
     {
@@ -457,7 +460,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             await ConsumeQueueAsync(id, callback, linked.Token, dequeueToken);
             await DrainRetainedWorkAsync(id, callback, linked.Token, retirementToken);
         }
-        catch (OperationCanceledException) when (dequeueToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (dequeueToken.IsCancellationRequested || linked.IsCancellationRequested)
         {
             await DrainRetainedWorkAsync(id, callback, linked.Token, retirementToken);
         }

@@ -309,6 +309,58 @@ public sealed class KeyedLifecycleTests
         while (!condition()) await Task.Delay(2, deadline.Token);
     }
 
+    /// <summary>
+    /// A dynamic worker whose handler sees the abort's cancellation before the worker's
+    /// retirement-linked dequeue token is cancelled still exits as a shutdown: the item is canceled
+    /// and completion succeeds without a worker error.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// <para>
+    /// A token source sets its cancelled flag before it runs its callbacks, and it runs them in
+    /// reverse registration order. The handler registers a callback on its token after the worker
+    /// linked its dequeue token, so that callback runs first. It lets the handler throw on another
+    /// thread and holds the callback thread until the worker has left its active count, which
+    /// happens after the worker classified the exception. So the dequeue token is still uncancelled
+    /// when the worker classifies it.
+    /// </para>
+    /// <para>
+    /// The callback waits for the active count, not for the worker task, because the worker
+    /// disposes its linked token source on exit, and that waits for the running callback. For the
+    /// same reason the handler does not dispose its registration.
+    /// </para>
+    /// </remarks>
+    [Test]
+    public async Task Abort_HandlerSeesCancelBeforeDequeueToken_CompletesWithoutWorkerError()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var proceed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        WorkOrchestrator<string>? holder = null;
+        var handler = new DelegateHandler(async (_, ct) =>
+        {
+            ct.Register(() =>
+            {
+                proceed.TrySetResult();
+                SpinWait.SpinUntil(() => Volatile.Read(ref holder)!.ActiveWorkers == 0, WaitTimeout);
+            });
+            started.TrySetResult();
+            await proceed.Task.WaitAsync(WaitTimeout);
+            ct.ThrowIfCancellationRequested();
+        });
+        await using var orchestrator = CreateKeyed(handler, workers: 0, maxConcurrencyPerKey: 1, out _);
+        Volatile.Write(ref holder, orchestrator);
+        using var retire = new CancellationTokenSource();
+        var worker = orchestrator.CreateWorkerFunction(null, retire.Token)("dynamic", CancellationToken.None);
+        Admit(orchestrator, "A:1");
+        await started.Task.WaitAsync(WaitTimeout);
+
+        await orchestrator.AbortAsync().WaitAsync(WaitTimeout);
+        await worker.WaitAsync(WaitTimeout);
+
+        await Assert.That(orchestrator.Completion.IsCompletedSuccessfully).IsTrue();
+        await Assert.That(orchestrator.Outcomes.Counters.Canceled).IsEqualTo(1);
+    }
+
     private static WorkOrchestrator<string> CreateKeyed(IWorkHandler<string> handler, int workers, int maxConcurrencyPerKey,
         out ObservedKeyedQueue queue, ConcurrentQueue<TerminalOutcomeRecord>? records = null)
     {
@@ -336,6 +388,11 @@ public sealed class KeyedLifecycleTests
     /// A handler whose items wait on per-item gates. An optional shared gate holds every item in
     /// its <c>finally</c> block, after its cancellation and before it exits.
     /// </summary>
+    private sealed class DelegateHandler(Func<string, CancellationToken, ValueTask> body) : IWorkHandler<string>
+    {
+        public ValueTask HandleAsync(string work, CancellationToken ct) => body(work, ct);
+    }
+
     private sealed class GatedHandler : IWorkHandler<string>
     {
         private readonly Lock _gate = new();
