@@ -97,3 +97,23 @@ steps:
       - .editorconfig
       - .buildkite/**
       - scripts/ci/**
+
+  - label: ":zap: AOT keyed"
+    key: aot-keyed
+    command: scripts/ci/aot.sh keyed
+    agents: { queue: pr-small }
+    timeout_in_minutes: 12
+    if_changed:
+      - src/Bifrost/**
+      - src/Bifrost.Core/**
+      - src/Bifrost.Concurrency/**
+      - src/Bifrost.Resilience/**
+      - src/Directory.*
+      - src/Bifrost.sln
+      - samples/Directory.*
+      - samples/Bifrost.Keyed.AotSmoke/**
+      - global.json
+      - nuget.config
+      - .editorconfig
+      - .buildkite/**
+      - scripts/ci/**

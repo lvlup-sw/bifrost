@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- TargetFramework, Nullable, ImplicitUsings, LangVersion are inherited from
+         samples/Directory.Build.props → src/Directory.Build.props. -->
+    <RootNamespace>Bifrost.AgentFramework.Sample</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>true</IsPublishable>
+    <!-- This sample shows an integration, not trimming: Agent Framework session
+         serialization uses reflection-based System.Text.Json, so the AOT analyzers are off
+         here. The keyed Native AOT smoke lives in samples/Bifrost.Keyed.AotSmoke. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Description>Microsoft Agent Framework sample: session-keyed background agent turns with Bifrost keyed dispatch, a scoped handler, and a handler timeout.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The Agent Framework reference lives only in this sample (version in samples/Directory.Packages.props). -->
+    <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bifrost\Bifrost.csproj" />
+    <ProjectReference Include="..\..\src\Bifrost.Resilience\Bifrost.Resilience.csproj" />
+  </ItemGroup>
+
+</Project>

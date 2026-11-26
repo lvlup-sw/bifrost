@@ -35,7 +35,7 @@ public static class HostingExtensions
     /// <example>
     /// <code>
     /// services.AddWorkOrchestrator&lt;MyWork&gt;()
-    ///     .WithHandler&lt;MyWorkHandler&gt;()
+    ///     .WithHandler&lt;MyWork, MyWorkHandler&gt;()
     ///     .Build();
     /// services.AddWorkOrchestratorHostedService&lt;MyWork&gt;();
     /// </code>

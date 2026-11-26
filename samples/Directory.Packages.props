@@ -2,4 +2,11 @@
   <!-- Re-use the src/ central package versions for samples so package references
        in sample projects remain versionless (CPM-compliant). -->
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)../src/'))" />
+
+  <!-- Sample-only packages. The shipping packages never reference these: the Agent Framework
+       and EF Core dependencies stay in the sample apps that show the integrations. -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Agents.AI" Version="1.28.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.15" />
+  </ItemGroup>
 </Project>

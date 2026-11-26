@@ -25,7 +25,7 @@ namespace Bifrost.Handlers;
 /// <code>
 /// // Register delegate-based orchestrator
 /// services.AddWorkOrchestrator&lt;Func&lt;Task&gt;&gt;()
-///     .WithHandler&lt;DelegateWorkHandler&gt;()
+///     .WithHandler&lt;Func&lt;Task&gt;, DelegateWorkHandler&gt;()
 ///     .Build();
 ///
 /// // Enqueue work

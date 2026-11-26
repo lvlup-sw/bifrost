@@ -180,6 +180,19 @@ public static class HandlerExtensions
     /// <returns>The builder for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder"/> or <paramref name="handler"/> is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown when a handler has already been registered.</exception>
+    /// <example>
+    /// <code>
+    /// services.AddWorkOrchestrator&lt;Turn&gt;()
+    ///     .WithScopedHandler(static async (services, turn, ct) =&gt;
+    ///     {
+    ///         var db = services.GetRequiredService&lt;AppDbContext&gt;();
+    ///         var session = await db.Sessions.SingleAsync(s =&gt; s.Id == turn.SessionId, ct);
+    ///         session.Apply(turn);
+    ///         await db.SaveChangesAsync(ct);
+    ///     })
+    ///     .Build();
+    /// </code>
+    /// </example>
     /// <remarks>
     /// <para>
     /// The handler is registered with the <see cref="ServiceLifetime.Scoped"/> lifetime, so the builder

@@ -4,6 +4,8 @@ Start with the [repository README](../README.md) for the library's capabilities,
 
 - [Priority queue background](../src/Bifrost.Concurrency/BACKGROUND.md) explains the MultiQueue design and its tradeoffs.
 - [Scheduling sample](../samples/Bifrost.Scheduling.AotSmoke/Program.cs) shows scheduler registration and dispatch modes.
+- [Agent Framework sample](../samples/Bifrost.AgentFramework.Sample/README.md) and [EF Core sample](../samples/Bifrost.EntityFrameworkCore.Sample/README.md) show keyed dispatch with scoped handlers and the in-memory admission boundary. The [keyed AOT smoke](../samples/Bifrost.Keyed.AotSmoke/Program.cs) covers keyed dispatch under Native AOT.
+- [Keyed dispatch release check](benchmarks/2026-11-25-keyed-dispatch-release.md) records the 0.7.0 allocation and contention benchmarks.
 - [Benchmarks](benchmarks/BENCHMARKS.md) describes how to run the benchmark suite; the other files in [benchmarks](benchmarks/) record individual results.
 - [Priority API benchmark runbook](benchmarks/2026-10-priority-api-benchmark-runbook.md) covers recreating, updating, and extending the Xeon CPQ report for PR #69.
 - [October Xeon campaign](benchmarks/data/azure-d64sv6-2026-10-28/README.md) records the full 64-thread server run, repeated latency measurements, and source-control comparisons.

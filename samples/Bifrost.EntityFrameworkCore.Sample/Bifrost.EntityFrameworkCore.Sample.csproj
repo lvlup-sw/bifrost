@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- TargetFramework, Nullable, ImplicitUsings, LangVersion are inherited from
+         samples/Directory.Build.props → src/Directory.Build.props. -->
+    <RootNamespace>Bifrost.EntityFrameworkCore.Sample</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>true</IsPublishable>
+    <!-- EF Core model building uses reflection, so the AOT analyzers are off in this sample.
+         The keyed Native AOT smoke lives in samples/Bifrost.Keyed.AotSmoke. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Description>EF Core sample: AddDbContext with a scoped Bifrost handler over SQLite in-memory, and the in-memory admission boundary.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The EF Core reference lives only in this sample (version in samples/Directory.Packages.props). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bifrost\Bifrost.csproj" />
+  </ItemGroup>
+
+</Project>

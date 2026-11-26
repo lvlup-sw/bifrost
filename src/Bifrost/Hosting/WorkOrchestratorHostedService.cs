@@ -30,7 +30,7 @@ namespace Bifrost.Hosting;
 /// <code>
 /// // Register orchestrator with hosted service
 /// services.AddWorkOrchestrator&lt;MyWork&gt;()
-///     .WithHandler&lt;MyWorkHandler&gt;()
+///     .WithHandler&lt;MyWork, MyWorkHandler&gt;()
 ///     .Build();
 /// services.AddWorkOrchestratorHostedService&lt;MyWork&gt;();
 /// </code>
