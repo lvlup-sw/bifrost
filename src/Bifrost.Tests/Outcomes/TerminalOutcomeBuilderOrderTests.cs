@@ -12,6 +12,7 @@ using Bifrost.Core.Events;
 using Bifrost.DependencyInjection;
 using Bifrost.OpenTelemetry;
 using Bifrost.Outcomes;
+using Bifrost.Tests.OpenTelemetry;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -27,8 +28,11 @@ namespace Bifrost.Tests.Outcomes;
 /// Each run uses one worker and three items: one that succeeds, one that always fails, and one that
 /// fails once and then succeeds. The run is summarized as one fingerprint string: the counters, the
 /// dead-letter entries, the published completion and dead-letter events, and how often a custom
-/// handler decorator saw each item. Every permutation of the builder calls must give the same
-/// fingerprint.
+/// handler decorator saw each item. It also holds the metrics that <c>WithOpenTelemetry</c>
+/// records automatically: processed and failed counts, the processing durations by outcome, the
+/// outcome, attempt, and capture counters. Every permutation of the builder calls must give the same
+/// fingerprint, so outcomes, capture disposition, and metrics do not depend on builder order with
+/// metrics enabled.
 /// </remarks>
 [Property("Category", "Integration")]
 public sealed class TerminalOutcomeBuilderOrderTests
@@ -36,7 +40,9 @@ public sealed class TerminalOutcomeBuilderOrderTests
     private const string Expected =
         "succeeded=2 failed=1 canceled=0 abandoned=0 attempts=6 captured=1 captureErrors=0"
         + " | dlq=bad:3 | completed=bad:False,flaky:True,ok:True | deadLettered=bad:3"
-        + " | decorator=bad:3,flaky:2,ok:1";
+        + " | decorator=bad:3,flaky:2,ok:1"
+        + " | metrics processed=2 failed=1 duration=Failed,Succeeded,Succeeded"
+        + " outcomes=Abandoned:0,Canceled:0,Failed:1,Succeeded:2 attempts=6 captured=1 captureErrors=0";
 
     private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(10);
 
@@ -71,7 +77,7 @@ public sealed class TerminalOutcomeBuilderOrderTests
     [Test]
     public async Task WithDeadLetterQueueTwice_KeepsOneRetryOwner()
     {
-        var fingerprint = await RunAsync([0, 0, 1, 2]);
+        var fingerprint = await RunAsync([0, 0, 1, 2, 3]);
 
         await Assert.That(fingerprint).IsEqualTo(Expected);
     }
@@ -133,11 +139,13 @@ public sealed class TerminalOutcomeBuilderOrderTests
 
         await using var provider = services.BuildServiceProvider();
         var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
+        using var meters = new MeasurementRecorder(provider.GetRequiredService<OrchestratorMetrics<string>>().ItemsProcessed.Meter);
         foreach (var work in new[] { "ok", "bad", "flaky" })
             await Assert.That(orchestrator.Enqueue(work).IsAccepted).IsTrue();
 
         await orchestrator.DrainAsync().WaitAsync(WaitTimeout);
         await orchestrator.DisposeAsync();
+        meters.Collect();
 
         var counters = provider.GetRequiredService<TerminalOutcomeCounters<string>>();
         var entries = new List<string>();
@@ -150,8 +158,18 @@ public sealed class TerminalOutcomeBuilderOrderTests
             + $" | dlq={Join(entries)}"
             + $" | completed={Join(recorder.Events.OfType<WorkCompletedEvent<string>>().Select(static e => $"{e.Work}:{e.Success}"))}"
             + $" | deadLettered={Join(recorder.Events.OfType<WorkDeadLetteredEvent<string>>().Select(static e => $"{e.Work}:{e.AttemptCount}"))}"
-            + $" | decorator={Join(recorder.DecoratorCalls.Select(static p => $"{p.Key}:{p.Value}"))}";
+            + $" | decorator={Join(recorder.DecoratorCalls.Select(static p => $"{p.Key}:{p.Value}"))}"
+            + $" | {MetricsFingerprint(meters)}";
     }
+
+    private static string MetricsFingerprint(MeasurementRecorder recorder)
+        => $"metrics processed={recorder.Sum("orchestrator.items.processed")}"
+            + $" failed={recorder.Sum("orchestrator.items.failed")}"
+            + $" duration={Join(recorder.Of("orchestrator.processing.duration").Select(static m => m.Tag("outcome") ?? "none"))}"
+            + $" outcomes={Join(recorder.Of("bifrost.orchestrator.outcomes").Select(static m => $"{m.Tag("outcome")}:{m.Value}"))}"
+            + $" attempts={recorder.Last("bifrost.orchestrator.handler.attempts")}"
+            + $" captured={recorder.Last("bifrost.orchestrator.deadletter.captured")}"
+            + $" captureErrors={recorder.Last("bifrost.orchestrator.deadletter.capture_errors")}";
 
     private static string Join(IEnumerable<string> values) => string.Join(",", values.Order(StringComparer.Ordinal));
 

@@ -76,6 +76,8 @@ internal sealed class TerminalOutcomeStage<TWork>
     /// Abandoned records are delivered by the orchestrator's abandonment sweep while it holds its
     /// lifecycle lock, which also blocks worker exit, <c>Complete</c>, and worker creation. So the
     /// observer must be cheap and non-blocking, and it must not call back into the orchestrator.
+    /// The hook is shared: OpenTelemetry adds its observer with <c>+=</c>, and another owner must
+    /// add with <c>+=</c> too instead of replacing the delegate.
     /// </remarks>
     internal Action<TerminalOutcomeRecord>? Observed { get; set; }
 
