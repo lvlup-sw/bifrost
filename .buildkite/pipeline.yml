@@ -1,6 +1,6 @@
 # Bifrost PR validation. The lvlup-sw/.github admission build reads this file from the
 # trunk tip, checks it against ci/policy.json, and runs it on the tested merge after the
-# mandatory suites. Changes here and in scripts/ci/ need owner review (.github/CODEOWNERS).
+# mandatory suites. Changes here and in scripts/ci/ request owner review (.github/CODEOWNERS).
 #
 # 4 vCPU work runs on pr-large and 2 vCPU work on pr-small. Every step also runs when the
 # pipeline, its scripts, or a repo-wide build input changes.
