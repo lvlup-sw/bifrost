@@ -31,11 +31,12 @@ namespace Bifrost.Autoscaling;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
+public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator, IScaleUpUtilizationSource
 {
     private readonly IWorkOrchestrator<TWork> _orchestrator;
     private readonly IWorkerRegistry _registry;
     private readonly Action<IOrchestratorEvent>? _publishCallback;
+    private readonly Func<int>? _dispatchableBacklog;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AutoscalingCoordinator{TWork}"/> class.
@@ -48,12 +49,39 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
         IWorkOrchestrator<TWork> orchestrator,
         IWorkerRegistry registry,
         Action<IOrchestratorEvent>? publishCallback = null)
+        : this(orchestrator, registry, publishCallback, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AutoscalingCoordinator{TWork}"/> class with a
+    /// dispatchable-backlog signal for scale-up.
+    /// </summary>
+    /// <param name="orchestrator">The work orchestrator to coordinate with.</param>
+    /// <param name="registry">The worker registry for dynamic worker management.</param>
+    /// <param name="publishCallback">Optional callback for publishing events to the event stream.</param>
+    /// <param name="dispatchableBacklog">
+    /// Returns the number of queued items a free worker could take now, or <see langword="null"/>
+    /// when every queued item is dispatchable. Keyed dispatch supplies it. It feeds only the
+    /// scale-up ratio.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="orchestrator"/> or <paramref name="registry"/> is null.</exception>
+    /// <remarks>
+    /// This constructor has no optional parameters, so a call with the public constructor's
+    /// arguments never binds to it.
+    /// </remarks>
+    internal AutoscalingCoordinator(
+        IWorkOrchestrator<TWork> orchestrator,
+        IWorkerRegistry registry,
+        Action<IOrchestratorEvent>? publishCallback,
+        Func<int>? dispatchableBacklog)
     {
         ArgumentNullException.ThrowIfNull(orchestrator);
         ArgumentNullException.ThrowIfNull(registry);
         _orchestrator = orchestrator;
         _registry = registry;
         _publishCallback = publishCallback;
+        _dispatchableBacklog = dispatchableBacklog;
     }
 
     #region IAutoscalingMetricsPort
@@ -75,14 +103,41 @@ public sealed class AutoscalingCoordinator<TWork> : IAutoscalingCoordinator
     public long QueuedCount => 0L;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// This is the total pending count divided by <see cref="IWorkOrchestrator{TWork}.Capacity"/>,
+    /// with or without keyed dispatch. The engine compares it to the low watermark, so a backlog
+    /// that is blocked behind keys at their concurrency limit still counts as load and does not
+    /// remove the workers that drain it.
+    /// </para>
+    /// <para>
+    /// The scale-up decision uses <see cref="GetScaleUpUtilizationRatio"/> instead.
+    /// </para>
+    /// </remarks>
     public double GetUtilizationRatio()
-    {
-        if (_orchestrator.Capacity == 0)
-        {
-            return 0.0;
-        }
+        => Ratio(_orchestrator.PendingCount);
 
-        return (double)_orchestrator.PendingCount / _orchestrator.Capacity;
+    /// <summary>
+    /// Calculates the utilization ratio that the engine compares to the high watermark.
+    /// </summary>
+    /// <returns>The scale-up backlog divided by capacity, or 0.0 when capacity is zero.</returns>
+    /// <remarks>
+    /// Without keyed dispatch this equals <see cref="GetUtilizationRatio"/>. With keyed dispatch the
+    /// numerator is the dispatchable backlog: the queued items that a free worker could take now.
+    /// Items queued behind a key that is at its concurrency limit are not counted, so a backlog
+    /// that is blocked behind one hot key does not scale up. Ready items across keys still do.
+    /// </remarks>
+    internal double GetScaleUpUtilizationRatio()
+        => _dispatchableBacklog is { } dispatchable ? Ratio(dispatchable()) : GetUtilizationRatio();
+
+    /// <inheritdoc/>
+    double IScaleUpUtilizationSource.GetScaleUpUtilizationRatio() => GetScaleUpUtilizationRatio();
+
+    /// <summary>Divides a backlog by the orchestrator capacity, returning 0.0 for zero capacity.</summary>
+    private double Ratio(int backlog)
+    {
+        var capacity = _orchestrator.Capacity;
+        return capacity == 0 ? 0.0 : (double)backlog / capacity;
     }
 
     #endregion

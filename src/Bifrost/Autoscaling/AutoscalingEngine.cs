@@ -202,12 +202,21 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// When the coordinator gives a separate scale-up ratio (keyed dispatch does), the high
+    /// watermark is compared to that ratio and the low watermark to
+    /// <see cref="Ports.IAutoscalingMetricsPort.GetUtilizationRatio"/>. A backlog blocked behind
+    /// keys at their concurrency limit then neither adds workers nor removes them.
+    /// </remarks>
     public ScalingDecision EvaluateScaling()
     {
         var currentWorkers = _coordinator.ActiveWorkerCount;
         var utilization = _coordinator.GetUtilizationRatio();
+        var scaleUpUtilization = _coordinator is IScaleUpUtilizationSource source
+            ? source.GetScaleUpUtilizationRatio()
+            : utilization;
 
-        return EvaluateScaling(currentWorkers, utilization, maxBacklog: 0);
+        return Evaluate(currentWorkers, scaleUpUtilization, utilization);
     }
 
     /// <summary>
@@ -224,6 +233,25 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     /// <see cref="AutoscalingOptions.MinWorkers"/> option.
     /// </remarks>
     public ScalingDecision EvaluateScaling(int currentWorkers, double utilization, int maxBacklog)
+        => Evaluate(currentWorkers, utilization, utilization);
+
+    /// <summary>
+    /// Evaluates whether scaling is needed, with separate ratios for the two watermarks.
+    /// </summary>
+    /// <param name="currentWorkers">The current number of active workers.</param>
+    /// <param name="scaleUpUtilization">The ratio compared to the high watermark.</param>
+    /// <param name="utilization">
+    /// The ratio compared to the low watermark and reported by decisions that do not scale up.
+    /// </param>
+    /// <returns>A scaling decision indicating what action to take.</returns>
+    /// <remarks>
+    /// The scale-up check runs first, so a backlog whose scale-up ratio is under the high watermark
+    /// while its total ratio is over the low watermark holds the worker count. For one consistent
+    /// snapshot the scale-up ratio is never above <paramref name="utilization"/>. The two ratios
+    /// come from separate reads, though, so an admission between them can make the scale-up ratio
+    /// briefly larger. That is harmless, because the decision order alone decides the outcome.
+    /// </remarks>
+    private ScalingDecision Evaluate(int currentWorkers, double scaleUpUtilization, double utilization)
     {
         lock (_scalingLock)
         {
@@ -238,7 +266,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
                     $"In cooldown period ({_options.CooldownPeriod.TotalSeconds:F0}s remaining)");
             }
 
-            if (utilization > _options.HighWatermark)
+            if (scaleUpUtilization > _options.HighWatermark)
             {
                 if (currentWorkers >= _options.MaxWorkers)
                 {
@@ -246,7 +274,7 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
                         ScalingAction.None,
                         currentWorkers,
                         currentWorkers,
-                        utilization,
+                        scaleUpUtilization,
                         $"At max workers limit ({_options.MaxWorkers})");
                 }
 
@@ -257,8 +285,8 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
                     ScalingAction.ScaleUp,
                     currentWorkers,
                     targetWorkers,
-                    utilization,
-                    $"Utilization ({utilization:P0}) exceeds high watermark ({_options.HighWatermark:P0})");
+                    scaleUpUtilization,
+                    $"Utilization ({scaleUpUtilization:P0}) exceeds high watermark ({_options.HighWatermark:P0})");
             }
 
             if (utilization < _options.LowWatermark)

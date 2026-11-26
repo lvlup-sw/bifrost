@@ -366,6 +366,98 @@ public sealed class KeyedDispatchOrchestratorTests
         await Assert.That(queue.IsDisposedForTest).IsTrue();
     }
 
+    /// <summary>The public constructor rejects the keyed strategy, which needs a key selector.</summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task PublicConstructor_KeyedStrategy_Throws()
+    {
+        var error = await Assert.That(() => new WorkOrchestrator<string>(
+                new GatedHandler(),
+                Options.Create(new WorkOrchestratorOptions
+                {
+                    WorkerCount = 0,
+                    DispatchStrategy = DispatchStrategy.Keyed,
+                    FullMode = QueueFullMode.Reject,
+                }),
+                NullLogger<WorkOrchestrator<string>>.Instance))
+            .Throws<ArgumentException>();
+
+        await Assert.That(error!.Message).Contains("WithKeyedDispatch");
+    }
+
+    /// <summary>The keyed strategy with a queue that hands out no leases is rejected.</summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task FactoryConstructor_KeyedStrategyWithPlainQueue_Throws()
+    {
+        var error = await Assert.That(() => new WorkOrchestrator<string>(
+                new GatedHandler(),
+                Options.Create(new WorkOrchestratorOptions
+                {
+                    WorkerCount = 0,
+                    Capacity = 10,
+                    DispatchStrategy = DispatchStrategy.Keyed,
+                    FullMode = QueueFullMode.Reject,
+                }),
+                NullLogger<WorkOrchestrator<string>>.Instance,
+                null,
+                null,
+                (options, _) => new FifoChannelWorkQueue<WorkEnvelope<string>>(options.Capacity)))
+            .Throws<ArgumentException>();
+
+        await Assert.That(error!.Message).Contains("Keyed dispatch needs a leased keyed work queue.");
+    }
+
+    /// <summary>
+    /// A keyed queue with the keyed strategy reports keyed ordering, and its dispatchable count
+    /// leaves out items queued behind a saturated key.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task FactoryConstructor_KeyedStrategy_ReportsOrderingAndDispatchableCount()
+    {
+        var handler = new GatedHandler();
+        var queue = KeyedWorkQueue.Create<string, string>(KeyOf, 10, 10, 1);
+        await using var orchestrator = new WorkOrchestrator<string>(
+            handler,
+            Options.Create(new WorkOrchestratorOptions
+            {
+                WorkerCount = 1,
+                Capacity = 10,
+                DispatchStrategy = DispatchStrategy.Keyed,
+                FullMode = QueueFullMode.Reject,
+            }),
+            NullLogger<WorkOrchestrator<string>>.Instance,
+            null,
+            null,
+            (_, _) => queue);
+        Admit(orchestrator, "A:1", "A:2", "A:3");
+        await handler.WaitStartedAsync("A:1");
+        Admit(orchestrator, "B:1");
+
+        await Assert.That(orchestrator.Ordering).IsEqualTo(DispatchStrategy.Keyed);
+        await Assert.That(orchestrator.PendingCount).IsEqualTo(3);
+        await Assert.That(orchestrator.DispatchableCount).IsEqualTo(1);
+
+        handler.OpenAll();
+        await orchestrator.DrainAsync().WaitAsync(WaitTimeout);
+    }
+
+    /// <summary>For a binding without blocked items, the dispatchable count is the pending count.</summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task DispatchableCount_FifoBinding_EqualsPendingCount()
+    {
+        await using var orchestrator = new WorkOrchestrator<string>(
+            new GatedHandler(),
+            Options.Create(new WorkOrchestratorOptions { WorkerCount = 0, Capacity = 10 }),
+            NullLogger<WorkOrchestrator<string>>.Instance);
+        Admit(orchestrator, "A:1", "A:2");
+
+        await Assert.That(orchestrator.DispatchableCount).IsEqualTo(2);
+        await Assert.That(orchestrator.PendingCount).IsEqualTo(2);
+    }
+
     private static string KeyOf(string work) => work.Split(':')[0];
 
     private static void Admit(WorkOrchestrator<string> orchestrator, params string[] work)

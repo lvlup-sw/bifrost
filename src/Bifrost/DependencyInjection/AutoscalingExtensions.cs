@@ -47,6 +47,12 @@ public static class AutoscalingExtensions
     /// are recorded before work enters the inner orchestrator.
     /// </para>
     /// <para>
+    /// With <c>WithKeyedDispatch</c>, scale-up uses the dispatchable backlog instead of the total
+    /// pending count, so items queued behind a key at its concurrency limit do not add workers.
+    /// Scale-down still uses the total pending count, so those items do not remove workers either.
+    /// See <see cref="AutoscalingCoordinator{TWork}.GetUtilizationRatio"/>.
+    /// </para>
+    /// <para>
     /// <see cref="AutoscalingOptions"/> uses init-only properties, so options must be
     /// provided as a pre-configured instance via object initializer syntax rather than
     /// a mutation delegate.
@@ -68,8 +74,13 @@ public static class AutoscalingExtensions
         builder.Services.AddKeyedSingleton<IWorkerMetrics, WorkerMetrics>(key);
         builder.Services.AddKeyedSingleton<IWorkerRegistry, WorkerRegistry>(key);
         builder.Services.AddKeyedSingleton<IAutoscalingCoordinator>(key, (sp, _) =>
-            new AutoscalingCoordinator<TWork>(sp.GetRequiredService<IWorkOrchestrator<TWork>>(),
-                sp.GetRequiredKeyedService<IWorkerRegistry>(key)));
+        {
+            var orchestrator = sp.GetRequiredService<IWorkOrchestrator<TWork>>();
+            return new AutoscalingCoordinator<TWork>(orchestrator,
+                sp.GetRequiredKeyedService<IWorkerRegistry>(key),
+                null,
+                sp.GetService<DispatchableBacklogSource<TWork>>()?.DispatchableCount);
+        });
         builder.Services.AddKeyedSingleton<AutoscalingEngine>(key, (sp, _) =>
             new AutoscalingEngine(sp.GetRequiredKeyedService<IOptions<AutoscalingOptions>>(key),
                 sp.GetRequiredKeyedService<IAutoscalingCoordinator>(key),

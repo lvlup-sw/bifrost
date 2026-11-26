@@ -39,7 +39,7 @@ public class WorkOrchestratorOptions
     [Range(1, 100)]
     public int WorkerCount { get; set; } = 2;
 
-    /// <summary>Gets or sets the asynchronous full-queue policy. Priority ordering requires Reject.</summary>
+    /// <summary>Gets or sets the asynchronous full-queue policy. Priority and keyed ordering require Reject.</summary>
     public QueueFullMode FullMode { get; set; } = QueueFullMode.Wait;
 
     /// <summary>
@@ -54,7 +54,8 @@ public class WorkOrchestratorOptions
     /// Selection is enum/factory-based — the orchestrator constructs the binding
     /// directly from this value with no reflective resolution (trim/AOT-safe). The
     /// priority strategies change the asynchronous enqueue semantics to fail-fast
-    /// admission.
+    /// admission. <see cref="DispatchStrategy.Keyed"/> is set by <c>WithKeyedDispatch</c>,
+    /// which also supplies the key selector and limits; it is not valid on its own.
     /// </remarks>
     public DispatchStrategy DispatchStrategy { get; set; } = DispatchStrategy.Fifo;
 

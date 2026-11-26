@@ -4,11 +4,14 @@
 // </copyright>
 // =============================================================================
 
+using Bifrost.Autoscaling;
 using Bifrost.Core;
 using Bifrost.Core.Events;
 using Bifrost.Handlers;
+using Bifrost.Queues;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -78,6 +81,20 @@ public sealed class WorkOrchestratorBuilder<TWork>
     internal Func<TWork, WorkClass>? Classifier { get; set; }
 
     /// <summary>
+    /// Gets or sets the keyed queue factory set by <c>WithKeyedDispatch</c>. When it is set,
+    /// <see cref="Build"/> creates the orchestrator through the queue-factory constructor.
+    /// </summary>
+    /// <value>The factory, or <c>null</c> when keyed dispatch is not configured.</value>
+    internal Func<WorkOrchestratorOptions, TimeProvider, IWorkQueue<WorkEnvelope<TWork>>>? KeyedQueueFactory { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether <c>UsePriorityDispatch</c> was called, so that
+    /// <see cref="Build"/> can reject it next to keyed dispatch in either call order.
+    /// </summary>
+    /// <value><c>true</c> if <c>UsePriorityDispatch</c> was called; otherwise, <c>false</c>.</value>
+    internal bool PriorityDispatchConfigured { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestratorBuilder{TWork}"/> class.
     /// </summary>
     /// <param name="services">The service collection to register services with.</param>
@@ -102,7 +119,19 @@ public sealed class WorkOrchestratorBuilder<TWork>
     /// <see cref="WorkOrchestrator{TWork}"/>, applies the orchestrator decorators in order, and then
     /// runs the post-build actions.
     /// </para>
+    /// <para>
+    /// With <c>WithKeyedDispatch</c>, the base orchestrator is created from the keyed queue factory,
+    /// and the autoscaler reads its dispatchable backlog for scale-up. Keyed dispatch combined with
+    /// <c>UsePriorityDispatch</c> or <c>WithClassifier</c> is rejected here, in either call order.
+    /// A conflicting <see cref="WorkOrchestratorOptions.DispatchStrategy"/> or
+    /// <see cref="WorkOrchestratorOptions.FullMode"/> set through options is rejected by options
+    /// validation, which runs on start and when the orchestrator is first resolved.
+    /// </para>
     /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when decorator orders repeat, or when keyed dispatch is combined with
+    /// <c>UsePriorityDispatch</c> or <c>WithClassifier</c>.
+    /// </exception>
     public void Build()
     {
         var duplicateOrders = Decorators
@@ -129,6 +158,19 @@ public sealed class WorkOrchestratorBuilder<TWork>
                 $"Duplicate handler decorator order(s): {string.Join(", ", duplicateHandlerOrders)}. Each handler decorator must have a unique Order value.");
         }
 
+        var keyedQueueFactory = KeyedQueueFactory;
+        if (keyedQueueFactory is not null && PriorityDispatchConfigured)
+        {
+            throw new InvalidOperationException(
+                "Keyed dispatch cannot be combined with class priority dispatch. Remove UsePriorityDispatch or WithKeyedDispatch.");
+        }
+
+        if (keyedQueueFactory is not null && Classifier is not null)
+        {
+            throw new InvalidOperationException(
+                "Keyed dispatch cannot be combined with a work classifier. Remove WithClassifier or WithKeyedDispatch.");
+        }
+
         var orderedDecorators = Decorators.OrderBy(d => d.Order).ToList();
 
         var orderedHandlerDecorators = HandlerDecorators.OrderBy(d => d.Order).ToList();
@@ -136,6 +178,13 @@ public sealed class WorkOrchestratorBuilder<TWork>
         var postBuildActions = PostBuildActions.ToList();
         var handlerLifetime = HandlerLifetime;
         var classifier = Classifier;
+
+        Services.AddSingleton<IValidateOptions<WorkOrchestratorOptions>>(
+            new DispatchStrategyOptionsValidator(WorkOptions.Name<TWork>(), keyedQueueFactory is not null));
+        if (keyedQueueFactory is not null)
+        {
+            Services.TryAddSingleton<DispatchableBacklogSource<TWork>>();
+        }
 
         Services.AddSingleton<IWorkWriter<TWork>>(sp => sp.GetRequiredService<IWorkOrchestrator<TWork>>());
         Services.AddSingleton<IWorkOrchestrator<TWork>>(sp =>
@@ -157,11 +206,21 @@ public sealed class WorkOrchestratorBuilder<TWork>
                 handler = registration.Factory(sp, handler);
             }
 
-            IWorkOrchestrator<TWork> orchestrator = new WorkOrchestrator<TWork>(
-                handler,
-                Options.Create(sp.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<TWork>())),
-                sp.GetRequiredService<ILogger<WorkOrchestrator<TWork>>>(),
-                classifier: classifier);
+            var options = Options.Create(
+                sp.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<TWork>()));
+            var logger = sp.GetRequiredService<ILogger<WorkOrchestrator<TWork>>>();
+            WorkOrchestrator<TWork> core;
+            if (keyedQueueFactory is null)
+            {
+                core = new WorkOrchestrator<TWork>(handler, options, logger, classifier: classifier);
+            }
+            else
+            {
+                core = new WorkOrchestrator<TWork>(handler, options, logger, null, null, keyedQueueFactory);
+                sp.GetRequiredService<DispatchableBacklogSource<TWork>>().Attach(core);
+            }
+
+            IWorkOrchestrator<TWork> orchestrator = core;
 
             foreach (var registration in orderedDecorators)
             {

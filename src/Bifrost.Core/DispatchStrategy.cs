@@ -17,4 +17,16 @@ public enum DispatchStrategy
 
     /// <summary>MultiQueue relaxed two-choice priority ordering.</summary>
     PriorityRelaxed,
+
+    /// <summary>
+    /// One FIFO per work key, with ready keys served round robin and a limit on how many items of
+    /// one key run at the same time.
+    /// </summary>
+    /// <remarks>
+    /// Select it with <c>WithKeyedDispatch</c> on the orchestrator builder, which supplies the key
+    /// selector and the per-key limits. Setting this value without <c>WithKeyedDispatch</c> is a
+    /// configuration error. Keyed dispatch admits with <see cref="QueueFullMode.Reject"/> only and
+    /// cannot be combined with class priority.
+    /// </remarks>
+    Keyed,
 }
