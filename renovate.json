@@ -1,4 +1,5 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>lvlup-sw/.github:ci-images"]
+  "extends": ["github>lvlup-sw/.github:ci-images"],
+  "enabledManagers": ["custom.regex"]
 }
