@@ -1,0 +1,99 @@
+# Bifrost PR validation. The lvlup-sw/.github admission build reads this file from the
+# trunk tip, checks it against ci/policy.json, and runs it on the tested merge after the
+# mandatory suites. Changes here and in scripts/ci/ request owner review (.github/CODEOWNERS).
+#
+# 4 vCPU work runs on pr-large and 2 vCPU work on pr-small. Every step also runs when the
+# pipeline, its scripts, or a repo-wide build input changes.
+image: ghcr.io/lvlup-sw/ci-worker-validation:migration-72e15261502c9997@sha256:72e15261502c9997de21132b7ac0eaf8b98fa921b6eb049386e930afac7473b5
+
+steps:
+  - label: ":dotnet: Test and coverage"
+    key: test
+    command: scripts/ci/test.sh
+    agents: { queue: pr-large }
+    timeout_in_minutes: 30
+    artifact_paths:
+      - artifacts/ci/coverage/Cobertura.xml
+      - artifacts/ci/coverage/*/tests.trx
+    if_changed:
+      - src/**
+      - samples/**
+      - global.json
+      - scripts/run-invariant-tests.py
+      - scripts/invariants/**
+      - docs/testing/**
+      - nuget.config
+      - .editorconfig
+      - .buildkite/**
+      - scripts/ci/**
+
+  - label: ":dotnet: Stress"
+    key: stress
+    command: scripts/ci/stress.sh
+    agents: { queue: pr-large }
+    timeout_in_minutes: 30
+    artifact_paths: artifacts/ci/stress/tests.trx
+    if_changed:
+      - src/Bifrost.Concurrency/**
+      - src/Bifrost.Tests.Concurrency/**
+      - src/Directory.*
+      - global.json
+      - nuget.config
+      - .editorconfig
+      - .buildkite/**
+      - scripts/ci/**
+
+  - label: ":scroll: Conventions"
+    key: conventions
+    command: scripts/ci/conventions.sh
+    agents: { queue: pr-small }
+    timeout_in_minutes: 10
+    artifact_paths: artifacts/conventions.json
+    if_changed:
+      - "**/*.cs"
+      - "**/*.csx"
+      - verification/policy/**
+      - scripts/check-conventions.sh
+      - .config/dotnet-tools.json
+      - nuget.config
+      - .editorconfig
+      - .buildkite/**
+      - scripts/ci/**
+
+  - label: ":zap: AOT scheduling"
+    key: aot-scheduling
+    command: scripts/ci/aot.sh scheduling
+    agents: { queue: pr-small }
+    timeout_in_minutes: 12
+    if_changed:
+      - src/Bifrost/**
+      - src/Bifrost.Core/**
+      - src/Bifrost.Concurrency/**
+      - src/Bifrost.Scheduling/**
+      - src/Bifrost.Scheduling.Core/**
+      - src/Directory.*
+      - src/Bifrost.sln
+      - samples/Directory.*
+      - samples/Bifrost.Scheduling.AotSmoke/**
+      - global.json
+      - nuget.config
+      - .editorconfig
+      - .buildkite/**
+      - scripts/ci/**
+
+  - label: ":zap: AOT concurrency"
+    key: aot-concurrency
+    command: scripts/ci/aot.sh concurrency
+    agents: { queue: pr-small }
+    timeout_in_minutes: 12
+    if_changed:
+      - src/Bifrost.Concurrency/**
+      - src/Directory.*
+      - src/Bifrost.sln
+      - samples/Directory.*
+      - samples/Bifrost.Concurrency.AotSmoke/**
+      - global.json
+      - nuget.config
+      - .editorconfig
+      - .buildkite/**
+      - scripts/ci/**
