@@ -51,11 +51,11 @@ Keyed dispatch allocates per key lifetime, not per item. The lease is the key's 
 - `Keyed4096` gives every item a new key, so each item pays for one key state and its queue (about 170 B).
 - With 64 keys or one hot key, keys drain whenever the workers catch up with the producers, so the cost is spread over the items queued in between (about 40 to 60 B).
 
-A key that stays busy costs nothing more per item. Pooling key state could remove this cost. It is not part of 0.7.0.
+A key that stays busy is expected to cost nothing more per item, because its state is reused while it has queued or running items. No benchmark here keeps one key busy across a whole batch, so this is an inference from the design, not a measurement. Pooling key state could remove the per-lifetime cost. It is not part of 0.7.0.
 
 ## Keyed dispatch under contention: times
 
-`KeyedDispatchContentionBenchmarks` runs 4 producers and 4 workers over 4,096 items per invocation, with a handler that only signals a countdown. The time is per item and covers admission, the queue, wake-ups, the lease, and the terminal outcome stage.
+`KeyedDispatchContentionBenchmarks` runs 4 producers and 4 workers over 4,096 items per invocation, with a handler that only signals a countdown. The time is per item and covers admission, the queue, wake-ups, the lease, and the terminal outcome stage. The countdown fires inside the handler, before the worker releases the key slot and records the outcome, so the last item's release can spill into the next invocation's window. That blurs the numbers slightly and does not affect correctness.
 
 | Mode | Run 1 mean | Run 1 median | Run 2 mean | Run 2 median |
 |---|---:|---:|---:|---:|

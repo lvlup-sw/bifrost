@@ -14,6 +14,7 @@ using Bifrost.Resilience;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using TUnit.Assertions.Enums;
 using TUnit.Core;
@@ -101,6 +102,10 @@ public partial class ReadmeExamplesTests
     /// The keyed example runs a session's turns one at a time in admission order, applies the
     /// per-key limit, and maps each rejection reason to the README's reply.
     /// </summary>
+    /// <remarks>
+    /// The test relies on the default worker count being at least two, and checks it first, so a
+    /// lower default fails with a clear message instead of a hang-guard timeout.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task KeyedDispatch_RunsSessionInOrderAndRejectsOverKeyLimit()
@@ -125,6 +130,9 @@ public partial class ReadmeExamplesTests
         await using var provider = services.BuildServiceProvider();
         var writer = provider.GetRequiredService<IWorkOrchestrator<Turn>>();
         var runner = provider.GetRequiredService<TurnRunner>();
+        var workerCount = provider.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<Turn>()).WorkerCount;
+        await Assert.That(workerCount).IsGreaterThanOrEqualTo(2)
+            .Because("the s2 turn must run on a second worker while the first s1 turn is held");
 
         await Assert.That(await SubmitTurnAsync(writer, new Turn("contoso", "s1", "0"))).IsEqualTo("Your message is queued.");
         await runner.FirstStarted.Task.WaitAsync(WaitTimeout);
@@ -251,7 +259,7 @@ public partial class ReadmeExamplesTests
         throw new InvalidOperationException("Repository root not found above " + AppContext.BaseDirectory);
     }
 
-    [GeneratedRegex(@"```csharp\r?\n(?<code>.*?)```", RegexOptions.Singleline)]
+    [GeneratedRegex(@"```(?:csharp|cs|c#)\r?\n(?<code>.*?)```", RegexOptions.Singleline)]
     private static partial Regex CSharpBlock();
 
     [GeneratedRegex(@"\s+")]

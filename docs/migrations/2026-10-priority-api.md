@@ -28,7 +28,7 @@ Select `DispatchStrategy.Fifo`, `PriorityExact` or `PriorityRelaxed`. `PriorityB
 
 ```csharp
 services.AddWorkOrchestrator<MyWork>()
-    .WithHandler<MyHandler>()
+    .WithHandler<MyWork, MyHandler>()
     .UsePriorityDispatch(DispatchStrategy.PriorityExact)
     .Build();
 ```
