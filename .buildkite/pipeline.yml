@@ -4,7 +4,7 @@
 #
 # 4 vCPU work runs on pr-large and 2 vCPU work on pr-small. Every step also runs when the
 # pipeline, its scripts, or a repo-wide build input changes.
-image: ghcr.io/lvlup-sw/ci-worker-validation:migration-72e15261502c9997@sha256:72e15261502c9997de21132b7ac0eaf8b98fa921b6eb049386e930afac7473b5
+image: ghcr.io/lvlup-sw/ci-worker-validation:stable
 
 steps:
   - label: ":dotnet: Test and coverage"
