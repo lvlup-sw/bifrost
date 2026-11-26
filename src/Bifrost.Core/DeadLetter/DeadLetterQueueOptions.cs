@@ -43,6 +43,12 @@ namespace Bifrost.Core.DeadLetter;
 /// <b>handling</b> (processing the work item). They do not compound — each layer
 /// operates on a different phase of the work lifecycle.
 /// </para>
+/// <para>
+/// Handler resilience (<c>.WithHandlerResilience()</c> in <c>Bifrost.Resilience</c>) retries
+/// handler failures with a delay and a per-attempt timeout. When it is configured, it is the one
+/// handler retry owner: <see cref="MaxRetries"/> must be 0, and the dead-letter queue only
+/// captures the final failure. A non-zero value fails options validation on start.
+/// </para>
 /// </remarks>
 public sealed class DeadLetterQueueOptions
 {
@@ -76,8 +82,10 @@ public sealed class DeadLetterQueueOptions
     /// <para>
     /// Retries are immediate (no backoff). Admission resilience
     /// (<c>.WithAdmissionResilience()</c>, also named <c>.WithResilience()</c>) does not
-    /// retry handler failures: its policies wrap <c>EnqueueAsync</c> only. A handler that
-    /// needs backoff between attempts must implement it itself.
+    /// retry handler failures: its policies wrap <c>EnqueueAsync</c> only. For a delay or a
+    /// timeout between handler attempts, use handler resilience
+    /// (<c>.WithHandlerResilience()</c>) and set this value to 0. With handler resilience
+    /// configured, any other value fails options validation.
     /// </para>
     /// </remarks>
     [Range(0, 100)]

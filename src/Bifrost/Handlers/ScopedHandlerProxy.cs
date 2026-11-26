@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bifrost.Handlers;
 
 /// <summary>
-/// Handler proxy that creates a new DI scope per work item, resolving
+/// Handler proxy that creates a new DI scope per handler attempt, resolving
 /// <see cref="IWorkHandler{TWork}"/> from the scoped service provider.
 /// </summary>
 /// <typeparam name="TWork">The type of work item to handle.</typeparam>
@@ -23,7 +23,9 @@ namespace Bifrost.Handlers;
 /// </para>
 /// <para>
 /// The proxy itself is registered as a singleton and creates async scopes on each invocation.
-/// The scope is disposed after the handler completes, even if an exception occurs.
+/// The scope is disposed after the handler completes, even if an exception occurs. The proxy is
+/// always the innermost handler, so each dead-letter retry and each handler resilience attempt
+/// calls it again and gets a fresh scope.
 /// </para>
 /// <para>
 /// <b>Precondition:</b> The DI container must register the actual <see cref="IWorkHandler{TWork}"/>

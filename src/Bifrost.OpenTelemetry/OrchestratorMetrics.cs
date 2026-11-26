@@ -26,7 +26,7 @@ namespace Bifrost.OpenTelemetry;
 ///   <item><description><c>bifrost.orchestrator.queue_wait</c> - Histogram for queue wait in milliseconds, tagged by <c>work.class</c></description></item>
 ///   <item><description><c>bifrost.orchestrator.rejected</c> - Counter for items rejected at admission, tagged by <c>work.class</c> and <c>rejection.reason</c></description></item>
 ///   <item><description><c>bifrost.orchestrator.outcomes</c> - Observable counter for terminal outcomes, tagged by <c>outcome</c></description></item>
-///   <item><description><c>bifrost.orchestrator.handler.attempts</c> - Observable counter for handler attempts, including dead-letter retries</description></item>
+///   <item><description><c>bifrost.orchestrator.handler.attempts</c> - Observable counter for handler attempts, including dead-letter and handler resilience retries</description></item>
 ///   <item><description><c>bifrost.orchestrator.deadletter.captured</c> - Observable counter for final handler failures stored in the dead-letter queue</description></item>
 ///   <item><description><c>bifrost.orchestrator.deadletter.capture_errors</c> - Observable counter for final handler failures the dead-letter queue failed to store</description></item>
 ///   <item><description><c>bifrost.orchestrator.deadletter.evictions</c> - Observable counter for entries the built-in dead-letter queue dropped because it was full</description></item>
@@ -220,7 +220,7 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
     public ObservableCounter<long> Outcomes { get; }
 
     /// <summary>
-    /// Gets the observable counter for handler attempts, including dead-letter retries.
+    /// Gets the observable counter for handler attempts, including dead-letter and handler resilience retries.
     /// </summary>
     /// <value>Observable counter for the total number of handler calls.</value>
     /// <remarks>
@@ -364,7 +364,7 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
             "bifrost.orchestrator.handler.attempts",
             () => ObserveCounter(static c => c.HandlerAttempts),
             unit: "{attempt}",
-            description: "Total number of handler attempts, including dead-letter retries");
+            description: "Total number of handler attempts, including dead-letter and handler resilience retries");
 
         DeadLetterCaptured = _meter.CreateObservableCounter(
             "bifrost.orchestrator.deadletter.captured",

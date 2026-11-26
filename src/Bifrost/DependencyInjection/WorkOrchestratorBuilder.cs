@@ -106,6 +106,13 @@ public sealed class WorkOrchestratorBuilder<TWork>
     internal bool DeadLetterConfigured { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether <c>WithHandlerResilience</c> was called, so that
+    /// <see cref="Build"/> can require zero dead-letter retries next to it in either call order.
+    /// </summary>
+    /// <value><c>true</c> if <c>WithHandlerResilience</c> was called; otherwise, <c>false</c>.</value>
+    internal bool HandlerResilienceConfigured { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestratorBuilder{TWork}"/> class.
     /// </summary>
     /// <param name="services">The service collection to register services with.</param>
@@ -143,6 +150,13 @@ public sealed class WorkOrchestratorBuilder<TWork>
     /// A conflicting <see cref="WorkOrchestratorOptions.DispatchStrategy"/> or
     /// <see cref="WorkOrchestratorOptions.FullMode"/> set through options is rejected by options
     /// validation, which runs on start and when the orchestrator is first resolved.
+    /// </para>
+    /// <para>
+    /// With both <c>WithHandlerResilience</c> and <c>WithDeadLetterQueue</c>, handler resilience is
+    /// the one retry owner. The method registers options validation that requires
+    /// <see cref="Bifrost.Core.DeadLetter.DeadLetterQueueOptions.MaxRetries"/> to be zero. It runs on
+    /// start and when the orchestrator is first resolved, because the retry count may come from
+    /// configuration that this method cannot read.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
@@ -203,6 +217,12 @@ public sealed class WorkOrchestratorBuilder<TWork>
         if (keyedQueueFactory is not null)
         {
             Services.TryAddSingleton<DispatchableBacklogSource<TWork>>();
+        }
+
+        if (deadLetterConfigured && HandlerResilienceConfigured)
+        {
+            Services.AddSingleton<IValidateOptions<DeadLetterQueueOptions>>(
+                new HandlerRetryOwnerValidator(WorkOptions.Name<TWork>(), typeof(TWork).Name));
         }
 
         Services.TryAddSingleton(static _ => new TerminalOutcomeCounters<TWork>());
