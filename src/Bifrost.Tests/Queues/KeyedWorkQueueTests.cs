@@ -307,6 +307,30 @@ public sealed class KeyedWorkQueueTests
         await Assert.That(queue.PendingWakeCountForTest).IsEqualTo(2);
     }
 
+    /// <summary>
+    /// With more than one slot per key, a duplicate release of one dispatch while another item of
+    /// the key still runs is not detected and frees the other item's slot.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// This pins the current shared-lease behavior. A per-dispatch lease (#131) makes the second
+    /// release throw, and this test then changes.
+    /// </remarks>
+    [Test]
+    public async Task DuplicateRelease_WithSharedLease_IsNotDetected()
+    {
+        using var queue = Create(maxConcurrencyPerKey: 2);
+        Admit(queue, "A:1", "A:2");
+        Dequeue(queue, out var first);
+        Dequeue(queue, out _);
+        queue.Release(first!);
+
+        queue.Release(first!);
+
+        await Assert.That(queue.ActiveCountForTest("A")).IsEqualTo(0);
+        await Assert.That(() => queue.Release(first!)).Throws<InvalidOperationException>();
+    }
+
     /// <summary>A lease from another queue, or an object that is not a lease, is refused.</summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]

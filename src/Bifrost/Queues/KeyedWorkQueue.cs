@@ -61,7 +61,10 @@ internal static class KeyedWorkQueue
 /// still ready, so ready keys take turns (round robin). The lease is the key's
 /// <see cref="KeyState"/>, so a dequeue allocates nothing. <see cref="Release"/> frees the slot,
 /// puts the key back in the ready list when it has queued items, and removes the key when it is
-/// idle. A release of a lease that holds no slot throws, so a double release fails loudly.
+/// idle. A release throws when the lease's key holds no slot, so a double release with one slot
+/// per key fails loudly. With more than one slot per key the lease is shared, so a duplicate
+/// release of one dispatch while another item of the key still runs is not detected; it frees
+/// the other item's slot. A per-dispatch lease that closes this gap comes with #131.
 /// </para>
 /// <para>
 /// <b>Admission.</b> The selector runs once, outside the lock. Under the lock the checks run in
@@ -287,7 +290,9 @@ internal sealed class KeyedWorkQueue<TWork, TKey>
     /// <inheritdoc/>
     /// <exception cref="ArgumentException">Thrown when <paramref name="lease"/> is not a lease of this queue type.</exception>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when the lease holds no slot: it was already released, or it belongs to another queue.
+    /// Thrown when the lease's key holds no slot (every slot of the key was already released) or the
+    /// lease belongs to another queue. With more than one slot per key, a duplicate release of a
+    /// single dispatch is not detected while another item of the key still holds a slot.
     /// </exception>
     /// <remarks>
     /// The release frees one slot of the lease's key. When a queued item of that key was waiting

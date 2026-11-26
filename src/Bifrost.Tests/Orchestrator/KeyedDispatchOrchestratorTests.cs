@@ -199,6 +199,50 @@ public sealed class KeyedDispatchOrchestratorTests
         await Assert.That(orchestrator.ActiveWorkers).IsEqualTo(0);
     }
 
+    /// <summary>
+    /// The permit funded by a release wakes a parked worker when the releasing worker cannot take
+    /// the newly dispatchable item itself.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The releasing worker is held in its idle report, which runs after the key-slot release and
+    /// before its greedy inner loop. So the only way the key's next item can start is the permit
+    /// the release funds, and the parked second worker must take it.
+    /// </remarks>
+    [Test]
+    public async Task ReleasePermit_WakesParkedWorker_WhenReleasingWorkerIsHeld()
+    {
+        var handler = new GatedHandler();
+        var counting = new CountingQueue(KeyedWorkQueue.Create<string, string>(KeyOf, 100, 100, 1));
+        await using var orchestrator = CreateWithQueue(handler, workers: 0, counting);
+        using var holdIdle = new ManualResetEventSlim(false);
+        var idleEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var heldOnce = 0;
+        Admit(orchestrator, "A:1", "A:2");
+
+        var held = orchestrator.CreateWorkerFunction(busy =>
+        {
+            if (busy || Interlocked.Exchange(ref heldOnce, 1) == 1) return;
+            idleEntered.TrySetResult();
+            holdIdle.Wait(WaitTimeout);
+        })("held", CancellationToken.None);
+        await handler.WaitStartedAsync("A:1");
+        var parked = orchestrator.CreateWorkerFunction()("parked", CancellationToken.None);
+        await counting.WaitForWaitCallsAsync(2).WaitAsync(WaitTimeout);
+
+        handler.Open("A:1");
+        await idleEntered.Task.WaitAsync(WaitTimeout);
+        await handler.WaitStartedAsync("A:2");
+
+        await Assert.That(holdIdle.IsSet).IsFalse();
+        holdIdle.Set();
+        handler.Open("A:2");
+        await orchestrator.DrainAsync().WaitAsync(WaitTimeout);
+        await held.WaitAsync(WaitTimeout);
+        await parked.WaitAsync(WaitTimeout);
+        await Assert.That(string.Join(",", handler.Starts())).IsEqualTo("A:1,A:2");
+    }
+
     /// <summary>A throwing handler still frees its key slot, so the key's next item runs.</summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]

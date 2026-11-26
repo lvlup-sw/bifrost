@@ -480,7 +480,8 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <returns><c>true</c> if an item was dequeued; <c>false</c> on a miss.</returns>
     /// <remarks>
     /// This reads through the plain <see cref="IWorkQueue{T}.TryDequeue(out T)"/>, so it is valid
-    /// only for bindings that return no lease. Every built-in binding qualifies.
+    /// only for bindings that return no lease. Every strategy-selected binding qualifies;
+    /// <see cref="KeyedWorkQueue{TWork, TKey}"/> does not.
     /// </remarks>
     internal bool TryReadEnvelope(out WorkEnvelope<TWork> envelope) => _queue.TryDequeue(out envelope);
 
