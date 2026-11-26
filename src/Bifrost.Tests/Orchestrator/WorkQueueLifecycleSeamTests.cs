@@ -136,7 +136,8 @@ public sealed class WorkQueueLifecycleSeamTests
 
         var worker = orchestrator.CreateWorkerFunction();
         var run = worker("Dynamic", CancellationToken.None);
-        await handler.WaitForCountAsync(3).WaitAsync(WaitTimeout);
+        using var deadline = new CancellationTokenSource(WaitTimeout);
+        await handler.WaitForCountAsync(3, deadline.Token);
         await orchestrator.DrainAsync().WaitAsync(WaitTimeout);
         await run.WaitAsync(WaitTimeout);
 
@@ -282,21 +283,50 @@ public sealed class WorkQueueLifecycleSeamTests
             null,
             (_, _) => queue);
 
+    /// <summary>Counts handled items and signals waiters when the count reaches their target.</summary>
+    /// <remarks>
+    /// Waiters are completion sources that <see cref="HandleAsync"/> completes under the same lock
+    /// that updates the count, so no waiter polls and a canceled wait leaves nothing running.
+    /// </remarks>
     private sealed class CountingHandler : IWorkHandler<string>
     {
+        private readonly Lock _gate = new();
+        private readonly List<(int Expected, TaskCompletionSource Signal)> _waiters = [];
         private int _count;
 
         public int Count => Volatile.Read(ref _count);
 
         public ValueTask HandleAsync(string work, CancellationToken ct)
         {
-            Interlocked.Increment(ref _count);
+            lock (_gate)
+            {
+                var count = Interlocked.Increment(ref _count);
+                _waiters.RemoveAll(waiter =>
+                {
+                    if (waiter.Expected > count) return false;
+                    waiter.Signal.TrySetResult();
+                    return true;
+                });
+            }
+
             return ValueTask.CompletedTask;
         }
 
-        public async Task WaitForCountAsync(int expected)
+        /// <summary>Waits until the handler has seen at least <paramref name="expected"/> items.</summary>
+        /// <param name="expected">The count to wait for.</param>
+        /// <param name="cancellationToken">Cancels the wait, for example on a test deadline.</param>
+        /// <returns>A task that completes when the count is reached.</returns>
+        public Task WaitForCountAsync(int expected, CancellationToken cancellationToken)
         {
-            while (Count < expected) await Task.Delay(5);
+            TaskCompletionSource signal;
+            lock (_gate)
+            {
+                if (_count >= expected) return Task.CompletedTask;
+                signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _waiters.Add((expected, signal));
+            }
+
+            return signal.Task.WaitAsync(cancellationToken);
         }
     }
 
