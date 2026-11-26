@@ -21,6 +21,12 @@ namespace Bifrost.Outcomes;
 /// count every entry in the built-in queue and notifier, including admission rejections that the
 /// rejection-routing decorator writes there.
 /// </para>
+/// <para>
+/// Subscriber drops here mean dropped dead-letter notifications only
+/// (<see cref="DeadLetterNotificationsDropped"/>). Events that an event-stream subscriber channel
+/// overwrites (its full mode is drop-oldest) or loses when a stale subscriber is removed are not
+/// counted.
+/// </para>
 /// </remarks>
 internal sealed class TerminalOutcomeCounters<TWork>
 {

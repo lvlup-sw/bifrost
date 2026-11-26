@@ -275,6 +275,39 @@ public sealed class LeasedWorkQueueSeamTests
             .Throws<ReleaseFaultException>();
     }
 
+    /// <summary>
+    /// A release that throws still settles the item exactly once, after the release and before
+    /// the idle report.
+    /// </summary>
+    /// <remarks>
+    /// Receipts rely on this settle-once rule. Disposal rethrows the release fault, as in
+    /// <see cref="ReleaseThrows_StillReportsIdle_AndFaultsCompletion"/>.
+    /// </remarks>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task ReleaseThrows_StillSettlesOnce_BetweenReleaseAndIdle()
+    {
+        var log = new EventLog();
+        var queue = new RecordingLeasedQueue(log) { ThrowOnRelease = true };
+        var orchestrator = CreateWithQueue(new LoggingHandler(log), queue);
+        var settled = 0;
+        orchestrator.Outcomes.Observed = record =>
+        {
+            Interlocked.Increment(ref settled);
+            log.Add($"Settled:{record.Outcome}");
+        };
+        await Assert.That(orchestrator.Enqueue("a").IsAccepted).IsTrue();
+
+        var run = orchestrator.CreateWorkerFunction(busy => log.Add(busy ? "Busy" : "Idle"))("W", CancellationToken.None);
+        await run.WaitAsync(WaitTimeout);
+
+        await Assert.That(Volatile.Read(ref settled)).IsEqualTo(1);
+        await Assert.That(Sequence(log.Snapshot()))
+            .IsEqualTo(Sequence(new[] { "Enqueue:a", "Dequeue:a", "Busy", "Handled:a", "Release:a", $"Settled:{TerminalOutcome.Succeeded}", "Idle" }));
+        await Assert.That(async () => await orchestrator.DisposeAsync().AsTask().WaitAsync(WaitTimeout))
+            .Throws<ReleaseFaultException>();
+    }
+
     /// <summary>No built-in binding is leased, so the orchestrator never releases for them.</summary>
     /// <param name="strategy">The dispatch strategy under test.</param>
     /// <returns>A task representing the asynchronous test.</returns>

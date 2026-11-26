@@ -196,6 +196,44 @@ public sealed class TerminalOutcomeStageTests
         await Assert.That(harness.Events.OfType<WorkCompletedEvent<string>>().Single().Success).IsFalse();
     }
 
+    /// <summary>
+    /// A cancellation on a later attempt is still a cancellation: after a retried failure, an
+    /// <see cref="OperationCanceledException"/> thrown once the handler token is cancelled settles
+    /// the item as canceled with both attempts counted, and nothing is captured or retried.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task CancelOnLaterAttempt_SettlesCanceled_WithoutFurtherRetry()
+    {
+        var secondStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var harness = Harness.Create(
+            new DelegateHandler(async (_, ct) =>
+            {
+                if (Interlocked.Increment(ref calls) == 1)
+                    throw new InvalidOperationException("transient");
+
+                secondStarted.TrySetResult();
+                await Task.Delay(Timeout.Infinite, ct);
+            }),
+            deadLetterRetries: 3);
+        await using (harness.Orchestrator)
+        {
+            await Assert.That(harness.Orchestrator.Enqueue("a").IsAccepted).IsTrue();
+            await secondStarted.Task.WaitAsync(WaitTimeout);
+
+            await harness.Orchestrator.AbortAsync().WaitAsync(WaitTimeout);
+        }
+
+        await Assert.That(Volatile.Read(ref calls)).IsEqualTo(2);
+        await Assert.That(harness.Records.Single().Outcome).IsEqualTo(TerminalOutcome.Canceled);
+        await Assert.That(harness.Records.Single().Attempts).IsEqualTo(2);
+        await Assert.That(harness.Records.Single().Capture).IsEqualTo(CaptureDisposition.None);
+        await Assert.That(harness.Counters.HandlerAttempts).IsEqualTo(2);
+        await Assert.That(harness.Counters.DeadLetterCaptured).IsEqualTo(0);
+        await Assert.That(harness.Queue.Count).IsEqualTo(0);
+    }
+
     /// <summary>Items still queued when the last worker exits are counted as abandoned once.</summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]

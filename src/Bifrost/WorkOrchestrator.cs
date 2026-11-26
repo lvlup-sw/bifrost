@@ -329,6 +329,9 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <remarks>
     /// No worker can start after this point, so every item still queued is abandoned and counted
     /// before <see cref="Completion"/> finishes. After a drain the queue is empty, so the count is zero.
+    /// The bulk count from <c>Count</c> assumes that no other component settles queued items as
+    /// abandoned. A per-item abandon sweep must drain the queue first or replace this count, or
+    /// the two double-count.
     /// </remarks>
     private void FinishCompletion()
     {
