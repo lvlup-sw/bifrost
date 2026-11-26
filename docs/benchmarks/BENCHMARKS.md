@@ -66,6 +66,13 @@ dotnet run --project src/Bifrost.Benchmarks/Bifrost.Benchmarks.csproj -c Release
 | `EnqueueAllocationBenchmarks` | Validates zero-allocation claims for enqueue operations in steady state |
 | `WorkerLoopAllocationBenchmarks` | Validates steady-state worker loop allocates nothing per item |
 | `EventStreamAllocationBenchmarks` | Quantifies event struct boxing cost at the `Channel<IOrchestratorEvent>` boundary |
+| `DispatchPathAllocationBenchmarks` | Allocation per item of the full enqueue, dispatch, handler, and outcome path for FIFO, exact priority, and keyed dispatch |
+
+### Keyed Dispatch (`Bifrost.Benchmarks.Orchestrator`)
+
+| Class | Description |
+|-------|-------------|
+| `KeyedDispatchContentionBenchmarks` | Keyed dispatch with 4 producers and 4 workers (1, 64, or 4,096 keys) against FIFO on the same load |
 
 ### Decorator Overhead (`Bifrost.Benchmarks.Decorators`)
 
@@ -133,3 +140,7 @@ Baseline results are captured after each release on consistent hardware. Raw Ben
 \* EnqueueAsync 1 B allocation at Capacity=128 is due to ValueTask boxing under channel pressure. See [full results](2026-02-06-full-suite-results.md) for details.
 
 Full results: [2026-02-06-full-suite-results.md](2026-02-06-full-suite-results.md)
+
+### v0.7.0 keyed dispatch release check (2026-11-25)
+
+Short jobs on an Apple M3 laptop. The FIFO and priority paths still allocate 0 B per item. Keyed dispatch allocates per key lifetime, about 40 B per item when keys drain often and about 170 B when every item has a new key. See [2026-11-25-keyed-dispatch-release.md](2026-11-25-keyed-dispatch-release.md).
