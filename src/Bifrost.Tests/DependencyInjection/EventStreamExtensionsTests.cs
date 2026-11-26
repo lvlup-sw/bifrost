@@ -20,6 +20,8 @@ namespace Bifrost.Tests.DependencyInjection;
 /// </summary>
 public class EventStreamExtensionsTests
 {
+    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(10);
+
     /// <summary>
     /// Verifies that WithEventStream adds the decorator to the builder.
     /// </summary>
@@ -67,7 +69,8 @@ public class EventStreamExtensionsTests
     /// </summary>
     /// <remarks>
     /// The event stream is a broadcast, so a subscriber gets only the events published after it starts.
-    /// The test starts the subscriber first, then waits 100 ms so that it can start before the enqueue.
+    /// The test calls <c>GetEventStreamAsync</c> before the enqueue. The call registers the subscriber, so
+    /// the event is buffered even if the reader task starts late.
     /// </remarks>
     [Test]
     public async Task WithEventStream_OrchestratorCanStreamEvents()
@@ -84,22 +87,21 @@ public class EventStreamExtensionsTests
         var eventStreamOrchestrator = (IEventStreamOrchestrator<string>)orchestrator;
 
         var receivedEvent = new TaskCompletionSource<WorkEnqueuedEvent<string>>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(WaitTimeout);
 
+        var stream = eventStreamOrchestrator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token);
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in eventStreamOrchestrator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
+            await foreach (var evt in stream)
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(100);
-
         await orchestrator.EnqueueAsync("test-work");
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var evt = await receivedEvent.Task.WaitAsync(WaitTimeout);
         await Assert.That(evt.Work).IsEqualTo("test-work");
 
         await orchestrator.DisposeAsync();

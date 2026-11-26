@@ -25,6 +25,8 @@ namespace Bifrost.Tests.DependencyInjection;
 [Property("Category", "Integration")]
 public class MultiDecoratorIntegrationTests
 {
+    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(10);
+
     /// <summary>
     /// Verifies the full decorator chain processes work end-to-end:
     /// handler called, events published, metrics tracked.
@@ -35,8 +37,8 @@ public class MultiDecoratorIntegrationTests
     /// (inner). The test reaches the inner decorator through reflection.
     /// </para>
     /// <para>
-    /// The subscribers start before the enqueue. The test waits 100 ms so that the subscribers start,
-    /// and 50 ms so that the worker starts to read.
+    /// The test calls <c>GetEventStreamAsync</c> for both subscribers before the enqueue. The call registers
+    /// each subscriber, so the events are buffered even if a reader task or the worker starts late.
     /// </para>
     /// </remarks>
     [Test]
@@ -64,36 +66,35 @@ public class MultiDecoratorIntegrationTests
 
         var enqueuedEvents = new List<WorkEnqueuedEvent<string>>();
         var completedEvents = new List<WorkCompletedEvent<string>>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(WaitTimeout);
 
+        var enqueuedStream = eventStream!.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token);
         var enqueueSubscriber = Task.Run(async () =>
         {
-            await foreach (var evt in eventStream!.GetEventStreamAsync<WorkEnqueuedEvent<string>>(cancellationToken: cts.Token))
+            await foreach (var evt in enqueuedStream)
             {
                 enqueuedEvents.Add(evt);
                 if (enqueuedEvents.Count >= 1) break;
             }
         });
 
+        var completedStream = eventStream.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token);
         var completedSubscriber = Task.Run(async () =>
         {
-            await foreach (var evt in eventStream!.GetEventStreamAsync<WorkCompletedEvent<string>>(cancellationToken: cts.Token))
+            await foreach (var evt in completedStream)
             {
                 completedEvents.Add(evt);
                 if (completedEvents.Count >= 1) break;
             }
         });
 
-        await Task.Delay(100);
-
         var workerFunc = orchestrator.CreateWorkerFunction();
         var workerTask = Task.Run(() => workerFunc("integration-worker", cts.Token));
-        await Task.Delay(50);
 
         await orchestrator.EnqueueAsync("integration-test-item");
 
         await Task.WhenAll(enqueueSubscriber, completedSubscriber)
-            .WaitAsync(TimeSpan.FromSeconds(3));
+            .WaitAsync(WaitTimeout);
 
         await Assert.That(handlerInvocations).Contains("integration-test-item");
 
@@ -110,7 +111,7 @@ public class MultiDecoratorIntegrationTests
         await cts.CancelAsync();
         try
         {
-            await workerTask.WaitAsync(TimeSpan.FromSeconds(3));
+            await workerTask.WaitAsync(WaitTimeout);
         }
         catch (OperationCanceledException)
         {
