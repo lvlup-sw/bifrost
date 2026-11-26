@@ -19,6 +19,7 @@ using Microsoft.Extensions.Time.Testing;
 
 using Polly.Timeout;
 
+using TUnit.Assertions.Enums;
 using TUnit.Core;
 
 namespace Bifrost.Tests.Resilience;
@@ -275,24 +276,22 @@ public sealed class HandlerResilienceTests
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     /// <remarks>
-    /// With a 40-second base delay the uncapped delays would be 40, 80, and 160 seconds. The fake
-    /// clock advances one second per poll, so each gap between attempt starts is the delay, give or
-    /// take a poll that lands before the timer is set.
+    /// With a 40-second base delay the uncapped delays would be 40, 80, and 160 seconds. The test
+    /// records the due time of each timer the retry delays create, so the result does not depend on
+    /// when the fake clock is advanced.
     /// </remarks>
     [Test]
     public async Task ExponentialBackoff_DoublesDelay_CappedAtMaxRetryDelay()
     {
-        var time = new FakeTimeProvider();
-        var starts = new ConcurrentQueue<DateTimeOffset>();
+        var time = new RecordingTimeProvider();
+        var calls = 0;
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<TimeProvider>(time);
         services.AddWorkOrchestrator<string>(static o => o.WorkerCount = 1)
-            .WithHandler((_, _) =>
-            {
-                starts.Enqueue(time.GetUtcNow());
-                return starts.Count <= 3 ? ValueTask.FromException(new TransientException()) : ValueTask.CompletedTask;
-            })
+            .WithHandler((_, _) => Interlocked.Increment(ref calls) <= 3
+                ? ValueTask.FromException(new TransientException())
+                : ValueTask.CompletedTask)
             .WithHandlerResilience(static o =>
             {
                 o.MaxRetries = 3;
@@ -307,16 +306,13 @@ public sealed class HandlerResilienceTests
         await Assert.That(orchestrator.Enqueue("job").IsAccepted).IsTrue();
         await WaitUntilAsync(() =>
         {
-            time.Advance(TimeSpan.FromSeconds(1));
-            return starts.Count == 4;
+            time.Advance(TimeSpan.FromSeconds(10));
+            return Volatile.Read(ref calls) == 4;
         });
         await orchestrator.DrainAsync().WaitAsync(WaitTimeout);
 
-        var at = starts.ToArray();
-        var gaps = Enumerable.Range(1, 3).Select(i => (at[i] - at[i - 1]).TotalSeconds).ToArray();
-        await Assert.That(gaps[0]).IsBetween(40d, 42d);
-        await Assert.That(gaps[1]).IsBetween(60d, 62d);
-        await Assert.That(gaps[2]).IsBetween(60d, 62d);
+        await Assert.That(time.DueTimes.Select(static d => d.TotalSeconds))
+            .IsEquivalentTo(new[] { 40d, 60d, 60d }, CollectionOrdering.Matching);
     }
 
     /// <summary>
@@ -861,6 +857,20 @@ public sealed class HandlerResilienceTests
             await foreach (var entry in Provider.GetRequiredService<IDeadLetterQueue<string>>().ReadAllAsync())
                 entries.Add(entry);
             return entries;
+        }
+    }
+
+    /// <summary>A fake clock that records the due time of every one-shot timer it creates.</summary>
+    private sealed class RecordingTimeProvider : FakeTimeProvider
+    {
+        private readonly ConcurrentQueue<TimeSpan> _dueTimes = new();
+
+        public TimeSpan[] DueTimes => [.. _dueTimes];
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            if (period == Timeout.InfiniteTimeSpan && dueTime > TimeSpan.Zero) _dueTimes.Enqueue(dueTime);
+            return base.CreateTimer(callback, state, dueTime, period);
         }
     }
 
