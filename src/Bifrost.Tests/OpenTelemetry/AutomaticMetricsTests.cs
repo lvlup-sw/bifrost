@@ -94,6 +94,37 @@ public sealed class AutomaticMetricsTests
     }
 
     /// <summary>
+    /// An attached orchestrator without keyed dispatch reports every pending item as ready and no
+    /// blocked item.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task AttachedFifo_ReportsPendingAsReady_AndNoBlocked()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var host = Host<string>.Create(
+            new DelegateHandler<string>(async (_, ct) =>
+            {
+                started.TrySetResult();
+                await release.Task.WaitAsync(ct);
+            }),
+            static _ => { });
+
+        await Assert.That(host.Orchestrator.Enqueue("running").IsAccepted).IsTrue();
+        await started.Task.WaitAsync(WaitTimeout);
+        await Assert.That(host.Orchestrator.Enqueue("a").IsAccepted).IsTrue();
+        await Assert.That(host.Orchestrator.Enqueue("b").IsAccepted).IsTrue();
+        host.Recorder.Collect();
+
+        await Assert.That(host.Recorder.Last(Pending)).IsEqualTo(2d);
+        await Assert.That(host.Recorder.Last(Ready)).IsEqualTo(2d);
+        await Assert.That(host.Recorder.Last(Blocked)).IsEqualTo(0d);
+        release.TrySetResult();
+        await host.Orchestrator.DrainAsync().WaitAsync(WaitTimeout);
+    }
+
+    /// <summary>
     /// Processed, failed, duration, outcome, attempt, and capture metrics are recorded from terminal
     /// outcomes with no handler code: one record per item after its last attempt, attempts counted
     /// apart.
@@ -171,6 +202,11 @@ public sealed class AutomaticMetricsTests
     /// The dead-letter counters report captures, evictions from a full built-in queue, and dropped
     /// notifications from the shared counters.
     /// </summary>
+    /// <remarks>
+    /// The dropped-notification count is driven directly on the shared counters, so this checks
+    /// only that the observable counter reads them. A real notifier drop is covered at stage level
+    /// by <c>TerminalOutcomeStageTests.Notifier_CountsDroppedNotifications</c>.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task DeadLetterCounters_ReportCapturesEvictionsAndDrops()

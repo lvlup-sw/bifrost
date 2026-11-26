@@ -67,7 +67,9 @@ All of these are recorded automatically when you call `WithOpenTelemetry()`:
 | `bifrost.orchestrator.queue.ready` | Gauge | none | Pending items that a free worker could take now |
 | `bifrost.orchestrator.queue.blocked` | Gauge | none | Pending items that wait for a key slot (keyed dispatch only) |
 
-`orchestrator.queue.pending` is still the total pending count: ready plus blocked. Without keyed dispatch, every pending item is ready and blocked is always zero.
+`orchestrator.queue.pending` is still the total pending count: ready plus blocked. Each gauge is sampled on its own, so in one collection pending can differ a little from ready plus blocked while items move. Without keyed dispatch, every pending item is ready and blocked is always zero.
+
+`bifrost.orchestrator.handler.attempts` counts an item's attempts when the item settles, after its last attempt. The attempts of an item that is still running show up when it finishes.
 
 `Abandoned` means the item was accepted but abort or completion removed it from the queue before any worker started it. An abandoned item records no duration and no attempts.
 

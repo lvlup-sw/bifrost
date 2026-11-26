@@ -223,6 +223,10 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
     /// Gets the observable counter for handler attempts, including dead-letter retries.
     /// </summary>
     /// <value>Observable counter for the total number of handler calls.</value>
+    /// <remarks>
+    /// Attempts are counted when the item settles, after its last attempt. The attempts of an item
+    /// that is still running do not show until it finishes.
+    /// </remarks>
     public ObservableCounter<long> HandlerAttempts { get; }
 
     /// <summary>
@@ -508,15 +512,20 @@ public sealed class OrchestratorMetrics<TWork> : IDisposable
     /// </para>
     /// <para>
     /// The outcome, attempt, and dead-letter counters read the stage's shared aggregate counters
-    /// when a collector asks, and the ready and blocked gauges read one backlog snapshot of the
-    /// queue. None of them reads a work item or a work key.
+    /// when a collector asks. The pending, ready, and blocked gauges each sample the queue on their
+    /// own, so within one collection pending can differ from ready plus blocked while items move;
+    /// in a quiet queue they agree. None of them reads a work item or a work key.
+    /// </para>
+    /// <para>
+    /// The outcome hook is added with <c>+=</c>, so another observer of the terminal outcome stage
+    /// is kept, not replaced.
     /// </para>
     /// </remarks>
     internal void Attach(WorkOrchestrator<TWork> orchestrator)
     {
         ArgumentNullException.ThrowIfNull(orchestrator);
         orchestrator.QueueWaitObserved = RecordQueueWait;
-        orchestrator.Outcomes.Observed = RecordOutcome;
+        orchestrator.Outcomes.Observed += RecordOutcome;
         Volatile.Write(ref _attached, orchestrator);
     }
 
