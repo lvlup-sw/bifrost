@@ -52,7 +52,7 @@ internal sealed class TerminalOutcomeCounters<TWork>
     /// <summary>Gets the number of accepted items that no worker will start.</summary>
     internal long Abandoned => Volatile.Read(ref _abandoned);
 
-    /// <summary>Gets the total number of handler attempts, including dead-letter retries.</summary>
+    /// <summary>Gets the total number of handler attempts, including dead-letter and handler resilience retries.</summary>
     internal long HandlerAttempts => Volatile.Read(ref _handlerAttempts);
 
     /// <summary>Gets the number of final handler failures written to the dead-letter queue.</summary>

@@ -614,8 +614,16 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <param name="counter">The attempts the handler counted across those calls, or <see langword="null"/>.</param>
     /// <returns>The attempt count for the terminal outcome.</returns>
     /// <remarks>
-    /// Handler resilience counts its own retries, and each loop call runs at least one of them, so
-    /// the counted total is used. It never reports fewer attempts than the loop made.
+    /// <para>
+    /// Handler resilience counts its own retries, and each loop call normally runs at least one of
+    /// them, so the counted total is used. It never reports fewer attempts than the loop made.
+    /// </para>
+    /// <para>
+    /// The floor matters in one edge case: when the handler token is already cancelled, a pipeline
+    /// with strategies can end the call with an <see cref="OperationCanceledException"/> before the
+    /// handler runs. The item then records one attempt for zero handler calls. That is accepted, so
+    /// every started item reports at least one attempt.
+    /// </para>
     /// </remarks>
     private static int CountAttempts(int loopAttempts, HandlerAttemptCounter? counter)
         => counter is null ? loopAttempts : Math.Max(loopAttempts, counter.Count);

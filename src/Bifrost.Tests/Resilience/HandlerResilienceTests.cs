@@ -223,6 +223,103 @@ public sealed class HandlerResilienceTests
     }
 
     /// <summary>
+    /// An abort during a retry delay ends the item as canceled: the transient failure that started
+    /// the delay is dropped, nothing is dead-lettered, and the handler is not called again.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task AbortDuringRetryDelay_SettlesCanceled_WithoutCapture()
+    {
+        var time = new FakeTimeProvider();
+        var calls = 0;
+        var retryClassified = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<TimeProvider>(time);
+        services.AddWorkOrchestrator<string>(static o => o.WorkerCount = 1)
+            .WithHandler((_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                return ValueTask.FromException(new TransientException());
+            })
+            .WithDeadLetterQueue(static o => o.MaxRetries = 0)
+            .WithHandlerResilience(o =>
+            {
+                o.MaxRetries = 3;
+                o.RetryDelay = TimeSpan.FromSeconds(30);
+                o.ShouldRetry = ex =>
+                {
+                    retryClassified.TrySetResult();
+                    return ex is TransientException;
+                };
+            })
+            .Build();
+        await using var provider = services.BuildServiceProvider();
+        var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
+        var counters = provider.GetRequiredService<TerminalOutcomeCounters<string>>();
+
+        await Assert.That(orchestrator.Enqueue("job").IsAccepted).IsTrue();
+        await retryClassified.Task.WaitAsync(WaitTimeout);
+        await orchestrator.AbortAsync().WaitAsync(WaitTimeout);
+
+        await Assert.That(Volatile.Read(ref calls)).IsEqualTo(1);
+        await Assert.That(counters.Canceled).IsEqualTo(1);
+        await Assert.That(counters.Failed).IsEqualTo(0);
+        await Assert.That(counters.DeadLetterCaptured).IsEqualTo(0);
+        await Assert.That(counters.HandlerAttempts).IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Exponential backoff doubles the retry delay and caps each delay at
+    /// <see cref="HandlerResilienceOptions.MaxRetryDelay"/>.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// With a 40-second base delay the uncapped delays would be 40, 80, and 160 seconds. The fake
+    /// clock advances one second per poll, so each gap between attempt starts is the delay, give or
+    /// take a poll that lands before the timer is set.
+    /// </remarks>
+    [Test]
+    public async Task ExponentialBackoff_DoublesDelay_CappedAtMaxRetryDelay()
+    {
+        var time = new FakeTimeProvider();
+        var starts = new ConcurrentQueue<DateTimeOffset>();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<TimeProvider>(time);
+        services.AddWorkOrchestrator<string>(static o => o.WorkerCount = 1)
+            .WithHandler((_, _) =>
+            {
+                starts.Enqueue(time.GetUtcNow());
+                return starts.Count <= 3 ? ValueTask.FromException(new TransientException()) : ValueTask.CompletedTask;
+            })
+            .WithHandlerResilience(static o =>
+            {
+                o.MaxRetries = 3;
+                o.RetryDelay = TimeSpan.FromSeconds(40);
+                o.UseExponentialBackoff = true;
+                o.ShouldRetry = static ex => ex is TransientException;
+            })
+            .Build();
+        await using var provider = services.BuildServiceProvider();
+        var orchestrator = provider.GetRequiredService<IWorkOrchestrator<string>>();
+
+        await Assert.That(orchestrator.Enqueue("job").IsAccepted).IsTrue();
+        await WaitUntilAsync(() =>
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            return starts.Count == 4;
+        });
+        await orchestrator.DrainAsync().WaitAsync(WaitTimeout);
+
+        var at = starts.ToArray();
+        var gaps = Enumerable.Range(1, 3).Select(i => (at[i] - at[i - 1]).TotalSeconds).ToArray();
+        await Assert.That(gaps[0]).IsBetween(40d, 42d);
+        await Assert.That(gaps[1]).IsBetween(60d, 62d);
+        await Assert.That(gaps[2]).IsBetween(60d, 62d);
+    }
+
+    /// <summary>
     /// Each attempt of a scoped handler runs in a fresh DI scope, and each scope is disposed before
     /// the next attempt creates its own.
     /// </summary>

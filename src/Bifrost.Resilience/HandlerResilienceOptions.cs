@@ -18,8 +18,9 @@ namespace Bifrost.Resilience;
 /// </para>
 /// <para>
 /// A worker and, with keyed dispatch, the item's key slot stay held for every attempt, every retry
-/// delay, and every scope disposal. That is why retries are short and delays are capped: a long
-/// wait blocks the key. Work that needs long or durable retries belongs in a durable runtime that
+/// delay, and every scope disposal. That is why retries are short and delays are capped: every
+/// retry delay, including a doubled one, is at most <see cref="MaxRetryDelay"/>, so the total wait
+/// is at most <c>MaxRetries * MaxRetryDelay</c>. A long wait blocks the key. Work that needs long or durable retries belongs in a durable runtime that
 /// submits a fresh attempt.
 /// </para>
 /// <para>
@@ -74,8 +75,8 @@ public sealed class HandlerResilienceOptions
     /// <summary>Gets or sets the delay before the first retry. The default is 200 milliseconds.</summary>
     /// <remarks>
     /// The value must be between zero and <see cref="MaxRetryDelay"/>. With
-    /// <see cref="UseExponentialBackoff"/>, each later delay doubles. The worker and key slot stay
-    /// held during the delay.
+    /// <see cref="UseExponentialBackoff"/>, each later delay doubles, up to <see cref="MaxRetryDelay"/>.
+    /// The worker and key slot stay held during the delay.
     /// </remarks>
     public TimeSpan RetryDelay { get; set; } = TimeSpan.FromMilliseconds(200);
 
@@ -83,6 +84,7 @@ public sealed class HandlerResilienceOptions
     /// Gets or sets a value indicating whether retry delays double after each retry. The default is
     /// <see langword="false"/>, which keeps the delay constant.
     /// </summary>
+    /// <remarks>A doubled delay never exceeds <see cref="MaxRetryDelay"/>.</remarks>
     public bool UseExponentialBackoff { get; set; }
 
     /// <summary>

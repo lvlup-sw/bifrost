@@ -59,7 +59,7 @@ All of these are recorded automatically when you call `WithOpenTelemetry()`:
 | Instrument | Type | Tags | Meaning |
 |---|---|---|---|
 | `bifrost.orchestrator.outcomes` | Counter | `outcome` | One per accepted item: `Succeeded`, `Failed`, `Canceled`, or `Abandoned` |
-| `bifrost.orchestrator.handler.attempts` | Counter | none | Every handler call, including dead-letter retries |
+| `bifrost.orchestrator.handler.attempts` | Counter | none | Every handler call, including dead-letter and handler resilience retries |
 | `bifrost.orchestrator.deadletter.captured` | Counter | none | Final handler failures stored in the dead-letter queue |
 | `bifrost.orchestrator.deadletter.capture_errors` | Counter | none | Final handler failures the dead-letter queue failed to store |
 | `bifrost.orchestrator.deadletter.evictions` | Counter | none | Entries the built-in dead-letter queue dropped because it was full |

@@ -98,7 +98,8 @@ internal sealed class ResilientWorkHandler<TWork> : IAttemptCountingHandler<TWor
     /// <summary>Builds the pipeline: retry (when enabled) outside the per-attempt timeout (when set).</summary>
     /// <remarks>
     /// Polly requires at least one retry for a retry strategy, so zero retries leave the strategy
-    /// out. With no timeout and no retries the pipeline is empty and runs one attempt.
+    /// out. With no timeout and no retries the pipeline is empty and runs one attempt. Every retry
+    /// delay, including a doubled one, is capped at <see cref="HandlerResilienceOptions.MaxRetryDelay"/>.
     /// </remarks>
     private ResiliencePipeline BuildPipeline(HandlerResilienceOptions options, TimeProvider timeProvider)
     {
@@ -109,6 +110,7 @@ internal sealed class ResilientWorkHandler<TWork> : IAttemptCountingHandler<TWor
             {
                 MaxRetryAttempts = options.MaxRetries,
                 Delay = options.RetryDelay,
+                MaxDelay = HandlerResilienceOptions.MaxRetryDelay,
                 BackoffType = options.UseExponentialBackoff ? DelayBackoffType.Exponential : DelayBackoffType.Constant,
                 UseJitter = false,
                 ShouldHandle = args => ValueTask.FromResult(IsTransient(args.Outcome.Exception, args.Context.CancellationToken)),
