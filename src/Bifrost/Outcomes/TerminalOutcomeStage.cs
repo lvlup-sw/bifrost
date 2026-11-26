@@ -72,6 +72,11 @@ internal sealed class TerminalOutcomeStage<TWork>
     /// Gets or sets an observer that is called once per settled item, after the counters change.
     /// Abandoned items reach it too, with zero attempts.
     /// </summary>
+    /// <remarks>
+    /// Abandoned records are delivered by the orchestrator's abandonment sweep while it holds its
+    /// lifecycle lock, which also blocks worker exit, <c>Complete</c>, and worker creation. So the
+    /// observer must be cheap and non-blocking, and it must not call back into the orchestrator.
+    /// </remarks>
     internal Action<TerminalOutcomeRecord>? Observed { get; set; }
 
     /// <summary>Logs a failed attempt that the orchestrator will retry.</summary>

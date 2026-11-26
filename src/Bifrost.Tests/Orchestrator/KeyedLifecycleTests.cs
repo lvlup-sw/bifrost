@@ -243,6 +243,11 @@ public sealed class KeyedLifecycleTests
     /// on the surviving worker (no lost wake), and the surplus hand-off permit ends in at most a
     /// few misses: the survivor parks again instead of spinning.
     /// </summary>
+    /// <remarks>
+    /// The test uses no wall-clock windows. It waits until every permit is consumed, which means
+    /// the survivor is parked, and then bounds the total miss count after the drain. A finite
+    /// surplus can only cause as many misses as it has permits, while a spin would exceed the bound.
+    /// </remarks>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task Retirement_RacesAdmission_NoLostWake_SurplusPermitTolerated()
@@ -275,16 +280,12 @@ public sealed class KeyedLifecycleTests
             await handler.WaitStartedAsync($"K{round}:1");
             await retiring.WaitAsync(WaitTimeout);
             await WaitUntilAsync(() => queue.Releases == 1);
-            await Task.Delay(10);
-            var settledMisses = queue.Misses;
-            await Task.Delay(30);
-
-            await Assert.That(queue.Misses).IsEqualTo(settledMisses);
-            await Assert.That(settledMisses).IsLessThanOrEqualTo(2);
+            await WaitUntilAsync(() => queue.Inner.PendingWakeCountForTest == 0);
             await Assert.That(survivor.IsCompleted).IsFalse();
 
             await orchestrator.DrainAsync().WaitAsync(WaitTimeout);
             await survivor.WaitAsync(WaitTimeout);
+            await Assert.That(queue.Misses).IsLessThanOrEqualTo(2);
             await Assert.That(queue.FailedReleases).IsEqualTo(0);
             await Assert.That(queue.Inner.TrackedKeyCountForTest).IsEqualTo(0);
             await Assert.That(orchestrator.Outcomes.Counters.Succeeded).IsEqualTo(1);

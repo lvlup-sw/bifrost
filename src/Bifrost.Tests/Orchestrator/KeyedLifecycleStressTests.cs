@@ -26,9 +26,11 @@ namespace Bifrost.Tests.Orchestrator;
 /// The repository has no controlled scheduler for the core library, so the campaign uses real
 /// threads. Each run takes its shape from a fixed seed: the key count, the producer, base-worker,
 /// and item counts, the limits, the handler behavior of each item, the scaler's actions, and
-/// whether the run ends in a drain after admission, a drain during admission, or an abort. Interleavings still vary between runs, so the
-/// campaign checks invariants rather than one exact history. Every wait is bounded, and a run
-/// that hangs fails with its seed in the message. <c>BIFROST_INVARIANT_SEED_MULTIPLIER</c> runs
+/// whether the run ends in a drain after admission, a drain during admission, or an abort.
+/// Interleavings still vary between runs, so the campaign checks invariants rather than one exact
+/// history. Every wait is bounded, and a run that hangs fails with a <see cref="TimeoutException"/>
+/// whose message names its seed and cap. Base workers never retire, so the last-consumer
+/// retirement drain is covered by the targeted lifecycle tests, not by this campaign. <c>BIFROST_INVARIANT_SEED_MULTIPLIER</c> runs
 /// more seeds, as it does for the other invariant campaigns.
 /// </para>
 /// <para>
@@ -66,9 +68,27 @@ public sealed class KeyedLifecycleStressTests
         for (var seed = 0; seed < seeds; seed++)
         {
             var run = new StressRun(seed, maxConcurrencyPerKey);
-            await run.ExecuteAsync().WaitAsync(RunTimeout);
+            await ExecuteWithSeedAsync(run, seed, maxConcurrencyPerKey);
             var failures = run.Verify();
             await Assert.That(failures).IsEmpty().Because($"seed {seed}, cap {maxConcurrencyPerKey}: {string.Join("; ", failures)}");
+        }
+    }
+
+    /// <summary>Runs one seeded run under the hang guard.</summary>
+    /// <param name="run">The run.</param>
+    /// <param name="seed">The run's seed, for the failure message.</param>
+    /// <param name="cap">The per-key concurrency limit, for the failure message.</param>
+    /// <returns>A task representing the run.</returns>
+    /// <exception cref="TimeoutException">Thrown with the seed and cap when the run hangs.</exception>
+    private static async Task ExecuteWithSeedAsync(StressRun run, int seed, int cap)
+    {
+        try
+        {
+            await run.ExecuteAsync().WaitAsync(RunTimeout);
+        }
+        catch (TimeoutException error)
+        {
+            throw new TimeoutException($"seed {seed}, cap {cap}: the run did not finish within {RunTimeout.TotalSeconds:F0}s.", error);
         }
     }
 

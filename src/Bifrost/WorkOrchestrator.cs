@@ -397,9 +397,8 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         if (_leased is not null)
         {
             if (_queue.Count == 0) return;
-            var discarded = new List<WorkEnvelope<TWork>>();
-            _leased.DiscardQueued(discarded);
-            for (var i = 0; i < discarded.Count; i++) _outcomes.SettleAbandoned();
+            var count = _leased.DiscardQueued(new List<WorkEnvelope<TWork>>());
+            for (var i = 0; i < count; i++) _outcomes.SettleAbandoned();
             return;
         }
 
@@ -595,14 +594,21 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <summary>Returns the item's lease to the binding at most once.</summary>
     /// <param name="lease">The item's lease. It is set to <see langword="null"/> before the release runs.</param>
     /// <remarks>
-    /// The lease is taken out of the variable before <see cref="ILeasedWorkQueue{T}.Release"/>
-    /// runs, so a release that throws, or any later path through the same variable, cannot return
-    /// it again. Together with the sweep, which holds no lease, this makes the worker that
-    /// dequeued an item the only releaser of that item's slot.
+    /// <para>
+    /// A slot is never released twice because of structure, not because of this method: only the
+    /// worker that dequeued an item holds its lease, and the abandonment sweep
+    /// (<see cref="ILeasedWorkQueue{T}.DiscardQueued"/>) never touches a running item's slot.
+    /// </para>
+    /// <para>
+    /// The variable is local to one worker's call, so a plain swap is enough. Clearing it before
+    /// <see cref="ILeasedWorkQueue{T}.Release"/> runs means a release that throws, or any later
+    /// path through the same variable, cannot return the lease again.
+    /// </para>
     /// </remarks>
     private void ReleaseLeaseOnce(ref object? lease)
     {
-        var held = Interlocked.Exchange(ref lease, null);
+        var held = lease;
+        lease = null;
         if (held is not null) _leased!.Release(held);
     }
 
