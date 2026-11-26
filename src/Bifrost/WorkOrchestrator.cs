@@ -4,6 +4,7 @@
 // </copyright>
 // =============================================================================
 
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
 using Bifrost.Core;
@@ -19,6 +20,8 @@ namespace Bifrost;
 public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 {
     private readonly IWorkQueue<WorkEnvelope<TWork>> _queue;
+    private readonly IWorkQueueLifecycle _lifecycle;
+    private readonly ILeasedWorkQueue<WorkEnvelope<TWork>>? _leased;
     private readonly IWorkHandler<TWork> _handler;
     private readonly ILogger<WorkOrchestrator<TWork>> _logger;
     private readonly CancellationTokenSource _cts = new();
@@ -43,6 +46,53 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public WorkOrchestrator(IWorkHandler<TWork> handler, IOptions<WorkOrchestratorOptions> options,
         ILogger<WorkOrchestrator<TWork>> logger, TimeProvider? timeProvider = null,
         Func<TWork, WorkClass>? classifier = null)
+        : this(null, handler, options, logger, timeProvider, classifier)
+    {
+    }
+
+    /// <summary>Uses a queue from <paramref name="queueFactory"/> and starts the initial workers.</summary>
+    /// <param name="handler">The work handler.</param>
+    /// <param name="options">Capacity and worker settings. The dispatch strategy is not used to pick the queue.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The timestamp source.</param>
+    /// <param name="classifier">The class used when per-item options omit it.</param>
+    /// <param name="queueFactory">
+    /// Creates the queue from the options and the resolved timestamp source. The orchestrator owns
+    /// the result and disposes it when it is disposable.
+    /// </param>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the queue does not implement <see cref="IWorkQueueLifecycle"/>, or when
+    /// <see cref="QueueFullMode.Wait"/> is configured for a queue that is not a
+    /// <see cref="FifoChannelWorkQueue{T}"/>.
+    /// </exception>
+    /// <remarks>
+    /// This constructor has no optional parameters, so a call with the public constructor's
+    /// arguments never binds to it.
+    /// </remarks>
+    internal WorkOrchestrator(IWorkHandler<TWork> handler, IOptions<WorkOrchestratorOptions> options,
+        ILogger<WorkOrchestrator<TWork>> logger, TimeProvider? timeProvider, Func<TWork, WorkClass>? classifier,
+        Func<WorkOrchestratorOptions, TimeProvider, IWorkQueue<WorkEnvelope<TWork>>> queueFactory)
+        : this(queueFactory ?? throw new ArgumentNullException(nameof(queueFactory)), handler, options, logger,
+            timeProvider, classifier)
+    {
+    }
+
+    /// <summary>Shared initializer for the public and the factory constructors.</summary>
+    /// <param name="queueFactory">The injected queue factory, or <see langword="null"/> to select a built-in binding from the dispatch strategy.</param>
+    /// <param name="handler">The work handler.</param>
+    /// <param name="options">Ordering, capacity, and worker settings.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The timestamp source.</param>
+    /// <param name="classifier">The class used when per-item options omit it.</param>
+    /// <remarks>
+    /// The strategy guard runs before a built-in binding is built, so the public constructor keeps
+    /// its exception order and message. The general guard runs on the resolved queue:
+    /// <see cref="QueueFullMode.Wait"/> needs <see cref="FifoChannelWorkQueue{T}"/>, which makes
+    /// the cast in <see cref="EnqueueAsync"/> safe by construction.
+    /// </remarks>
+    private WorkOrchestrator(Func<WorkOrchestratorOptions, TimeProvider, IWorkQueue<WorkEnvelope<TWork>>>? queueFactory,
+        IWorkHandler<TWork> handler, IOptions<WorkOrchestratorOptions> options,
+        ILogger<WorkOrchestrator<TWork>> logger, TimeProvider? timeProvider, Func<TWork, WorkClass>? classifier)
     {
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(options);
@@ -51,7 +101,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(opts.Capacity);
         ArgumentOutOfRangeException.ThrowIfNegative(opts.WorkerCount);
         if (!Enum.IsDefined(opts.FullMode)) throw new ArgumentOutOfRangeException(nameof(options));
-        if (opts.DispatchStrategy != DispatchStrategy.Fifo && opts.FullMode != QueueFullMode.Reject)
+        if (queueFactory is null && opts.DispatchStrategy != DispatchStrategy.Fifo && opts.FullMode != QueueFullMode.Reject)
             throw new ArgumentException("Priority dispatch supports only Reject full mode.", nameof(options));
         _handler = handler;
         _logger = logger;
@@ -61,13 +111,9 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         _shutdownToken = _cts.Token;
         Capacity = opts.Capacity;
         Ordering = opts.DispatchStrategy;
-        _queue = opts.DispatchStrategy switch
-        {
-            DispatchStrategy.Fifo => new FifoChannelWorkQueue<WorkEnvelope<TWork>>(opts.Capacity),
-            DispatchStrategy.PriorityExact => new LockingPriorityWorkQueue<TWork>(opts.Capacity, opts.Priority, _timeProvider.TimestampFrequency),
-            DispatchStrategy.PriorityRelaxed => new ConcurrentPriorityWorkQueue<TWork>(opts.Capacity, opts.Priority, _timeProvider.TimestampFrequency),
-            _ => throw new ArgumentOutOfRangeException(nameof(options), "Unknown dispatch strategy."),
-        };
+        _queue = queueFactory is null ? CreateBuiltInQueue(opts, _timeProvider) : queueFactory(opts, _timeProvider);
+        _lifecycle = ValidateQueue(_queue, opts.FullMode);
+        _leased = _queue as ILeasedWorkQueue<WorkEnvelope<TWork>>;
         _activeWorkers = opts.WorkerCount;
         for (int i = 0; i < opts.WorkerCount; i++)
         {
@@ -75,6 +121,37 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
             _ = Task.Factory.StartNew(() => RunRegisteredWorkerAsync(id, null, _shutdownToken),
                 CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
         }
+    }
+
+    private static IWorkQueue<WorkEnvelope<TWork>> CreateBuiltInQueue(WorkOrchestratorOptions opts, TimeProvider timeProvider)
+        => opts.DispatchStrategy switch
+        {
+            DispatchStrategy.Fifo => new FifoChannelWorkQueue<WorkEnvelope<TWork>>(opts.Capacity),
+            DispatchStrategy.PriorityExact => new LockingPriorityWorkQueue<TWork>(opts.Capacity, opts.Priority, timeProvider.TimestampFrequency),
+            DispatchStrategy.PriorityRelaxed => new ConcurrentPriorityWorkQueue<TWork>(opts.Capacity, opts.Priority, timeProvider.TimestampFrequency),
+            _ => throw new ArgumentOutOfRangeException("options", "Unknown dispatch strategy."),
+        };
+
+    /// <summary>Checks the resolved queue and returns its lifecycle hooks.</summary>
+    /// <param name="queue">The resolved queue.</param>
+    /// <param name="fullMode">The configured full mode.</param>
+    /// <returns>The queue's lifecycle hooks.</returns>
+    /// <remarks>A rejected queue is disposed when it is disposable, because no orchestrator will own it.</remarks>
+    private static IWorkQueueLifecycle ValidateQueue(IWorkQueue<WorkEnvelope<TWork>>? queue, QueueFullMode fullMode)
+    {
+        if (queue is not IWorkQueueLifecycle lifecycle)
+        {
+            (queue as IDisposable)?.Dispose();
+            throw new ArgumentException("The work queue must implement IWorkQueueLifecycle.", "queueFactory");
+        }
+
+        if (fullMode == QueueFullMode.Wait && queue is not FifoChannelWorkQueue<WorkEnvelope<TWork>>)
+        {
+            (queue as IDisposable)?.Dispose();
+            throw new ArgumentException("Wait full mode requires the FIFO channel queue.", "options");
+        }
+
+        return lifecycle;
     }
 
     /// <summary>Gets the configured ordering policy.</summary>
@@ -102,6 +179,10 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public bool TryEnqueue(TWork work, WorkEnqueueOptions options = default) => Enqueue(work, options).IsAccepted;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The FIFO cast on the waiting path is safe by construction: the constructor admits
+    /// <see cref="QueueFullMode.Wait"/> only when the queue is the FIFO channel queue.
+    /// </remarks>
     public ValueTask<EnqueueResult> EnqueueAsync(TWork work, WorkEnqueueOptions options = default, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
@@ -139,13 +220,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         lock (_lifecycleGate)
         {
             if (_queueCompleted) return;
-            switch (_queue)
-            {
-                case FifoChannelWorkQueue<WorkEnvelope<TWork>> fifo: fifo.Complete(); break;
-                case LockingPriorityWorkQueue<TWork> exact: exact.Complete(); break;
-                case ConcurrentPriorityWorkQueue<TWork> relaxed: relaxed.Complete(); break;
-            }
-
+            _lifecycle.Complete();
             _queueCompleted = true;
             if (_activeWorkers == 0) FinishCompletion();
         }
@@ -249,14 +324,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         }
         finally
         {
-            if (retirementToken.IsCancellationRequested)
-            {
-                switch (_queue)
-                {
-                    case LockingPriorityWorkQueue<TWork> exact: exact.WakeConsumer(); break;
-                    case ConcurrentPriorityWorkQueue<TWork> relaxed: relaxed.WakeConsumer(); break;
-                }
-            }
+            if (retirementToken.IsCancellationRequested) _lifecycle.WakeConsumer();
 
             lock (_lifecycleGate)
             {
@@ -286,15 +354,38 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
                     return;
             }
 
-            if (!_queue.TryDequeue(out var envelope))
+            if (!TryDequeueEnvelope(out var envelope, out var lease))
                 return;
 
-            await ProcessEnvelopeAsync(id, callback, handlerToken, envelope);
+            await ProcessEnvelopeAsync(id, callback, handlerToken, envelope, lease);
         }
     }
 
+    /// <summary>Runs the handler pipeline for one dequeued item and then returns its lease.</summary>
+    /// <param name="workerId">The worker's identifier, used in logs.</param>
+    /// <param name="stateCallback">The worker's busy/idle observer, if any.</param>
+    /// <param name="ct">The handler token.</param>
+    /// <param name="envelope">The dequeued item.</param>
+    /// <param name="lease">The lease from a leased binding, or <see langword="null"/> when there is nothing to release.</param>
+    /// <remarks>
+    /// <para>
+    /// The order is fixed. First the handler pipeline exits: the decorators, every dead-letter
+    /// retry, and the disposal of a scoped handler's DI scope all happen inside
+    /// <see cref="IWorkHandler{TWork}.HandleAsync"/>. Then the lease is released through
+    /// <see cref="ILeasedWorkQueue{T}.Release"/>. Last, the worker reports itself idle. This holds
+    /// on success, on a handler failure, and when cancellation rethrows.
+    /// </para>
+    /// <para>
+    /// The release runs in a <c>try</c> whose <c>finally</c> reports idle, so a throwing release
+    /// cannot leave the busy flag set. Its exception then propagates to the caller. From the
+    /// consume loop, and from the drain after it, that is the worker's error path, which logs the
+    /// exception and faults completion. From the retirement drain inside the cancellation
+    /// <c>catch</c> of <see cref="RunRegisteredWorkerAsync"/>, the exception skips that error path
+    /// and faults only the worker's task.
+    /// </para>
+    /// </remarks>
     private async Task ProcessEnvelopeAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct,
-        WorkEnvelope<TWork> envelope)
+        WorkEnvelope<TWork> envelope, object? lease)
     {
         var observer = QueueWaitObserved;
         if (observer is not null) NotifyQueueWait(observer, in envelope, workerId);
@@ -313,8 +404,26 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         }
         finally
         {
-            if (stateCallback is not null) NotifyWorkerState(stateCallback, false, workerId);
+            try
+            {
+                if (lease is not null) _leased!.Release(lease);
+            }
+            finally
+            {
+                if (stateCallback is not null) NotifyWorkerState(stateCallback, false, workerId);
+            }
         }
+    }
+
+    /// <summary>Dequeues the next item through the leased path when the binding has one.</summary>
+    /// <param name="envelope">The dequeued item when the method returns <c>true</c>.</param>
+    /// <param name="lease">The item's lease, or <see langword="null"/> for a binding without leases.</param>
+    /// <returns><c>true</c> if an item was dequeued; <c>false</c> on a miss.</returns>
+    private bool TryDequeueEnvelope([MaybeNullWhen(false)] out WorkEnvelope<TWork> envelope, out object? lease)
+    {
+        if (_leased is not null) return _leased.TryDequeue(out envelope, out lease);
+        lease = null;
+        return _queue.TryDequeue(out envelope);
     }
 
     private void NotifyQueueWait(Action<WorkClass, TimeSpan> observer, in WorkEnvelope<TWork> envelope, string workerId)
@@ -346,20 +455,15 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
 
     /// <inheritdoc/>
     public Task RequestScaleDownAsync(int count, CancellationToken cancellationToken = default) => Task.CompletedTask;
-    internal bool TryReadEnvelope(out WorkEnvelope<TWork> envelope) => _queue.TryDequeue(out envelope);
 
-    private void ConsumeMatchedWake()
-    {
-        switch (_queue)
-        {
-            case LockingPriorityWorkQueue<TWork> exact:
-                exact.ConsumeMatchedWake();
-                break;
-            case ConcurrentPriorityWorkQueue<TWork> relaxed:
-                relaxed.ConsumeMatchedWake();
-                break;
-        }
-    }
+    /// <summary>Dequeues one item directly, without a worker. Test inspection only.</summary>
+    /// <param name="envelope">The dequeued item when the method returns <c>true</c>.</param>
+    /// <returns><c>true</c> if an item was dequeued; <c>false</c> on a miss.</returns>
+    /// <remarks>
+    /// This reads through the plain <see cref="IWorkQueue{T}.TryDequeue(out T)"/>, so it is valid
+    /// only for bindings that return no lease. Every built-in binding qualifies.
+    /// </remarks>
+    internal bool TryReadEnvelope(out WorkEnvelope<TWork> envelope) => _queue.TryDequeue(out envelope);
 
     // The wait consumes one permit. Each further item in the inner loop was funded by its own
     // enqueue, so ConsumeMatchedWake takes that permit too. Otherwise a drain leaves a surplus of
@@ -368,14 +472,14 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     {
         while (!dequeueToken.IsCancellationRequested && await _queue.WaitToDequeueAsync(dequeueToken))
         {
-            if (!_queue.TryDequeue(out var envelope))
+            if (!TryDequeueEnvelope(out var envelope, out var lease))
                 continue;
 
-            await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope);
-            while (!dequeueToken.IsCancellationRequested && _queue.TryDequeue(out envelope))
+            await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope, lease);
+            while (!dequeueToken.IsCancellationRequested && TryDequeueEnvelope(out envelope, out lease))
             {
-                ConsumeMatchedWake();
-                await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope);
+                _lifecycle.ConsumeMatchedWake();
+                await ProcessEnvelopeAsync(workerId, stateCallback, ct, envelope, lease);
             }
         }
     }

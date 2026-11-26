@@ -38,7 +38,7 @@ namespace Bifrost.Queues;
 /// removal is relaxed, so it need not select that key. Backlog and handler availability also
 /// determine waiting time. Admission is not durable execution.</para>
 /// </remarks>
-internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<TWork>>, IDisposable
+internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelope<TWork>>, IWorkQueueLifecycle, IDisposable
 {
     private readonly ConcurrentPriorityQueue<WorkEnvelope<TWork>, long> _queue;
     private int _admissionState;
@@ -182,6 +182,12 @@ internal sealed class ConcurrentPriorityWorkQueue<TWork> : IWorkQueue<WorkEnvelo
             _signal.Wait(0);
         }
     }
+
+    /// <inheritdoc/>
+    void IWorkQueueLifecycle.WakeConsumer() => WakeConsumer();
+
+    /// <inheritdoc/>
+    void IWorkQueueLifecycle.ConsumeMatchedWake() => ConsumeMatchedWake();
 
     /// <summary>Gets the number of wake permits still available. Test inspection only.</summary>
     internal int PendingWakeCountForTest => _signal.CurrentCount;

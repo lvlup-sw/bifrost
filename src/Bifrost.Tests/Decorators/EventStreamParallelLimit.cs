@@ -11,12 +11,12 @@ namespace Bifrost.Tests.Decorators;
 /// <summary>
 /// Caps how many event-stream decorator tests run concurrently. Each of these tests spins one or
 /// more real subscriber tasks (<c>Task.Run</c> reading <c>GetEventStreamAsync</c>) with wall-clock
-/// timeouts and a short <c>Task.Delay</c> handshake before publishing. Run at TUnit's full default
-/// parallelism — amplified by the <c>--coverage</c> instrumentation overhead on CI's few-core
-/// runners — dozens of these subscribers starve the thread pool: a subscriber's registration or the
-/// publish continuation queues behind the injection heuristic and misses its window, surfacing as a
-/// <c>TimeoutException</c> (issue #44). Bounding the concurrency keeps the suite deterministic
-/// without serialising it entirely. Mirrors <c>TickEngineParallelLimit</c>.
+/// hang guards. Run at TUnit's full default parallelism — amplified by the <c>--coverage</c>
+/// instrumentation overhead on CI's few-core runners — dozens of these subscribers starve the thread
+/// pool, and a delayed reader or publish continuation can outlast a hang guard, surfacing as a
+/// <c>TimeoutException</c> (issue #44). The tests also register each subscription on the test thread
+/// before they publish, so a late reader cannot miss an event. Bounding the concurrency keeps the
+/// suite fast without serialising it entirely. Mirrors <c>TickEngineParallelLimit</c>.
 /// </summary>
 public sealed class EventStreamParallelLimit : IParallelLimit
 {

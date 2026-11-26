@@ -19,9 +19,18 @@ namespace Bifrost.Tests.Decorators;
 /// <summary>
 /// Tests for correlation ID filtering in <see cref="EventStreamOrchestrator{TWork}"/>.
 /// </summary>
+/// <remarks>
+/// Each test calls <c>GetEventStreamAsync</c> on the test thread before it publishes, and only
+/// enumerates the stream inside <c>Task.Run</c>. The call registers the subscriber channel before
+/// it returns, and the channel buffers events until the reader starts. So no event can be missed,
+/// and no test waits a fixed time for a subscriber to start. Under CPU load, a subscription made
+/// inside <c>Task.Run</c> after a fixed delay could register after the publish and miss the event.
+/// </remarks>
 [ParallelLimiter<EventStreamParallelLimit>]
 public class EventStreamCorrelationTests
 {
+    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(10);
+
     private IWorkOrchestrator<string> _inner = null!;
     private ILogger<EventStreamOrchestrator<string>> _logger = null!;
 
@@ -47,8 +56,7 @@ public class EventStreamCorrelationTests
     /// Verifies that null correlationId returns all events.
     /// </summary>
     /// <remarks>
-    /// The delay gives the subscriber time to start. The subscriber must receive all the enqueued
-    /// events.
+    /// The subscriber must receive all the enqueued events.
     /// </remarks>
     [Test]
     public async Task GetEventStreamAsync_NullCorrelationId_ReturnsAllEvents()
@@ -56,11 +64,12 @@ public class EventStreamCorrelationTests
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvents = new ConcurrentBag<IOrchestratorEvent>();
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(WaitTimeout);
 
+        var stream = decorator.GetEventStreamAsync<IOrchestratorEvent>(correlationId: null, cancellationToken: cts.Token);
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<IOrchestratorEvent>(correlationId: null, cancellationToken: cts.Token))
+            await foreach (var evt in stream)
             {
                 receivedEvents.Add(evt);
                 if (receivedEvents.Count >= 3)
@@ -69,8 +78,6 @@ public class EventStreamCorrelationTests
                 }
             }
         });
-
-        await Task.Delay(100);
 
         await decorator.EnqueueAsync("test1");
         await decorator.EnqueueAsync("test2");
@@ -96,13 +103,14 @@ public class EventStreamCorrelationTests
         var receivedEvents = new ConcurrentBag<ICorrelatedEvent>();
         var targetCorrelationId = "correlation-123";
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(WaitTimeout);
 
+        var stream = decorator.GetEventStreamAsync<ICorrelatedEvent>(correlationId: targetCorrelationId, cancellationToken: cts.Token);
         var subscriberTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var evt in decorator.GetEventStreamAsync<ICorrelatedEvent>(correlationId: targetCorrelationId, cancellationToken: cts.Token))
+                await foreach (var evt in stream)
                 {
                     receivedEvents.Add(evt);
                     if (receivedEvents.Count >= 2)
@@ -115,8 +123,6 @@ public class EventStreamCorrelationTests
             {
             }
         });
-
-        await Task.Delay(150);
 
         await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: targetCorrelationId));
         await Task.Delay(20);
@@ -150,13 +156,14 @@ public class EventStreamCorrelationTests
         var receivedEvents = new ConcurrentBag<ICorrelatedEvent>();
         var targetCorrelationId = "Correlation-ABC";
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(WaitTimeout);
 
+        var stream = decorator.GetEventStreamAsync<ICorrelatedEvent>(correlationId: targetCorrelationId, cancellationToken: cts.Token);
         var subscriberTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var evt in decorator.GetEventStreamAsync<ICorrelatedEvent>(correlationId: targetCorrelationId, cancellationToken: cts.Token))
+                await foreach (var evt in stream)
                 {
                     receivedEvents.Add(evt);
                     if (receivedEvents.Count >= 1)
@@ -169,8 +176,6 @@ public class EventStreamCorrelationTests
             {
             }
         });
-
-        await Task.Delay(100);
 
         await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: "correlation-abc"));
         await decorator.EnqueueAsync("test2", new WorkEnqueueOptions(CorrelationId: "CORRELATION-ABC"));
@@ -199,11 +204,12 @@ public class EventStreamCorrelationTests
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
 
+        var stream = decorator.GetEventStreamAsync<ICorrelatedEvent>(correlationId: targetCorrelationId, cancellationToken: cts.Token);
         var subscriberTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var evt in decorator.GetEventStreamAsync<ICorrelatedEvent>(correlationId: targetCorrelationId, cancellationToken: cts.Token))
+                await foreach (var evt in stream)
                 {
                     receivedEvents.Add(evt);
                 }
@@ -212,8 +218,6 @@ public class EventStreamCorrelationTests
             {
             }
         });
-
-        await Task.Delay(100);
 
         await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: null));
         await decorator.EnqueueAsync("test2", new WorkEnqueueOptions(CorrelationId: null));
@@ -249,13 +253,14 @@ public class EventStreamCorrelationTests
         var receivedEvents = new ConcurrentBag<WorkEnqueuedEvent<string>>();
         var targetCorrelationId = "workflow-123";
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(WaitTimeout);
 
+        var stream = decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(correlationId: targetCorrelationId, cancellationToken: cts.Token);
         var subscriberTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var evt in decorator.GetEventStreamAsync<WorkEnqueuedEvent<string>>(correlationId: targetCorrelationId, cancellationToken: cts.Token))
+                await foreach (var evt in stream)
                 {
                     receivedEvents.Add(evt);
                     if (receivedEvents.Count >= 1)
@@ -268,8 +273,6 @@ public class EventStreamCorrelationTests
             {
             }
         });
-
-        await Task.Delay(100);
 
         await decorator.EnqueueAsync("test1", new WorkEnqueueOptions(CorrelationId: targetCorrelationId));
 
@@ -288,22 +291,21 @@ public class EventStreamCorrelationTests
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<ICorrelatedEvent>();
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(WaitTimeout);
 
+        var stream = decorator.GetEventStreamAsync<ICorrelatedEvent>(cancellationToken: cts.Token);
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<ICorrelatedEvent>(cancellationToken: cts.Token))
+            await foreach (var evt in stream)
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(100);
-
         await decorator.EnqueueAsync("test-work", new WorkEnqueueOptions(CorrelationId: "my-correlation-id"));
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var evt = await receivedEvent.Task.WaitAsync(WaitTimeout);
 
         await Assert.That(evt.CorrelationId).IsEqualTo("my-correlation-id");
     }
@@ -318,22 +320,21 @@ public class EventStreamCorrelationTests
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<ICorrelatedEvent>();
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(WaitTimeout);
 
+        var stream = decorator.GetEventStreamAsync<ICorrelatedEvent>(cancellationToken: cts.Token);
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<ICorrelatedEvent>(cancellationToken: cts.Token))
+            await foreach (var evt in stream)
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(100);
-
         var result = decorator.TryEnqueue("test-work", new WorkEnqueueOptions(CorrelationId: "my-correlation-id"));
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var evt = await receivedEvent.Task.WaitAsync(WaitTimeout);
 
         await Assert.That(result).IsTrue();
         await Assert.That(evt.CorrelationId).IsEqualTo("my-correlation-id");
@@ -352,22 +353,21 @@ public class EventStreamCorrelationTests
         var decorator = new EventStreamOrchestrator<string>(_inner, _logger);
         var receivedEvent = new TaskCompletionSource<ICorrelatedEvent>();
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(WaitTimeout);
 
+        var stream = decorator.GetEventStreamAsync<ICorrelatedEvent>(cancellationToken: cts.Token);
         var subscriberTask = Task.Run(async () =>
         {
-            await foreach (var evt in decorator.GetEventStreamAsync<ICorrelatedEvent>(cancellationToken: cts.Token))
+            await foreach (var evt in stream)
             {
                 receivedEvent.TrySetResult(evt);
                 break;
             }
         });
 
-        await Task.Delay(100);
-
         await decorator.EnqueueAsync("test-work");
 
-        var evt = await receivedEvent.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var evt = await receivedEvent.Task.WaitAsync(WaitTimeout);
 
         await Assert.That(evt.CorrelationId).IsNull();
     }

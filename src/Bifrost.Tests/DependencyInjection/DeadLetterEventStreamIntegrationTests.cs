@@ -25,12 +25,15 @@ namespace Bifrost.Tests.DependencyInjection;
 [Property("Category", "Integration")]
 public class DeadLetterEventStreamIntegrationTests
 {
+    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(10);
+
     /// <summary>
     /// Verifies that when both WithEventStream and WithDeadLetterQueue are configured,
     /// a dead-lettered work item produces a WorkDeadLetteredEvent visible in the event stream.
     /// </summary>
     /// <remarks>
-    /// The test waits 100 ms so that the subscriber registers before the enqueue. With
+    /// The test calls <c>GetEventStreamAsync</c> before the enqueue, so the subscriber is registered
+    /// before any event is published, and waits for the first dead-letter event. With
     /// <c>MaxRetries = 0</c> the item gets one attempt, so <c>AttemptCount</c> is 1.
     /// </remarks>
     [Test]
@@ -56,15 +59,16 @@ public class DeadLetterEventStreamIntegrationTests
         await Assert.That(eventOrchestrator).IsNotNull();
 
         var deadLetterEvents = new ConcurrentBag<WorkDeadLetteredEvent<string>>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(WaitTimeout);
+        var stream = eventOrchestrator!.GetEventStreamAsync<WorkDeadLetteredEvent<string>>(cancellationToken: cts.Token);
         var eventTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var evt in eventOrchestrator!
-                    .GetEventStreamAsync<WorkDeadLetteredEvent<string>>(cancellationToken: cts.Token))
+                await foreach (var evt in stream)
                 {
                     deadLetterEvents.Add(evt);
+                    break;
                 }
             }
             catch (OperationCanceledException)
@@ -72,11 +76,9 @@ public class DeadLetterEventStreamIntegrationTests
             }
         });
 
-        await Task.Delay(100);
-
         await orchestrator.EnqueueAsync("doomed-work");
 
-        await Task.Delay(1000);
+        await eventTask.WaitAsync(WaitTimeout);
 
         await Assert.That(deadLetterEvents.Count).IsGreaterThanOrEqualTo(1);
 
@@ -117,15 +119,16 @@ public class DeadLetterEventStreamIntegrationTests
         await Assert.That(eventOrchestrator).IsNotNull();
 
         var deadLetterEvents = new ConcurrentBag<WorkDeadLetteredEvent<string>>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(WaitTimeout);
+        var stream = eventOrchestrator!.GetEventStreamAsync<WorkDeadLetteredEvent<string>>(cancellationToken: cts.Token);
         var eventTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var evt in eventOrchestrator!
-                    .GetEventStreamAsync<WorkDeadLetteredEvent<string>>(cancellationToken: cts.Token))
+                await foreach (var evt in stream)
                 {
                     deadLetterEvents.Add(evt);
+                    break;
                 }
             }
             catch (OperationCanceledException)
@@ -133,10 +136,8 @@ public class DeadLetterEventStreamIntegrationTests
             }
         });
 
-        await Task.Delay(100);
-
         await orchestrator.EnqueueAsync("doomed-work");
-        await Task.Delay(1000);
+        await eventTask.WaitAsync(WaitTimeout);
 
         await Assert.That(deadLetterEvents.Count).IsGreaterThanOrEqualTo(1);
 
@@ -185,6 +186,9 @@ public class DeadLetterEventStreamIntegrationTests
     /// Verifies that when only WithEventStream is configured (no DLQ),
     /// the event stream works normally without errors.
     /// </summary>
+    /// <remarks>
+    /// The test reads events until the item's <c>WorkCompletedEvent</c>, so it needs no fixed wait.
+    /// </remarks>
     [Test]
     public async Task WithEventStream_WithoutDeadLetterQueue_NoError()
     {
@@ -207,15 +211,19 @@ public class DeadLetterEventStreamIntegrationTests
         await Assert.That(eventOrchestrator).IsNotNull();
 
         var events = new ConcurrentBag<IOrchestratorEvent>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(WaitTimeout);
+        var stream = eventOrchestrator!.GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token);
         var eventTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var evt in eventOrchestrator!
-                    .GetEventStreamAsync<IOrchestratorEvent>(cancellationToken: cts.Token))
+                await foreach (var evt in stream)
                 {
                     events.Add(evt);
+                    if (evt is WorkCompletedEvent<string>)
+                    {
+                        break;
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -223,10 +231,8 @@ public class DeadLetterEventStreamIntegrationTests
             }
         });
 
-        await Task.Delay(100);
-
         await orchestrator.EnqueueAsync("normal-work");
-        await Task.Delay(500);
+        await eventTask.WaitAsync(WaitTimeout);
 
         await Assert.That(events.Count).IsGreaterThan(0);
         var deadLetterEvents = events.Where(e => e is WorkDeadLetteredEvent<string>).ToList();

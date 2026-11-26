@@ -27,7 +27,8 @@ namespace Bifrost.Queues;
 /// </para>
 /// <para>
 /// <b>Shutdown semantic.</b> Two orderly exits, owned at different layers. Queue
-/// COMPLETION (a binding's concrete complete-for-adding member) finishes the wait
+/// COMPLETION (a complete-for-adding member that every queue the orchestrator owns
+/// provides next to this contract) finishes the wait
 /// with <c>false</c> once residual items are drained — the loop's natural exit.
 /// CANCELLATION of the token passed to
 /// <see cref="WaitToDequeueAsync(CancellationToken)"/> MAY instead surface as
@@ -43,6 +44,13 @@ namespace Bifrost.Queues;
 /// acceptance rules are binding concerns surfaced uniformly as
 /// <see cref="TryEnqueue(in T)"/> returning <c>false</c>; callers cannot distinguish
 /// capacity exhaustion from policy rejection through this contract.
+/// </para>
+/// <para>
+/// <b>Leased bindings.</b> An internal binding can also offer a leased dequeue path. The
+/// orchestrator then dequeues through that path and releases each lease once after the handler
+/// pipeline exits. Such a binding funds wake permits on dispatchability, not on admission, and
+/// keeps its semaphore authoritative after completion: a wait must not poll for a positive
+/// <see cref="Count"/>.
 /// </para>
 /// </remarks>
 public interface IWorkQueue<T>
