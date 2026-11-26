@@ -25,7 +25,7 @@ namespace Bifrost.Handlers;
 /// <code>
 /// // Register cancellable delegate-based orchestrator
 /// services.AddWorkOrchestrator&lt;Func&lt;CancellationToken, Task&gt;&gt;()
-///     .WithHandler&lt;CancellableDelegateWorkHandler&gt;()
+///     .WithHandler&lt;Func&lt;CancellationToken, Task&gt;, CancellableDelegateWorkHandler&gt;()
 ///     .Build();
 ///
 /// // Enqueue work with cancellation support

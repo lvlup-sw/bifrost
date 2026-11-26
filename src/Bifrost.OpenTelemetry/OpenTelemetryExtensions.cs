@@ -118,7 +118,7 @@ public static class OpenTelemetryExtensions
     /// <para>Register the orchestrator with OpenTelemetry. No handler code is needed for metrics:</para>
     /// <code>
     /// services.AddWorkOrchestrator&lt;MyWork&gt;()
-    ///     .WithHandler&lt;MyWorkHandler&gt;()
+    ///     .WithHandler&lt;MyWork, MyWorkHandler&gt;()
     ///     .WithOpenTelemetry()
     ///     .Build();
     ///

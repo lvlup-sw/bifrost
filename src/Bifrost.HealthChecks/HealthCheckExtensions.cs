@@ -44,7 +44,7 @@ public static class HealthCheckExtensions
     /// <example>
     /// <code>
     /// services.AddWorkOrchestrator&lt;MyWork&gt;()
-    ///     .WithHandler&lt;MyWorkHandler&gt;()
+    ///     .WithHandler&lt;MyWork, MyWorkHandler&gt;()
     ///     .WithHealthChecks()
     ///     .Build();
     /// </code>
