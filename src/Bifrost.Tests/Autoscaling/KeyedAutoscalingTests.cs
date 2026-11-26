@@ -92,6 +92,27 @@ public class KeyedAutoscalingTests
     }
 
     /// <summary>
+    /// The registered backlog source is attached to the keyed orchestrator and reports its pending,
+    /// ready, and blocked counts.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task BacklogSource_IsAttached_AndReportsPendingReadyAndBlocked()
+    {
+        await using var fixture = KeyedFixture.Create(capacity: 8, ScaleUpOptions);
+        await fixture.AdmitAndWaitAsync("A:1");
+        fixture.Admit("A:2", "B:1");
+
+        var source = fixture.GetService<DispatchableBacklogSource<string>>();
+        var backlog = source!.Backlog!();
+
+        await Assert.That(backlog.Pending).IsEqualTo(2);
+        await Assert.That(backlog.Ready).IsEqualTo(1);
+        await Assert.That(backlog.Blocked).IsEqualTo(1);
+        await Assert.That(source.DispatchableCount!()).IsEqualTo(1);
+    }
+
+    /// <summary>
     /// With the default watermarks, hot keys at their cap with a blocked backlog do not scale the
     /// pool down, even though no queued item is dispatchable.
     /// </summary>
@@ -236,6 +257,10 @@ public class KeyedAutoscalingTests
         public AutoscalingEngine Engine { get; private set; } = null!;
 
         public double ScaleUpRatio => ((AutoscalingCoordinator<string>)Coordinator).GetScaleUpUtilizationRatio();
+
+        public T? GetService<T>()
+            where T : class
+            => _provider.GetService<T>();
 
         public static KeyedFixture Create(int capacity, AutoscalingOptions options)
         {

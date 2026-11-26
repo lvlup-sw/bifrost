@@ -90,6 +90,11 @@ internal static class KeyedWorkQueue
 /// <see cref="ConsumeMatchedWake"/> takes no permit in that state. Surplus permits (from the
 /// retirement hand-off or the completion broadcast) are tolerated: they end in a dequeue miss.
 /// </para>
+/// <para>
+/// <b>Abandonment.</b> <see cref="DiscardQueued"/> removes the queued items of a completed queue
+/// without touching active slots. A slot held by a running item is released only by that item's
+/// own <see cref="Release"/>, so a sweep that races a handler cannot release its slot twice.
+/// </para>
 /// </remarks>
 internal sealed class KeyedWorkQueue<TWork, TKey>
     : IWorkQueue<WorkEnvelope<TWork>>, ILeasedWorkQueue<WorkEnvelope<TWork>>, IWorkQueueLifecycle, IDispatchableBacklog,
@@ -147,6 +152,19 @@ internal sealed class KeyedWorkQueue<TWork, TKey>
         get
         {
             lock (_gate) return _dispatchable;
+        }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The pending and ready counts are read together under the lock, so
+    /// <see cref="DispatchBacklog.Blocked"/> is never negative.
+    /// </remarks>
+    public DispatchBacklog Backlog
+    {
+        get
+        {
+            lock (_gate) return new DispatchBacklog(_queued, _dispatchable);
         }
     }
 
@@ -318,6 +336,51 @@ internal sealed class KeyedWorkQueue<TWork, TKey>
             state.Active--;
             if (unblocks) MarkDispatchable(state);
             else if (state.Active == 0 && state.Items.Count == 0) _keys.Remove(state.Key);
+        }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// Every key's queued items are removed in one state change under the lock, blocked items
+    /// included. Active counts are left alone: a key that still runs items stays tracked until
+    /// those items release their slots, and every other key is removed. The ready list and the
+    /// dispatchable count become empty. Wake permits that funded the removed items stay behind as
+    /// surplus, which the binding tolerates.
+    /// </para>
+    /// <para>
+    /// The binding is completed, so the sweep leaves it completed and empty, and it releases one
+    /// permit per registered waiter, as the dequeue of the last item does.
+    /// </para>
+    /// </remarks>
+    public int DiscardQueued(ICollection<WorkEnvelope<TWork>> discarded)
+    {
+        ArgumentNullException.ThrowIfNull(discarded);
+        lock (_gate)
+        {
+            if (!_completed)
+                throw new InvalidOperationException("Queued items can be discarded only after the queue is completed.");
+            if (_queued == 0) return 0;
+
+            var removed = _queued;
+            List<TKey>? idle = null;
+            foreach (var state in _keys.Values)
+            {
+                while (state.Items.TryDequeue(out var item)) discarded.Add(item);
+                state.InReady = false;
+                if (state.Active == 0) (idle ??= []).Add(state.Key);
+            }
+
+            if (idle is not null)
+            {
+                foreach (var key in idle) _keys.Remove(key);
+            }
+
+            _ready.Clear();
+            _queued = 0;
+            _dispatchable = 0;
+            BroadcastToWaiters();
+            return removed;
         }
     }
 

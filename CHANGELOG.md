@@ -29,9 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - If the dead-letter queue throws while it stores a final failure, the error is logged and counted as a capture error. It is no longer reported as a handler failure, and subscribers are not notified.
   - Calling `WithDeadLetterQueue` twice no longer adds a second retry layer.
   - A final handler failure is logged once by the worker (`failed to process work item`) and, when captured, once more as a warning. Before, a dead-lettered failure was logged as one error (`dead-lettered after N attempts`).
+- **Abort and completion now sweep unstarted work out of the queue** (#131). `AbortAsync`, `DisposeAsync`, and the last worker's exit after `Complete` remove every queued item that no worker has started, including keyed items blocked behind a running item of the same key, and record each one as abandoned. `PendingCount` is now `0` after `AbortAsync` returns or `Completion` finishes; before, abandoned items kept counting as pending. Running handlers keep their key slot until they exit, and `DrainAsync` still runs every accepted item.
 
 ### Fixed
 
+- **An abort no longer faults completion when a dynamic worker's handler sees the cancellation first.** A token source sets its flag before it runs its callbacks, so a handler could throw `OperationCanceledException` while the worker's retirement-linked dequeue token was still uncancelled. The worker treated that as a failure, and `AbortAsync`, `DisposeAsync`, and `Completion` threw it. It is now treated as shutdown.
 - **Docs no longer say that resilience wraps handler calls** (#133). The README, the `ResilientOrchestrator` remarks, and `DeadLetterQueueOptions.MaxRetries` now say that admission resilience wraps `EnqueueAsync` only, has no circuit breaker, and does not retry handler failures. Dead-letter retries are immediate.
 - **`AddBifrostResilienceHandler()` no longer retries unsafe HTTP methods.** The retry strategy now sends a request again only when its method is GET, HEAD, OPTIONS, or TRACE. POST, PUT, PATCH, DELETE, CONNECT, and custom methods are sent once, so a change the server applied before the client saw a timeout, reset, 408, 429, or 5xx is not applied twice. `MaxRetries` still sets the retry count for safe methods.
 

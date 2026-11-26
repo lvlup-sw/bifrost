@@ -4,6 +4,8 @@
 // </copyright>
 // =============================================================================
 
+using Bifrost.Queues;
+
 namespace Bifrost.Autoscaling;
 
 /// <summary>
@@ -21,11 +23,22 @@ internal sealed class DispatchableBacklogSource<TWork>
     /// <summary>Gets the signal, or <see langword="null"/> before an orchestrator is attached.</summary>
     public Func<int>? DispatchableCount { get; private set; }
 
+    /// <summary>
+    /// Gets the pending, ready, and blocked counts of the attached orchestrator, or
+    /// <see langword="null"/> before an orchestrator is attached.
+    /// </summary>
+    /// <remarks>
+    /// Health checks and gauges read this instead of the decorated orchestrator, which only
+    /// exposes the total pending count. The counts are aggregate and carry no work key.
+    /// </remarks>
+    public Func<DispatchBacklog>? Backlog { get; private set; }
+
     /// <summary>Attaches the base orchestrator whose dispatchable backlog the signal reads.</summary>
     /// <param name="orchestrator">The undecorated orchestrator.</param>
     public void Attach(WorkOrchestrator<TWork> orchestrator)
     {
         ArgumentNullException.ThrowIfNull(orchestrator);
         DispatchableCount = () => orchestrator.DispatchableCount;
+        Backlog = () => orchestrator.Backlog;
     }
 }

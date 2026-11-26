@@ -13,8 +13,8 @@ using Microsoft.Extensions.Logging;
 namespace Bifrost.Outcomes;
 
 /// <summary>
-/// Settles each started work item once, after its handler pipeline exits and its key slot is
-/// released, and counts items that are abandoned.
+/// Settles each accepted work item once: a started item after its handler pipeline exits and its
+/// key slot is released, and a discarded item when the abandonment sweep removes it.
 /// </summary>
 /// <typeparam name="TWork">The work item type.</typeparam>
 /// <remarks>
@@ -70,8 +70,13 @@ internal sealed class TerminalOutcomeStage<TWork>
 
     /// <summary>
     /// Gets or sets an observer that is called once per settled item, after the counters change.
-    /// Abandoned items are counted in bulk and do not reach the observer.
+    /// Abandoned items reach it too, with zero attempts.
     /// </summary>
+    /// <remarks>
+    /// Abandoned records are delivered by the orchestrator's abandonment sweep while it holds its
+    /// lifecycle lock, which also blocks worker exit, <c>Complete</c>, and worker creation. So the
+    /// observer must be cheap and non-blocking, and it must not call back into the orchestrator.
+    /// </remarks>
     internal Action<TerminalOutcomeRecord>? Observed { get; set; }
 
     /// <summary>Logs a failed attempt that the orchestrator will retry.</summary>
@@ -80,11 +85,18 @@ internal sealed class TerminalOutcomeStage<TWork>
     internal void ReportRetry(Exception error, int attempt)
         => _logger.LogWarning(error, "Work item failed on attempt {Attempt}/{MaxAttempts}", attempt, MaxAttempts);
 
-    /// <summary>Counts accepted items that no worker will start.</summary>
-    /// <param name="count">The number of abandoned items.</param>
-    internal void RecordAbandoned(int count)
+    /// <summary>Settles one accepted item that no worker will start as <see cref="TerminalOutcome.Abandoned"/>.</summary>
+    /// <remarks>
+    /// The orchestrator's abandonment sweep calls this once for each queued item it removes. The
+    /// item used no handler attempt and has no duration. It is counted and reaches
+    /// <see cref="Observed"/>, but it publishes no <c>WorkCompletedEvent</c>, because it never
+    /// started.
+    /// </remarks>
+    internal void SettleAbandoned()
     {
-        if (count > 0) Counters.RecordAbandoned(count);
+        Counters.RecordOutcome(TerminalOutcome.Abandoned);
+        if (Observed is { } observer)
+            Observe(observer, new TerminalOutcomeRecord(TerminalOutcome.Abandoned, 0, TimeSpan.Zero, CaptureDisposition.None));
     }
 
     /// <summary>Settles one started item.</summary>
