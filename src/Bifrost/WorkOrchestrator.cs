@@ -539,6 +539,11 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <c>catch</c> of <see cref="RunRegisteredWorkerAsync"/>, the exception skips that error path
     /// and faults only the worker's task.
     /// </para>
+    /// <para>
+    /// A failed attempt is logged with the worker id and the work type name, never the work item.
+    /// The item can carry application data such as personal data or tokens, and access to logs is
+    /// often broader than access to the work itself.
+    /// </para>
     /// </remarks>
     private async Task ProcessEnvelopeAsync(string workerId, Action<bool>? stateCallback, CancellationToken ct,
         WorkEnvelope<TWork> envelope, object? lease)
@@ -578,7 +583,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         catch (Exception ex)
         {
             error = ex;
-            _logger.LogError(ex, "Worker {WorkerId} failed to process work item: {WorkItem}", workerId, envelope.Work);
+            _logger.LogError(ex, "Worker {WorkerId} failed to process work item of type {WorkType}", workerId, typeof(TWork).Name);
         }
         finally
         {
