@@ -7,6 +7,7 @@
 using System.Threading.Channels;
 
 using Bifrost.Core.DeadLetter;
+using Bifrost.Outcomes;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -35,8 +36,10 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
     /// </summary>
     /// <param name="options">The dead letter queue options.</param>
     /// <param name="logger">The logger instance.</param>
+    /// <param name="counters">Optional shared counters that also count each dropped item as an eviction.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> or <paramref name="logger"/> is null.</exception>
-    public DeadLetterQueue(IOptions<DeadLetterQueueOptions> options, ILogger<DeadLetterQueue<TWork>> logger)
+    public DeadLetterQueue(IOptions<DeadLetterQueueOptions> options, ILogger<DeadLetterQueue<TWork>> logger,
+        TerminalOutcomeCounters<TWork>? counters = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -54,6 +57,7 @@ internal sealed class DeadLetterQueue<TWork> : IDeadLetterQueue<TWork>
             _ =>
             {
                 Interlocked.Increment(ref _droppedCount);
+                counters?.RecordEviction();
                 _logger.LogWarning("DLQ at capacity ({Capacity}), oldest item will be dropped", _capacity);
             });
     }

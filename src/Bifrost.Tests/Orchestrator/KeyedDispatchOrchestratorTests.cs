@@ -9,6 +9,7 @@ using System.Diagnostics.CodeAnalysis;
 using Bifrost.Core;
 using Bifrost.Core.DeadLetter;
 using Bifrost.DeadLetter;
+using Bifrost.Outcomes;
 using Bifrost.Queues;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -288,13 +289,8 @@ public sealed class KeyedDispatchOrchestratorTests
         });
         var dlqOptions = Options.Create(new DeadLetterQueueOptions { MaxRetries = 2 });
         var dlq = new DeadLetterQueue<string>(dlqOptions, NullLogger<DeadLetterQueue<string>>.Instance);
-        var handler = new DeadLetterHandler<string>(
-            inner,
-            dlq,
-            new DeadLetterNotifier<string>(NullLogger<DeadLetterNotifier<string>>.Instance),
-            dlqOptions,
-            NullLogger<DeadLetterHandler<string>>.Instance);
-        await using var orchestrator = CreateKeyed(handler, workers: 2, maxConcurrencyPerKey: 1, out var queue);
+        var outcomes = new TerminalOutcomeOptions<string> { DeadLetterQueue = dlq, DeadLetterRetries = dlqOptions.Value.MaxRetries };
+        await using var orchestrator = CreateKeyed(inner, workers: 2, maxConcurrencyPerKey: 1, out var queue, outcomes: outcomes);
         Admit(orchestrator, "A:1", "A:2");
         await gated.WaitStartedAsync("A:1");
         await Assert.That(queue.ActiveCountForTest("A")).IsEqualTo(1);
@@ -470,7 +466,8 @@ public sealed class KeyedDispatchOrchestratorTests
     }
 
     private static WorkOrchestrator<string> CreateKeyed(IWorkHandler<string> handler, int workers, int maxConcurrencyPerKey,
-        out KeyedWorkQueue<string, string> queue, int capacity = 100, int maxPendingPerKey = 100)
+        out KeyedWorkQueue<string, string> queue, int capacity = 100, int maxPendingPerKey = 100,
+        TerminalOutcomeOptions<string>? outcomes = null)
     {
         var created = KeyedWorkQueue.Create<string, string>(KeyOf, capacity, maxPendingPerKey, maxConcurrencyPerKey);
         queue = created;
@@ -480,7 +477,8 @@ public sealed class KeyedDispatchOrchestratorTests
             NullLogger<WorkOrchestrator<string>>.Instance,
             null,
             null,
-            (_, _) => created);
+            (_, _) => created,
+            outcomes ?? new TerminalOutcomeOptions<string>());
     }
 
     private static WorkOrchestrator<string> CreateWithQueue(IWorkHandler<string> handler, int workers, CountingQueue queue)

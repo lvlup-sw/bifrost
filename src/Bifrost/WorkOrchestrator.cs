@@ -8,6 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
 using Bifrost.Core;
+using Bifrost.Outcomes;
 using Bifrost.Queues;
 
 using Microsoft.Extensions.Logging;
@@ -23,6 +24,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     private readonly IWorkQueueLifecycle _lifecycle;
     private readonly ILeasedWorkQueue<WorkEnvelope<TWork>>? _leased;
     private readonly IWorkHandler<TWork> _handler;
+    private readonly TerminalOutcomeStage<TWork> _outcomes;
     private readonly ILogger<WorkOrchestrator<TWork>> _logger;
     private readonly CancellationTokenSource _cts = new();
     private readonly CancellationToken _shutdownToken;
@@ -46,7 +48,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     public WorkOrchestrator(IWorkHandler<TWork> handler, IOptions<WorkOrchestratorOptions> options,
         ILogger<WorkOrchestrator<TWork>> logger, TimeProvider? timeProvider = null,
         Func<TWork, WorkClass>? classifier = null)
-        : this(null, handler, options, logger, timeProvider, classifier)
+        : this(null, handler, options, logger, timeProvider, classifier, null)
     {
     }
 
@@ -77,7 +79,30 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         ILogger<WorkOrchestrator<TWork>> logger, TimeProvider? timeProvider, Func<TWork, WorkClass>? classifier,
         Func<WorkOrchestratorOptions, TimeProvider, IWorkQueue<WorkEnvelope<TWork>>> queueFactory)
         : this(queueFactory ?? throw new ArgumentNullException(nameof(queueFactory)), handler, options, logger,
-            timeProvider, classifier)
+            timeProvider, classifier, null)
+    {
+    }
+
+    /// <summary>Creates the orchestrator with the fixed services of its terminal outcome stage.</summary>
+    /// <param name="handler">The work handler, with its handler decorators already applied.</param>
+    /// <param name="options">Ordering, capacity, and worker settings.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The timestamp source.</param>
+    /// <param name="classifier">The class used when per-item options omit it.</param>
+    /// <param name="queueFactory">
+    /// Creates the queue, or <see langword="null"/> to select a built-in binding from the dispatch strategy.
+    /// </param>
+    /// <param name="outcomes">The dead-letter, event-stream, and counter services of the terminal outcome stage.</param>
+    /// <remarks>
+    /// The builder uses this constructor, so dead-letter retries, capture, and completion events
+    /// are wired from flags and run in fixed slots outside every handler decorator.
+    /// </remarks>
+    internal WorkOrchestrator(IWorkHandler<TWork> handler, IOptions<WorkOrchestratorOptions> options,
+        ILogger<WorkOrchestrator<TWork>> logger, TimeProvider? timeProvider, Func<TWork, WorkClass>? classifier,
+        Func<WorkOrchestratorOptions, TimeProvider, IWorkQueue<WorkEnvelope<TWork>>>? queueFactory,
+        TerminalOutcomeOptions<TWork> outcomes)
+        : this(queueFactory, handler, options, logger, timeProvider, classifier,
+            outcomes ?? throw new ArgumentNullException(nameof(outcomes)))
     {
     }
 
@@ -88,6 +113,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">The timestamp source.</param>
     /// <param name="classifier">The class used when per-item options omit it.</param>
+    /// <param name="outcomes">The terminal outcome services, or <see langword="null"/> for one attempt and no capture.</param>
     /// <remarks>
     /// The strategy guards run before a built-in binding is built, so the public constructor keeps
     /// its exception order and message. <see cref="DispatchStrategy.Keyed"/> has no built-in
@@ -98,7 +124,8 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// </remarks>
     private WorkOrchestrator(Func<WorkOrchestratorOptions, TimeProvider, IWorkQueue<WorkEnvelope<TWork>>>? queueFactory,
         IWorkHandler<TWork> handler, IOptions<WorkOrchestratorOptions> options,
-        ILogger<WorkOrchestrator<TWork>> logger, TimeProvider? timeProvider, Func<TWork, WorkClass>? classifier)
+        ILogger<WorkOrchestrator<TWork>> logger, TimeProvider? timeProvider, Func<TWork, WorkClass>? classifier,
+        TerminalOutcomeOptions<TWork>? outcomes)
     {
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(options);
@@ -114,6 +141,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         _handler = handler;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _outcomes = new TerminalOutcomeStage<TWork>(outcomes, logger, _timeProvider);
         _classifier = classifier;
         _fullMode = opts.FullMode;
         _shutdownToken = _cts.Token;
@@ -210,6 +238,9 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     internal int DispatchableCount => _queue is IDispatchableBacklog backlog ? backlog.DispatchableCount : _queue.Count;
     internal Action<WorkClass, TimeSpan>? QueueWaitObserved { get; set; }
 
+    /// <summary>Gets the terminal outcome stage: its counters, its attempt limit, and its observer hook.</summary>
+    internal TerminalOutcomeStage<TWork> Outcomes => _outcomes;
+
     /// <inheritdoc/>
     public EnqueueResult Enqueue(TWork work, WorkEnqueueOptions options = default)
         => _queue.Enqueue(CreateEnvelope(work, options));
@@ -294,8 +325,17 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         lock (_lifecycleGate) return new(_disposeTask ??= DisposeCoreAsync());
     }
 
+    /// <summary>Completes <see cref="Completion"/> once the queue is complete and no worker is left.</summary>
+    /// <remarks>
+    /// No worker can start after this point, so every item still queued is abandoned and counted
+    /// before <see cref="Completion"/> finishes. After a drain the queue is empty, so the count is zero.
+    /// The bulk count from <c>Count</c> assumes that no other component settles queued items as
+    /// abandoned. A per-item abandon sweep must drain the queue first or replace this count, or
+    /// the two double-count.
+    /// </remarks>
     private void FinishCompletion()
     {
+        if (!_completion.Task.IsCompleted) _outcomes.RecordAbandoned(_queue.Count);
         if (_workerError is { } error) _completion.TrySetException(error);
         else _completion.TrySetResult();
     }
@@ -400,7 +440,7 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         }
     }
 
-    /// <summary>Runs the handler pipeline for one dequeued item and then returns its lease.</summary>
+    /// <summary>Runs the handler attempts for one dequeued item, returns its lease, and settles its outcome.</summary>
     /// <param name="workerId">The worker's identifier, used in logs.</param>
     /// <param name="stateCallback">The worker's busy/idle observer, if any.</param>
     /// <param name="ct">The handler token.</param>
@@ -408,16 +448,19 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
     /// <param name="lease">The lease from a leased binding, or <see langword="null"/> when there is nothing to release.</param>
     /// <remarks>
     /// <para>
-    /// The order is fixed. First the handler pipeline exits: the decorators, every dead-letter
-    /// retry, and the disposal of a scoped handler's DI scope all happen inside
-    /// <see cref="IWorkHandler{TWork}.HandleAsync"/>. Then the lease is released through
-    /// <see cref="ILeasedWorkQueue{T}.Release"/>. Last, the worker reports itself idle. This holds
-    /// on success, on a handler failure, and when cancellation rethrows.
+    /// The order is fixed. First the attempt loop runs. Each attempt calls the decorated handler, so
+    /// every handler decorator and every scoped handler's DI scope sees each attempt. A failed attempt
+    /// is retried while <see cref="TerminalOutcomeStage{TWork}.MaxAttempts"/> allows it, except when
+    /// it is an <see cref="OperationCanceledException"/> after the handler token was cancelled. Then
+    /// the lease is released through <see cref="ILeasedWorkQueue{T}.Release"/>. Then the terminal
+    /// outcome stage settles the item: it records one outcome, captures a final failure once, and
+    /// publishes events. Last, the worker reports itself idle. This holds on success, on a handler
+    /// failure, and when cancellation rethrows.
     /// </para>
     /// <para>
-    /// The release runs in a <c>try</c> whose <c>finally</c> reports idle, so a throwing release
-    /// cannot leave the busy flag set. Its exception then propagates to the caller. From the
-    /// consume loop, and from the drain after it, that is the worker's error path, which logs the
+    /// The release runs in a <c>try</c> whose <c>finally</c> settles the outcome and then reports
+    /// idle, so a throwing release skips neither. Its exception then propagates to the caller. From
+    /// the consume loop, and from the drain after it, that is the worker's error path, which logs the
     /// exception and faults completion. From the retirement drain inside the cancellation
     /// <c>catch</c> of <see cref="RunRegisteredWorkerAsync"/>, the exception skips that error path
     /// and faults only the worker's task.
@@ -429,30 +472,62 @@ public sealed class WorkOrchestrator<TWork> : IWorkOrchestrator<TWork>
         var observer = QueueWaitObserved;
         if (observer is not null) NotifyQueueWait(observer, in envelope, workerId);
         if (stateCallback is not null) NotifyWorkerState(stateCallback, true, workerId);
+        var startedAt = _timeProvider.GetTimestamp();
+        var outcome = TerminalOutcome.Failed;
+        var attempts = 0;
+        Exception? error = null;
         try
         {
-            await _handler.HandleAsync(envelope.Work, ct);
+            while (true)
+            {
+                attempts++;
+                try
+                {
+                    await _handler.HandleAsync(envelope.Work, ct);
+                    break;
+                }
+                catch (Exception ex) when (attempts < _outcomes.MaxAttempts && !IsHandlerCancellation(ex, ct))
+                {
+                    _outcomes.ReportRetry(ex, attempts);
+                }
+            }
+
+            outcome = TerminalOutcome.Succeeded;
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (ct.IsCancellationRequested)
         {
+            outcome = TerminalOutcome.Canceled;
+            error = ex;
             throw;
         }
         catch (Exception ex)
         {
+            error = ex;
             _logger.LogError(ex, "Worker {WorkerId} failed to process work item: {WorkItem}", workerId, envelope.Work);
         }
         finally
         {
+            var duration = _timeProvider.GetElapsedTime(startedAt);
             try
             {
                 if (lease is not null) _leased!.Release(lease);
             }
             finally
             {
-                if (stateCallback is not null) NotifyWorkerState(stateCallback, false, workerId);
+                try
+                {
+                    await _outcomes.SettleAsync(envelope.Work, outcome, attempts, error, duration);
+                }
+                finally
+                {
+                    if (stateCallback is not null) NotifyWorkerState(stateCallback, false, workerId);
+                }
             }
         }
     }
+
+    private static bool IsHandlerCancellation(Exception error, CancellationToken ct)
+        => error is OperationCanceledException && ct.IsCancellationRequested;
 
     /// <summary>Dequeues the next item through the leased path when the binding has one.</summary>
     /// <param name="envelope">The dequeued item when the method returns <c>true</c>.</param>

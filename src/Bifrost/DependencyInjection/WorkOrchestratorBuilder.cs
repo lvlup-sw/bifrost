@@ -6,8 +6,11 @@
 
 using Bifrost.Autoscaling;
 using Bifrost.Core;
+using Bifrost.Core.DeadLetter;
 using Bifrost.Core.Events;
+using Bifrost.DeadLetter;
 using Bifrost.Handlers;
+using Bifrost.Outcomes;
 using Bifrost.Queues;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -95,6 +98,14 @@ public sealed class WorkOrchestratorBuilder<TWork>
     internal bool PriorityDispatchConfigured { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether <c>WithDeadLetterQueue</c> was called, so that
+    /// <see cref="Build"/> wires dead-letter retries and capture into the orchestrator's fixed
+    /// terminal outcome stage.
+    /// </summary>
+    /// <value><c>true</c> if <c>WithDeadLetterQueue</c> was called; otherwise, <c>false</c>.</value>
+    internal bool DeadLetterConfigured { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="WorkOrchestratorBuilder{TWork}"/> class.
     /// </summary>
     /// <param name="services">The service collection to register services with.</param>
@@ -118,6 +129,12 @@ public sealed class WorkOrchestratorBuilder<TWork>
     /// decorators in order, wraps the decorated handler in the base
     /// <see cref="WorkOrchestrator{TWork}"/>, applies the orchestrator decorators in order, and then
     /// runs the post-build actions.
+    /// </para>
+    /// <para>
+    /// Dead-letter retries and capture (<c>WithDeadLetterQueue</c>) and completion events
+    /// (<c>WithEventStream</c>) are not handler decorators. The factory passes them to the base
+    /// orchestrator's terminal outcome stage from flags read here, so they run outside the
+    /// outermost handler decorator for every call order.
     /// </para>
     /// <para>
     /// With <c>WithKeyedDispatch</c>, the base orchestrator is created from the keyed queue factory,
@@ -178,6 +195,8 @@ public sealed class WorkOrchestratorBuilder<TWork>
         var postBuildActions = PostBuildActions.ToList();
         var handlerLifetime = HandlerLifetime;
         var classifier = Classifier;
+        var deadLetterConfigured = DeadLetterConfigured;
+        var eventPublisher = EventPublishCallback;
 
         Services.AddSingleton<IValidateOptions<WorkOrchestratorOptions>>(
             new DispatchStrategyOptionsValidator(WorkOptions.Name<TWork>(), keyedQueueFactory is not null));
@@ -185,6 +204,8 @@ public sealed class WorkOrchestratorBuilder<TWork>
         {
             Services.TryAddSingleton<DispatchableBacklogSource<TWork>>();
         }
+
+        Services.TryAddSingleton(static _ => new TerminalOutcomeCounters<TWork>());
 
         Services.AddSingleton<IWorkWriter<TWork>>(sp => sp.GetRequiredService<IWorkOrchestrator<TWork>>());
         Services.AddSingleton<IWorkOrchestrator<TWork>>(sp =>
@@ -209,14 +230,10 @@ public sealed class WorkOrchestratorBuilder<TWork>
             var options = Options.Create(
                 sp.GetRequiredService<IOptionsMonitor<WorkOrchestratorOptions>>().Get(WorkOptions.Name<TWork>()));
             var logger = sp.GetRequiredService<ILogger<WorkOrchestrator<TWork>>>();
-            WorkOrchestrator<TWork> core;
-            if (keyedQueueFactory is null)
+            var outcomes = CreateOutcomeOptions(sp, deadLetterConfigured, eventPublisher);
+            var core = new WorkOrchestrator<TWork>(handler, options, logger, null, classifier, keyedQueueFactory, outcomes);
+            if (keyedQueueFactory is not null)
             {
-                core = new WorkOrchestrator<TWork>(handler, options, logger, classifier: classifier);
-            }
-            else
-            {
-                core = new WorkOrchestrator<TWork>(handler, options, logger, null, null, keyedQueueFactory);
                 sp.GetRequiredService<DispatchableBacklogSource<TWork>>().Attach(core);
             }
 
@@ -234,6 +251,31 @@ public sealed class WorkOrchestratorBuilder<TWork>
 
             return orchestrator;
         });
+    }
+
+    /// <summary>Resolves the fixed services of the terminal outcome stage.</summary>
+    /// <param name="sp">The service provider.</param>
+    /// <param name="deadLetterConfigured">Whether <c>WithDeadLetterQueue</c> was called.</param>
+    /// <param name="eventPublisher">The event-stream publisher, or <see langword="null"/>.</param>
+    /// <returns>The stage options.</returns>
+    private static TerminalOutcomeOptions<TWork> CreateOutcomeOptions(
+        IServiceProvider sp, bool deadLetterConfigured, Action<IOrchestratorEvent>? eventPublisher)
+    {
+        var counters = sp.GetRequiredService<TerminalOutcomeCounters<TWork>>();
+        if (!deadLetterConfigured)
+        {
+            return new TerminalOutcomeOptions<TWork> { EventPublisher = eventPublisher, Counters = counters };
+        }
+
+        var deadLetterOptions = sp.GetRequiredService<IOptionsMonitor<DeadLetterQueueOptions>>().Get(WorkOptions.Name<TWork>());
+        return new TerminalOutcomeOptions<TWork>
+        {
+            DeadLetterQueue = sp.GetRequiredService<IDeadLetterQueue<TWork>>(),
+            DeadLetterRetries = deadLetterOptions.MaxRetries,
+            Notifier = sp.GetRequiredService<DeadLetterNotifier<TWork>>(),
+            EventPublisher = eventPublisher,
+            Counters = counters,
+        };
     }
 }
 

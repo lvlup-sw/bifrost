@@ -227,8 +227,10 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
     }
 
     /// <summary>
-    /// Publishes an event to all subscribers. Also called by <see cref="CompletionTrackingHandler"/>
-    /// to publish <see cref="WorkCompletedEvent{TWork}"/> events.
+    /// Publishes an event to all subscribers. In a builder registration, the terminal outcome
+    /// stage publishes <see cref="WorkCompletedEvent{TWork}"/> events here through the builder's
+    /// event callback. A handler from the public <c>CreateCompletionTrackingHandler</c> factory
+    /// also publishes here.
     /// </summary>
     /// <param name="evt">The event to publish.</param>
     /// <remarks>
@@ -282,14 +284,17 @@ public sealed class EventStreamOrchestrator<TWork> : IEventStreamOrchestrator<TW
 
     /// <summary>
     /// Creates a handler decorator that tracks work completion and publishes
-    /// <see cref="WorkCompletedEvent{TWork}"/> events via a callback. This overload
-    /// supports late-binding scenarios where the orchestrator instance is not yet
-    /// available at handler construction time (e.g., during DI registration).
+    /// <see cref="WorkCompletedEvent{TWork}"/> events via a callback. Test seam only.
     /// </summary>
     /// <param name="innerHandler">The handler to wrap.</param>
     /// <param name="publishCallback">Callback invoked to publish completion events.</param>
     /// <returns>A handler that wraps the inner handler with completion tracking.</returns>
     /// <exception cref="ArgumentNullException">Thrown when parameters are null.</exception>
+    /// <remarks>
+    /// The builder no longer registers this decorator; the terminal outcome stage publishes
+    /// completion events for builder registrations. Tests use this overload to observe the
+    /// decorator's events without an <see cref="EventStreamOrchestrator{TWork}"/>.
+    /// </remarks>
     internal static IWorkHandler<TWork> CreateCompletionTrackingHandler(
         IWorkHandler<TWork> innerHandler,
         Action<IOrchestratorEvent> publishCallback)

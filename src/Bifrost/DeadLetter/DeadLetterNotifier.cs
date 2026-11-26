@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Bifrost.Core.Events;
+using Bifrost.Outcomes;
 
 using Microsoft.Extensions.Logging;
 
@@ -27,15 +28,18 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
     private readonly SemaphoreSlim _outstanding = new(MaxOutstandingCallbacks, MaxOutstandingCallbacks);
     private readonly object _lock = new();
     private readonly ILogger<DeadLetterNotifier<TWork>> _logger;
+    private readonly TerminalOutcomeCounters<TWork>? _counters;
     private int _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DeadLetterNotifier{TWork}"/> class.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
-    public DeadLetterNotifier(ILogger<DeadLetterNotifier<TWork>> logger)
+    /// <param name="counters">Optional shared counters that also count each dropped notification.</param>
+    public DeadLetterNotifier(ILogger<DeadLetterNotifier<TWork>> logger, TerminalOutcomeCounters<TWork>? counters = null)
     {
         _logger = logger;
+        _counters = counters;
     }
 
     /// <summary>
@@ -79,6 +83,7 @@ internal sealed class DeadLetterNotifier<TWork> : IDisposable
         {
             if (!_outstanding.Wait(0))
             {
+                _counters?.RecordNotificationDropped();
                 _logger.LogWarning(
                     "Dropped a dead letter notification because {Limit} callbacks are still outstanding",
                     MaxOutstandingCallbacks);

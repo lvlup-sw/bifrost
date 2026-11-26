@@ -25,7 +25,6 @@ public static class HandlerDecoratorExtensions
     /// <param name="order">
     /// Optional explicit order. If null, auto-assigns the next available order.
     /// Lower values are applied first (closer to the actual handler).
-    /// Built-in decorator orders: DLQ = auto, CompletionTracking = auto.
     /// </param>
     /// <returns>The builder for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder"/> or <paramref name="factory"/> is null.</exception>
@@ -39,6 +38,12 @@ public static class HandlerDecoratorExtensions
     /// Decorators are applied in ascending order: the decorator with the lowest order value
     /// is applied first (closest to the original handler), and the one with the highest order
     /// is outermost.
+    /// </para>
+    /// <para>
+    /// Dead-letter retries and capture (<c>WithDeadLetterQueue</c>) and completion events
+    /// (<c>WithEventStream</c>) are not handler decorators. They run in fixed slots outside the
+    /// outermost handler decorator, so every handler decorator sees each attempt, whatever the call
+    /// order.
     /// </para>
     /// </remarks>
     public static WorkOrchestratorBuilder<TWork> WithHandlerDecorator<TWork>(

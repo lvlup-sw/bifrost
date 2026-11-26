@@ -45,8 +45,8 @@ internal static class RejectionRoutingRegistration
     /// <remarks>
     /// The factory closure captures <paramref name="builder"/>, so it reads
     /// <c>EventPublishCallback</c> when the factory runs during <c>Build()</c>. This lets
-    /// <c>WithEventStream</c> be called in any order, as in the wiring of
-    /// <see cref="DeadLetterHandler{TWork}"/>.
+    /// <c>WithEventStream</c> be called in any order, as in the wiring of the terminal outcome
+    /// stage in <c>Build()</c>.
     /// </remarks>
     internal static void EnsureRegistered<TWork>(WorkOrchestratorBuilder<TWork> builder)
     {
