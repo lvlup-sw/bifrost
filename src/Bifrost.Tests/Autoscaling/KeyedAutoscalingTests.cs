@@ -179,7 +179,10 @@ public class KeyedAutoscalingTests
             NullLogger<AutoscalingEngine>.Instance);
     }
 
-    /// <summary>A FIFO orchestrator gets no dispatchable signal, so the ratio stays pending over capacity.</summary>
+    /// <summary>
+    /// A FIFO orchestrator gets no dispatchable signal: no backlog source is registered, and both
+    /// ratios stay pending over capacity.
+    /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
     public async Task FifoOrchestrator_RatioUsesPendingCount()
@@ -210,6 +213,8 @@ public class KeyedAutoscalingTests
         await orchestrator.EnqueueAsync("third");
 
         await Assert.That(coordinator.GetUtilizationRatio()).IsEqualTo(2.0 / 8);
+        await Assert.That(((AutoscalingCoordinator<string>)coordinator).GetScaleUpUtilizationRatio()).IsEqualTo(2.0 / 8);
+        await Assert.That(provider.GetService<DispatchableBacklogSource<string>>()).IsNull();
 
         release.TrySetResult();
         await orchestrator.DrainAsync().WaitAsync(WaitTimeout);

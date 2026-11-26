@@ -50,10 +50,7 @@ internal sealed class DispatchStrategyOptionsValidator(string name, bool keyed) 
 
         List<string>? failures = null;
         if (options.DispatchStrategy != DispatchStrategy.Keyed)
-        {
-            (failures ??= []).Add(
-                $"Keyed dispatch needs DispatchStrategy.Keyed, but the options select {options.DispatchStrategy}. Keyed dispatch cannot be combined with class priority dispatch.");
-        }
+            (failures ??= []).Add(StrategyFailure(options.DispatchStrategy));
 
         if (options.FullMode != QueueFullMode.Reject)
         {
@@ -63,4 +60,17 @@ internal sealed class DispatchStrategyOptionsValidator(string name, bool keyed) 
 
         return failures is null ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
+
+    /// <summary>Builds the failure message for a keyed registration whose strategy is not keyed.</summary>
+    /// <param name="strategy">The strategy the options select.</param>
+    /// <returns>The failure message.</returns>
+    /// <remarks>
+    /// A priority strategy is a class priority conflict. <see cref="DispatchStrategy.Fifo"/> is not
+    /// class priority: it means another configure action reset the strategy after
+    /// <c>WithKeyedDispatch</c> set it.
+    /// </remarks>
+    private static string StrategyFailure(DispatchStrategy strategy)
+        => strategy is DispatchStrategy.PriorityExact or DispatchStrategy.PriorityRelaxed
+            ? $"Keyed dispatch needs DispatchStrategy.Keyed, but the options select {strategy}. Keyed dispatch cannot be combined with class priority dispatch."
+            : $"Keyed dispatch needs DispatchStrategy.Keyed, but the options select {strategy}. Another configure action reset the strategy after WithKeyedDispatch; remove that change.";
 }

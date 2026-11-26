@@ -245,9 +245,11 @@ public sealed class AutoscalingEngine : IAutoscalingEngine, IDisposable
     /// </param>
     /// <returns>A scaling decision indicating what action to take.</returns>
     /// <remarks>
-    /// The scale-up check runs first. The scale-up ratio is never above
-    /// <paramref name="utilization"/>, so a backlog whose scale-up ratio is under the high
-    /// watermark while its total ratio is over the low watermark holds the worker count.
+    /// The scale-up check runs first, so a backlog whose scale-up ratio is under the high watermark
+    /// while its total ratio is over the low watermark holds the worker count. For one consistent
+    /// snapshot the scale-up ratio is never above <paramref name="utilization"/>. The two ratios
+    /// come from separate reads, though, so an admission between them can make the scale-up ratio
+    /// briefly larger. That is harmless, because the decision order alone decides the outcome.
     /// </remarks>
     private ScalingDecision Evaluate(int currentWorkers, double scaleUpUtilization, double utilization)
     {

@@ -312,6 +312,29 @@ public class KeyedDispatchExtensionsTests
         await Assert.That(error!.Message).Contains("cannot be combined with class priority");
     }
 
+    /// <summary>
+    /// A FIFO strategy set by a later configure action fails validation with a reset message,
+    /// not a class priority message.
+    /// </summary>
+    /// <returns>A task representing the asynchronous test.</returns>
+    [Test]
+    public async Task Options_FifoResetAfterKeyed_FailsValidationWithResetMessage()
+    {
+        var services = CreateServices();
+        services.AddWorkOrchestrator<Turn>()
+            .WithKeyedDispatch(static t => t.TenantId, 1, 1)
+            .WithHandler(static (_, _) => ValueTask.CompletedTask)
+            .Build();
+        services.Configure<WorkOrchestratorOptions>(WorkOptions.Name<Turn>(), static o => o.DispatchStrategy = DispatchStrategy.Fifo);
+        await using var provider = services.BuildServiceProvider();
+
+        var error = await Assert.That(() => provider.GetRequiredService<IWorkOrchestrator<Turn>>())
+            .Throws<OptionsValidationException>();
+
+        await Assert.That(error!.Message).Contains("reset the strategy after WithKeyedDispatch");
+        await Assert.That(error.Message).DoesNotContain("class priority");
+    }
+
     /// <summary>Wait full mode set after keyed dispatch fails options validation.</summary>
     /// <returns>A task representing the asynchronous test.</returns>
     [Test]
