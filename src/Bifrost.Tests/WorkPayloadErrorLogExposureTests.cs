@@ -47,7 +47,7 @@ public sealed class WorkPayloadErrorLogExposureTests
             strategy,
             ConsoleFormatterNames.Simple,
             static (orchestrator, item) => new ValueTask<EnqueueResult>(orchestrator.Enqueue(item)),
-            WorkerKind.Constructor).ConfigureAwait(false);
+            WorkerKind.Constructor);
     }
 
     /// <summary><see cref="IWorkWriter{TWork}.TryEnqueue"/> admits the same payload into the failure log.</summary>
@@ -66,7 +66,7 @@ public sealed class WorkPayloadErrorLogExposureTests
                 orchestrator.TryEnqueue(item)
                     ? EnqueueResult.Accepted
                     : EnqueueResult.Rejected(RejectionReason.CapacityExceeded)),
-            WorkerKind.Constructor).ConfigureAwait(false);
+            WorkerKind.Constructor);
     }
 
     /// <summary><see cref="IWorkWriter{TWork}.EnqueueAsync"/> admits the same payload into the failure log.</summary>
@@ -82,7 +82,7 @@ public sealed class WorkPayloadErrorLogExposureTests
             DispatchStrategy.Fifo,
             ConsoleFormatterNames.Simple,
             static (orchestrator, item) => orchestrator.EnqueueAsync(item),
-            WorkerKind.Constructor).ConfigureAwait(false);
+            WorkerKind.Constructor);
     }
 
     /// <summary>The FIFO wait path keeps the admitted object that the failure log later receives.</summary>
@@ -91,7 +91,7 @@ public sealed class WorkPayloadErrorLogExposureTests
     {
         var secrets = new[] { AccountTokenSecret, PaymentDetailSecret };
         var handler = new GatedHandler();
-        using var scope = await ConsoleLogScope.StartAsync(ConsoleFormatterNames.Simple).ConfigureAwait(false);
+        using var scope = await ConsoleLogScope.StartAsync(ConsoleFormatterNames.Simple);
         await using var orchestrator = new WorkOrchestrator<SensitiveJob>(
             handler,
             Options.Create(new WorkOrchestratorOptions
@@ -107,7 +107,7 @@ public sealed class WorkPayloadErrorLogExposureTests
         {
             var blocker = orchestrator.Enqueue(new SensitiveJob("ordinary-account", "ordinary-payment"));
             await Assert.That(blocker.IsAccepted).IsTrue();
-            await handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             var filler = orchestrator.Enqueue(new SensitiveJob("filler-account", "filler-payment"));
             await Assert.That(filler.IsAccepted).IsTrue();
             await Assert.That(orchestrator.PendingCount).IsEqualTo(1);
@@ -116,18 +116,18 @@ public sealed class WorkPayloadErrorLogExposureTests
             await Task.Yield();
             await Assert.That(waiting.IsCompleted).IsFalse();
             handler.Release();
-            var admitted = await waiting.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            var admitted = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
             await Assert.That(admitted.IsAccepted).IsTrue();
-            await handler.TargetSeen.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-            await scope.Capture.ErrorLogged.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await handler.TargetSeen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await scope.Capture.ErrorLogged.WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {
             handler.Release();
-            await orchestrator.DisposeAsync().ConfigureAwait(false);
+            await orchestrator.DisposeAsync();
         }
 
-        await AssertSecretsAbsent(scope, secrets, typeof(SensitiveJob)).ConfigureAwait(false);
+        await AssertSecretsAbsent(scope, secrets, typeof(SensitiveJob));
     }
 
     /// <summary>A retiring worker still formats the retained payload when the handler throws.</summary>
@@ -146,7 +146,7 @@ public sealed class WorkPayloadErrorLogExposureTests
             strategy,
             ConsoleFormatterNames.Simple,
             static (orchestrator, item) => new ValueTask<EnqueueResult>(orchestrator.Enqueue(item)),
-            WorkerKind.RetiredDrain).ConfigureAwait(false);
+            WorkerKind.RetiredDrain);
     }
 
     /// <summary>The dependency-injection builder without a dead-letter decorator uses the same failure log.</summary>
@@ -155,7 +155,7 @@ public sealed class WorkPayloadErrorLogExposureTests
     {
         var secrets = new[] { AccountTokenSecret, PaymentDetailSecret };
         var seen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var scope = await ConsoleLogScope.StartAsync(ConsoleFormatterNames.Simple).ConfigureAwait(false);
+        using var scope = await ConsoleLogScope.StartAsync(ConsoleFormatterNames.Simple);
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(scope.Factory);
         services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
@@ -181,15 +181,15 @@ public sealed class WorkPayloadErrorLogExposureTests
         {
             var admitted = orchestrator.Enqueue(new SensitiveJob(AccountTokenSecret, PaymentDetailSecret));
             await Assert.That(admitted.IsAccepted).IsTrue();
-            await seen.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-            await scope.Capture.ErrorLogged.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await seen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await scope.Capture.ErrorLogged.WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {
-            await orchestrator.DisposeAsync().ConfigureAwait(false);
+            await orchestrator.DisposeAsync();
         }
 
-        await AssertSecretsAbsent(scope, secrets, typeof(SensitiveJob)).ConfigureAwait(false);
+        await AssertSecretsAbsent(scope, secrets, typeof(SensitiveJob));
     }
 
     /// <summary>The JSON console formatter writes the same work-item string conversion.</summary>
@@ -205,7 +205,7 @@ public sealed class WorkPayloadErrorLogExposureTests
             DispatchStrategy.Fifo,
             ConsoleFormatterNames.Json,
             static (orchestrator, item) => new ValueTask<EnqueueResult>(orchestrator.Enqueue(item)),
-            WorkerKind.Constructor).ConfigureAwait(false);
+            WorkerKind.Constructor);
     }
 
     /// <summary>A string work item is the payload, so its text must stay out of the failure log.</summary>
@@ -220,7 +220,7 @@ public sealed class WorkPayloadErrorLogExposureTests
             DispatchStrategy.Fifo,
             ConsoleFormatterNames.Simple,
             static (orchestrator, item) => new ValueTask<EnqueueResult>(orchestrator.Enqueue(item)),
-            WorkerKind.Constructor).ConfigureAwait(false);
+            WorkerKind.Constructor);
     }
 
     /// <summary>A class payload must not be passed to the log formatter, even when its default string conversion hides fields.</summary>
@@ -236,7 +236,7 @@ public sealed class WorkPayloadErrorLogExposureTests
             DispatchStrategy.Fifo,
             ConsoleFormatterNames.Simple,
             static (orchestrator, item) => new ValueTask<EnqueueResult>(orchestrator.Enqueue(item)),
-            WorkerKind.Constructor).ConfigureAwait(false);
+            WorkerKind.Constructor);
     }
 
     /// <summary>A collection work item is expanded by the log formatter, so element text must stay out of the record.</summary>
@@ -252,7 +252,7 @@ public sealed class WorkPayloadErrorLogExposureTests
             DispatchStrategy.Fifo,
             ConsoleFormatterNames.Simple,
             static (orchestrator, item) => new ValueTask<EnqueueResult>(orchestrator.Enqueue(item)),
-            WorkerKind.Constructor).ConfigureAwait(false);
+            WorkerKind.Constructor);
     }
 
     private static async Task AssertFailureOmitsPayload<TWork>(
@@ -266,7 +266,7 @@ public sealed class WorkPayloadErrorLogExposureTests
         WorkerKind workerKind)
     {
         var handler = new TargetHandler<TWork>(isTarget);
-        using var scope = await ConsoleLogScope.StartAsync(formatterName).ConfigureAwait(false);
+        using var scope = await ConsoleLogScope.StartAsync(formatterName);
         await using var orchestrator = new WorkOrchestrator<TWork>(
             handler,
             Options.Create(new WorkOrchestratorOptions
@@ -280,30 +280,30 @@ public sealed class WorkPayloadErrorLogExposureTests
 
         try
         {
-            var admitted = await admit(orchestrator, work).ConfigureAwait(false);
+            var admitted = await admit(orchestrator, work);
             await Assert.That(admitted.IsAccepted).IsTrue();
             if (workerKind == WorkerKind.RetiredDrain)
             {
                 using var retirement = new CancellationTokenSource();
-                await retirement.CancelAsync().ConfigureAwait(false);
+                await retirement.CancelAsync();
                 var worker = orchestrator.CreateWorkerFunction(stateCallback: null, retirement.Token);
                 var running = worker("retired-worker", CancellationToken.None);
-                await handler.TargetSeen.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-                await scope.Capture.ErrorLogged.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-                await running.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await handler.TargetSeen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                await scope.Capture.ErrorLogged.WaitAsync(TimeSpan.FromSeconds(5));
+                await running.WaitAsync(TimeSpan.FromSeconds(5));
             }
             else
             {
-                await handler.TargetSeen.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-                await scope.Capture.ErrorLogged.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await handler.TargetSeen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                await scope.Capture.ErrorLogged.WaitAsync(TimeSpan.FromSeconds(5));
             }
         }
         finally
         {
-            await orchestrator.DisposeAsync().ConfigureAwait(false);
+            await orchestrator.DisposeAsync();
         }
 
-        await AssertSecretsAbsent(scope, secrets, forbiddenValueTypes).ConfigureAwait(false);
+        await AssertSecretsAbsent(scope, secrets, forbiddenValueTypes);
     }
 
     private static async Task AssertSecretsAbsent(ConsoleLogScope scope, IReadOnlyList<string> secrets, params Type[] forbiddenValueTypes)
@@ -391,7 +391,7 @@ public sealed class WorkPayloadErrorLogExposureTests
             if (call == 1)
             {
                 Entered.TrySetResult();
-                await _release.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                await _release.Task.WaitAsync(cancellationToken);
                 return;
             }
 
@@ -510,7 +510,7 @@ public sealed class WorkPayloadErrorLogExposureTests
 
         public static async Task<ConsoleLogScope> StartAsync(string formatterName)
         {
-            await Gate.WaitAsync().ConfigureAwait(false);
+            await Gate.WaitAsync();
             var capture = new CapturingLoggerProvider();
             try
             {
