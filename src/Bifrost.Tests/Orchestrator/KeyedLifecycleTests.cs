@@ -24,7 +24,9 @@ namespace Bifrost.Tests.Orchestrator;
 /// Work items are strings of the form <c>key:n</c>. Handlers wait on
 /// <see cref="TaskCompletionSource"/> gates, so each test decides when an item finishes. Bounded
 /// waits only guard against hangs. The keyed queue is wrapped in <see cref="ObservedKeyedQueue"/>,
-/// which counts dequeues, releases, and swept items.
+/// which counts dequeues, releases, and swept items, and signals checkpoints the tests await
+/// instead of polling. A gate that holds handlers past cancellation is opened in a
+/// <c>finally</c> block, so a failed assertion fails the test instead of hanging its disposal.
 /// </remarks>
 public sealed class KeyedLifecycleTests
 {
@@ -36,6 +38,12 @@ public sealed class KeyedLifecycleTests
     /// and every key is removed.
     /// </summary>
     /// <returns>A task representing the asynchronous test.</returns>
+    /// <remarks>
+    /// The handlers ignore cancellation while they wait on the shared <c>finally</c> gate, so the
+    /// gate is also opened in a <c>finally</c> block that runs before the orchestrator is disposed.
+    /// Otherwise a failed assertion would leave both handlers blocked and disposal's abort would
+    /// wait forever.
+    /// </remarks>
     [Test]
     public async Task Abort_WhileHandlerInFinally_SweepsBlockedItems_AndReleasesEachSlotOnce()
     {
@@ -43,38 +51,45 @@ public sealed class KeyedLifecycleTests
         var handler = new GatedHandler { FinallyGate = finallyGate.Task };
         var records = new ConcurrentQueue<TerminalOutcomeRecord>();
         await using var orchestrator = CreateKeyed(handler, workers: 2, maxConcurrencyPerKey: 1, out var queue, records);
-        Admit(orchestrator, "A:1", "B:1");
-        await handler.WaitStartedAsync("A:1");
-        await handler.WaitStartedAsync("B:1");
-        Admit(orchestrator, "A:2", "A:3", "B:2");
+        try
+        {
+            Admit(orchestrator, "A:1", "B:1");
+            await handler.WaitStartedAsync("A:1");
+            await handler.WaitStartedAsync("B:1");
+            Admit(orchestrator, "A:2", "A:3", "B:2");
 
-        await Assert.That(orchestrator.Backlog).IsEqualTo(new DispatchBacklog(3, 0));
+            await Assert.That(orchestrator.Backlog).IsEqualTo(new DispatchBacklog(3, 0));
 
-        var abort = orchestrator.AbortAsync();
+            var abort = orchestrator.AbortAsync();
 
-        await Assert.That(queue.Discarded).IsEquivalentTo(new[] { "A:2", "A:3", "B:2" });
-        await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
-        await Assert.That(orchestrator.Outcomes.Counters.Abandoned).IsEqualTo(3);
-        await Assert.That(records.Count(r => r.Outcome == TerminalOutcome.Abandoned)).IsEqualTo(3);
-        await Assert.That(queue.Inner.TrackedKeyCountForTest).IsEqualTo(2);
+            await Assert.That(queue.Discarded).IsEquivalentTo(new[] { "A:2", "A:3", "B:2" });
+            await Assert.That(orchestrator.PendingCount).IsEqualTo(0);
+            await Assert.That(orchestrator.Outcomes.Counters.Abandoned).IsEqualTo(3);
+            await Assert.That(records.Count(r => r.Outcome == TerminalOutcome.Abandoned)).IsEqualTo(3);
+            await Assert.That(queue.Inner.TrackedKeyCountForTest).IsEqualTo(2);
 
-        await handler.WaitInFinallyAsync("A:1");
-        await handler.WaitInFinallyAsync("B:1");
+            await handler.WaitInFinallyAsync("A:1");
+            await handler.WaitInFinallyAsync("B:1");
 
-        await Assert.That(abort.IsCompleted).IsFalse();
-        await Assert.That(queue.Releases).IsEqualTo(0);
-        await Assert.That(queue.Inner.ActiveCountForTest("A")).IsEqualTo(1);
+            await Assert.That(abort.IsCompleted).IsFalse();
+            await Assert.That(queue.Releases).IsEqualTo(0);
+            await Assert.That(queue.Inner.ActiveCountForTest("A")).IsEqualTo(1);
 
-        finallyGate.TrySetResult();
-        await abort.WaitAsync(WaitTimeout);
+            finallyGate.TrySetResult();
+            await abort.WaitAsync(WaitTimeout);
 
-        await Assert.That(orchestrator.Completion.IsCompletedSuccessfully).IsTrue();
-        await Assert.That(queue.Dequeued).IsEquivalentTo(new[] { "A:1", "B:1" });
-        await Assert.That(queue.Releases).IsEqualTo(2);
-        await Assert.That(queue.FailedReleases).IsEqualTo(0);
-        await Assert.That(queue.Inner.TrackedKeyCountForTest).IsEqualTo(0);
-        await Assert.That(orchestrator.Outcomes.Counters.Canceled).IsEqualTo(2);
-        await Assert.That(records.Count).IsEqualTo(5);
+            await Assert.That(orchestrator.Completion.IsCompletedSuccessfully).IsTrue();
+            await Assert.That(queue.Dequeued).IsEquivalentTo(new[] { "A:1", "B:1" });
+            await Assert.That(queue.Releases).IsEqualTo(2);
+            await Assert.That(queue.FailedReleases).IsEqualTo(0);
+            await Assert.That(queue.Inner.TrackedKeyCountForTest).IsEqualTo(0);
+            await Assert.That(orchestrator.Outcomes.Counters.Canceled).IsEqualTo(2);
+            await Assert.That(records.Count).IsEqualTo(5);
+        }
+        finally
+        {
+            finallyGate.TrySetResult();
+        }
     }
 
     /// <summary>
@@ -219,7 +234,7 @@ public sealed class KeyedLifecycleTests
         await handler.WaitStartedAsync("A:1");
         var survivor = orchestrator.CreateWorkerFunction(
             busy => { if (busy) Interlocked.Increment(ref survivorBusy); })("survivor", CancellationToken.None);
-        await WaitUntilAsync(() => queue.WaitCalls >= 2);
+        await queue.WaitCallsReachedAsync(2).WaitAsync(WaitTimeout);
         Admit(orchestrator, "A:2");
 
         await Assert.That(orchestrator.Backlog).IsEqualTo(new DispatchBacklog(1, 0));
@@ -260,7 +275,7 @@ public sealed class KeyedLifecycleTests
             using var retire = new CancellationTokenSource();
             var retiring = orchestrator.CreateWorkerFunction(null, retire.Token)("retiring", CancellationToken.None);
             var survivor = orchestrator.CreateWorkerFunction(null)("survivor", CancellationToken.None);
-            await WaitUntilAsync(() => queue.WaitCalls >= 2);
+            await queue.WaitCallsReachedAsync(2).WaitAsync(WaitTimeout);
 
             using var start = new ManualResetEventSlim();
             var item = $"K{round}:1";
@@ -279,8 +294,9 @@ public sealed class KeyedLifecycleTests
 
             await handler.WaitStartedAsync($"K{round}:1");
             await retiring.WaitAsync(WaitTimeout);
-            await WaitUntilAsync(() => queue.Releases == 1);
-            await WaitUntilAsync(() => queue.Inner.PendingWakeCountForTest == 0);
+            await queue.ReleasesReachedAsync(1).WaitAsync(WaitTimeout);
+            await queue.WakesConsumedAsync().WaitAsync(WaitTimeout);
+            await Assert.That(queue.Releases).IsEqualTo(1);
             await Assert.That(survivor.IsCompleted).IsFalse();
 
             await orchestrator.DrainAsync().WaitAsync(WaitTimeout);
@@ -301,12 +317,6 @@ public sealed class KeyedLifecycleTests
             if (!orchestrator.Enqueue(item).IsAccepted)
                 throw new InvalidOperationException($"Setup admission of {item} was rejected.");
         }
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var deadline = new CancellationTokenSource(WaitTimeout);
-        while (!condition()) await Task.Delay(2, deadline.Token);
     }
 
     /// <summary>

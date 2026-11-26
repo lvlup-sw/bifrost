@@ -29,7 +29,11 @@ namespace Bifrost.Tests.Orchestrator;
 /// whether the run ends in a drain after admission, a drain during admission, or an abort.
 /// Interleavings still vary between runs, so the campaign checks invariants rather than one exact
 /// history. Every wait is bounded, and a run that hangs fails with a <see cref="TimeoutException"/>
-/// whose message names its seed and cap. Base workers never retire, so the last-consumer
+/// whose message names its seed and cap. The run's deadline token flows into admission, the
+/// ending, and the producers, so a hung run is cancelled rather than left running, and cleanup
+/// always stops the scaler, retires the dynamic workers, and disposes the orchestrator within a
+/// bounded time. The ending waits for admission progress on a signal the producers complete, not
+/// by polling. Base workers never retire, so the last-consumer
 /// retirement drain is covered by the targeted lifecycle tests, not by this campaign. <c>BIFROST_INVARIANT_SEED_MULTIPLIER</c> runs
 /// more seeds, as it does for the other invariant campaigns.
 /// </para>
@@ -55,6 +59,7 @@ public sealed class KeyedLifecycleStressTests
 {
     private const int SeedsPerConfiguration = 12;
     private static readonly TimeSpan RunTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>Runs the campaign for one per-key concurrency limit over the fixed seeds.</summary>
     /// <param name="maxConcurrencyPerKey">The per-key concurrency limit.</param>
@@ -74,21 +79,28 @@ public sealed class KeyedLifecycleStressTests
         }
     }
 
-    /// <summary>Runs one seeded run under the hang guard.</summary>
+    /// <summary>Runs one seeded run under a deadline that cancels the run itself.</summary>
     /// <param name="run">The run.</param>
     /// <param name="seed">The run's seed, for the failure message.</param>
     /// <param name="cap">The per-key concurrency limit, for the failure message.</param>
     /// <returns>A task representing the run.</returns>
-    /// <exception cref="TimeoutException">Thrown with the seed and cap when the run hangs.</exception>
+    /// <exception cref="TimeoutException">
+    /// Thrown with the seed and cap when the run misses its deadline or its cleanup does not finish.
+    /// </exception>
     private static async Task ExecuteWithSeedAsync(StressRun run, int seed, int cap)
     {
+        using var deadline = new CancellationTokenSource(RunTimeout);
         try
         {
-            await run.ExecuteAsync().WaitAsync(RunTimeout);
+            await run.ExecuteAsync(deadline.Token);
+        }
+        catch (OperationCanceledException error) when (deadline.IsCancellationRequested)
+        {
+            throw new TimeoutException($"seed {seed}, cap {cap}: the run did not finish within {RunTimeout.TotalSeconds:F0}s.", error);
         }
         catch (TimeoutException error)
         {
-            throw new TimeoutException($"seed {seed}, cap {cap}: the run did not finish within {RunTimeout.TotalSeconds:F0}s.", error);
+            throw new TimeoutException($"seed {seed}, cap {cap}: {error.Message}", error);
         }
     }
 
@@ -127,8 +139,10 @@ public sealed class KeyedLifecycleStressTests
         private readonly ConcurrentQueue<TerminalOutcomeRecord> _records = new();
         private readonly ConcurrentQueue<string> _violations = new();
         private readonly List<string>[] _admittedByProducer;
-        private readonly List<Task> _dynamicWorkers = [];
-        private readonly List<CancellationTokenSource> _retirements = [];
+        private readonly ConcurrentQueue<Task> _dynamicWorkers = new();
+        private readonly ConcurrentQueue<CancellationTokenSource> _retirements = new();
+        private readonly TaskCompletionSource _admissionProgress = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly int _endAfter;
         private int _accepted;
         private int _producersDone;
 
@@ -162,43 +176,49 @@ public sealed class KeyedLifecycleStressTests
                 (_, _) => _queue,
                 new TerminalOutcomeOptions<string>());
             _orchestrator.Outcomes.Observed = _records.Enqueue;
+            _endAfter = _random.Next(0, _producerCount * _itemsPerProducer);
+            ReportAdmissionProgress();
         }
 
-        public async Task ExecuteAsync()
+        /// <summary>Runs admission, the scaler, and the seeded ending, then stops everything.</summary>
+        /// <param name="cancellationToken">The run's deadline; it cancels admission, the ending, and the producers.</param>
+        /// <returns>A task representing the run.</returns>
+        /// <remarks>
+        /// The ending starts once the admission-progress signal completes: enough items are accepted, or
+        /// every producer is done. <see cref="StopAsync"/> runs whether or not the run finished.
+        /// </remarks>
+        public async Task ExecuteAsync(CancellationToken cancellationToken)
         {
+            using var stopScaler = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var producers = Enumerable.Range(0, _producerCount)
-                .Select(p => Task.Run(() => ProduceAsync(p, _seed * 31 + p)))
+                .Select(p => Task.Run(() => ProduceAsync(p, _seed * 31 + p, cancellationToken)))
                 .ToArray();
-            using var stopScaler = new CancellationTokenSource();
             var scaler = Task.Run(() => ScaleAsync(_seed * 17 + 5, stopScaler.Token));
-
-            var endAfter = _random.Next(0, _producerCount * _itemsPerProducer);
-            using (var deadline = new CancellationTokenSource(RunTimeout))
+            var finished = false;
+            try
             {
-                while (Volatile.Read(ref _accepted) < endAfter && Volatile.Read(ref _producersDone) < _producerCount)
-                    await Task.Delay(1, deadline.Token);
-            }
+                await _admissionProgress.Task.WaitAsync(cancellationToken);
+                switch (_ending)
+                {
+                    case Ending.Abort:
+                        await _orchestrator.AbortAsync(cancellationToken);
+                        break;
+                    case Ending.DrainDuringAdmission:
+                        await _orchestrator.DrainAsync(cancellationToken);
+                        break;
+                    default:
+                        await Task.WhenAll(producers).WaitAsync(cancellationToken);
+                        await _orchestrator.DrainAsync(cancellationToken);
+                        break;
+                }
 
-            switch (_ending)
+                await Task.WhenAll(producers).WaitAsync(cancellationToken);
+                finished = true;
+            }
+            finally
             {
-                case Ending.Abort:
-                    await _orchestrator.AbortAsync();
-                    break;
-                case Ending.DrainDuringAdmission:
-                    await _orchestrator.DrainAsync();
-                    break;
-                default:
-                    await Task.WhenAll(producers);
-                    await _orchestrator.DrainAsync();
-                    break;
+                await StopAsync(producers, scaler, stopScaler, finished);
             }
-
-            await Task.WhenAll(producers);
-            await stopScaler.CancelAsync();
-            await scaler;
-            await Task.WhenAll(_dynamicWorkers);
-            foreach (var retirement in _retirements) retirement.Dispose();
-            await _orchestrator.DisposeAsync();
         }
 
         public List<string> Verify()
@@ -259,7 +279,61 @@ public sealed class KeyedLifecycleStressTests
             if (!condition) failures.Add(invariant);
         }
 
-        private async Task ProduceAsync(int producer, int seed)
+        /// <summary>
+        /// Stops the scaler and releases everything the run started, each step bounded by
+        /// <see cref="CleanupTimeout"/>.
+        /// </summary>
+        /// <param name="producers">The producer tasks.</param>
+        /// <param name="scaler">The scaler task.</param>
+        /// <param name="stopScaler">The source that stops the scaler.</param>
+        /// <param name="finished">Whether the run's ending completed.</param>
+        /// <returns>A task representing the cleanup.</returns>
+        /// <remarks>
+        /// After a finished run, the scaler and every dynamic worker must exit on their own and the
+        /// orchestrator must dispose in time, or cleanup throws a <see cref="TimeoutException"/>: a
+        /// worker that does not exit after the drain or abort is a failure. Otherwise, or when one of
+        /// those steps fails, cleanup forces the stop: it waits for the scaler first, so that it starts
+        /// no worker after the retirements are cancelled, then retires every dynamic worker, disposes
+        /// the orchestrator, and waits for the producers and workers. Each forced step is bounded and
+        /// suppresses its exception, because the run already failed and the first failure is the one
+        /// reported. The retirement sources are disposed last in every case.
+        /// </remarks>
+        private async Task StopAsync(Task[] producers, Task scaler, CancellationTokenSource stopScaler, bool finished)
+        {
+            await stopScaler.CancelAsync();
+            var stopped = false;
+            try
+            {
+                if (finished)
+                {
+                    await scaler.WaitAsync(CleanupTimeout);
+                    await Task.WhenAll(_dynamicWorkers).WaitAsync(CleanupTimeout);
+                    await _orchestrator.DisposeAsync().AsTask().WaitAsync(CleanupTimeout);
+                    stopped = true;
+                }
+            }
+            finally
+            {
+                if (!stopped)
+                {
+                    await scaler.WaitAsync(CleanupTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                    foreach (var retirement in _retirements) await retirement.CancelAsync();
+                    await _orchestrator.DisposeAsync().AsTask().WaitAsync(CleanupTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                    await Task.WhenAll([.. producers, .. _dynamicWorkers]).WaitAsync(CleanupTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                }
+
+                foreach (var retirement in _retirements) retirement.Dispose();
+            }
+        }
+
+        /// <summary>Completes the admission-progress signal once enough items are accepted or every producer is done.</summary>
+        private void ReportAdmissionProgress()
+        {
+            if (Volatile.Read(ref _accepted) >= _endAfter || Volatile.Read(ref _producersDone) >= _producerCount)
+                _admissionProgress.TrySetResult();
+        }
+
+        private async Task ProduceAsync(int producer, int seed, CancellationToken cancellationToken)
         {
             var random = new Random(seed);
             var ownKeys = Enumerable.Range(0, _keyCount).Where(k => k % _producerCount == producer).ToArray();
@@ -267,7 +341,7 @@ public sealed class KeyedLifecycleStressTests
             var ledger = _admittedByProducer[producer];
             try
             {
-                for (var n = 0; n < _itemsPerProducer; n++)
+                for (var n = 0; n < _itemsPerProducer && !cancellationToken.IsCancellationRequested; n++)
                 {
                     var work = $"k{ownKeys[random.Next(ownKeys.Length)]}:{producer}:{n}";
                     var result = _orchestrator.Enqueue(work);
@@ -275,6 +349,7 @@ public sealed class KeyedLifecycleStressTests
                     {
                         ledger.Add(work);
                         Interlocked.Increment(ref _accepted);
+                        ReportAdmissionProgress();
                     }
                     else if (result.Reason == RejectionReason.Shutdown)
                     {
@@ -291,7 +366,7 @@ public sealed class KeyedLifecycleStressTests
                             await Task.Yield();
                             break;
                         case 1:
-                            await Task.Delay(1);
+                            await Task.Delay(1, cancellationToken);
                             break;
                         default:
                             Thread.SpinWait(random.Next(20, 200));
@@ -302,6 +377,7 @@ public sealed class KeyedLifecycleStressTests
             finally
             {
                 Interlocked.Increment(ref _producersDone);
+                ReportAdmissionProgress();
             }
         }
 
@@ -317,11 +393,11 @@ public sealed class KeyedLifecycleStressTests
                     case 0 when live.Count < 4:
                     {
                         var retirement = new CancellationTokenSource();
-                        _retirements.Add(retirement);
+                        _retirements.Enqueue(retirement);
                         live.Add(retirement);
                         var id = $"dynamic-{next++}";
                         var function = _orchestrator.CreateWorkerFunction(null, retirement.Token);
-                        _dynamicWorkers.Add(Task.Run(() => function(id, CancellationToken.None)));
+                        _dynamicWorkers.Enqueue(Task.Run(() => function(id, CancellationToken.None)));
                         break;
                     }
 
