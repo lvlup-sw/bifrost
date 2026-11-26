@@ -66,6 +66,7 @@ public class WorkClassTests
     [Arguments(RejectionReason.CapacityExceeded)]
     [Arguments(RejectionReason.WatermarkExceeded)]
     [Arguments(RejectionReason.Shutdown)]
+    [Arguments(RejectionReason.KeyLimitExceeded)]
     public async Task EnqueueResult_Rejected_CarriesReason(RejectionReason reason)
     {
         var result = EnqueueResult.Rejected(reason);

@@ -20,7 +20,7 @@ namespace Bifrost.Queues;
 /// detects it once at construction. When it is present, every worker dequeue (the outer consume
 /// loop, the greedy inner loop, and the retired-worker drain) goes through
 /// <see cref="TryDequeue(out T, out object?)"/> instead of <see cref="IWorkQueue{T}.TryDequeue(out T)"/>.
-/// No built-in binding implements it.
+/// Only <see cref="KeyedWorkQueue{TWork, TKey}"/> implements it; the FIFO and priority bindings do not.
 /// </para>
 /// <para>
 /// A leased binding follows these rules:

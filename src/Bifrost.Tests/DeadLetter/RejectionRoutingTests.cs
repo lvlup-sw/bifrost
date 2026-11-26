@@ -12,6 +12,7 @@ using Bifrost.DeadLetter;
 using Bifrost.Decorators;
 using Bifrost.DependencyInjection;
 using Bifrost.OpenTelemetry;
+using Bifrost.Queues;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -323,6 +324,59 @@ public class RejectionRoutingTests
         await Assert.That(measurements[0].Value).IsEqualTo(1L);
         await Assert.That(measurements[0].WorkClassTag).IsEqualTo("Interactive");
         await Assert.That(measurements[0].ReasonTag).IsEqualTo("CapacityExceeded");
+    }
+
+    /// <summary>
+    /// Verifies that keyed-dispatch <see cref="RejectionReason.KeyLimitExceeded"/> rejections are
+    /// counted under their own <c>rejection.reason</c> tag and are not dead-lettered, while a
+    /// capacity rejection from the same orchestrator still is.
+    /// </summary>
+    /// <returns>A Task representing the async test operation.</returns>
+    /// <remarks>
+    /// The keyed queue is injected through the internal factory constructor with a global capacity
+    /// of 2 and one pending item per key. <c>A:2</c> and <c>A:3</c> hit the per-key limit on the
+    /// synchronous and the asynchronous surface. <c>C:1</c> hits the global limit.
+    /// </remarks>
+    [Test]
+    public async Task KeyLimitRejection_IsCountedWithOwnTag_AndNotDeadLettered()
+    {
+        await using var orchestrator = new WorkOrchestrator<string>(
+            Substitute.For<IWorkHandler<string>>(),
+            Options.Create(new WorkOrchestratorOptions { Capacity = 2, WorkerCount = 0, FullMode = QueueFullMode.Reject }),
+            NullLogger<WorkOrchestrator<string>>.Instance,
+            null,
+            null,
+            static (opts, _) => KeyedWorkQueue.Create<string, string>(static work => work.Split(':')[0], opts.Capacity, 1, 1));
+        using var metrics = new OrchestratorMetrics<string>(() => orchestrator);
+        var dlq = new DeadLetterQueue<string>(
+            Options.Create(new DeadLetterQueueOptions()), NullLogger<DeadLetterQueue<string>>.Instance);
+        var notifier = new DeadLetterNotifier<string>(NullLogger<DeadLetterNotifier<string>>.Instance);
+        var routing = new RejectionRoutingOrchestrator<string>(
+            orchestrator, dlq, notifier, NullLogger<RejectionRoutingOrchestrator<string>>.Instance)
+        {
+            RejectionObserved = metrics.RecordRejected,
+        };
+        using var collector = new RejectedCounterCollector(metrics.Rejected);
+
+        await Assert.That(routing.Enqueue("A:1").IsAccepted).IsTrue();
+        await Assert.That(routing.Enqueue("A:2").Reason).IsEqualTo(RejectionReason.KeyLimitExceeded);
+        await Assert.That((await routing.EnqueueAsync("A:3")).Reason).IsEqualTo(RejectionReason.KeyLimitExceeded);
+        await Assert.That(routing.Enqueue("B:1").IsAccepted).IsTrue();
+        await Assert.That((await routing.EnqueueAsync("C:1")).Reason).IsEqualTo(RejectionReason.CapacityExceeded);
+        await routing.DrainAsync();
+
+        var measurements = collector.Snapshot();
+        await Assert.That(string.Join(",", measurements.Select(static m => m.ReasonTag)))
+            .IsEqualTo("KeyLimitExceeded,KeyLimitExceeded,CapacityExceeded");
+        var entries = new List<DeadLetteredWork<string>>();
+        await foreach (var entry in dlq.ReadAllAsync())
+        {
+            entries.Add(entry);
+        }
+
+        await Assert.That(entries.Count).IsEqualTo(1);
+        await Assert.That(entries[0].Work).IsEqualTo("C:1");
+        await Assert.That((entries[0].Exception as WorkRejectedException)?.Reason).IsEqualTo(RejectionReason.CapacityExceeded);
     }
 
     /// <summary>

@@ -31,4 +31,17 @@ public enum RejectionReason
     /// The orchestrator is shutting down and no longer admits new work.
     /// </summary>
     Shutdown,
+
+    /// <summary>
+    /// The work's key already has the most pending items that keyed dispatch
+    /// allows for one key, even though total capacity may remain. Pending items
+    /// are queued and not yet running.
+    /// </summary>
+    /// <remarks>
+    /// The global capacity check runs first, so a full queue reports
+    /// <see cref="CapacityExceeded"/> instead. Rejections with this reason are
+    /// counted but not routed to the dead-letter queue: the caller owns the
+    /// retry or shed decision for a saturated key.
+    /// </remarks>
+    KeyLimitExceeded,
 }

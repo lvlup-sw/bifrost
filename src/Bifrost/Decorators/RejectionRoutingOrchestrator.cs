@@ -24,7 +24,8 @@ namespace Bifrost.Decorators;
 /// <para>
 /// <see cref="RejectionObserved"/> is invoked for every rejection, including
 /// <see cref="RejectionReason.Shutdown"/>. Dead-letter routing is skipped for
-/// Shutdown or when no DLQ is configured. Routing provides observability and
+/// Shutdown, for <see cref="RejectionReason.KeyLimitExceeded"/>, or when no DLQ is
+/// configured. Routing provides observability and
 /// does not retry rejected work.
 /// </para>
 /// <para>
@@ -42,6 +43,12 @@ namespace Bifrost.Decorators;
 /// deliberately stopped admitting.
 /// </para>
 /// <para>
+/// <b>Key-limit rejections are counted but not dead-lettered by default.</b>
+/// A saturated key under keyed dispatch is ordinary back-pressure for one
+/// conversation or tenant. The caller decides whether to retry or shed it, and
+/// routing each one would flood the DLQ.
+/// </para>
+/// <para>
 /// Synchronous <c>Enqueue</c> and <c>TryEnqueue</c> route without waiting for
 /// asynchronous persistence and isolate routing errors. <c>EnqueueAsync</c>
 /// awaits persistence and propagates persistence errors to the caller.
@@ -57,6 +64,9 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
 
     private static readonly WorkRejectedException WatermarkExceededMarker =
         new(RejectionReason.WatermarkExceeded);
+
+    private static readonly WorkRejectedException KeyLimitExceededMarker =
+        new(RejectionReason.KeyLimitExceeded);
 
     private readonly IWorkOrchestrator<TWork> _inner;
     private readonly IDeadLetterQueue<TWork>? _dlq;
@@ -176,10 +186,27 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
     /// </summary>
     /// <param name="reason">The non-shutdown rejection reason.</param>
     /// <returns>The cached marker exception carrying the reason.</returns>
+    /// <remarks>
+    /// <see cref="RejectionReason.KeyLimitExceeded"/> has its own arm although it is not routed
+    /// by default (<see cref="RoutesToDeadLetter"/>), so it can never be mislabeled as capacity.
+    /// </remarks>
     private static WorkRejectedException MarkerFor(RejectionReason reason)
-        => reason == RejectionReason.WatermarkExceeded
-            ? WatermarkExceededMarker
-            : CapacityExceededMarker;
+        => reason switch
+        {
+            RejectionReason.CapacityExceeded => CapacityExceededMarker,
+            RejectionReason.WatermarkExceeded => WatermarkExceededMarker,
+            RejectionReason.KeyLimitExceeded => KeyLimitExceededMarker,
+            _ => CapacityExceededMarker,
+        };
+
+    /// <summary>Decides whether a rejection reason is routed to the dead-letter queue.</summary>
+    /// <param name="reason">The rejection reason.</param>
+    /// <returns>
+    /// <see langword="false"/> for <see cref="RejectionReason.Shutdown"/> and
+    /// <see cref="RejectionReason.KeyLimitExceeded"/>; otherwise <see langword="true"/>.
+    /// </returns>
+    private static bool RoutesToDeadLetter(RejectionReason reason)
+        => reason is not (RejectionReason.Shutdown or RejectionReason.KeyLimitExceeded);
 
     /// <summary>
     /// Routes a rejected work item through the dead-letter machinery: persists
@@ -282,7 +309,7 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         if (result.Reason is { } reason)
         {
             ObserveRejection(options.Class ?? WorkClass.Default, reason);
-            if (reason != RejectionReason.Shutdown && _dlq is not null)
+            if (_dlq is not null && RoutesToDeadLetter(reason))
             {
                 lock (_routesGate)
                 {
@@ -306,7 +333,7 @@ internal sealed class RejectionRoutingOrchestrator<TWork> : IWorkOrchestrator<TW
         if (result.Reason is { } reason)
         {
             ObserveRejection(options.Class ?? WorkClass.Default, reason);
-            if (reason != RejectionReason.Shutdown && _dlq is not null)
+            if (_dlq is not null && RoutesToDeadLetter(reason))
                 await RouteToDeadLetterAsync(work, reason, options.CorrelationId);
         }
 
