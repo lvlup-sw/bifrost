@@ -60,6 +60,7 @@ public sealed class KeyedLifecycleStressTests
     private const int SeedsPerConfiguration = 12;
     private static readonly TimeSpan RunTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan OuterTimeout = TimeSpan.FromSeconds(90);
 
     /// <summary>Runs the campaign for one per-key concurrency limit over the fixed seeds.</summary>
     /// <param name="maxConcurrencyPerKey">The per-key concurrency limit.</param>
@@ -80,6 +81,13 @@ public sealed class KeyedLifecycleStressTests
     }
 
     /// <summary>Runs one seeded run under a deadline that cancels the run itself.</summary>
+    /// <remarks>
+    /// The deadline token cannot interrupt a thread blocked on a lock, such as the orchestrator's
+    /// lifecycle gate inside <c>DrainAsync</c> or <c>AbortAsync</c>. So the run, cleanup included,
+    /// runs on its own task, and the wait for it is bounded by <see cref="OuterTimeout"/>. If that
+    /// bound fires, the test fails with the seed and cap; the stuck task cannot be stopped from
+    /// inside the process and is left behind.
+    /// </remarks>
     /// <param name="run">The run.</param>
     /// <param name="seed">The run's seed, for the failure message.</param>
     /// <param name="cap">The per-key concurrency limit, for the failure message.</param>
@@ -90,9 +98,14 @@ public sealed class KeyedLifecycleStressTests
     private static async Task ExecuteWithSeedAsync(StressRun run, int seed, int cap)
     {
         using var deadline = new CancellationTokenSource(RunTimeout);
+        var execution = Task.Run(() => run.ExecuteAsync(deadline.Token));
         try
         {
-            await run.ExecuteAsync(deadline.Token);
+            await execution.WaitAsync(OuterTimeout);
+        }
+        catch (TimeoutException error) when (!execution.IsCompleted)
+        {
+            throw new TimeoutException($"seed {seed}, cap {cap}: the run and its cleanup did not finish within {OuterTimeout.TotalSeconds:F0}s, so a lock or a handler is stuck.", error);
         }
         catch (OperationCanceledException error) when (deadline.IsCancellationRequested)
         {
@@ -280,8 +293,8 @@ public sealed class KeyedLifecycleStressTests
         }
 
         /// <summary>
-        /// Stops the scaler and releases everything the run started, each step bounded by
-        /// <see cref="CleanupTimeout"/>.
+        /// Stops the scaler and releases everything the run started, each step, including every
+        /// cancellation, bounded by <see cref="CleanupTimeout"/>.
         /// </summary>
         /// <param name="producers">The producer tasks.</param>
         /// <param name="scaler">The scaler task.</param>
@@ -300,10 +313,10 @@ public sealed class KeyedLifecycleStressTests
         /// </remarks>
         private async Task StopAsync(Task[] producers, Task scaler, CancellationTokenSource stopScaler, bool finished)
         {
-            await stopScaler.CancelAsync();
             var stopped = false;
             try
             {
+                await stopScaler.CancelAsync().WaitAsync(CleanupTimeout);
                 if (finished)
                 {
                     await scaler.WaitAsync(CleanupTimeout);
@@ -317,7 +330,7 @@ public sealed class KeyedLifecycleStressTests
                 if (!stopped)
                 {
                     await scaler.WaitAsync(CleanupTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-                    foreach (var retirement in _retirements) await retirement.CancelAsync();
+                    foreach (var retirement in _retirements) await retirement.CancelAsync().WaitAsync(CleanupTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
                     await _orchestrator.DisposeAsync().AsTask().WaitAsync(CleanupTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
                     await Task.WhenAll([.. producers, .. _dynamicWorkers]).WaitAsync(CleanupTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
                 }
