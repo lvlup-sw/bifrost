@@ -5,6 +5,7 @@
 // =============================================================================
 
 using Bifrost.Core.DeadLetter;
+using Bifrost.DeadLetter;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -22,6 +23,13 @@ namespace Bifrost.HealthChecks;
 ///   <item><description><see cref="HealthStatus.Degraded"/> - 100 to 999 items</description></item>
 ///   <item><description><see cref="HealthStatus.Unhealthy"/> - 1000 or more items</description></item>
 /// </list>
+/// </para>
+/// <para>
+/// For the built-in queue registered by <c>WithDeadLetterQueue</c>, only handler failures are
+/// counted. Admission rejections are shed load that producers can cause at no processing cost,
+/// so they are left to the <c>bifrost.orchestrator.rejected</c> metric of <c>WithOpenTelemetry</c>.
+/// Any other <see cref="IDeadLetterQueue{TWork}"/> is measured by its
+/// <see cref="IDeadLetterQueue{TWork}.Count"/>.
 /// </para>
 /// </remarks>
 public sealed class DeadLetterQueueHealthCheck<TWork> : IHealthCheck
@@ -52,7 +60,7 @@ public sealed class DeadLetterQueueHealthCheck<TWork> : IHealthCheck
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        var count = _dlq.Count;
+        var count = _dlq is DeadLetterQueue<TWork> builtIn ? builtIn.FailureCount : _dlq.Count;
 
         if (count >= UnhealthyThreshold)
         {

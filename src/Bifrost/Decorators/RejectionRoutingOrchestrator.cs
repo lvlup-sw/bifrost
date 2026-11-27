@@ -34,7 +34,9 @@ namespace Bifrost.Decorators;
 /// <see cref="WorkRejectedException"/> whose
 /// <see cref="WorkRejectedException.Reason"/> is the admission
 /// <see cref="RejectionReason"/> — distinguishing admission shed from handler
-/// failure (which always has <c>AttemptCount &gt;= 1</c>).
+/// failure (which always has <c>AttemptCount &gt;= 1</c>). The built-in
+/// <see cref="DeadLetterQueue{TWork}"/> uses this marker to keep rejections in their own
+/// bounded buffer, so shed work cannot displace handler failures.
 /// </para>
 /// <para>
 /// <b>Shutdown rejections are counted but never dead-lettered.</b> During

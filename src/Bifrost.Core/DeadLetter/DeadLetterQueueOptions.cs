@@ -57,7 +57,9 @@ public sealed class DeadLetterQueueOptions
     /// </summary>
     /// <value>The queue capacity. Default is 1000.</value>
     /// <remarks>
-    /// When the queue is full, the oldest item is dropped to make room.
+    /// Handler failures and admission rejections are bounded separately, each by this capacity.
+    /// When one of them is full, its oldest item is dropped to make room, so an admission
+    /// rejection never drops a handler failure.
     /// </remarks>
     [Range(1, int.MaxValue)]
     public int Capacity { get; set; } = 1000;

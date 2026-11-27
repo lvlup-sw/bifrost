@@ -115,7 +115,7 @@ Bifrost applies two kinds of policy at two different points.
 
 - **Admission resilience** (`WithAdmissionResilience`, also available as `WithResilience`) adds Polly retry and timeout around `EnqueueAsync`. It acts when a full FIFO queue makes the write wait or the enqueue throws a transient exception. It does not retry rejections returned as `EnqueueResult`, synchronous `Enqueue` or `TryEnqueue` calls, or handler failures.
 - **Handler resilience** (`WithHandlerResilience`, in `Bifrost.Resilience`) adds a cooperative timeout for each handler attempt and short, opt-in retries for failures that the caller classifies as transient. Retries are off by default. A failure after host shutdown or abort is never retried. Each attempt gets a fresh DI scope. The worker and the key slot stay held across all attempts and retry delays.
-- **Dead-lettering** records the final handler failure and eligible admission rejections. Shutdown rejections, key-limit rejections, and canceled enqueues are not dead-lettered. The default dead-letter queue is in memory, is bounded, and drops its oldest item when full.
+- **Dead-lettering** records the final handler failure and eligible admission rejections. Shutdown rejections, key-limit rejections, and canceled enqueues are not dead-lettered. The default dead-letter queue is in memory and bounded. It keeps handler failures and admission rejections apart, each up to `Capacity`, and drops the oldest item of the same kind when full, so rejections never push out handler failures. The dead-letter health check counts only handler failures in this queue.
 
 Each accepted item has one retry owner. With both handler resilience and dead-lettering, handler resilience retries and the dead-letter queue only captures the final failure:
 
