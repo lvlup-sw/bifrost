@@ -159,7 +159,8 @@ public static class HealthCheckExtensions
     /// <returns>The builder for chaining.</returns>
     /// <remarks>
     /// Reports <see cref="HealthStatus.Degraded"/> at 100+ items
-    /// and <see cref="HealthStatus.Unhealthy"/> at 1000+ items.
+    /// and <see cref="HealthStatus.Unhealthy"/> at 1000+ items. For the built-in queue, only
+    /// handler failures are counted; admission rejections are not.
     /// </remarks>
     public static IHealthChecksBuilder AddDeadLetterQueueHealthCheck<TWork>(
         this IHealthChecksBuilder builder,

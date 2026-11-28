@@ -57,7 +57,8 @@ public static class DeadLetterQueueExtensions
     /// <see cref="Bifrost.Core.RejectionReason"/>. Routing is observability, not
     /// retry: the caller still receives the rejected
     /// <see cref="Bifrost.Core.EnqueueResult"/>, and shutdown rejections during
-    /// teardown are never dead-lettered.
+    /// teardown are never dead-lettered. The built-in queue bounds admission rejections apart
+    /// from handler failures, so a burst of rejections can only drop older rejections.
     /// </para>
     /// <para>
     /// The options use DataAnnotations validation. The queue services use <c>TryAdd</c>, so a second
